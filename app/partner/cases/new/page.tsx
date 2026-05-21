@@ -13,7 +13,7 @@ export default function NewPartnerCasePage() {
       <div className="toolbar">
         <div>
           <h1 style={{ margin: 0 }}>Neuer Fall</h1>
-          <p className="muted">Kunde, Immobilie, Wunschmodell und Upload-Platzhalter erfassen.</p>
+          <p className="muted">Kunde, Immobilie, Wunschmodell und erste Objektunterlagen erfassen.</p>
         </div>
       </div>
       <NewCaseForm />

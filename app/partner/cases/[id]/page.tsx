@@ -2,10 +2,12 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { CaseProcessActions } from "@/components/CaseProcessActions";
+import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { Money } from "@/components/Money";
 import { StatusBadge } from "@/components/StatusBadge";
 import { canSeeProperty } from "@/lib/access-control";
 import { getCurrentUser } from "@/lib/auth";
+import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
 import { getCaseByPropertyId } from "@/lib/store";
 
 export default function PartnerCasePage({ params }: { params: { id: string } }) {
@@ -13,6 +15,10 @@ export default function PartnerCasePage({ params }: { params: { id: string } }) 
   if (!user) redirect("/");
   const caseView = getCaseByPropertyId(params.id);
   if (!caseView || !canSeeProperty(user, caseView.property)) redirect("/partner");
+  const requiredDocumentRows = getRequiredDocumentsForPropertyType(caseView.property.propertyType).map((requirement) => {
+    const document = caseView.documents.find((item) => item.category === requirement.category);
+    return { requirement, document };
+  });
 
   return (
     <AppShell user={user}>
@@ -64,14 +70,27 @@ export default function PartnerCasePage({ params }: { params: { id: string } }) 
 
       <div className="grid two" style={{ marginTop: 16 }}>
         <section className="panel panel-pad">
-          <h2>Uploads</h2>
+          <h2>Objektunterlagen</h2>
+          <h3>Pflichtdokumente</h3>
+          <DocumentUploadForm propertyId={caseView.property.id} propertyType={caseView.property.propertyType} />
+          {requiredDocumentRows.map(({ requirement, document }) => (
+            <p key={requirement.category}>
+              <strong>{requirement.label}</strong><br />
+              <span className="muted">
+                {document ? `${document.status} | ${document.displayName ?? document.fileName}` : "fehlt"}
+                {requirement.note ? ` | ${requirement.note}` : ""}
+                {document?.missingReason ? ` | ${document.missingReason}` : ""}
+              </span>
+            </p>
+          ))}
+          <h3>Hochgeladene Unterlagen</h3>
           {caseView.documents.map((document) => (
             <p key={document.id}>
               <strong>{document.displayName ?? document.fileName}</strong><br />
               <span className="muted">{document.requirementLevel} | {document.status}{document.missingReason ? ` | ${document.missingReason}` : ""}</span>
             </p>
           ))}
-          {caseView.documents.length === 0 ? <p className="muted">Noch keine Uploads.</p> : null}
+          {caseView.documents.length === 0 ? <p className="muted">Noch keine Unterlagen hochgeladen.</p> : null}
         </section>
         <section className="panel panel-pad">
           <h2>Angebotsstatus</h2>

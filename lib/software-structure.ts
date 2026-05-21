@@ -20,8 +20,8 @@
     "3. Schritt - Immobiliendaten",
     "4. Schritt - weitere Angaben und benötigte Dokumente"
   ],
-  internalObjectTabsInProgress: ["Kunde", "Objekt", "Ind. AG", "Verb. AG", "Doks", "Aufgaben"],
-  internalObjectTabsPortfolio: ["Kunde", "Objekt", "Konditionen / Vertragsdaten", "Doks", "Aufgaben", "NK", "Instandh.", "Notizen"],
+  internalObjectTabsInProgress: ["Kunde", "Objekt", "Unverbindliches Angebot", "Verbindliches Angebot", "Objektunterlagen", "Aufgaben"],
+  internalObjectTabsPortfolio: ["Kunde", "Objekt", "Konditionen / Vertragsdaten", "Objektunterlagen", "Aufgaben", "NK", "Instandh.", "Notizen"],
   documentChecklist: {
     house: ["Grundbuchauszug", "Fotos", "Bemaßte Grundrisse", "Energieausweis oder Vreed-Daten"],
     apartment: [

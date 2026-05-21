@@ -7,7 +7,17 @@
       "Bash(Test-Path \"C:\\\\Users\\\\gordo\\\\Documents\\\\Codex\\\\2026-05-13\\\\mvp-pflichtenheft-partnerportal-und-angebots-crm\\\\app\\\\page.tsx\")",
       "Bash(npx tsc *)",
       "Bash(cd \"/c/Users/gordo/Documents/Codex/2026-05-13/mvp-pflichtenheft-partnerportal-und-angebots-crm\" && cat package.json | grep -E '\"scripts\"|\"dev\"|\"start\"|\"build\"' | head -10)",
-      "WebFetch(domain:unsplash.com)"
+      "WebFetch(domain:unsplash.com)",
+      "mcp__Claude_Preview__preview_start",
+      "Read(//c/Users/gordo/OneDrive/Desktop/Dokumente/**)",
+      "Bash(powershell -Command \"Copy-Item 'WohnKapital_Teaser_final CI_de.pptx' 'WohnKapital_Teaser.zip'; Expand-Archive -Path 'WohnKapital_Teaser.zip' -DestinationPath 'WohnKapital_Teaser_extracted' -Force; Remove-Item 'WohnKapital_Teaser.zip'\")",
+      "PowerShell(Get-ChildItem 'C:\\\\Users\\\\gordo\\\\Downloads' | Where-Object { $_.Extension -in '.jpg','.png','.jpeg','.webp' } | Sort-Object LastWriteTime -Descending | Select-Object -First 10 | Format-Table Name, LastWriteTime -AutoSize)",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile\\('C:\\\\Users\\\\gordo\\\\Documents\\\\Codex\\\\2026-05-13\\\\mvp-pflichtenheft-partnerportal-und-angebots-crm\\\\public\\\\hero-couple.png'\\); \"$\\($img.Width\\) x $\\($img.Height\\)\"; $img.Dispose\\(\\))",
+      "Bash(npx next *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:51781/)",
+      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(npm run *)"
     ]
   }
 }

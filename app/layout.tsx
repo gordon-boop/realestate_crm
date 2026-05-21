@@ -2,8 +2,8 @@
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WohnKapital Maklerportal",
-  description: "MVP für Partnerportal und Angebots-CRM Immobilienverrentung"
+  title: "WohnKapital – Immobilienverrentung",
+  description: "Verkaufen Sie Ihr Eigenheim zum Marktpreis und bleiben Sie in Ihrem Zuhause. Kostenlose Beratung & Bewertung."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

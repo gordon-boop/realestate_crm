@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ActivityNoteForm } from "@/components/ActivityNoteForm";
 import { CaseProcessActions } from "@/components/CaseProcessActions";
+import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { Money } from "@/components/Money";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getCurrentUser } from "@/lib/auth";
+import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
 import { getCaseByPropertyId, store } from "@/lib/store";
 
 export default function AdminCasePage({ params }: { params: { id: string } }) {
@@ -15,6 +17,10 @@ export default function AdminCasePage({ params }: { params: { id: string } }) {
   const caseView = getCaseByPropertyId(params.id);
   if (!caseView) redirect("/admin");
   const versions = caseView.offer ? store.offerVersions.filter((item) => item.offerId === caseView.offer?.id) : [];
+  const requiredDocumentRows = getRequiredDocumentsForPropertyType(caseView.property.propertyType).map((requirement) => {
+    const document = caseView.documents.find((item) => item.category === requirement.category);
+    return { requirement, document };
+  });
 
   return (
     <AppShell user={user}>
@@ -46,7 +52,7 @@ export default function AdminCasePage({ params }: { params: { id: string } }) {
       ) : null}
 
       <div className="panel panel-pad" style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {["Kunde", "Objekt", "Ind. AG", "Verb. AG", "Doks", "Aufgaben", "Konditionen / Vertragsdaten", "NK", "Instandh.", "Notizen"].map((tab) => (
+        {["Kunde", "Objekt", "Unverbindliches Angebot", "Verbindliches Angebot", "Objektunterlagen", "Aufgaben", "Konditionen / Vertragsdaten", "NK", "Instandh.", "Notizen"].map((tab) => (
           <span className="badge" key={tab}>{tab}</span>
         ))}
       </div>
@@ -94,9 +100,22 @@ export default function AdminCasePage({ params }: { params: { id: string } }) {
       </div>
 
       <section className="panel panel-pad" style={{ marginTop: 16 }}>
-        <h2>Dokumente und Wiedervorlagen</h2>
+        <h2>Objektunterlagen und Wiedervorlagen</h2>
         <div className="grid two">
           <div>
+            <h3>Pflichtdokumente</h3>
+            <DocumentUploadForm propertyId={caseView.property.id} propertyType={caseView.property.propertyType} />
+            {requiredDocumentRows.map(({ requirement, document }) => (
+              <p key={requirement.category}>
+                <strong>{requirement.label}</strong><br />
+                <span className="muted">
+                  {document ? `${document.status} | ${document.displayName ?? document.fileName}` : "fehlt"}
+                  {requirement.note ? ` | ${requirement.note}` : ""}
+                  {document?.missingReason ? ` | ${document.missingReason}` : ""}
+                </span>
+              </p>
+            ))}
+            <h3>Hochgeladene Unterlagen</h3>
             {caseView.documents.map((document) => (
               <p key={document.id}>
                 <strong>{document.displayName ?? document.fileName}</strong><br />

@@ -11,18 +11,18 @@ html {
   --ink: #0e2841;
   --muted: #6d6472;
   --line: #ded7e4;
-  --canvas: #f8f5f0;
+  --canvas: #E9FAE7;
   --surface: #ffffff;
-  --surface-soft: #fbf8ef;
-  --brand: #1a6b3a;
-  --brand-2: #2a8a50;
-  --brand-dark: #0f4828;
+  --surface-soft: #f4fef3;
+  --brand: #196B24;
+  --brand-2: #2a8a34;
+  --brand-dark: #0f4a1a;
   --accent: #ffac00;
   --accent-2: #a8a443;
-  --success: #196b24;
+  --success: #1a6b1a;
   --warning: #e97132;
   --danger: #a33a2f;
-  --shadow: 0 18px 45px rgba(68, 0, 92, 0.12);
+  --shadow: 0 18px 45px rgba(25, 107, 36, 0.12);
 }
 
 * {
@@ -33,8 +33,8 @@ body {
   margin: 0;
   background:
     radial-gradient(circle at top left, rgba(255, 172, 0, 0.18), transparent 28rem),
-    radial-gradient(circle at top right, rgba(68, 0, 92, 0.11), transparent 30rem),
-    linear-gradient(180deg, #fffdf8 0%, var(--canvas) 48%, #eee7f1 100%);
+    radial-gradient(circle at top right, rgba(25, 107, 36, 0.11), transparent 30rem),
+    linear-gradient(180deg, #ffffff 0%, var(--canvas) 48%, #c8f0c8 100%);
   color: var(--ink);
   font-family:
     Aptos, "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -107,7 +107,7 @@ textarea {
 }
 
 .nav-link:hover {
-  background: #f6edf9;
+  background: #E9FAE7;
   color: var(--brand);
 }
 
@@ -265,7 +265,7 @@ textarea {
 .field select:focus,
 .field textarea:focus {
   border-color: var(--brand-2);
-  box-shadow: 0 0 0 3px rgba(68, 0, 92, 0.14);
+  box-shadow: 0 0 0 3px rgba(25, 107, 36, 0.18);
   outline: none;
 }
 
@@ -299,7 +299,7 @@ textarea {
   min-height: 26px;
   padding: 0 9px;
   border-radius: 999px;
-  background: #f6edf9;
+  background: #E9FAE7;
   color: var(--brand);
   font-size: 12px;
   font-weight: 750;
@@ -378,7 +378,7 @@ textarea {
   padding: 34px;
   border-radius: 8px;
   background:
-    linear-gradient(160deg, rgba(68, 0, 92, 0.95), rgba(45, 0, 61, 0.9)),
+    linear-gradient(160deg, rgba(25, 107, 36, 0.95), rgba(15, 74, 26, 0.9)),
     radial-gradient(circle at 84% 20%, rgba(255, 172, 0, 0.34), transparent 12rem),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 22px);
   color: #fff;

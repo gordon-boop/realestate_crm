@@ -4,6 +4,10 @@ import type { DocumentCategory } from "@/lib/domain";
 import { makeId, nowIso } from "@/lib/id";
 import { addActivity, getCaseByPropertyId, store } from "@/lib/store";
 import { documentCreateSchema } from "@/lib/validation";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+export const runtime = "nodejs";
 
 export function GET(_request: Request, { params }: { params: { id: string } }): Response {
   try {
@@ -23,7 +27,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const caseView = getCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
-    const body = documentCreateSchema.parse(await request.json());
+    const body = documentCreateSchema.parse(await readDocumentBody(request));
     const document = {
       id: makeId("doc"),
       propertyId: params.id,
@@ -50,4 +54,42 @@ export async function POST(request: Request, { params }: { params: { id: string 
   } catch (err) {
     return handleApiError(err);
   }
+}
+
+async function readDocumentBody(request: Request) {
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.includes("multipart/form-data")) {
+    return request.json();
+  }
+
+  const form = await request.formData();
+  const file = form.get("file");
+  const uploadedFile = file instanceof File ? file : null;
+  const fileName = uploadedFile?.name || stringFromForm(form, "fileName") || "upload-placeholder.pdf";
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  let storageUrl = stringFromForm(form, "storageUrl");
+
+  if (uploadedFile && !storageUrl) {
+    const storageName = `${Date.now()}-${safeFileName}`;
+    const storageDirectory = join(process.cwd(), "public", "mock-storage");
+    await mkdir(storageDirectory, { recursive: true });
+    await writeFile(join(storageDirectory, storageName), Buffer.from(await uploadedFile.arrayBuffer()));
+    storageUrl = `/mock-storage/${storageName}`;
+  }
+
+  return {
+    fileName,
+    displayName: stringFromForm(form, "displayName") || fileName,
+    fileType: uploadedFile?.type || stringFromForm(form, "fileType") || "application/octet-stream",
+    storageUrl: storageUrl || `/mock-storage/${Date.now()}-${safeFileName}`,
+    category: stringFromForm(form, "category") || "other",
+    requirementLevel: stringFromForm(form, "requirementLevel") || "optional",
+    status: stringFromForm(form, "status") || "pending",
+    missingReason: stringFromForm(form, "missingReason")
+  };
+}
+
+function stringFromForm(form: FormData, key: string) {
+  const value = form.get(key);
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }

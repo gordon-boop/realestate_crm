@@ -124,12 +124,16 @@ export function NewCaseForm() {
       return;
     }
 
-    const fileName = String(form.get("documentFileName") || "");
-    if (fileName) {
+    const documentFile = form.get("documentFile");
+    if (documentFile instanceof File && documentFile.name) {
+      const documentForm = new FormData();
+      documentForm.append("file", documentFile);
+      documentForm.append("category", String(form.get("documentCategory") || "other"));
+      documentForm.append("requirementLevel", String(form.get("documentRequirementLevel") || "optional"));
+      documentForm.append("status", "pending");
       await fetch(`/api/properties/${propertyResult.property.id}/documents`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fileName, category: form.get("documentCategory"), status: "pending", requirementLevel: "optional" })
+        body: documentForm
       });
     }
 
@@ -218,8 +222,9 @@ export function NewCaseForm() {
       <section className="panel panel-pad grid two">
         <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>4. Schritt - weitere Angaben und Dokumente</h2>
         <label className="field"><span>Bestehende Restschulden</span><input name="remainingDebtAmount" type="number" min="0" step="1000" /></label>
-        <label className="field"><span>Dateiname</span><input name="documentFileName" placeholder="grundbuch.pdf" /></label>
+        <label className="field"><span>Unterlage hochladen</span><input name="documentFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" /></label>
         <label className="field"><span>Kategorie</span><select name="documentCategory"><option value="land_register">Grundbuchauszug</option><option value="photos">Fotos</option><option value="floorplan">Bemaßter Grundriss</option><option value="section">Schnitt</option><option value="living_area_calculation">Wohnflächenberechnung</option><option value="energy_certificate">Energieausweis</option><option value="declaration_of_division">Teilungserklärung</option><option value="service_charge_statement">Hausgeldabrechnung</option><option value="owners_meeting_minutes">Eigentümerprotokoll</option><option value="maintenance_reserve">Instandhaltungsrücklage</option><option value="power_of_attorney">Vollmacht Grundbuch</option><option value="repair_offer">Reparaturangebot</option><option value="other">Sonstiges</option></select></label>
+        <label className="field"><span>Pflichtstatus</span><select name="documentRequirementLevel"><option value="required">Pflicht</option><option value="recommended">Empfohlen</option><option value="optional">Optional</option></select></label>
         <label className="field" style={{ gridColumn: "1 / -1" }}><span>Notizen</span><textarea name="notes" rows={4} /></label>
       </section>
 

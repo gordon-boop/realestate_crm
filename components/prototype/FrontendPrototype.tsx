@@ -8,6 +8,7 @@ import {
   ArrowLeft, Upload, Calendar, Phone, Mail, Smartphone, User as UserIcon,
   Save, Send, CheckCircle, AlertTriangle, Activity, X, ChevronDown
 } from 'lucide-react';
+import { getRequiredDocumentsForPropertyType } from '@/lib/document-requirements';
 
 // =====================================================================
 // THEME — WohnKapital Mint-Welt
@@ -91,7 +92,7 @@ const Header = ({ role, user, onRoleToggle, onLogout }) => (
         fontSize: 11.5, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: 'pointer',
         letterSpacing: '0.04em', textTransform: 'uppercase'
       }}>
-        Rolle wechseln: {role === 'admin' ? 'Admin' : 'Makler'}
+        {role === 'admin' ? 'Zur Makleransicht' : 'Zur Admin-Ansicht'}
       </button>
       <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 6, padding: '6px 12px', border: `1px solid ${theme.border}`, width: 240 }}>
         <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
@@ -202,6 +203,16 @@ async function postJson(url, body) {
   return payload;
 }
 
+async function postFormData(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    body,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Upload fehlgeschlagen');
+  return payload;
+}
+
 async function ensureDemoSession(role) {
   return postJson('/api/auth/login', demoLoginByRole[role] || demoLoginByRole.partner);
 }
@@ -251,6 +262,21 @@ const energyCertificateLabels = { demand: 'Bedarfsausweis', consumption: 'Verbra
 const energyCarrierLabels = { photovoltaik: 'Photovoltaik', solarthermie: 'Solarthermie', batteriespeicher: 'Batteriespeicher' };
 const documentStatusLabels = { missing: 'fehlt', pending: 'eingereicht', ok: 'geprüft', review_required: 'Prüfung nötig', rejected: 'abgelehnt' };
 const requirementLabels = { required: 'Pflicht', recommended: 'Empfohlen', optional: 'Optional' };
+const documentCategoryLabels = {
+  energy_certificate: 'Energieausweis',
+  land_register: 'Grundbuchauszug',
+  floorplan: 'Grundriss',
+  section: 'Schnitt',
+  living_area_calculation: 'Wohnflächenberechnung',
+  photos: 'Objektfotos',
+  declaration_of_division: 'Teilungserklärung',
+  service_charge_statement: 'Hausgeldabrechnung',
+  owners_meeting_minutes: 'Eigentümerprotokoll',
+  maintenance_reserve: 'Instandhaltungsrücklage',
+  power_of_attorney: 'Vollmacht Grundbuch',
+  repair_offer: 'Reparaturangebot',
+  other: 'Sonstiges',
+};
 const modernizationLabels = { none: 'keine', partial: 'teilweise', complete: 'vollständig' };
 const productModelLabels = { fixed_residential_right: 'Verrentung mit befristetem Wohnrecht', sale_and_leaseback: 'Rückmietmodell', other: 'Sonstiges Modell' };
 
@@ -355,7 +381,8 @@ const defaultDraft = {
   },
   leasehold: false,
   monumentProtection: false,
-  documentFileName: 'Energieausweis',
+  documentFile: null,
+  documentFileName: '',
   documentCategory: 'energy_certificate',
   documentRequirementLevel: 'required',
   documentStatus: 'missing',
@@ -568,6 +595,10 @@ const AdminDashboard = ({ cases = mockCases, onOpenCase }) => (
 const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNotice }) => {
   const [activeTab, setActiveTab] = useState('kunde');
   const [busyAction, setBusyAction] = useState('');
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadCategory, setUploadCategory] = useState('energy_certificate');
+  const [uploadRequirementLevel, setUploadRequirementLevel] = useState('required');
+  const [uploadNote, setUploadNote] = useState('');
   const c = cases.find(x => x.propertyId === caseId || x.id === caseId) || mockCases[0];
   const caseView = c.raw;
   const customer = caseView?.customer;
@@ -577,18 +608,29 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const latestValuation = caseView?.valuation;
   const documents = caseView?.documents?.length ? caseView.documents.map((document) => ({
     name: document.displayName || document.fileName,
+    category: document.category,
     type: labelFrom(requirementLabels, document.requirementLevel),
     date: dateLabel(document.createdAt),
     status: document.status,
     statusLabel: labelFrom(documentStatusLabels, document.status),
     missingReason: document.missingReason,
   })) : [
-    { name: 'Grundbuchauszug.pdf', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { name: 'Grundriss_OG.pdf', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { name: 'Wohnflächenberechnung.pdf', type: 'Optional', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { name: 'Energieausweis', type: 'Pflicht', date: null, status: 'missing', statusLabel: 'fehlt', missingReason: 'Energieausweis fehlt noch.' },
-    { name: 'Fotos außen (12)', type: 'Empfohlen', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { name: 'Grundbuchauszug.pdf', category: 'land_register', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { name: 'Grundriss_OG.pdf', category: 'floorplan', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { name: 'Wohnflächenberechnung.pdf', category: 'living_area_calculation', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { name: 'Energieausweis', category: 'energy_certificate', type: 'Pflicht', date: null, status: 'missing', statusLabel: 'fehlt', missingReason: 'Energieausweis fehlt noch.' },
+    { name: 'Fotos außen (12)', category: 'photos', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
   ];
+  const requiredDocumentRows = getRequiredDocumentsForPropertyType(property?.propertyType).map((requirement) => {
+    const matchedDocument = documents.find((document) => document.category === requirement.category);
+    return {
+      ...requirement,
+      status: matchedDocument?.status || 'missing',
+      statusLabel: matchedDocument?.statusLabel || 'fehlt',
+      fileName: matchedDocument?.name,
+      missingReason: matchedDocument?.missingReason,
+    };
+  });
   const customerDetails = customer ? [
     ['Name', customer.displayName || `${customer.firstName} ${customer.lastName}`],
     ['Geschlecht', labelFrom(genderLabels, customer.gender)],
@@ -705,28 +747,33 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const markFeedbackReceived = () => runCaseAction('Kundenrückmeldung', async () => {
     await postJson(`/api/properties/${c.propertyId}/feedback-received`);
   });
-  const uploadPlaceholderDocument = () => runCaseAction('Dokument-Platzhalter', async () => {
-    await postJson(`/api/properties/${c.propertyId}/documents`, {
-      fileName: `upload-${Date.now()}.pdf`,
-      displayName: 'Neuer Upload-Platzhalter',
-      category: 'other',
-      status: 'pending',
-      requirementLevel: 'optional',
-    });
+  const uploadDocument = () => runCaseAction('Dokument-Upload', async () => {
+    if (!uploadFile) {
+      throw new Error('Bitte zuerst eine Datei auswählen.');
+    }
+    const formData = new FormData();
+    formData.append('file', uploadFile);
+    formData.append('category', uploadCategory);
+    formData.append('requirementLevel', uploadRequirementLevel);
+    formData.append('status', 'pending');
+    if (uploadNote) formData.append('missingReason', uploadNote);
+    await postFormData(`/api/properties/${c.propertyId}/documents`, formData);
+    setUploadFile(null);
+    setUploadNote('');
   });
   const tabs = role === 'admin'
     ? [
         { id: 'kunde', label: 'Kunde' },
         { id: 'objekt', label: 'Objekt' },
-        { id: 'indag', label: 'Ind. AG' },
-        { id: 'verbag', label: 'Verb. AG' },
-        { id: 'doks', label: 'Doks' },
+        { id: 'indag', label: 'Unverbindliches Angebot' },
+        { id: 'verbag', label: 'Verbindliches Angebot' },
+        { id: 'doks', label: 'Objektunterlagen' },
         { id: 'aufgaben', label: 'Aufgaben' },
       ]
     : [
         { id: 'kunde', label: 'Kunde' },
         { id: 'objekt', label: 'Objekt' },
-        { id: 'doks', label: 'Doks' },
+        { id: 'doks', label: 'Objektunterlagen' },
         { id: 'aufgaben', label: 'Aufgaben' },
       ];
 
@@ -849,9 +896,67 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
           {activeTab === 'doks' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Dokumente</span>
-                <button onClick={uploadPlaceholderDocument} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '6px 12px', borderRadius: 5, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: busyAction ? 'wait' : 'pointer' }}><Upload size={13} /> Hochladen</button>
+                <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Objektunterlagen</span>
+                <span style={{ fontSize: 11, color: `${theme.ink}88` }}>Upload mit Kategorie und Prüfstatus</span>
               </div>
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, background: 'white' }}>
+                <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Neue Unterlage hochladen</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.8fr', gap: 10, alignItems: 'end' }}>
+                  <Field label="Datei">
+                    <input type="file" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, boxSizing: 'border-box' }} />
+                  </Field>
+                  <Field label="Typ">
+                    <Select value={uploadCategory} onChange={(event) => setUploadCategory(event.target.value)}>
+                      {Object.entries(documentCategoryLabels).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Pflichtstatus">
+                    <Select value={uploadRequirementLevel} onChange={(event) => setUploadRequirementLevel(event.target.value)}>
+                      <option value="required">Pflicht</option>
+                      <option value="recommended">Empfohlen</option>
+                      <option value="optional">Optional</option>
+                    </Select>
+                  </Field>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end', marginTop: 10 }}>
+                  <Field label="Hinweis">
+                    <Input value={uploadNote} onChange={(event) => setUploadNote(event.target.value)} placeholder="Optionaler Hinweis zur Unterlage" />
+                  </Field>
+                  <button onClick={uploadDocument} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '9px 14px', borderRadius: 5, fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: busyAction ? 'wait' : 'pointer', height: 38 }}>
+                    <Upload size={13} /> {busyAction === 'Dokument-Upload' ? 'Lädt...' : 'Hochladen'}
+                  </button>
+                </div>
+              </div>
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.mintLighter }}>
+                <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Pflichtdokumente</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {requiredDocumentRows.map((requirement) => {
+                    const isMissing = requirement.status === 'missing' || requirement.status === 'rejected';
+                    const needsReview = requirement.status === 'review_required' || requirement.status === 'pending';
+                    return (
+                      <div key={requirement.category} style={{ background: 'white', border: `1px solid ${isMissing ? `${theme.gold}66` : theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', display: 'flex', gap: 9, alignItems: 'flex-start', minWidth: 0 }}>
+                        {isMissing || needsReview ? (
+                          <AlertCircle size={15} style={{ color: isMissing ? theme.gold : theme.oliv, flexShrink: 0, marginTop: 1 }} />
+                        ) : (
+                          <CheckCircle size={15} style={{ color: '#5B8C2B', flexShrink: 0, marginTop: 1 }} />
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, lineHeight: 1.25 }}>{requirement.label}</div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3, lineHeight: 1.35 }}>
+                            <span style={{ fontWeight: 700, color: isMissing ? theme.gold : needsReview ? theme.oliv : '#5B8C2B' }}>{requirement.statusLabel}</span>
+                            {requirement.note ? <span> · {requirement.note}</span> : null}
+                            {requirement.fileName ? <span> · {requirement.fileName}</span> : null}
+                            {requirement.missingReason ? <span> · {requirement.missingReason}</span> : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{ padding: '12px 18px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Hochgeladene Unterlagen</div>
               {documents.map((d, i) => (
                 <div key={i} style={{ padding: '12px 18px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', gap: 12 }}>
                   <FileText size={16} style={{ color: d.status === 'missing' ? theme.gold : theme.aubergine }} />
@@ -1052,15 +1157,25 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         buildingCondition: draft.buildingCondition,
       };
       const propertyResult = await postJson('/api/properties', propertyPayload);
-      if (draft.documentFileName) {
-        await postJson(`/api/properties/${propertyResult.property.id}/documents`, {
-          fileName: draft.documentFileName,
-          displayName: draft.documentFileName,
-          category: draft.documentCategory,
-          requirementLevel: draft.documentRequirementLevel,
-          status: draft.documentStatus,
-          missingReason: draft.documentMissingReason,
-        });
+      if (draft.documentFile || draft.documentFileName) {
+        if (draft.documentFile) {
+          const documentForm = new FormData();
+          documentForm.append('file', draft.documentFile);
+          documentForm.append('category', draft.documentCategory);
+          documentForm.append('requirementLevel', draft.documentRequirementLevel);
+          documentForm.append('status', 'pending');
+          if (draft.documentMissingReason) documentForm.append('missingReason', draft.documentMissingReason);
+          await postFormData(`/api/properties/${propertyResult.property.id}/documents`, documentForm);
+        } else {
+          await postJson(`/api/properties/${propertyResult.property.id}/documents`, {
+            fileName: draft.documentFileName,
+            displayName: draft.documentFileName,
+            category: draft.documentCategory,
+            requirementLevel: draft.documentRequirementLevel,
+            status: draft.documentStatus,
+            missingReason: draft.documentMissingReason,
+          });
+        }
       }
       if (submit) {
         await postJson(`/api/properties/${propertyResult.property.id}/submit`);
@@ -1590,10 +1705,13 @@ const FormStep4 = ({ draft, setDraft }) => {
 const FormStep5 = ({ draft, setDraft }) => (
   <div>
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Dokumente</h2>
-    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Dokumente werden im MVP als nachvollziehbare Platzhalter mit Status gespeichert.</div>
+    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Dokumente werden mit Kategorie, Pflichtstatus und Prüfstatus am Fall gespeichert.</div>
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Dokument vormerken">
-        <Input value={draft.documentFileName} onChange={(event) => setDraft({ ...draft, documentFileName: event.target.value })} placeholder="z.B. Energieausweis" />
+      <Field label="Unterlage hochladen">
+        <input type="file" onChange={(event) => {
+          const file = event.target.files?.[0] || null;
+          setDraft({ ...draft, documentFile: file, documentFileName: file?.name || '' });
+        }} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
       </Field>
       <Field label="Kategorie">
         <Select value={draft.documentCategory} onChange={(event) => setDraft({ ...draft, documentCategory: event.target.value })}>
