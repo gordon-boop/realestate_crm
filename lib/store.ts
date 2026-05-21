@@ -293,13 +293,18 @@ export function getCases(): CaseView[] {
       throw new Error(`Broken case relation for property ${property.id}`);
     }
 
+    const propertyOffers = offers
+      .filter((item) => item.propertyId === property.id)
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+
     return {
       partner,
       customer,
       property,
       documents: documents.filter((item) => item.propertyId === property.id),
       valuation: valuations.find((item) => item.propertyId === property.id),
-      offer: offers.find((item) => item.propertyId === property.id),
+      offer: propertyOffers[0],
+      offers: propertyOffers,
       activities: activities.filter((item) => item.propertyId === property.id),
       reminders: reminders.filter((item) => item.propertyId === property.id)
     };

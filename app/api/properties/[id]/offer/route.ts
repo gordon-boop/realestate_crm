@@ -8,7 +8,7 @@ export function GET(_request: Request, { params }: { params: { id: string } }): 
     const caseView = getCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
-    return json({ offer: caseView.offer ?? null });
+    return json({ offer: caseView.offer ?? null, offers: caseView.offers });
   } catch (err) {
     return handleApiError(err);
   }

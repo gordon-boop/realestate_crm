@@ -77,16 +77,19 @@ export default function AdminCasePage({ params }: { params: { id: string } }) {
         </section>
         <section className="panel panel-pad">
           <h2>Angebotsrechnung</h2>
-          {caseView.offer ? (
-            <>
-              <p>Adjusted Market Value: <Money value={caseView.offer.adjustedMarketValue} /></p>
-              <p>Wohnrechtswert: <Money value={caseView.offer.residentialRightValue} /></p>
-              <p>Risikoabschlag: <Money value={caseView.offer.riskDiscount} /></p>
-              <p>Zielmarge: <Money value={caseView.offer.companyMargin} /></p>
-              <p className="muted">Version {caseView.offer.currentVersion} | {versions.length} gespeicherte Snapshots</p>
-              <p className="muted">Kalkulation: {caseView.property.offerCalculationSource ?? "application"}</p>
-            </>
+          {caseView.offers.length ? (
+            caseView.offers.map((offer) => (
+              <div key={offer.id} style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 10 }}>
+                <p><strong>{offer.model === "sale_and_leaseback" ? "Rückmietmodell" : "Verrentungsmodell"}</strong>: <Money value={offer.payoutAmount} /></p>
+                <p>Adjusted Market Value: <Money value={offer.adjustedMarketValue} /></p>
+                <p>Wohnrechtswert: <Money value={offer.residentialRightValue} /></p>
+                <p>Risikoabschlag: <Money value={offer.riskDiscount} /></p>
+                <p>Instandhaltung / Marge: <Money value={offer.companyMargin} /></p>
+                <p className="muted">Version {offer.currentVersion} | Quelle: {offer.assumptions.sourceWorkbook ?? "application"}</p>
+              </div>
+            ))
           ) : <p className="muted">Noch kein Angebot.</p>}
+          {caseView.offer ? <p className="muted">Aktiver Snapshot: {versions.length} gespeicherte Version(en)</p> : null}
         </section>
       </div>
 

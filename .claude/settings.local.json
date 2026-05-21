@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh pr *)"
+      "Bash(gh pr *)",
+      "WebFetch(domain:www.gniw.de)",
+      "WebFetch(domain:www.meinewohnrente.de)",
+      "Bash(Test-Path \"C:\\\\Users\\\\gordo\\\\Documents\\\\Codex\\\\2026-05-13\\\\mvp-pflichtenheft-partnerportal-und-angebots-crm\\\\app\\\\page.tsx\")",
+      "Bash(npx tsc *)",
+      "Bash(cd \"/c/Users/gordo/Documents/Codex/2026-05-13/mvp-pflichtenheft-partnerportal-und-angebots-crm\" && cat package.json | grep -E '\"scripts\"|\"dev\"|\"start\"|\"build\"' | head -10)",
+      "WebFetch(domain:unsplash.com)"
     ]
   }
 }

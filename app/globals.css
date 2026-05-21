@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 :root {
   color-scheme: light;
   --ink: #0e2841;
@@ -10,9 +14,9 @@
   --canvas: #f8f5f0;
   --surface: #ffffff;
   --surface-soft: #fbf8ef;
-  --brand: #44005c;
-  --brand-2: #6b2084;
-  --brand-dark: #2d003d;
+  --brand: #1a6b3a;
+  --brand-2: #2a8a50;
+  --brand-dark: #0f4828;
   --accent: #ffac00;
   --accent-2: #a8a443;
   --success: #196b24;

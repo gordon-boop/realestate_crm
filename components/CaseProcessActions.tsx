@@ -38,9 +38,14 @@ export function CaseProcessActions({ propertyId, offer, admin = false }: { prope
       <h2 style={{ margin: 0 }}>Prozess</h2>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button className="btn" disabled={Boolean(busy)} onClick={() => run("submit", `/api/properties/${propertyId}/submit`)}>Einreichen</button>
-        <button className="btn" disabled={Boolean(busy)} onClick={() => run("valuation", `/api/properties/${propertyId}/valuation`, { provider: "sprengnetter" })}>Sprengnetter-Bewertung</button>
-        <button className="btn" disabled={Boolean(busy)} onClick={() => run("offer", `/api/properties/${propertyId}/offer/calculate`)}>Angebot berechnen</button>
-        <button className="btn" disabled={Boolean(busy)} onClick={() => run("ai", `/api/properties/${propertyId}/offer/generate-ai-text`)}>KI-Entwurf</button>
+        {admin ? (
+          <>
+            <button className="btn" disabled={Boolean(busy)} onClick={() => run("valuation", `/api/properties/${propertyId}/valuation`, { provider: "sprengnetter" })}>Sprengnetter-Bewertung</button>
+            <button className="btn" disabled={Boolean(busy)} onClick={() => run("offer-fixed", `/api/properties/${propertyId}/offer/calculate`, { model: "fixed_residential_right" })}>Verrentung kalkulieren</button>
+            <button className="btn" disabled={Boolean(busy)} onClick={() => run("offer-leaseback", `/api/properties/${propertyId}/offer/calculate`, { model: "sale_and_leaseback" })}>Rückmiete kalkulieren</button>
+            <button className="btn" disabled={Boolean(busy)} onClick={() => run("ai", `/api/properties/${propertyId}/offer/generate-ai-text`)}>KI-Entwurf</button>
+          </>
+        ) : null}
         <button className="btn" disabled={Boolean(busy)} onClick={() => run("feedback", `/api/properties/${propertyId}/feedback-received`)}>Kundenrückmeldung erhalten</button>
         {offer && admin ? (
           <>

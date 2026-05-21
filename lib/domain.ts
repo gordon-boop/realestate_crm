@@ -191,12 +191,17 @@ export type Valuation = {
 };
 
 export type OfferAssumptions = {
-  conditionDiscountRate: number;
-  residentialRightRate: number;
-  riskDiscountRate: number;
-  companyMarginRate: number;
+  conditionDiscountRate?: number;
+  residentialRightRate?: number;
+  riskDiscountRate?: number;
+  companyMarginRate?: number;
   formula: string;
   note: string;
+  productModel?: DesiredModel;
+  sourceWorkbook?: string;
+  sourceCells?: Record<string, string>;
+  inputs?: Record<string, unknown>;
+  components?: Record<string, number>;
 };
 
 export type Offer = {
@@ -284,6 +289,7 @@ export type CaseView = {
   documents: Document[];
   valuation?: Valuation;
   offer?: Offer;
+  offers: Offer[];
   activities: Activity[];
   reminders: Reminder[];
 };

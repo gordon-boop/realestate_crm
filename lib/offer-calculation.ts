@@ -13,7 +13,7 @@ export function calculateOffer(input: OfferCalculationInput) {
   return calculateDomainOffer({
     valuation: { marketValue: input.marketValue },
     condition: input.condition,
-    model: "fixed_residential_right",
+    model: "other",
     residentialRightYears: input.residentialRightYears ?? undefined
   });
 }

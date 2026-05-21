@@ -252,6 +252,7 @@ const energyCarrierLabels = { photovoltaik: 'Photovoltaik', solarthermie: 'Solar
 const documentStatusLabels = { missing: 'fehlt', pending: 'eingereicht', ok: 'geprüft', review_required: 'Prüfung nötig', rejected: 'abgelehnt' };
 const requirementLabels = { required: 'Pflicht', recommended: 'Empfohlen', optional: 'Optional' };
 const modernizationLabels = { none: 'keine', partial: 'teilweise', complete: 'vollständig' };
+const productModelLabels = { fixed_residential_right: 'Verrentung mit befristetem Wohnrecht', sale_and_leaseback: 'Rückmietmodell', other: 'Sonstiges Modell' };
 
 function yesNo(value) {
   return value ? 'ja' : 'nein';
@@ -572,6 +573,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const customer = caseView?.customer;
   const property = caseView?.property;
   const latestOffer = caseView?.offer;
+  const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
   const latestValuation = caseView?.valuation;
   const documents = caseView?.documents?.length ? caseView.documents.map((document) => ({
     name: document.displayName || document.fileName,
@@ -695,9 +697,9 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
       setBusyAction('');
     }
   }
-  const startValuationAndOffer = () => runCaseAction('Bewertung und Angebotsentwurf', async () => {
+  const startValuationAndOffer = (model) => runCaseAction(model === 'sale_and_leaseback' ? 'Rückmietmodell-Kalkulation' : 'Verrentungs-Kalkulation', async () => {
     await postJson(`/api/properties/${c.propertyId}/valuation`, { provider: 'sprengnetter' });
-    await postJson(`/api/properties/${c.propertyId}/offer/calculate`);
+    await postJson(`/api/properties/${c.propertyId}/offer/calculate`, { model });
     await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
   });
   const markFeedbackReceived = () => runCaseAction('Kundenrückmeldung', async () => {
@@ -751,9 +753,14 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
         </div>
         <button style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
         {role === 'admin' && (
-          <button onClick={startValuationAndOffer} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, border: 'none', color: 'white', fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
-            {busyAction ? 'Läuft...' : 'Bewertung starten'}
-          </button>
+          <>
+            <button onClick={() => startValuationAndOffer('fixed_residential_right')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, border: 'none', color: 'white', fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
+              {busyAction ? 'Läuft...' : 'Verrentung kalkulieren'}
+            </button>
+            <button onClick={() => startValuationAndOffer('sale_and_leaseback')} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
+              Rückmiete kalkulieren
+            </button>
+          </>
         )}
       </div>
 
@@ -889,21 +896,35 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
           {activeTab === 'indag' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Indikatives Angebot</div>
-              {latestOffer ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
-                  {[
-                    ['Marktwert', formatEuro(latestOffer.marketValue)],
-                    ['Auszahlung', formatEuro(latestOffer.payoutAmount)],
-                    ['Wohnrechtswert', formatEuro(latestOffer.residentialRightValue)],
-                    ['Status Angebot', latestOffer.status],
-                    ['Bewertungsanbieter', latestValuation?.provider || '-'],
-                    ['Wertspanne', latestValuation ? `${formatEuro(latestValuation.valueMin)} bis ${formatEuro(latestValuation.valueMax)}` : '-'],
-                  ].map(([k, v], i) => (
-                    <div key={i}>
-                      <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
-                      <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
+              {productOffers.length ? (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {productOffers.map((offer) => (
+                    <div key={offer.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: theme.mintLighter }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+                        <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 700 }}>{labelFrom(productModelLabels, offer.model)}</div>
+                        <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, textTransform: 'uppercase' }}>{offer.status}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px 20px' }}>
+                        {[
+                          ['Marktwert', formatEuro(offer.marketValue)],
+                          ['Auszahlung', formatEuro(offer.payoutAmount)],
+                          ['Quote', offer.assumptions?.components?.payoutRatio ? `${Math.round(offer.assumptions.components.payoutRatio * 100)}%` : '-'],
+                          ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
+                          ['Instandhaltung / Abschlag', formatEuro(offer.companyMargin || offer.assumptions?.components?.maintenancePledge)],
+                          ['Bewertungsanbieter', latestValuation?.provider || '-'],
+                        ].map(([k, v], i) => (
+                          <div key={i}>
+                            <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
+                            <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 10 }}>{offer.assumptions?.sourceWorkbook || 'Applikationsformel'}</div>
                     </div>
                   ))}
+                  {latestValuation ? (
+                    <div style={{ fontSize: 12, color: `${theme.ink}88` }}>Wertspanne: {formatEuro(latestValuation.valueMin)} bis {formatEuro(latestValuation.valueMax)}</div>
+                  ) : null}
                 </div>
               ) : (
                 <div style={{ background: theme.mintLight, borderRadius: 6, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
