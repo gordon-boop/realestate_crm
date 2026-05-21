@@ -248,6 +248,15 @@ function labelFrom(map, value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : (map[value] || value);
 }
 
+function isPreviewImage(document) {
+  return document.fileType?.startsWith('image/');
+}
+
+function fileExtension(fileName = '') {
+  const extension = fileName.split('.').pop();
+  return extension && extension !== fileName ? extension.toUpperCase().slice(0, 5) : 'DATEI';
+}
+
 const genderLabels = { female: 'weiblich', male: 'männlich', diverse: 'divers', not_specified: 'keine Angabe' };
 const maritalLabels = { single: 'ledig', married: 'verheiratet', divorced: 'geschieden', widowed: 'verwitwet', other: 'sonstiges' };
 const incomeLabels = { under_1000: 'unter 1.000 €', from_1000_to_2000: '1.000 - 2.000 €', from_2000_to_3000: '2.000 - 3.000 €', over_3000: 'über 3.000 €' };
@@ -607,7 +616,11 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
   const latestValuation = caseView?.valuation;
   const documents = caseView?.documents?.length ? caseView.documents.map((document) => ({
+    id: document.id,
     name: document.displayName || document.fileName,
+    fileName: document.fileName,
+    fileType: document.fileType,
+    storageUrl: document.storageUrl,
     category: document.category,
     type: labelFrom(requirementLabels, document.requirementLevel),
     date: dateLabel(document.createdAt),
@@ -615,11 +628,11 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     statusLabel: labelFrom(documentStatusLabels, document.status),
     missingReason: document.missingReason,
   })) : [
-    { name: 'Grundbuchauszug.pdf', category: 'land_register', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { name: 'Grundriss_OG.pdf', category: 'floorplan', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { name: 'Wohnflächenberechnung.pdf', category: 'living_area_calculation', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { name: 'Energieausweis', category: 'energy_certificate', type: 'Pflicht', date: null, status: 'missing', statusLabel: 'fehlt', missingReason: 'Energieausweis fehlt noch.' },
-    { name: 'Fotos außen (12)', category: 'photos', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { id: 'mock-land-register', name: 'Grundbuchauszug.pdf', fileName: 'Grundbuchauszug.pdf', fileType: 'application/pdf', storageUrl: '', category: 'land_register', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { id: 'mock-floorplan', name: 'Grundriss_OG.pdf', fileName: 'Grundriss_OG.pdf', fileType: 'application/pdf', storageUrl: '', category: 'floorplan', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { id: 'mock-living-area', name: 'Wohnflächenberechnung.pdf', fileName: 'Wohnflächenberechnung.pdf', fileType: 'application/pdf', storageUrl: '', category: 'living_area_calculation', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { id: 'mock-energy', name: 'Energieausweis', fileName: 'Energieausweis', fileType: 'application/pdf', storageUrl: '', category: 'energy_certificate', type: 'Pflicht', date: null, status: 'missing', statusLabel: 'fehlt', missingReason: 'Energieausweis fehlt noch.' },
+    { id: 'mock-photos', name: 'Fotos außen (12)', fileName: 'Fotos außen (12)', fileType: 'image/jpeg', storageUrl: '', category: 'photos', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
   ];
   const requiredDocumentRows = getRequiredDocumentsForPropertyType(property?.propertyType).map((requirement) => {
     const matchedDocument = documents.find((document) => document.category === requirement.category);
@@ -760,6 +773,15 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     await postFormData(`/api/properties/${c.propertyId}/documents`, formData);
     setUploadFile(null);
     setUploadNote('');
+  });
+  const deleteDocument = (document) => runCaseAction('Dokument löschen', async () => {
+    if (!document.id || document.id.startsWith('mock-')) {
+      throw new Error('Dieses Mock-Dokument kann nicht gelöscht werden.');
+    }
+    if (!window.confirm(`Unterlage "${document.name}" wirklich löschen?`)) return;
+    const response = await fetch(`/api/properties/${c.propertyId}/documents/${document.id}`, { method: 'DELETE' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Löschen fehlgeschlagen');
   });
   const tabs = role === 'admin'
     ? [
@@ -959,15 +981,37 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
               <div style={{ padding: '12px 18px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Hochgeladene Unterlagen</div>
               {documents.map((d, i) => (
                 <div key={i} style={{ padding: '12px 18px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <FileText size={16} style={{ color: d.status === 'missing' ? theme.gold : theme.aubergine }} />
+                  {d.storageUrl ? (
+                    <a href={d.storageUrl} target="_blank" rel="noreferrer" style={{ width: 72, height: 54, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, background: theme.mintLight, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', color: theme.aubergine, fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                      {isPreviewImage(d) ? (
+                        <img src={d.storageUrl} alt={d.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      ) : (
+                        fileExtension(d.fileName || d.name)
+                      )}
+                    </a>
+                  ) : (
+                    <div style={{ width: 72, height: 54, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, background: theme.mintLight, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <FileText size={18} style={{ color: d.status === 'missing' ? theme.gold : theme.aubergine }} />
+                    </div>
+                  )}
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: theme.ink, fontWeight: 500 }}>{d.name}</div>
+                    <div style={{ fontSize: 13, color: theme.ink, fontWeight: 500 }}>
+                      {d.storageUrl ? (
+                        <a href={d.storageUrl} target="_blank" rel="noreferrer" style={{ color: theme.ink }}>{d.name}</a>
+                      ) : d.name}
+                    </div>
                     <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 2 }}>
                       <span style={{ color: d.type === 'Pflicht' ? theme.gold : `${theme.ink}66`, fontWeight: 600 }}>{d.type}</span>
                       {d.date && <span> · hochgeladen {d.date}</span>}
                       {d.missingReason && <span> · {d.missingReason}</span>}
+                      {d.storageUrl && <span> · <a href={d.storageUrl} target="_blank" rel="noreferrer" style={{ color: theme.aubergine, fontWeight: 700 }}>Ansehen</a></span>}
                     </div>
                   </div>
+                  {d.storageUrl && !d.id?.startsWith('mock-') && (
+                    <button onClick={() => deleteDocument(d)} disabled={Boolean(busyAction)} style={{ background: '#fff7f5', border: '1px solid #efc0b9', color: '#9B2C2C', fontSize: 11.5, fontWeight: 700, padding: '6px 10px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer' }}>
+                      {busyAction === 'Dokument löschen' ? 'Löscht...' : 'Löschen'}
+                    </button>
+                  )}
                   {d.status === 'missing' ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: theme.gold }}>fehlt</span>
                   ) : d.status === 'review_required' || d.status === 'rejected' ? (

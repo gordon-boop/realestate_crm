@@ -363,6 +363,96 @@ textarea {
   line-height: 1.1;
 }
 
+.document-preview-list {
+  display: grid;
+  gap: 12px;
+}
+
+.document-preview-card {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.document-preview-media {
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.document-preview-media:hover {
+  border-color: var(--brand);
+}
+
+.document-preview-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.document-preview-media-empty {
+  color: var(--muted);
+}
+
+.document-preview-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.document-preview-body strong {
+  overflow-wrap: anywhere;
+}
+
+.document-preview-link {
+  width: fit-content;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.document-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.document-delete-button {
+  width: fit-content;
+  border: 1px solid #efc0b9;
+  border-radius: 6px;
+  background: #fff7f5;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 5px 9px;
+}
+
+.document-delete-button:hover {
+  background: #fde8e4;
+}
+
+.document-delete-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .login-scene {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(360px, 460px);

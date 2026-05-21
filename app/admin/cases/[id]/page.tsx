@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ActivityNoteForm } from "@/components/ActivityNoteForm";
 import { CaseProcessActions } from "@/components/CaseProcessActions";
+import { DocumentPreviewList } from "@/components/DocumentPreviewList";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { Money } from "@/components/Money";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -116,13 +117,7 @@ export default function AdminCasePage({ params }: { params: { id: string } }) {
               </p>
             ))}
             <h3>Hochgeladene Unterlagen</h3>
-            {caseView.documents.map((document) => (
-              <p key={document.id}>
-                <strong>{document.displayName ?? document.fileName}</strong><br />
-                <span className="muted">{document.requirementLevel} | {document.status}{document.missingReason ? ` | ${document.missingReason}` : ""}</span>
-              </p>
-            ))}
-            {caseView.documents.length === 0 ? <p className="muted">Noch keine Dokumente.</p> : null}
+            <DocumentPreviewList propertyId={caseView.property.id} documents={caseView.documents} />
           </div>
           <div>
             {caseView.reminders.map((reminder) => (
