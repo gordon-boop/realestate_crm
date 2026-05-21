@@ -1,0 +1,461 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --ink: #0e2841;
+  --muted: #6d6472;
+  --line: #ded7e4;
+  --canvas: #f8f5f0;
+  --surface: #ffffff;
+  --surface-soft: #fbf8ef;
+  --brand: #44005c;
+  --brand-2: #6b2084;
+  --brand-dark: #2d003d;
+  --accent: #ffac00;
+  --accent-2: #a8a443;
+  --success: #196b24;
+  --warning: #e97132;
+  --danger: #a33a2f;
+  --shadow: 0 18px 45px rgba(68, 0, 92, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 172, 0, 0.18), transparent 28rem),
+    radial-gradient(circle at top right, rgba(68, 0, 92, 0.11), transparent 30rem),
+    linear-gradient(180deg, #fffdf8 0%, var(--canvas) 48%, #eee7f1 100%);
+  color: var(--ink);
+  font-family:
+    Aptos, "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: 0 30px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--brand);
+  min-width: 178px;
+}
+
+.brand-logo {
+  display: block;
+  width: 174px;
+  height: auto;
+}
+
+.topnav {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.nav-link,
+.user-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.nav-link:hover {
+  background: #f6edf9;
+  color: var(--brand);
+}
+
+.user-pill {
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.logout-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #f1c15e;
+  border-radius: 7px;
+  background: #fff8e5;
+  color: var(--brand);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.logout-box:hover {
+  background: #ffefbf;
+}
+
+.page {
+  width: min(1240px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 32px 0 56px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.panel-pad {
+  padding: 22px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 20px 0 4px;
+}
+
+.toolbar h1,
+.panel h2 {
+  color: var(--brand);
+  font-family:
+    "Aptos Display", Aptos, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+.toolbar h1 {
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.04;
+}
+
+.toolbar p {
+  max-width: 720px;
+  font-size: 16px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 650;
+  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(31, 38, 48, 0.1);
+}
+
+.btn-primary {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: var(--brand-dark);
+}
+
+.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 13px;
+  font-weight: 650;
+  color: #334155;
+}
+
+.field > span {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 11px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--brand-2);
+  box-shadow: 0 0 0 3px rgba(68, 0, 92, 0.14);
+  outline: none;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: #536171;
+  font-size: 13px;
+  font-weight: 750;
+  background: var(--surface-soft);
+}
+
+.table tr:hover td {
+  background: #fbfaf7;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #f6edf9;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.badge-draft,
+.badge-submitted,
+.badge-valuation_pending,
+.badge-valuated {
+  background: #eef2f7;
+  color: #405166;
+}
+
+.badge-data_incomplete,
+.badge-rejected,
+.badge-lost {
+  background: #fdf0ec;
+  color: var(--danger);
+}
+
+.badge-internal_review,
+.badge-offer_calculated,
+.badge-offer_drafted {
+  background: #fff4cf;
+  color: #8d5f00;
+}
+
+.badge-approved,
+.badge-sent,
+.badge-won {
+  background: #eaf7ef;
+  color: var(--success);
+}
+
+.metric {
+  display: grid;
+  gap: 5px;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric::after {
+  content: "";
+  position: absolute;
+  inset: auto 16px 0 auto;
+  width: 64px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+}
+
+.metric span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.metric strong {
+  color: var(--brand);
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.login-scene {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 460px);
+  align-items: stretch;
+  gap: 24px;
+  min-height: calc(100vh - 160px);
+}
+
+.login-intro {
+  display: grid;
+  align-content: end;
+  min-height: 520px;
+  padding: 34px;
+  border-radius: 8px;
+  background:
+    linear-gradient(160deg, rgba(68, 0, 92, 0.95), rgba(45, 0, 61, 0.9)),
+    radial-gradient(circle at 84% 20%, rgba(255, 172, 0, 0.34), transparent 12rem),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 22px);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.login-intro h1 {
+  max-width: 760px;
+  margin: 0;
+  font-family:
+    "Aptos Display", Aptos, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(36px, 6vw, 64px);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.login-intro p {
+  max-width: 660px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 18px;
+}
+
+.login-logo {
+  display: block;
+  width: min(360px, 82vw);
+  height: auto;
+  margin-bottom: 28px;
+  padding: 16px 18px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.18);
+}
+
+.login-card {
+  align-self: center;
+}
+
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #fff4cf;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px 16px;
+  }
+
+  .toolbar,
+  .two,
+  .three,
+  .login-scene {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .topnav {
+    justify-content: flex-start;
+  }
+
+  .nav-link,
+  .user-pill {
+    padding: 0 8px;
+    font-size: 13px;
+  }
+
+  .login-intro {
+    min-height: 360px;
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
+  }
+}

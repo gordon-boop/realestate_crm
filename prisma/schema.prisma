@@ -1,0 +1,487 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PartnerStatus {
+  active
+  inactive
+}
+
+enum UserRole {
+  admin
+  partner
+}
+
+enum PropertyType {
+  house
+  single_family
+  semi_detached
+  row_house
+  apartment
+  multi_family
+  other
+}
+
+enum PropertyCondition {
+  very_good
+  good
+  average
+  renovation_needed
+}
+
+enum DesiredModel {
+  fixed_residential_right
+  sale_and_leaseback
+  other
+}
+
+enum PropertyStatus {
+  DRAFT
+  SUBMITTED
+  DATA_INCOMPLETE
+  VALUATION_PENDING
+  VALUATED
+  OFFER_CALCULATED
+  OFFER_DRAFTED
+  INTERNAL_REVIEW
+  APPROVED
+  SENT
+  APPOINTMENT_SCHEDULED
+  REJECTED
+  WON
+  SOLD
+  LOST
+}
+
+enum DocumentCategory {
+  photos
+  land_register
+  floorplan
+  section
+  living_area_calculation
+  energy_certificate
+  declaration_of_division
+  service_charge_statement
+  owners_meeting_minutes
+  maintenance_reserve
+  power_of_attorney
+  repair_offer
+  other
+}
+
+enum DocumentStatus {
+  pending
+  ok
+  missing
+  review_required
+  rejected
+}
+
+enum DocumentRequirementLevel {
+  required
+  optional
+  recommended
+}
+
+enum Gender {
+  male
+  female
+  diverse
+  not_specified
+}
+
+enum MaritalStatus {
+  single
+  married
+  divorced
+  widowed
+  other
+}
+
+enum IncomeRange {
+  under_1000
+  from_1000_to_2000
+  from_2000_to_3000
+  over_3000
+}
+
+enum ResidentialRightRecipients {
+  one_person
+  both
+}
+
+enum RatingSix {
+  very_bad
+  bad
+  moderate
+  medium
+  good
+  very_good
+}
+
+enum ModernizationScope {
+  none
+  partial
+  complete
+}
+
+enum BasementType {
+  none
+  partial
+  full
+}
+
+enum ParkingType {
+  garage
+  carport
+  outdoor_space
+  duplex
+}
+
+enum ValuationProvider {
+  mock
+  pricehubble
+  sprengnetter
+  other
+}
+
+enum ValuationStatus {
+  not_started
+  pending
+  completed
+  failed
+}
+
+enum OfferKind {
+  indicative
+  binding
+}
+
+enum OfferStatus {
+  draft
+  review
+  approved
+  sent
+  rejected
+}
+
+enum ReminderStatus {
+  open
+  done
+  overdue
+  cancelled
+}
+
+enum ActivitySource {
+  system
+  user
+  partner
+  admin
+}
+
+enum ActivityEntityType {
+  property
+  customer
+  document
+  valuation
+  offer
+  reminder
+}
+
+model Partner {
+  id          String        @id @default(cuid())
+  companyName String       @map("company_name")
+  contactName String       @map("contact_name")
+  email       String       @unique
+  phone       String?
+  address     String?
+  status      PartnerStatus @default(active)
+  users       User[]
+  customers   Customer[]
+  properties  Property[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("partners")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  partnerId    String?  @map("partner_id")
+  partner      Partner? @relation(fields: [partnerId], references: [id])
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole
+  activities   Activity[]
+  approvedOffers Offer[] @relation("OfferApprovedBy")
+  uploadedDocuments Document[]
+  reviewedDocuments Document[] @relation("DocumentReviewedBy")
+  remindersAssigned Reminder[] @relation("ReminderAssignedTo")
+  remindersCreated Reminder[] @relation("ReminderCreatedBy")
+  remindersCompleted Reminder[] @relation("ReminderCompletedBy")
+  activityVersionsCreated ActivityVersion[] @relation("ActivityVersionCreatedBy")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Customer {
+  id                    String    @id @default(cuid())
+  partnerId             String    @map("partner_id")
+  partner               Partner   @relation(fields: [partnerId], references: [id])
+  displayName           String?   @map("display_name")
+  firstName             String    @map("first_name")
+  lastName              String    @map("last_name")
+  ageAtSubmission       Int?      @map("age_at_submission")
+  gender                Gender?
+  email                 String?
+  phone                 String?
+  mobile                String?
+  dateOfBirth           DateTime? @map("date_of_birth")
+  maritalStatus         MaritalStatus? @map("marital_status")
+  monthlyIncomeRange    IncomeRange? @map("monthly_income_range")
+  street                String?
+  postalCode            String?   @map("postal_code")
+  city                  String?
+  addressText           String?   @map("address_text")
+  consentDataProcessing Boolean   @default(false) @map("consent_data_processing")
+  properties            Property[]
+  documents             Document[]
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([partnerId])
+  @@map("customers")
+}
+
+model Property {
+  id                           String            @id @default(cuid())
+  caseNumber                   String?           @unique @map("case_number")
+  objectTitle                  String?           @map("object_title")
+  customerId                   String            @map("customer_id")
+  customer                     Customer          @relation(fields: [customerId], references: [id])
+  partnerId                    String            @map("partner_id")
+  partner                      Partner           @relation(fields: [partnerId], references: [id])
+  propertyType                 PropertyType      @map("property_type")
+  street                       String
+  postalCode                   String            @map("postal_code")
+  city                         String
+  livingAreaSqm                Int               @map("living_area_sqm")
+  plotAreaSqm                  Int?              @map("plot_area_sqm")
+  yearBuilt                    Int?              @map("year_built")
+  condition                    PropertyCondition
+  occupancyStatus              String?           @map("occupancy_status")
+  desiredModel                 DesiredModel      @map("desired_model")
+  preferredValuationProvider   ValuationProvider @default(sprengnetter) @map("preferred_valuation_provider")
+  residentialRightRecipients   ResidentialRightRecipients? @map("residential_right_recipients")
+  desiredResidentialRightYears Int?              @map("desired_residential_right_years")
+  secondResidentialRightWanted Boolean           @default(false) @map("second_residential_right_wanted")
+  secondResidentialRightYears  Int?              @map("second_residential_right_years")
+  fixedTermReason              String?           @map("fixed_term_reason")
+  rentalOptionDeselected       Boolean           @default(false) @map("rental_option_deselected")
+  usableAreaSqm                Int?              @map("usable_area_sqm")
+  coOwnershipShares            String?           @map("co_ownership_shares")
+  parkingAvailable             Boolean?          @map("parking_available")
+  parkingType                  ParkingType?      @map("parking_type")
+  parkingCount                 Int?              @map("parking_count")
+  basementType                 BasementType?     @map("basement_type")
+  heatingType                  String?           @map("heating_type")
+  heatingYear                  Int?              @map("heating_year")
+  energyCarriersJson           Json?             @map("energy_carriers_json")
+  windowMaterial               String?           @map("window_material")
+  windowInstallationYear       Int?              @map("window_installation_year")
+  asbestosRoofKnown            Boolean?          @map("asbestos_roof_known")
+  energyCertificateAvailable   Boolean?          @map("energy_certificate_available")
+  energyCertificateType        String?           @map("energy_certificate_type")
+  energyClass                  String?           @map("energy_class")
+  visualConditionRating        RatingSix?        @map("visual_condition_rating")
+  leaseholdOrMonument          Boolean           @default(false) @map("leasehold_or_monument")
+  leasehold                    Boolean           @default(false)
+  monumentProtection           Boolean           @default(false) @map("monument_protection")
+  knownDefects                 String?           @map("known_defects")
+  remainingDebtAmount          Decimal?          @map("remaining_debt_amount") @db.Decimal(14, 2)
+  modernizationJson            Json?             @map("modernization_json")
+  buildingConditionJson        Json?             @map("building_condition_json")
+  followUpRequired             Boolean           @default(false) @map("follow_up_required")
+  followUpReason               String?           @map("follow_up_reason")
+  followUpDueAt                DateTime?         @map("follow_up_due_at")
+  customerFeedbackReceivedAt   DateTime?         @map("customer_feedback_received_at")
+  offerCalculationSource       String?           @map("offer_calculation_source")
+  lastActivityLabel            String?           @map("last_activity_label")
+  lastActivityAt               DateTime?         @map("last_activity_at")
+  notes                        String?
+  status                       PropertyStatus    @default(DRAFT)
+  documents                    Document[]
+  valuations                   Valuation[]
+  offers                       Offer[]
+  activities                   Activity[]
+  reminders                    Reminder[]
+  createdAt                    DateTime          @default(now()) @map("created_at")
+  updatedAt                    DateTime          @updatedAt @map("updated_at")
+
+  @@index([partnerId])
+  @@index([status])
+  @@map("properties")
+}
+
+model Document {
+  id               String           @id @default(cuid())
+  propertyId       String           @map("property_id")
+  property         Property         @relation(fields: [propertyId], references: [id])
+  customerId       String?          @map("customer_id")
+  customer         Customer?        @relation(fields: [customerId], references: [id])
+  uploadedByUserId String           @map("uploaded_by_user_id")
+  uploadedByUser   User             @relation(fields: [uploadedByUserId], references: [id])
+  fileName         String           @map("file_name")
+  displayName      String?          @map("display_name")
+  fileType         String           @map("file_type")
+  storageUrl       String           @map("storage_url")
+  category         DocumentCategory
+  requirementLevel DocumentRequirementLevel @default(optional) @map("requirement_level")
+  status           DocumentStatus   @default(pending)
+  missingReason    String?          @map("missing_reason")
+  reviewedByUserId String?          @map("reviewed_by_user_id")
+  reviewedByUser   User?            @relation("DocumentReviewedBy", fields: [reviewedByUserId], references: [id])
+  reviewedAt       DateTime?        @map("reviewed_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  @@index([propertyId])
+  @@map("documents")
+}
+
+model Valuation {
+  id              String            @id @default(cuid())
+  propertyId      String            @map("property_id")
+  property        Property          @relation(fields: [propertyId], references: [id])
+  provider        ValuationProvider @default(mock)
+  status          ValuationStatus   @default(completed)
+  sourceLabel     String?           @map("source_label")
+  marketValue     Decimal           @map("market_value") @db.Decimal(14, 2)
+  valueMin        Decimal           @map("value_min") @db.Decimal(14, 2)
+  valueMax        Decimal           @map("value_max") @db.Decimal(14, 2)
+  confidenceScore Decimal           @map("confidence_score") @db.Decimal(5, 2)
+  rawResponseJson Json              @map("raw_response_json")
+  offers          Offer[]
+  startedAt       DateTime?         @map("started_at")
+  completedAt     DateTime?         @map("completed_at")
+  errorMessage    String?           @map("error_message")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  @@index([propertyId])
+  @@map("valuations")
+}
+
+model Offer {
+  id                    String      @id @default(cuid())
+  propertyId            String      @map("property_id")
+  property              Property    @relation(fields: [propertyId], references: [id])
+  valuationId           String      @map("valuation_id")
+  valuation             Valuation   @relation(fields: [valuationId], references: [id])
+  offerNumber           String      @unique @map("offer_number")
+  kind                  OfferKind   @default(indicative)
+  currentVersion        Int         @default(1) @map("current_version")
+  marketValue           Decimal     @map("market_value") @db.Decimal(14, 2)
+  adjustedMarketValue   Decimal     @map("adjusted_market_value") @db.Decimal(14, 2)
+  residentialRightValue Decimal     @map("residential_right_value") @db.Decimal(14, 2)
+  riskDiscount          Decimal     @map("risk_discount") @db.Decimal(14, 2)
+  companyMargin         Decimal     @map("company_margin") @db.Decimal(14, 2)
+  payoutAmount          Decimal     @map("payout_amount") @db.Decimal(14, 2)
+  model                 DesiredModel
+  residentialRightYears Int?        @map("residential_right_years")
+  assumptionsJson       Json        @map("assumptions_json")
+  aiCustomerText        String?     @map("ai_customer_text")
+  aiPartnerSummary      String?     @map("ai_partner_summary")
+  aiInternalRationale   String?     @map("ai_internal_rationale")
+  bindingOfferText      String?     @map("binding_offer_text")
+  validUntil            DateTime?   @map("valid_until")
+  status                OfferStatus @default(draft)
+  approvedByUserId      String?     @map("approved_by_user_id")
+  approvedByUser        User?       @relation("OfferApprovedBy", fields: [approvedByUserId], references: [id])
+  approvedAt            DateTime?   @map("approved_at")
+  sentAt                DateTime?   @map("sent_at")
+  versions              OfferVersion[]
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+
+  @@index([propertyId])
+  @@index([status])
+  @@map("offers")
+}
+
+model OfferVersion {
+  id            String   @id @default(cuid())
+  offerId       String   @map("offer_id")
+  offer         Offer    @relation(fields: [offerId], references: [id])
+  version       Int
+  snapshotJson  Json     @map("snapshot_json")
+  createdByUserId String? @map("created_by_user_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([offerId, version])
+  @@map("offer_versions")
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  propertyId String   @map("property_id")
+  property   Property @relation(fields: [propertyId], references: [id])
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id])
+  type       String
+  message    String
+  version    Int      @default(1)
+  source     ActivitySource @default(user)
+  entityType ActivityEntityType? @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadataJson Json?  @map("metadata_json")
+  previousActivityId String? @map("previous_activity_id")
+  versions   ActivityVersion[]
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([propertyId])
+  @@map("activities")
+}
+
+model Reminder {
+  id                String         @id @default(cuid())
+  propertyId        String         @map("property_id")
+  property          Property       @relation(fields: [propertyId], references: [id])
+  assignedToUserId  String?        @map("assigned_to_user_id")
+  assignedToUser    User?          @relation("ReminderAssignedTo", fields: [assignedToUserId], references: [id])
+  createdByUserId   String         @map("created_by_user_id")
+  createdByUser     User           @relation("ReminderCreatedBy", fields: [createdByUserId], references: [id])
+  completedByUserId String?        @map("completed_by_user_id")
+  completedByUser   User?          @relation("ReminderCompletedBy", fields: [completedByUserId], references: [id])
+  reason            String
+  status            ReminderStatus @default(open)
+  dueAt             DateTime       @map("due_at")
+  completedAt       DateTime?      @map("completed_at")
+  lastReminderAt    DateTime?      @map("last_reminder_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  @@index([propertyId])
+  @@index([status])
+  @@map("reminders")
+}
+
+model ActivityVersion {
+  id              String   @id @default(cuid())
+  activityId      String   @map("activity_id")
+  activity        Activity @relation(fields: [activityId], references: [id])
+  version         Int
+  snapshotJson    Json     @map("snapshot_json")
+  createdByUserId String?  @map("created_by_user_id")
+  createdByUser   User?    @relation("ActivityVersionCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([activityId, version])
+  @@map("activity_versions")
+}

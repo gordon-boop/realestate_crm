@@ -1,0 +1,113 @@
+import { z } from "zod";
+
+const emptyToUndefined = (value: unknown) => value === "" || value === null ? undefined : value;
+const optionalString = z.preprocess(emptyToUndefined, z.string().trim().min(1).optional());
+const optionalNumber = z.preprocess(emptyToUndefined, z.coerce.number().finite().optional());
+const optionalBoolean = z.preprocess((value) => value === "on" ? true : value === "yes" ? true : value === "no" ? false : value, z.boolean().optional());
+
+export const customerCreateSchema = z.object({
+  partnerId: optionalString,
+  displayName: optionalString,
+  firstName: z.string().trim().min(1, "Vorname ist erforderlich"),
+  lastName: z.string().trim().min(1, "Nachname ist erforderlich"),
+  ageAtSubmission: optionalNumber,
+  gender: z.enum(["male", "female", "diverse", "not_specified"]).optional(),
+  email: optionalString,
+  phone: optionalString,
+  mobile: optionalString,
+  dateOfBirth: optionalString,
+  maritalStatus: z.enum(["single", "married", "divorced", "widowed", "other"]).optional(),
+  monthlyIncomeRange: z.enum(["under_1000", "from_1000_to_2000", "from_2000_to_3000", "over_3000"]).optional(),
+  street: optionalString,
+  postalCode: optionalString,
+  city: optionalString,
+  addressText: optionalString,
+  consentDataProcessing: z.coerce.boolean()
+});
+
+export const propertyCreateSchema = z.object({
+  customerId: z.string().trim().min(1, "Kunde ist erforderlich"),
+  caseNumber: optionalString,
+  objectTitle: optionalString,
+  propertyType: z.enum(["house", "single_family", "semi_detached", "row_house", "apartment", "multi_family", "other"]).default("house"),
+  street: z.string().trim().min(1, "Straße ist erforderlich"),
+  postalCode: z.string().trim().min(1, "PLZ ist erforderlich"),
+  city: z.string().trim().min(1, "Ort ist erforderlich"),
+  livingAreaSqm: z.coerce.number().positive("Wohnfläche ist erforderlich"),
+  plotAreaSqm: optionalNumber,
+  yearBuilt: optionalNumber,
+  condition: z.enum(["very_good", "good", "average", "renovation_needed"]).default("average"),
+  occupancyStatus: optionalString,
+  desiredModel: z.enum(["fixed_residential_right", "sale_and_leaseback", "other"]).default("fixed_residential_right"),
+  preferredValuationProvider: z.enum(["mock", "pricehubble", "sprengnetter", "other"]).default("sprengnetter"),
+  residentialRightRecipients: z.enum(["one_person", "both"]).optional(),
+  desiredResidentialRightYears: optionalNumber,
+  secondResidentialRightWanted: optionalBoolean.default(false),
+  secondResidentialRightYears: optionalNumber,
+  fixedTermReason: optionalString,
+  rentalOptionDeselected: optionalBoolean.default(false),
+  usableAreaSqm: optionalNumber,
+  coOwnershipShares: optionalString,
+  parkingAvailable: optionalBoolean,
+  parkingType: z.enum(["garage", "carport", "outdoor_space", "duplex"]).optional(),
+  parkingCount: optionalNumber,
+  basementType: z.enum(["none", "partial", "full"]).optional(),
+  heatingType: optionalString,
+  heatingYear: optionalNumber,
+  energyCarriers: z.array(z.string()).optional(),
+  windowMaterial: optionalString,
+  windowInstallationYear: optionalNumber,
+  asbestosRoofKnown: optionalBoolean,
+  energyCertificateAvailable: optionalBoolean,
+  energyCertificateType: optionalString,
+  energyClass: optionalString,
+  visualConditionRating: z.enum(["very_bad", "bad", "moderate", "medium", "good", "very_good"]).optional(),
+  leaseholdOrMonument: optionalBoolean.default(false),
+  leasehold: optionalBoolean.default(false),
+  monumentProtection: optionalBoolean.default(false),
+  knownDefects: optionalString,
+  remainingDebtAmount: optionalNumber,
+  modernization: z.record(z.unknown()).optional(),
+  buildingCondition: z.record(z.unknown()).optional(),
+  notes: optionalString
+});
+
+export const documentCreateSchema = z.object({
+  fileName: z.string().trim().min(1).default("upload-placeholder.pdf"),
+  displayName: optionalString,
+  fileType: z.string().trim().min(1).default("application/pdf"),
+  storageUrl: optionalString,
+  category: z.enum([
+    "photos",
+    "land_register",
+    "floorplan",
+    "section",
+    "living_area_calculation",
+    "energy_certificate",
+    "declaration_of_division",
+    "service_charge_statement",
+    "owners_meeting_minutes",
+    "maintenance_reserve",
+    "power_of_attorney",
+    "repair_offer",
+    "other"
+  ]).default("other"),
+  requirementLevel: z.enum(["required", "optional", "recommended"]).default("optional"),
+  status: z.enum(["pending", "ok", "missing", "review_required", "rejected"]).default("pending"),
+  missingReason: optionalString
+});
+
+export const reminderCreateSchema = z.object({
+  reason: z.string().trim().min(1, "Rückfragegrund ist erforderlich"),
+  dueAt: optionalString,
+  assignedToUserId: optionalString
+});
+
+export const activityCreateSchema = z.object({
+  propertyId: z.string().trim().min(1),
+  type: z.string().trim().min(1).default("note"),
+  message: z.string().trim().min(1),
+  entityType: z.enum(["property", "customer", "document", "valuation", "offer", "reminder"]).optional(),
+  entityId: optionalString,
+  metadata: z.record(z.unknown()).optional()
+});
