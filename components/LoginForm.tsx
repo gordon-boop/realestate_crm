@@ -3,8 +3,8 @@
 import { useState } from "react";
 
 export function LoginForm() {
-  const [email, setEmail] = useState("admin@demo.local");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -27,18 +27,14 @@ export function LoginForm() {
     <form className="panel panel-pad grid login-card" onSubmit={submit}>
       <label className="field">
         <span>E-Mail</span>
-        <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+        <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" />
       </label>
       <label className="field">
         <span>Passwort</span>
-        <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
+        <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" />
       </label>
       {error ? <p className="btn-danger" style={{ margin: 0 }}>{error}</p> : null}
       <button className="btn btn-primary" type="submit">Einloggen</button>
-      <p className="login-demo-note">
-        Demo: admin@demo.local / demo1234<br />
-        Partner: makler@demo.local / demo1234
-      </p>
     </form>
   );
 }

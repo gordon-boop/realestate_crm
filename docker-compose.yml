@@ -5,6 +5,8 @@ services:
       HOSTNAME: "0.0.0.0"
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/wohnkapital_crm"
       NODE_ENV: "production"
+    ports:
+      - "3000:3000"
     expose:
       - "3000"
     depends_on:

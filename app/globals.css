@@ -526,14 +526,6 @@ textarea {
   color: #44005c;
 }
 
-.login-demo-note {
-  margin: 0;
-  padding-top: 2px;
-  color: rgba(92, 74, 102, 0.72);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
 .section-label {
   display: inline-flex;
   align-items: center;
