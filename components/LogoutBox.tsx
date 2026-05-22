@@ -7,8 +7,13 @@ export function LogoutBox() {
 
   async function logout() {
     setBusy(true);
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/";
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      window.location.replace(payload.redirectTo ?? "/login");
+    } catch {
+      window.location.replace("/login");
+    }
   }
 
   return (

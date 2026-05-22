@@ -8,6 +8,7 @@ import type {
   IncomeRange,
   MaritalStatus,
   ParkingType,
+  PropertyOwnership,
   PropertyCondition,
   PropertyStatus,
   PropertyType,
@@ -78,6 +79,11 @@ export type CaseIntakeDraftDto = {
     dateOfBirth?: string;
     ageAtSubmission?: number;
     maritalStatus?: MaritalStatus;
+    spouseFirstName?: string;
+    spouseLastName?: string;
+    spouseGender?: Gender;
+    spouseDateOfBirth?: string;
+    propertyOwnership?: PropertyOwnership;
     street?: string;
     postalCode?: string;
     city?: string;
@@ -93,6 +99,12 @@ export type CaseIntakeDraftDto = {
     secondResidentialRightWanted?: boolean;
     secondResidentialRightYears?: number;
     fixedTermReason?: string;
+    modelReason?: string;
+    rentalModelDisclosureAccepted?: boolean;
+    additionalOfferRequested?: boolean;
+    additionalOfferModel?: "fixed_residential_right" | "sale_and_leaseback" | "other";
+    additionalOfferResidentialRightYears?: number;
+    additionalOfferReason?: string;
     rentalOptionDeselected?: boolean;
   };
   property: {
@@ -109,6 +121,8 @@ export type CaseIntakeDraftDto = {
     coOwnershipShares?: string;
     yearBuilt?: number;
     heatingType?: string;
+    heatingEnergySource?: string;
+    heatingEnergySourceOther?: string;
     heatingYear?: number;
     energyCertificateAvailable?: boolean;
     energyCertificateType?: string;
@@ -123,11 +137,13 @@ export type CaseIntakeDraftDto = {
     visualConditionRating?: RatingSix;
     energyCarriers?: string[];
     knownDefects?: string;
+    remainingDebtKnown?: boolean;
     remainingDebtAmount?: number;
     modernization?: Record<string, unknown>;
     buildingCondition?: Record<string, unknown>;
     leasehold?: boolean;
     monumentProtection?: boolean;
+    generalPropertyNotes?: string;
   };
   document?: {
     fileName?: string;

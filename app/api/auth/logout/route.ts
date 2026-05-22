@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { sessionCookieName } from "@/lib/auth";
 
 export function POST(): NextResponse {
-  const response = NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true, redirectTo: "/login" });
   response.cookies.set(sessionCookieName, "", {
     httpOnly: true,
     sameSite: "lax",

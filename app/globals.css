@@ -455,55 +455,83 @@ textarea {
 
 .login-scene {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 460px);
-  align-items: stretch;
-  gap: 24px;
-  min-height: calc(100vh - 160px);
-}
-
-.login-intro {
-  display: grid;
-  align-content: end;
-  min-height: 520px;
-  padding: 34px;
-  border-radius: 8px;
+  place-items: center;
+  min-height: calc(100vh - 176px);
+  padding: 48px 0;
   background:
-    linear-gradient(160deg, rgba(25, 107, 36, 0.95), rgba(15, 74, 26, 0.9)),
-    radial-gradient(circle at 84% 20%, rgba(255, 172, 0, 0.34), transparent 12rem),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 22px);
-  color: #fff;
-  box-shadow: var(--shadow);
+    radial-gradient(circle at 18% 18%, rgba(255, 172, 0, 0.12), transparent 16rem),
+    radial-gradient(circle at 82% 28%, rgba(168, 164, 67, 0.12), transparent 18rem);
 }
 
-.login-intro h1 {
-  max-width: 760px;
-  margin: 0;
-  font-family:
-    "Aptos Display", Aptos, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: clamp(36px, 6vw, 64px);
-  line-height: 1;
-  letter-spacing: 0;
-}
-
-.login-intro p {
-  max-width: 660px;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 18px;
+.login-panel {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  width: min(460px, 94vw);
 }
 
 .login-logo {
   display: block;
-  width: min(360px, 82vw);
+  width: clamp(220px, 42vw, 280px);
   height: auto;
-  margin-bottom: 28px;
-  padding: 16px 18px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.18);
+}
+
+.login-brand-block {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  color: #44005c;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .login-card {
-  align-self: center;
+  width: 100%;
+  max-width: 460px;
+  gap: 18px;
+  padding: 30px;
+  border-color: rgba(25, 107, 36, 0.16);
+  box-shadow: 0 22px 55px rgba(25, 107, 36, 0.13);
+}
+
+.login-card h1 {
+  margin: 12px 0 6px;
+  color: #44005c;
+  font-family:
+    "Aptos Display", Aptos, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.login-card p {
+  margin: 0;
+}
+
+.login-card .btn {
+  width: 100%;
+  min-height: 46px;
+  border-color: #44005c;
+  background: #44005c;
+}
+
+.login-card .btn:hover {
+  background: #380049;
+}
+
+.login-card .section-label {
+  background: #fff7e5;
+  color: #44005c;
+}
+
+.login-demo-note {
+  margin: 0;
+  padding-top: 2px;
+  color: rgba(92, 74, 102, 0.72);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .section-label {
@@ -544,8 +572,20 @@ textarea {
     font-size: 13px;
   }
 
-  .login-intro {
-    min-height: 360px;
+  .login-scene {
+    align-items: center;
+    justify-items: center;
+    min-height: calc(100vh - 150px);
+    padding: 30px 0;
+  }
+
+  .login-panel {
+    width: min(94vw, 460px);
+    gap: 18px;
+  }
+
+  .login-card {
+    padding: 24px;
   }
 
   .table {

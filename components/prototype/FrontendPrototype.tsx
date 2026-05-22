@@ -78,8 +78,7 @@ const Header = ({ role, user, onRoleToggle, onLogout }) => (
   <div style={{ background: theme.mintLight, borderBottom: `1px solid ${theme.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Logo />
-        <span style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, letterSpacing: '-0.01em' }}>WohnKapital</span>
+        <img src="/brand/wohnkapital-logo.svg" alt="WohnKapital" style={{ display: 'block', width: 154, height: 'auto' }} />
       </div>
       <div style={{ width: 1, height: 22, background: theme.border, margin: '0 8px' }} />
       <span style={{ fontSize: 12, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
@@ -355,7 +354,9 @@ const defaultDraft = {
   fixedTermReason: 'Familienplanung',
   rentalOptionDeselected: false,
   coOwnershipShares: '',
-  heatingType: 'Gas-Brennwert',
+  heatingType: 'central',
+  heatingEnergySource: 'gas',
+  heatingEnergySourceOther: '',
   heatingYear: 2015,
   energyCertificateAvailable: false,
   energyCertificateType: 'demand',
@@ -1183,6 +1184,8 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         parkingCount: Number(draft.parkingCount) || undefined,
         basementType: draft.basementType || undefined,
         heatingType: draft.heatingType,
+        heatingEnergySource: draft.heatingEnergySource,
+        heatingEnergySourceOther: draft.heatingEnergySource === 'other' ? draft.heatingEnergySourceOther : undefined,
         heatingYear: Number(draft.heatingYear) || undefined,
         energyCarriers: draft.energyCarriers,
         windowMaterial: draft.windowMaterial,
@@ -1517,7 +1520,7 @@ const FormStep3 = ({ draft, setDraft }) => (
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Grunddaten</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Immobilientyp" required>
-        <Select value={draft.propertyType} onChange={(event) => setDraft({ ...draft, propertyType: event.target.value })}><option value="">Bitte wählen</option><option value="single_family">Einfamilienhaus</option><option value="semi_detached">Doppelhaushälfte</option><option value="row_house">Reihenhaus</option><option value="apartment">Eigentumswohnung</option><option value="multi_family">Mehrfamilienhaus</option><option value="other">Sonstiges</option></Select>
+        <Select value={draft.propertyType} onChange={(event) => setDraft({ ...draft, propertyType: event.target.value })}><option value="">Bitte wählen</option><option value="single_family">Einfamilienhaus</option><option value="semi_detached">Doppelhaushälfte</option><option value="row_house">Reihenhaus</option><option value="apartment">Eigentumswohnung</option></Select>
       </Field>
       <Field label="Baujahr" required><Input type="number" placeholder="z.B. 1978" value={draft.yearBuilt} onChange={(event) => setDraft({ ...draft, yearBuilt: event.target.value })} /></Field>
       <Field label="Wohnfläche (m²)" required><Input type="number" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
@@ -1561,8 +1564,40 @@ const FormStep3 = ({ draft, setDraft }) => (
 
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Technik und Energie</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Heizung"><Input value={draft.heatingType} onChange={(event) => setDraft({ ...draft, heatingType: event.target.value })} /></Field>
+      <Field label="Heizungsart">
+        <Select value={draft.heatingType} onChange={(event) => setDraft({ ...draft, heatingType: event.target.value })}>
+          <option value="">Bitte wählen</option>
+          <option value="central">Zentralheizung</option>
+          <option value="floor">Etagenheizung</option>
+          <option value="electric">Elektroheizung</option>
+          <option value="single_stove">Einzelofen</option>
+          <option value="none">Keine</option>
+        </Select>
+      </Field>
+      <Field label="Energieträger / Wärmeerzeuger">
+        <Select value={draft.heatingEnergySource || ''} onChange={(event) => setDraft({ ...draft, heatingEnergySource: event.target.value })}>
+          <option value="">Bitte wählen</option>
+          <option value="gas">Gas</option>
+          <option value="oil">Öl</option>
+          <option value="district_heating">Fernwärme</option>
+          <option value="heat_pump">Wärmepumpe</option>
+          <option value="electricity">Strom</option>
+          <option value="wood_pellets">Holz/Pellets</option>
+          <option value="hybrid">Hybrid</option>
+          <option value="other">Sonstige</option>
+        </Select>
+      </Field>
       <Field label="Heizungsjahr"><Input type="number" value={draft.heatingYear} onChange={(event) => setDraft({ ...draft, heatingYear: event.target.value })} /></Field>
+    </div>
+    {draft.heatingEnergySource === 'other' && (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <Field label="Beschreibung Energieträger">
+          <Input value={draft.heatingEnergySourceOther || ''} onChange={(event) => setDraft({ ...draft, heatingEnergySourceOther: event.target.value })} />
+        </Field>
+      </div>
+    )}
+
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Energieklasse"><Input value={draft.energyClass} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })} /></Field>
     </div>
 
@@ -1850,10 +1885,10 @@ export default function App({ initialRole = 'partner' } = {}) {
   };
   const handleLogout = async () => {
     try {
-      await postJson('/api/auth/logout');
-      setNotice('Du wurdest abgemeldet. Für die Prototyp-Ansicht wird beim nächsten Laden automatisch wieder die Demo-Session gesetzt.');
+      const payload = await postJson('/api/auth/logout');
+      window.location.replace(payload.redirectTo || '/login');
     } catch {
-      setNotice('Logout konnte nicht abgeschlossen werden.');
+      window.location.replace('/login');
     }
   };
 

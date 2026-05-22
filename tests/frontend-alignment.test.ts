@@ -17,6 +17,7 @@ test("property validation accepts frontend property types and split exclusion fl
     postalCode: "70563",
     city: "Stuttgart",
     livingAreaSqm: 142,
+    plotAreaSqm: 380,
     condition: "good",
     desiredModel: "fixed_residential_right",
     residentialRightRecipients: "one_person",
@@ -24,11 +25,17 @@ test("property validation accepts frontend property types and split exclusion fl
     secondResidentialRightWanted: true,
     secondResidentialRightYears: 5,
     fixedTermReason: "Familienplanung",
+    modelReason: "Kunde plant in 10 Jahren einen Umzug.",
+    rentalModelDisclosureAccepted: true,
+    additionalOfferRequested: true,
+    additionalOfferModel: "sale_and_leaseback",
+    additionalOfferReason: "Vergleich für den Kunden",
     rentalOptionDeselected: false,
     occupancyStatus: "owner_occupied",
     usableAreaSqm: 55,
     coOwnershipShares: "124/1000",
     heatingType: "Gas-Brennwert",
+    heatingEnergySource: "gas",
     heatingYear: 2015,
     energyCertificateAvailable: false,
     energyCertificateType: "demand",
@@ -41,8 +48,11 @@ test("property validation accepts frontend property types and split exclusion fl
     windowInstallationYear: 2012,
     visualConditionRating: "good",
     energyCarriers: ["photovoltaik"],
+    remainingDebtKnown: true,
+    remainingDebtAmount: 50000,
     modernization: { roof: { scope: "partial", year: "2020" } },
     buildingCondition: { roof: "good" },
+    generalPropertyNotes: "Kunde wünscht ruhigen Ablauf.",
     leasehold: false,
     monumentProtection: true
   });
@@ -52,6 +62,9 @@ test("property validation accepts frontend property types and split exclusion fl
   assert.equal(parsed.parkingType, "garage");
   assert.equal(parsed.occupancyStatus, "owner_occupied");
   assert.deepEqual(parsed.energyCarriers, ["photovoltaik"]);
+  assert.equal(parsed.additionalOfferRequested, true);
+  assert.equal(parsed.heatingEnergySource, "gas");
+  assert.equal(parsed.remainingDebtKnown, true);
 });
 
 test("case intake dto covers modernization, document status and technical property fields", () => {
@@ -61,14 +74,20 @@ test("case intake dto covers modernization, document status and technical proper
       firstName: "Eva",
       lastName: "Schmidt",
       gender: "female",
+      maritalStatus: "married",
+      spouseFirstName: "Hans",
+      spouseLastName: "Schmidt",
+      spouseGender: "male",
+      propertyOwnership: "both",
       postalCode: "70563",
       consentDataProcessing: true
     },
     model: {
       residentialRightRecipients: "one_person",
       desiredResidentialRightYears: 10,
-      secondResidentialRightWanted: true,
-      secondResidentialRightYears: 5
+      modelReason: "Befristung passt zur Umzugsplanung",
+      additionalOfferRequested: true,
+      additionalOfferModel: "sale_and_leaseback"
     },
     property: {
       propertyType: "single_family",
@@ -78,11 +97,14 @@ test("case intake dto covers modernization, document status and technical proper
       city: "Stuttgart",
       occupancyStatus: "owner_occupied",
       heatingType: "Gas-Brennwert",
+      heatingEnergySource: "gas",
       basementType: "full",
       parkingType: "garage",
       energyCarriers: ["photovoltaik"],
+      remainingDebtKnown: false,
       modernization: { roof: { scope: "partial", year: "2020" } },
-      buildingCondition: { roof: "good" }
+      buildingCondition: { roof: "good" },
+      generalPropertyNotes: "Allgemeiner Hinweis"
     },
     document: {
       fileName: "Energieausweis",

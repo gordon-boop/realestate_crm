@@ -13,7 +13,7 @@ import { getCaseByPropertyId, store } from "@/lib/store";
 
 export default function AdminCasePage({ params }: { params: { id: string } }) {
   const user = getCurrentUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/partner");
   const caseView = getCaseByPropertyId(params.id);
   if (!caseView) redirect("/admin");
@@ -67,10 +67,15 @@ export default function AdminCasePage({ params }: { params: { id: string } }) {
           <h2>Kunde</h2>
           <p>{caseView.customer.displayName ?? `${caseView.customer.firstName} ${caseView.customer.lastName}`}</p>
           <p className="muted">{caseView.customer.gender ?? "Geschlecht offen"} | {caseView.customer.maritalStatus ?? "Familienstand offen"} | {caseView.customer.monthlyIncomeRange ?? "Einkommen offen"}</p>
+          {caseView.customer.spouseFirstName || caseView.customer.spouseLastName ? (
+            <p className="muted">Kunde 2: {caseView.customer.spouseFirstName ?? ""} {caseView.customer.spouseLastName ?? ""} | Eigentümer: {caseView.customer.propertyOwnership ?? "-"}</p>
+          ) : null}
         </section>
         <section className="panel panel-pad">
           <h2>Objekt</h2>
           <p>{caseView.property.objectTitle ?? caseView.property.propertyType} | {caseView.property.livingAreaSqm} qm Wfl | {caseView.property.plotAreaSqm ?? "-"} qm Grundstück</p>
+          <p className="muted">Modell: {caseView.property.desiredModel === "sale_and_leaseback" ? "Rückmiete" : "Befristetes Wohnrecht"} | Grund: {caseView.property.modelReason ?? "-"}</p>
+          <p className="muted">Heizung: {caseView.property.heatingType ?? "-"} | Energieträger: {caseView.property.heatingEnergySource ?? "-"} | Restschuld: {caseView.property.remainingDebtKnown ? "ja" : "nein"}</p>
           <p className="muted">Objektnummer {caseView.property.caseNumber ?? caseView.property.id} | Erbbaurecht: {caseView.property.leasehold ? "ja" : "nein"} | Denkmalschutz: {caseView.property.monumentProtection ? "ja" : "nein"}</p>
         </section>
         <section className="panel panel-pad">

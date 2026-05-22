@@ -40,6 +40,12 @@ enum DesiredModel {
   other
 }
 
+enum PropertyOwnership {
+  customer_1
+  customer_2
+  both
+}
+
 enum PropertyStatus {
   DRAFT
   SUBMITTED
@@ -246,6 +252,11 @@ model Customer {
   mobile                String?
   dateOfBirth           DateTime? @map("date_of_birth")
   maritalStatus         MaritalStatus? @map("marital_status")
+  spouseFirstName       String?   @map("spouse_first_name")
+  spouseLastName        String?   @map("spouse_last_name")
+  spouseGender          Gender?   @map("spouse_gender")
+  spouseDateOfBirth     DateTime? @map("spouse_date_of_birth")
+  propertyOwnership     PropertyOwnership? @map("property_ownership")
   monthlyIncomeRange    IncomeRange? @map("monthly_income_range")
   street                String?
   postalCode            String?   @map("postal_code")
@@ -285,6 +296,12 @@ model Property {
   secondResidentialRightWanted Boolean           @default(false) @map("second_residential_right_wanted")
   secondResidentialRightYears  Int?              @map("second_residential_right_years")
   fixedTermReason              String?           @map("fixed_term_reason")
+  modelReason                  String?           @map("model_reason")
+  rentalModelDisclosureAccepted Boolean          @default(false) @map("rental_model_disclosure_accepted")
+  additionalOfferRequested     Boolean           @default(false) @map("additional_offer_requested")
+  additionalOfferModel         DesiredModel?     @map("additional_offer_model")
+  additionalOfferResidentialRightYears Int?      @map("additional_offer_residential_right_years")
+  additionalOfferReason        String?           @map("additional_offer_reason")
   rentalOptionDeselected       Boolean           @default(false) @map("rental_option_deselected")
   usableAreaSqm                Int?              @map("usable_area_sqm")
   coOwnershipShares            String?           @map("co_ownership_shares")
@@ -293,6 +310,8 @@ model Property {
   parkingCount                 Int?              @map("parking_count")
   basementType                 BasementType?     @map("basement_type")
   heatingType                  String?           @map("heating_type")
+  heatingEnergySource          String?           @map("heating_energy_source")
+  heatingEnergySourceOther     String?           @map("heating_energy_source_other")
   heatingYear                  Int?              @map("heating_year")
   energyCarriersJson           Json?             @map("energy_carriers_json")
   windowMaterial               String?           @map("window_material")
@@ -306,9 +325,11 @@ model Property {
   leasehold                    Boolean           @default(false)
   monumentProtection           Boolean           @default(false) @map("monument_protection")
   knownDefects                 String?           @map("known_defects")
+  remainingDebtKnown           Boolean           @default(false) @map("remaining_debt_known")
   remainingDebtAmount          Decimal?          @map("remaining_debt_amount") @db.Decimal(14, 2)
   modernizationJson            Json?             @map("modernization_json")
   buildingConditionJson        Json?             @map("building_condition_json")
+  generalPropertyNotes         String?           @map("general_property_notes")
   followUpRequired             Boolean           @default(false) @map("follow_up_required")
   followUpReason               String?           @map("follow_up_reason")
   followUpDueAt                DateTime?         @map("follow_up_due_at")

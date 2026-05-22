@@ -6,6 +6,7 @@ export type DesiredModel = "fixed_residential_right" | "sale_and_leaseback" | "o
 export type Gender = "male" | "female" | "diverse" | "not_specified";
 export type MaritalStatus = "single" | "married" | "divorced" | "widowed" | "other";
 export type IncomeRange = "under_1000" | "from_1000_to_2000" | "from_2000_to_3000" | "over_3000";
+export type PropertyOwnership = "customer_1" | "customer_2" | "both";
 export type ResidentialRightRecipients = "one_person" | "both";
 export type RatingSix = "very_bad" | "bad" | "moderate" | "medium" | "good" | "very_good";
 export type BasementType = "none" | "partial" | "full";
@@ -86,6 +87,11 @@ export type Customer = {
   mobile?: string;
   dateOfBirth?: string;
   maritalStatus?: MaritalStatus;
+  spouseFirstName?: string;
+  spouseLastName?: string;
+  spouseGender?: Gender;
+  spouseDateOfBirth?: string;
+  propertyOwnership?: PropertyOwnership;
   monthlyIncomeRange?: IncomeRange;
   street?: string;
   postalCode?: string;
@@ -118,6 +124,12 @@ export type Property = {
   secondResidentialRightWanted?: boolean;
   secondResidentialRightYears?: number;
   fixedTermReason?: string;
+  modelReason?: string;
+  rentalModelDisclosureAccepted?: boolean;
+  additionalOfferRequested?: boolean;
+  additionalOfferModel?: DesiredModel;
+  additionalOfferResidentialRightYears?: number;
+  additionalOfferReason?: string;
   rentalOptionDeselected?: boolean;
   usableAreaSqm?: number;
   coOwnershipShares?: string;
@@ -126,6 +138,8 @@ export type Property = {
   parkingCount?: number;
   basementType?: BasementType;
   heatingType?: string;
+  heatingEnergySource?: string;
+  heatingEnergySourceOther?: string;
   heatingYear?: number;
   energyCarriers?: string[];
   windowMaterial?: string;
@@ -139,9 +153,11 @@ export type Property = {
   leasehold?: boolean;
   monumentProtection?: boolean;
   knownDefects?: string;
+  remainingDebtKnown?: boolean;
   remainingDebtAmount?: number;
   modernization?: Record<string, unknown>;
   buildingCondition?: Record<string, RatingSix>;
+  generalPropertyNotes?: string;
   followUpRequired?: boolean;
   followUpReason?: string;
   followUpDueAt?: string;

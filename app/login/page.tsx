@@ -5,18 +5,13 @@ export default function LoginPage() {
   return (
     <AppShell>
       <div className="login-scene">
-        <section className="login-intro">
-          <div>
+        <section className="login-panel">
+          <div className="login-brand-block">
             <img className="login-logo" src="/brand/wohnkapital-logo.svg" alt="WohnKapital" />
-            <span className="section-label">Maklerportal</span>
-            <h1>WohnKapital </h1>
-            <p>
-              WohnKapital bündelt Erfassung, Bewertung, Rückfragen, Angebotskalkulation und
-              interne Freigabe in einer ruhigen Arbeitsoberfläche.
-            </p>
+            <span>Maklerportal</span>
           </div>
+          <LoginForm />
         </section>
-        <LoginForm />
       </div>
     </AppShell>
   );

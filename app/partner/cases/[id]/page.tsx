@@ -13,7 +13,7 @@ import { getCaseByPropertyId } from "@/lib/store";
 
 export default function PartnerCasePage({ params }: { params: { id: string } }) {
   const user = getCurrentUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
   const caseView = getCaseByPropertyId(params.id);
   if (!caseView || !canSeeProperty(user, caseView.property)) redirect("/partner");
   const requiredDocumentRows = getRequiredDocumentsForPropertyType(caseView.property.propertyType).map((requirement) => {
@@ -55,13 +55,17 @@ export default function PartnerCasePage({ params }: { params: { id: string } }) 
           <h2>Kundendaten</h2>
           <p>{caseView.customer.email ?? "-"}<br />{caseView.customer.phone ?? "-"}<br />{caseView.customer.mobile ?? "-"}</p>
           <p className="muted">{caseView.customer.maritalStatus ?? "Familienstand offen"} | {caseView.customer.monthlyIncomeRange ?? "Einkommen offen"}</p>
+          {caseView.customer.spouseFirstName || caseView.customer.spouseLastName ? (
+            <p className="muted">Kunde 2: {caseView.customer.spouseFirstName ?? ""} {caseView.customer.spouseLastName ?? ""} | Eigentümer: {caseView.customer.propertyOwnership ?? "-"}</p>
+          ) : null}
           <p className="muted">Einwilligung: {caseView.customer.consentDataProcessing ? "ja" : "nein"}</p>
         </section>
         <section className="panel panel-pad">
           <h2>Objektdaten</h2>
-          <p>{caseView.property.propertyType} | {caseView.property.condition} | {caseView.property.livingAreaSqm} qm Wfl | {caseView.property.plotAreaSqm ?? "-"} qm Grundstück</p>
-          <p className="muted">Wohnrecht: {caseView.property.residentialRightRecipients ?? "-"} | {caseView.property.desiredResidentialRightYears ?? "-"} Jahre</p>
-          <p className="muted">{caseView.property.notes ?? "Keine Notizen"}</p>
+          <p>{caseView.property.propertyType} | Optik {caseView.property.visualConditionRating ?? "-"} | {caseView.property.livingAreaSqm} qm Wfl | {caseView.property.plotAreaSqm ?? "-"} qm Grundstück</p>
+          <p className="muted">Modell: {caseView.property.desiredModel === "sale_and_leaseback" ? "Rückmiete" : "Befristetes Wohnrecht"} | Wohnrecht: {caseView.property.desiredResidentialRightYears ?? "-"} Jahre</p>
+          <p className="muted">Heizung: {caseView.property.heatingType ?? "-"} | Energieträger: {caseView.property.heatingEnergySource ?? "-"}</p>
+          <p className="muted">{caseView.property.generalPropertyNotes ?? caseView.property.notes ?? "Keine Notizen"}</p>
         </section>
       </div>
 

@@ -29,9 +29,7 @@ export function AppShell({ user, children }: { user?: User; children: React.Reac
               <Link className="nav-link" href={home}>FAQs</Link>
               <LogoutBox />
             </>
-          ) : (
-            <Link className="nav-link" href="/">Login</Link>
-          )}
+          ) : null}
         </nav>
       </header>
       <section className="page">{children}</section>

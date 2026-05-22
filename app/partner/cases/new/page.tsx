@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 
 export default function NewPartnerCasePage() {
   const user = getCurrentUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
   if (user.role !== "partner") redirect("/admin");
 
   return (
