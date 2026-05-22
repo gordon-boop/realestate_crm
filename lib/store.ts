@@ -4,6 +4,7 @@
   CaseView,
   Customer,
   Document,
+  Lead,
   Offer,
   OfferVersion,
   Partner,
@@ -149,6 +150,47 @@ const documents: Document[] = [
   }
 ];
 
+const leads: Lead[] = [
+  {
+    id: "lead_homepage_1",
+    leadNumber: "LD-2026-001",
+    source: "homepage",
+    status: "NEW",
+    name: "Maria Müller",
+    email: "maria.mueller@example.com",
+    phone: "+49 711 222333",
+    postalCode: "70563",
+    city: "Stuttgart",
+    propertyType: "single_family",
+    estimatedPropertyValueRange: "500-800",
+    youngestOwnerAgeRange: "70-74",
+    productInterest: "fixed_residential_right",
+    message: "Homepage-Anfrage aus der Ersteinschätzung.",
+    createdAt: stamp,
+    updatedAt: stamp
+  },
+  {
+    id: "lead_assigned_1",
+    leadNumber: "LD-2026-002",
+    source: "homepage",
+    status: "ASSIGNED",
+    assignedPartnerId: "partner_heimwert",
+    assignedByUserId: "user_admin",
+    assignedAt: stamp,
+    name: "Karl Weber",
+    phone: "+49 30 555555",
+    postalCode: "14193",
+    city: "Berlin",
+    propertyType: "apartment",
+    estimatedPropertyValueRange: "300-500",
+    youngestOwnerAgeRange: "75-79",
+    productInterest: "fixed_residential_right",
+    message: "Bitte Kontakt aufnehmen und Beratungsbedarf klären.",
+    createdAt: stamp,
+    updatedAt: stamp
+  }
+];
+
 const valuations: Valuation[] = [
   {
     id: "valuation_berlin_1",
@@ -268,6 +310,7 @@ export const store = {
   customers,
   properties,
   documents,
+  leads,
   valuations,
   offers,
   offerVersions,
@@ -359,6 +402,116 @@ export function updatePropertyStatus(propertyId: string, status: PropertyStatus)
 
 export function nextOfferNumber(): string {
   return `ANG-2026-${String(offers.length + 1).padStart(4, "0")}`;
+}
+
+export function nextLeadNumber(): string {
+  return `LD-2026-${String(leads.length + 1).padStart(3, "0")}`;
+}
+
+export function nextCaseNumber(): string {
+  return `WK-2026-${String(properties.length + 15).padStart(3, "0")}`;
+}
+
+function splitLeadName(lead: Lead): { firstName: string; lastName: string; displayName: string } {
+  const displayName = [lead.firstName, lead.lastName].filter(Boolean).join(" ").trim() || lead.name?.trim() || "Lead ohne Namen";
+  if (lead.firstName || lead.lastName) {
+    return {
+      firstName: lead.firstName || "Unbekannt",
+      lastName: lead.lastName || "Lead",
+      displayName
+    };
+  }
+
+  const parts = displayName.split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || "Unbekannt",
+    lastName: parts.slice(1).join(" ") || "Lead",
+    displayName
+  };
+}
+
+export function convertLeadToCase(leadId: string, partnerId: string, userId: string): CaseView {
+  const lead = leads.find((item) => item.id === leadId);
+  if (!lead) throw new Error("Lead not found");
+  if (lead.status === "CONVERTED") throw new Error("Lead already converted");
+  if (lead.assignedPartnerId !== partnerId) throw new Error("Forbidden");
+
+  const now = nowIso();
+  const name = splitLeadName(lead);
+  const customer: Customer = {
+    id: makeId("cus"),
+    partnerId,
+    displayName: name.displayName,
+    firstName: name.firstName,
+    lastName: name.lastName,
+    email: lead.email,
+    phone: lead.phone,
+    postalCode: lead.postalCode,
+    city: lead.city,
+    addressText: [lead.postalCode, lead.city].filter(Boolean).join(" "),
+    consentDataProcessing: true,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const property: Property = {
+    id: makeId("pro"),
+    caseNumber: nextCaseNumber(),
+    objectTitle: `${propertyTypeToTitle(lead.propertyType)} ${lead.city || "Ort offen"}`,
+    customerId: customer.id,
+    partnerId,
+    propertyType: lead.propertyType || "single_family",
+    street: "Noch offen",
+    postalCode: lead.postalCode || "00000",
+    city: lead.city || "Ort offen",
+    livingAreaSqm: 1,
+    plotAreaSqm: 0,
+    condition: "average",
+    occupancyStatus: "owner_occupied",
+    desiredModel: lead.productInterest || "fixed_residential_right",
+    preferredValuationProvider: "sprengnetter",
+    offerCalculationSource: "application",
+    notes: lead.message ? `Aus Homepage-Lead übernommen: ${lead.message}` : "Aus Homepage-Lead übernommen.",
+    status: "DRAFT",
+    createdAt: now,
+    updatedAt: now
+  };
+
+  customers.push(customer);
+  properties.push(property);
+
+  lead.status = "CONVERTED";
+  lead.assignedPartnerId = partnerId;
+  lead.convertedCustomerId = customer.id;
+  lead.convertedPropertyId = property.id;
+  lead.convertedAt = now;
+  lead.updatedAt = now;
+
+  addActivity(property.id, userId, "lead_converted", `Lead ${lead.leadNumber} wurde in einen Kundenfall umgewandelt.`, {
+    source: "partner",
+    entityType: "lead",
+    entityId: lead.id
+  });
+
+  const convertedCase = getCaseByPropertyId(property.id);
+  if (!convertedCase) throw new Error("Converted case not found");
+  return convertedCase;
+}
+
+function propertyTypeToTitle(type?: Lead["propertyType"]): string {
+  switch (type) {
+    case "apartment":
+      return "ETW";
+    case "semi_detached":
+      return "Doppelhaushälfte";
+    case "row_house":
+      return "Reihenhaus";
+    case "house":
+    case "single_family":
+      return "EFH";
+    default:
+      return "Objekt";
+  }
 }
 
 export function saveOfferVersion(offer: Offer, createdByUserId?: string): OfferVersion {

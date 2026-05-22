@@ -125,7 +125,36 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 /* ─── Lead form (hero) ─────────────────────────────────────────────────────── */
 function LeadForm() {
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({ plz: "", type: "", value: "", age: "" });
+
+  async function submitLead() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          source: "homepage",
+          postalCode: form.plz,
+          propertyType: form.type,
+          estimatedPropertyValueRange: form.value,
+          youngestOwnerAgeRange: form.age,
+          productInterest: "fixed_residential_right",
+          message: "Lead aus der Homepage-Ersteinschätzung."
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Anfrage konnte nicht gespeichert werden.");
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Anfrage konnte nicht gespeichert werden.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (submitted) {
     return (
@@ -153,7 +182,7 @@ function LeadForm() {
 
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }}
+      onSubmit={(e) => { e.preventDefault(); submitLead(); }}
       style={{ display: "grid", gap: "14px" }}
     >
       <div className="lf-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
@@ -169,10 +198,10 @@ function LeadForm() {
           <label>Immobilientyp</label>
           <select required value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
             <option value="">Bitte wählen</option>
-            <option value="house">Einfamilienhaus</option>
-            <option value="semi">Doppelhaus / Reihenhaus</option>
+            <option value="single_family">Einfamilienhaus</option>
+            <option value="semi_detached">Doppelhaushälfte</option>
+            <option value="row_house">Reihenhaus</option>
             <option value="apartment">Eigentumswohnung</option>
-            <option value="other">Sonstiges</option>
           </select>
         </div>
         <div className="field">
@@ -199,15 +228,17 @@ function LeadForm() {
       </div>
       <button
         type="submit"
+        disabled={submitting}
         style={{
           marginTop: "4px", minHeight: "54px", background: "#196B24",
           border: "none", borderRadius: "8px", color: "#fff",
           fontSize: "17px", fontWeight: 700, cursor: "pointer",
-          letterSpacing: "0.01em",
+          letterSpacing: "0.01em", opacity: submitting ? 0.72 : 1,
         }}
       >
-        Auszahlung unverbindlich berechnen
+        {submitting ? "Anfrage wird gespeichert..." : "Auszahlung unverbindlich berechnen"}
       </button>
+      {error && <p style={{ margin: 0, textAlign: "center", fontSize: "13px", color: "#9B2C2C" }}>{error}</p>}
       <p style={{ margin: 0, textAlign: "center", fontSize: "13px", color: "#7a8a7a" }}>
         Kostenlos &amp; unverbindlich · Keine Weitergabe an Dritte
       </p>
@@ -342,7 +373,35 @@ function Calculator() {
 /* ─── Contact form ─────────────────────────────────────────────────────────── */
 function ContactForm() {
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
+
+  async function submitContactLead() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          source: "homepage",
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          message: form.message || "Kontaktanfrage von der Homepage.",
+          productInterest: "fixed_residential_right"
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Anfrage konnte nicht gespeichert werden.");
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Anfrage konnte nicht gespeichert werden.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (sent) {
     return (
@@ -369,7 +428,7 @@ function ContactForm() {
   }
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); setSent(true); }} style={{ display: "grid", gap: "14px" }}>
+    <form onSubmit={(e) => { e.preventDefault(); submitContactLead(); }} style={{ display: "grid", gap: "14px" }}>
       <div className="cf-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
         <div className="field">
           <label>Ihr Name</label>
@@ -390,14 +449,16 @@ function ContactForm() {
       </div>
       <button
         type="submit"
+        disabled={submitting}
         style={{
           minHeight: "54px", background: "#196B24", border: "none",
           borderRadius: "8px", color: "#fff", fontSize: "17px",
-          fontWeight: 700, cursor: "pointer", marginTop: "4px",
+          fontWeight: 700, cursor: "pointer", marginTop: "4px", opacity: submitting ? 0.72 : 1,
         }}
       >
         Jetzt kostenlos beraten lassen →
       </button>
+      {error && <p style={{ margin: 0, textAlign: "center", fontSize: "13px", color: "#9B2C2C" }}>{error}</p>}
       <p style={{ margin: 0, fontSize: "13px", color: "#7a8a7a", textAlign: "center" }}>
         Ihre Daten werden vertraulich behandelt · Keine Weitergabe an Dritte
       </p>

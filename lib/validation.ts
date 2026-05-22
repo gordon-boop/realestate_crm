@@ -122,7 +122,31 @@ export const activityCreateSchema = z.object({
   propertyId: z.string().trim().min(1),
   type: z.string().trim().min(1).default("note"),
   message: z.string().trim().min(1),
-  entityType: z.enum(["property", "customer", "document", "valuation", "offer", "reminder"]).optional(),
+  entityType: z.enum(["property", "customer", "document", "valuation", "offer", "reminder", "lead"]).optional(),
   entityId: optionalString,
   metadata: z.record(z.unknown()).optional()
+});
+
+export const leadCreateSchema = z.object({
+  source: z.enum(["homepage", "admin", "partner", "other"]).default("homepage"),
+  firstName: optionalString,
+  lastName: optionalString,
+  name: optionalString,
+  email: optionalString,
+  phone: optionalString,
+  postalCode: optionalString,
+  city: optionalString,
+  propertyType: z.enum(["house", "single_family", "semi_detached", "row_house", "apartment"]).optional(),
+  estimatedPropertyValueRange: optionalString,
+  youngestOwnerAgeRange: optionalString,
+  message: optionalString,
+  productInterest: z.enum(["fixed_residential_right", "sale_and_leaseback", "other"]).optional()
+});
+
+export const leadAssignSchema = z.object({
+  partnerId: z.string().trim().min(1, "Partner ist erforderlich")
+});
+
+export const leadStatusSchema = z.object({
+  status: z.enum(["NEW", "QUALIFIED", "ASSIGNED", "CONTACTED", "CONVERTED", "REJECTED"])
 });

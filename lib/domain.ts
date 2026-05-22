@@ -48,8 +48,9 @@ export type DocumentRequirementLevel = "required" | "optional" | "recommended";
 export type OfferKind = "indicative" | "binding";
 export type OfferStatus = "draft" | "review" | "approved" | "sent" | "rejected";
 export type ReminderStatus = "open" | "done" | "overdue" | "cancelled";
+export type LeadStatus = "NEW" | "QUALIFIED" | "ASSIGNED" | "CONTACTED" | "CONVERTED" | "REJECTED";
 export type ActivitySource = "system" | "user" | "partner" | "admin";
-export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder";
+export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead";
 
 export type Partner = {
   id: string;
@@ -294,6 +295,33 @@ export type Reminder = {
   dueAt: string;
   completedAt?: string;
   lastReminderAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Lead = {
+  id: string;
+  leadNumber: string;
+  source: "homepage" | "admin" | "partner" | "other";
+  status: LeadStatus;
+  assignedPartnerId?: string;
+  assignedByUserId?: string;
+  assignedAt?: string;
+  convertedCustomerId?: string;
+  convertedPropertyId?: string;
+  convertedAt?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  postalCode?: string;
+  city?: string;
+  propertyType?: PropertyType;
+  estimatedPropertyValueRange?: string;
+  youngestOwnerAgeRange?: string;
+  message?: string;
+  productInterest?: DesiredModel;
   createdAt: string;
   updatedAt: string;
 };

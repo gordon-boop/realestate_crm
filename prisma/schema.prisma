@@ -183,6 +183,22 @@ enum ReminderStatus {
   cancelled
 }
 
+enum LeadSource {
+  homepage
+  admin
+  partner
+  other
+}
+
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  ASSIGNED
+  CONTACTED
+  CONVERTED
+  REJECTED
+}
+
 enum ActivitySource {
   system
   user
@@ -197,6 +213,7 @@ enum ActivityEntityType {
   valuation
   offer
   reminder
+  lead
 }
 
 model Partner {
@@ -491,6 +508,37 @@ model Reminder {
   @@index([propertyId])
   @@index([status])
   @@map("reminders")
+}
+
+model Lead {
+  id                          String       @id @default(cuid())
+  leadNumber                  String       @unique @map("lead_number")
+  source                      LeadSource   @default(homepage)
+  status                      LeadStatus   @default(NEW)
+  assignedPartnerId           String?      @map("assigned_partner_id")
+  assignedByUserId            String?      @map("assigned_by_user_id")
+  assignedAt                  DateTime?    @map("assigned_at")
+  convertedCustomerId         String?      @map("converted_customer_id")
+  convertedPropertyId         String?      @map("converted_property_id")
+  convertedAt                 DateTime?    @map("converted_at")
+  firstName                   String?      @map("first_name")
+  lastName                    String?      @map("last_name")
+  name                        String?
+  email                       String?
+  phone                       String?
+  postalCode                  String?      @map("postal_code")
+  city                        String?
+  propertyType                PropertyType? @map("property_type")
+  estimatedPropertyValueRange String?      @map("estimated_property_value_range")
+  youngestOwnerAgeRange       String?      @map("youngest_owner_age_range")
+  message                     String?
+  productInterest             DesiredModel? @map("product_interest")
+  createdAt                   DateTime     @default(now()) @map("created_at")
+  updatedAt                   DateTime     @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([assignedPartnerId])
+  @@map("leads")
 }
 
 model ActivityVersion {

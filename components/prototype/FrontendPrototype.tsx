@@ -62,6 +62,24 @@ const StatusBadge = ({ status, size = 'sm' }) => {
   );
 };
 
+const LeadStatusBadge = ({ status }) => {
+  const color = leadStatusColors[status] || theme.aubergine;
+  return (
+    <span style={{
+      display: 'inline-block',
+      background: `${color}1A`,
+      color,
+      fontSize: 11,
+      fontWeight: 700,
+      padding: '3px 10px',
+      borderRadius: 10,
+      whiteSpace: 'nowrap'
+    }}>
+      {leadStatusLabels[status] || status}
+    </span>
+  );
+};
+
 // WohnKapital Logo
 const Logo = ({ size = 28 }) => (
   <svg width={size} height={size} viewBox="0 0 28 28">
@@ -113,10 +131,10 @@ const Header = ({ role, user, onRoleToggle, onLogout }) => (
   </div>
 );
 
-const Sidebar = ({ role, currentScreen, onNavigate }) => {
+const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0 }) => {
   const partnerNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
-    { icon: Building2, label: 'Verrentung' },
+    { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
     { icon: FolderOpen, label: 'Zwischengespeichert' },
     { icon: Clock, label: 'In Bearbeitung', badge: 4 },
     { icon: Archive, label: 'Bestand' },
@@ -124,8 +142,7 @@ const Sidebar = ({ role, currentScreen, onNavigate }) => {
   ];
   const adminNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
-    { icon: TrendingUp, label: 'Leads', badge: 7, internal: true },
-    { icon: Building2, label: 'Verrentung' },
+    { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined, internal: true },
     { icon: FolderOpen, label: 'Zwischengespeichert' },
     { icon: Clock, label: 'In Bearbeitung', badge: 23 },
     { icon: Archive, label: 'Bestand' },
@@ -194,6 +211,17 @@ const demoLoginByRole = {
 async function postJson(url, body) {
   const response = await fetch(url, {
     method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Aktion fehlgeschlagen');
+  return payload;
+}
+
+async function patchJson(url, body) {
+  const response = await fetch(url, {
+    method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -287,6 +315,22 @@ const documentCategoryLabels = {
 };
 const modernizationLabels = { none: 'keine', partial: 'teilweise', complete: 'vollständig' };
 const productModelLabels = { fixed_residential_right: 'Verrentung mit befristetem Wohnrecht', sale_and_leaseback: 'Rückmietmodell', other: 'Sonstiges Modell' };
+const leadStatusLabels = {
+  NEW: 'Neu',
+  QUALIFIED: 'Qualifiziert',
+  ASSIGNED: 'Zugewiesen',
+  CONTACTED: 'Kontaktiert',
+  CONVERTED: 'Umgewandelt',
+  REJECTED: 'Abgelehnt',
+};
+const leadStatusColors = {
+  NEW: theme.gold,
+  QUALIFIED: theme.aubergineSoft,
+  ASSIGNED: theme.oliv,
+  CONTACTED: '#7B61C7',
+  CONVERTED: '#5B8C2B',
+  REJECTED: '#9B2C2C',
+};
 
 function yesNo(value) {
   return value ? 'ja' : 'nein';
@@ -1828,6 +1872,112 @@ const FormStep5 = ({ draft, setDraft }) => (
 );
 
 // =====================================================================
+// SCREEN — LEADS
+// =====================================================================
+const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMarkContacted, loading }) => {
+  const [partnerSelection, setPartnerSelection] = useState({});
+  const visibleLeads = role === 'admin'
+    ? leads
+    : leads.filter((lead) => lead.status !== 'CONVERTED' && lead.status !== 'REJECTED');
+
+  return (
+    <div style={{ padding: '20px 28px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
+            {role === 'admin' ? 'Homepage · Leadverteilung' : 'Zugewiesene Homepage-Leads'}
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Leads</h1>
+        </div>
+        <div style={{ fontSize: 12, color: `${theme.ink}88` }}>
+          {loading ? 'Leads werden geladen...' : `${visibleLeads.length} Einträge`}
+        </div>
+      </div>
+
+      <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>
+            {role === 'admin' ? 'Neue und verteilte Leads' : 'Zur Bearbeitung'}
+          </span>
+          <span style={{ fontSize: 12, color: `${theme.ink}88` }}>
+            {role === 'admin' ? 'Admin weist Leads an Vertriebspartner zu' : 'Partner wandelt Lead in Kundenfall um'}
+          </span>
+        </div>
+
+        {visibleLeads.length === 0 ? (
+          <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Leads vorhanden.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: theme.mintLight }}>
+                {['Lead', 'Kontakt', 'Objektinteresse', 'Status', role === 'admin' ? 'Zuweisung' : 'Aktion'].map((h, i) => (
+                  <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleLeads.map((lead) => {
+                const assignedPartner = partners.find((partner) => partner.id === lead.assignedPartnerId);
+                const selectedPartnerId = partnerSelection[lead.id] || lead.assignedPartnerId || partners[0]?.id || '';
+                return (
+                  <tr key={lead.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+                    <td style={{ padding: '12px 16px', fontFamily: 'ui-monospace, monospace', color: theme.aubergine, fontWeight: 700 }}>{lead.leadNumber}</td>
+                    <td style={{ padding: '12px 16px', color: theme.ink }}>
+                      <div style={{ fontWeight: 600 }}>{lead.name || [lead.firstName, lead.lastName].filter(Boolean).join(' ') || 'Kontakt offen'}</div>
+                      <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
+                        {[lead.email, lead.phone].filter(Boolean).join(' · ') || 'Kontaktdaten offen'}
+                      </div>
+                      {lead.message && <div style={{ color: `${theme.ink}99`, fontSize: 12, marginTop: 4, maxWidth: 340 }}>{lead.message}</div>}
+                    </td>
+                    <td style={{ padding: '12px 16px', color: `${theme.ink}cc` }}>
+                      <div>{propertyTypeLabel(lead.propertyType)} {lead.city || ''}</div>
+                      <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
+                        {[lead.postalCode, lead.estimatedPropertyValueRange && `${lead.estimatedPropertyValueRange} Tsd.`, lead.youngestOwnerAgeRange && `${lead.youngestOwnerAgeRange} Jahre`].filter(Boolean).join(' · ') || '-'}
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}><LeadStatusBadge status={lead.status} /></td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {role === 'admin' ? (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <select
+                            value={selectedPartnerId}
+                            onChange={(event) => setPartnerSelection({ ...partnerSelection, [lead.id]: event.target.value })}
+                            disabled={lead.status === 'CONVERTED'}
+                            style={{ minWidth: 180, padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: 'white' }}
+                          >
+                            {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
+                          </select>
+                          <button
+                            onClick={() => onAssign(lead.id, selectedPartnerId)}
+                            disabled={!selectedPartnerId || lead.status === 'CONVERTED'}
+                            style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}
+                          >
+                            {assignedPartner ? 'Neu zuweisen' : 'Zuweisen'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => onMarkContacted(lead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                            Kontaktiert
+                          </button>
+                          <button onClick={() => onConvert(lead.id)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                            In Kundenfall umwandeln
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// =====================================================================
 // MAIN APP
 // =====================================================================
 export default function App({ initialRole = 'partner' } = {}) {
@@ -1835,8 +1985,11 @@ export default function App({ initialRole = 'partner' } = {}) {
   const [screen, setScreen] = useState('dashboard');
   const [caseId, setCaseId] = useState(null);
   const [cases, setCases] = useState(mockCases);
+  const [leads, setLeads] = useState([]);
+  const [partners, setPartners] = useState([]);
   const [notice, setNotice] = useState('');
   const [loadingCases, setLoadingCases] = useState(false);
+  const [loadingLeads, setLoadingLeads] = useState(false);
 
   const user = role === 'admin'
     ? { name: 'A. Klein', initials: 'AK' }
@@ -1857,13 +2010,37 @@ export default function App({ initialRole = 'partner' } = {}) {
     }
   }
 
+  async function loadLeads(nextRole = role) {
+    setLoadingLeads(true);
+    try {
+      await ensureDemoSession(nextRole);
+      const response = await fetch('/api/leads');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Leads konnten nicht geladen werden');
+      setLeads(payload.leads || []);
+
+      if (nextRole === 'admin') {
+        const partnerResponse = await fetch('/api/partners');
+        const partnerPayload = await partnerResponse.json();
+        if (!partnerResponse.ok) throw new Error(partnerPayload.error || 'Partner konnten nicht geladen werden');
+        setPartners(partnerPayload.partners || []);
+      }
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Leads konnten nicht geladen werden');
+    } finally {
+      setLoadingLeads(false);
+    }
+  }
+
   useEffect(() => {
     loadCases(initialRole);
+    loadLeads(initialRole);
   }, [initialRole]);
 
   const handleNavigate = (s) => {
     setScreen(s);
     setCaseId(null);
+    if (s === 'leads') loadLeads(role);
   };
   const handleOpenCase = (id) => {
     setCaseId(id);
@@ -1882,6 +2059,37 @@ export default function App({ initialRole = 'partner' } = {}) {
     setScreen('dashboard');
     setCaseId(null);
     loadCases(nextRole);
+    loadLeads(nextRole);
+  };
+  const handleAssignLead = async (leadId, partnerId) => {
+    try {
+      await postJson(`/api/leads/${leadId}/assign`, { partnerId });
+      setNotice('Lead wurde zugewiesen.');
+      await loadLeads(role);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht zugewiesen werden');
+    }
+  };
+  const handleMarkLeadContacted = async (leadId) => {
+    try {
+      await patchJson(`/api/leads/${leadId}/status`, { status: 'CONTACTED' });
+      setNotice('Lead wurde als kontaktiert markiert.');
+      await loadLeads(role);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht aktualisiert werden');
+    }
+  };
+  const handleConvertLead = async (leadId) => {
+    try {
+      const payload = await postJson(`/api/leads/${leadId}/convert`);
+      await loadCases(role);
+      await loadLeads(role);
+      setCaseId(payload.case?.property?.caseNumber || payload.case?.property?.id || null);
+      setScreen('case');
+      setNotice('Lead wurde in einen Kundenfall umgewandelt.');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht umgewandelt werden');
+    }
   };
   const handleLogout = async () => {
     try {
@@ -1896,15 +2104,16 @@ export default function App({ initialRole = 'partner' } = {}) {
     <div style={{ background: theme.mint, fontFamily: '"Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} />
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        <Sidebar role={role} currentScreen={screen} onNavigate={handleNavigate} />
+        <Sidebar role={role} currentScreen={screen} onNavigate={handleNavigate} leadCount={leads.filter((lead) => role === 'admin' ? lead.status === 'NEW' : lead.status !== 'CONVERTED' && lead.status !== 'REJECTED').length} />
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {(notice || loadingCases) && (
+          {(notice || loadingCases || loadingLeads) && (
             <div style={{ margin: '14px 28px 0', background: loadingCases ? theme.mintLight : theme.goldSoft, border: `1px solid ${loadingCases ? theme.border : `${theme.gold}55`}`, borderRadius: 6, padding: '9px 12px', fontSize: 12.5, color: theme.ink }}>
-              {loadingCases ? 'Fälle werden geladen...' : notice}
+              {loadingCases ? 'Fälle werden geladen...' : loadingLeads ? 'Leads werden geladen...' : notice}
             </div>
           )}
           {screen === 'dashboard' && role === 'partner' && <MaklerDashboard cases={cases} onOpenCase={handleOpenCase} onNewCase={handleNewCase} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} />}
+          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} loading={loadingLeads} />}
           {screen === 'case' && <FallDetail caseId={caseId} onBack={handleBack} role={role} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} />}
           {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} />}
         </div>
