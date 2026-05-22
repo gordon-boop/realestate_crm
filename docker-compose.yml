@@ -1,13 +1,12 @@
-version: '3.9'
-
 services:
   app:
     build: .
-    ports:
-      - "3000:3000"
     environment:
+      HOSTNAME: "0.0.0.0"
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/wohnkapital_crm"
-      NODE_ENV: production
+      NODE_ENV: "production"
+    expose:
+      - "3000"
     depends_on:
       - db
 
@@ -18,10 +17,23 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: wohnkapital_crm
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  caddy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:
