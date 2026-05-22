@@ -84,6 +84,7 @@ export type Customer = {
   id: string;
   partnerId: string;
   displayName?: string;
+  title?: string;
   firstName: string;
   lastName: string;
   ageAtSubmission?: number;
@@ -93,6 +94,7 @@ export type Customer = {
   mobile?: string;
   dateOfBirth?: string;
   maritalStatus?: MaritalStatus;
+  spouseTitle?: string;
   spouseFirstName?: string;
   spouseLastName?: string;
   spouseGender?: Gender;

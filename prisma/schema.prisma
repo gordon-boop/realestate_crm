@@ -265,6 +265,7 @@ model Customer {
   partnerId             String    @map("partner_id")
   partner               Partner   @relation(fields: [partnerId], references: [id])
   displayName           String?   @map("display_name")
+  title                 String?
   firstName             String    @map("first_name")
   lastName              String    @map("last_name")
   ageAtSubmission       Int?      @map("age_at_submission")
@@ -274,6 +275,7 @@ model Customer {
   mobile                String?
   dateOfBirth           DateTime? @map("date_of_birth")
   maritalStatus         MaritalStatus? @map("marital_status")
+  spouseTitle           String?   @map("spouse_title")
   spouseFirstName       String?   @map("spouse_first_name")
   spouseLastName        String?   @map("spouse_last_name")
   spouseGender          Gender?   @map("spouse_gender")

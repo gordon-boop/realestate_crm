@@ -8,6 +8,7 @@ const optionalBoolean = z.preprocess((value) => value === "on" ? true : value ==
 export const customerCreateSchema = z.object({
   partnerId: optionalString,
   displayName: optionalString,
+  title: optionalString,
   firstName: z.string().trim().min(1, "Vorname ist erforderlich"),
   lastName: z.string().trim().min(1, "Nachname ist erforderlich"),
   ageAtSubmission: optionalNumber,
@@ -17,6 +18,7 @@ export const customerCreateSchema = z.object({
   mobile: optionalString,
   dateOfBirth: optionalString,
   maritalStatus: z.enum(["single", "married", "divorced", "widowed", "other"]).optional(),
+  spouseTitle: optionalString,
   spouseFirstName: optionalString,
   spouseLastName: optionalString,
   spouseGender: z.enum(["male", "female", "diverse", "not_specified"]).optional(),

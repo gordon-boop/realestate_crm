@@ -140,7 +140,7 @@ const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0 }) => {
   const partnerNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
-    { icon: FolderOpen, label: 'Zwischengespeichert', screen: 'drafts' },
+    { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts' },
     { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: 4 },
     { icon: Archive, label: 'Bestand', screen: 'portfolio' },
     { icon: FileText, label: 'Sonstiges', screen: 'other' },
@@ -148,7 +148,7 @@ const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0 }) => {
   const adminNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined, internal: true },
-    { icon: FolderOpen, label: 'Zwischengespeichert', screen: 'drafts' },
+    { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts' },
     { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: 23 },
     { icon: Archive, label: 'Bestand', screen: 'portfolio' },
     { icon: CheckCircle2, label: 'Verkauft', screen: 'sold', internal: true },
@@ -380,7 +380,7 @@ function filterCasesForScreen(cases, screen) {
   const statusGroups = {
     drafts: ['DRAFT'],
     in_progress: ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'APPOINTMENT_SCHEDULED'],
-    portfolio: ['IN_PORTFOLIO', 'WON'],
+    portfolio: ['OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
     sold: ['SOLD', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
   };
   const statuses = statusGroups[screen] || [];
@@ -389,7 +389,7 @@ function filterCasesForScreen(cases, screen) {
 
 function menuScreenTitle(screen) {
   const labels = {
-    drafts: 'Zwischengespeichert',
+    drafts: 'Entwürfe',
     in_progress: 'In Bearbeitung',
     portfolio: 'Bestand',
     sold: 'Verkauft',
@@ -397,13 +397,34 @@ function menuScreenTitle(screen) {
   return labels[screen] || 'Fälle';
 }
 
+function calculateAgeFromBirthDate(dateString) {
+  if (!dateString) return '';
+  const birthDate = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return '';
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const hadBirthdayThisYear =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+  if (!hadBirthdayThisYear) age -= 1;
+  return age >= 0 ? age : '';
+}
+
 const defaultDraft = {
+  title: '',
   firstName: 'Eva',
   lastName: 'Schmidt',
-  ageAtSubmission: 72,
+  ageAtSubmission: calculateAgeFromBirthDate('1953-03-12'),
   gender: 'female',
   dateOfBirth: '1953-03-12',
   maritalStatus: 'widowed',
+  spouseTitle: '',
+  spouseFirstName: '',
+  spouseLastName: '',
+  spouseGender: '',
+  spouseDateOfBirth: '',
+  spouseAgeAtSubmission: '',
+  propertyOwnership: 'customer_1',
   monthlyIncomeRange: 'from_1000_to_2000',
   email: 'eva.schmidt@web.de',
   phone: '0711 / 23 45 67',
@@ -421,8 +442,14 @@ const defaultDraft = {
   yearBuilt: 1978,
   condition: 'good',
   occupancyStatus: 'owner_occupied',
+  desiredModel: 'fixed_residential_right',
   residentialRightRecipients: 'one_person',
   desiredResidentialRightYears: 10,
+  rentalModelDisclosureAccepted: false,
+  additionalOfferRequested: false,
+  additionalOfferModel: 'sale_and_leaseback',
+  additionalOfferResidentialRightYears: 10,
+  additionalOfferReason: '',
   secondResidentialRightWanted: true,
   secondResidentialRightYears: 5,
   fixedTermReason: 'Familienplanung',
@@ -445,14 +472,16 @@ const defaultDraft = {
   visualConditionRating: 'good',
   energyCarriers: ['photovoltaik'],
   knownDefects: '',
+  generalPropertyNotes: '',
+  remainingDebtKnown: false,
   remainingDebtAmount: 0,
   modernization: {
-    heating: { scope: 'complete', year: '2015' },
-    roof: { scope: 'partial', year: '2020' },
-    facade: { scope: 'none', year: '' },
-    windows: { scope: 'complete', year: '2012' },
-    lines: { scope: 'partial', year: '2010' },
-    bathrooms: { scope: 'partial', year: '2016' },
+    heating: { scope: 'complete', year: '2015', note: 'Gas-Brennwert erneuert' },
+    roof: { scope: 'partial', year: '2020', note: 'PV-Anlage nachgerüstet' },
+    facade: { scope: 'none', year: '', note: '' },
+    windows: { scope: 'complete', year: '2012', note: 'Kunststofffenster' },
+    lines: { scope: 'partial', year: '2010', note: '' },
+    bathrooms: { scope: 'partial', year: '2016', note: '' },
   },
   buildingCondition: {
     roof: 'good',
@@ -476,182 +505,212 @@ const defaultDraft = {
 // =====================================================================
 // SCREEN 1 — MAKLER-DASHBOARD
 // =====================================================================
-const MaklerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onOpenLeads, onConvertLead, onMarkLeadContacted }) => {
-  const assignedLeads = leads.filter((lead) => !['CONVERTED', 'REJECTED'].includes(lead.status));
-  const draftCases = cases.filter((item) => item.status === 'DRAFT');
-  const followUpCases = cases.filter((item) => item.followUp || item.status === 'DATA_INCOMPLETE');
-  const activeCases = cases.filter((item) => ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT'].includes(item.status));
-  const offerCases = cases.filter((item) => ['APPROVED', 'SENT', 'OFFER_ACCEPTED'].includes(item.status));
-  const portfolioCases = cases.filter((item) => ['IN_PORTFOLIO', 'PURCHASED', 'WON', 'SOLD'].includes(item.status));
-  const followUpCase = followUpCases[0];
-  const stats = [
-    { label: 'Zugewiesene Leads', value: assignedLeads.length, sub: 'Kontakt aufnehmen', icon: TrendingUp },
-    { label: 'Rückfragen', value: followUpCases.length, sub: 'Unterlagen oder Antwort offen', icon: AlertCircle },
-    { label: 'Entwürfe', value: draftCases.length, sub: 'noch nicht eingereicht', icon: FolderOpen },
-    { label: 'Angebote offen', value: offerCases.length, sub: 'beim Kunden oder freigegeben', icon: FileText },
-  ];
-  const workQueues = [
-    { title: 'Zugewiesene Leads', count: assignedLeads.length, text: 'Neue Homepage-Leads prüfen, Kunden kontaktieren und bei Interesse in einen Kundenfall umwandeln.', icon: TrendingUp, action: onOpenLeads },
-    { title: 'Entwürfe', count: draftCases.length, text: 'Angelegte Fälle vervollständigen und danach einreichen.', icon: FolderOpen, firstCase: draftCases[0] },
-    { title: 'Rückfragen', count: followUpCases.length, text: 'Fehlende Unterlagen oder offene Kundenantworten nachfassen.', icon: AlertCircle, firstCase: followUpCases[0], tone: 'warning' },
-    { title: 'In Bearbeitung', count: activeCases.length, text: 'Eingereichte Vorgänge, Bewertung und Angebotsprozess verfolgen.', icon: Clock, firstCase: activeCases[0] },
-    { title: 'Angebote beim Kunden', count: offerCases.length, text: 'Versendete oder freigegebene Angebote nachfassen und nächsten Schritt dokumentieren.', icon: Send, firstCase: offerCases[0] },
-    { title: 'Bestand / abgeschlossen', count: portfolioCases.length, text: 'Angekaufte oder abgeschlossene Objekte im Überblick behalten.', icon: Archive, firstCase: portfolioCases[0] },
-  ];
-  const caseStats = [
-    { label: 'In Bearbeitung', value: activeCases.length, sub: `davon ${followUpCases.length} mit Rückfrage`, icon: Clock },
-    { label: 'Eingereicht', value: cases.filter((item) => ['SUBMITTED', 'VALUATION_PENDING'].includes(item.status)).length, sub: 'wartet auf Bewertung', icon: TrendingUp },
-    { label: 'Aktive Fälle', value: cases.filter((item) => !['DRAFT', 'IN_PORTFOLIO', 'WON', 'SOLD', 'LOST'].includes(item.status)).length, sub: 'laufende Pipeline', icon: Briefcase },
-    { label: 'Bestand', value: portfolioCases.length, sub: 'abgeschlossen / Bestand', icon: CheckCircle2 },
+const getBrokerNextStep = (item) => {
+  if (item.kind === 'lead') return 'Lead prüfen';
+  if (item.followUp || item.status === 'DATA_INCOMPLETE') return 'Unterlagen anfordern';
+  if (['APPROVED', 'SENT', 'OFFER_ACCEPTED'].includes(item.status)) return 'Angebot nachfassen';
+  if (item.status === 'DRAFT') return 'Entwurf vervollständigen';
+  if (['SUBMITTED', 'VALUATION_PENDING', 'VALUATED'].includes(item.status)) return 'Bewertung abwarten';
+  if (['OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW'].includes(item.status)) return 'Prüfung beobachten';
+  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'Ankauf verfolgen';
+  return 'Fall öffnen';
+};
+
+const PriorityActionCards = ({ assignedLeads, followUpCases, offerCases, onOpenLeads, onOpenCase }) => {
+  const actions = [
+    {
+      title: 'Neue Leads',
+      count: assignedLeads.length,
+      description: 'Neue Anfragen prüfen und bei Interesse als Kundenfall übernehmen.',
+      actionLabel: 'Leads prüfen',
+      icon: TrendingUp,
+      tone: 'lead',
+      onClick: onOpenLeads,
+    },
+    {
+      title: 'Rückfragen / fehlende Unterlagen',
+      count: followUpCases.length,
+      description: 'Offene Rückfragen, fehlende Pflichtunterlagen oder Wiedervorlagen bearbeiten.',
+      actionLabel: 'Unterlagen anfordern',
+      icon: AlertCircle,
+      tone: 'urgent',
+      onClick: () => followUpCases[0] && onOpenCase(followUpCases[0].propertyId || followUpCases[0].id),
+    },
+    {
+      title: 'Angebote nachfassen',
+      count: offerCases.length,
+      description: 'Freigegebene oder versendete Angebote beim Kunden nachhalten.',
+      actionLabel: 'Angebote nachfassen',
+      icon: Send,
+      tone: 'normal',
+      onClick: () => offerCases[0] && onOpenCase(offerCases[0].propertyId || offerCases[0].id),
+    },
   ];
 
+  const toneStyles = {
+    urgent: { border: `${theme.gold}88`, bar: theme.gold, background: theme.goldSoft, icon: '#A87308' },
+    lead: { border: `${theme.oliv}66`, bar: theme.oliv, background: 'white', icon: theme.oliv },
+    normal: { border: theme.borderSoft, bar: theme.aubergineSoft, background: 'white', icon: theme.aubergineSoft },
+  };
+
   return (
-    <div style={{ padding: '20px 28px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
+    <div className="priority-action-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
+      {actions.map((action) => {
+        const style = toneStyles[action.tone];
+        const disabled = action.count === 0;
+        return (
+          <button
+            key={action.title}
+            onClick={disabled ? undefined : action.onClick}
+            style={{
+              background: style.background,
+              border: `1px solid ${style.border}`,
+              borderLeft: `4px solid ${style.bar}`,
+              borderRadius: 8,
+              padding: '18px 18px 16px',
+              textAlign: 'left',
+              minHeight: 154,
+              cursor: disabled ? 'default' : 'pointer',
+              opacity: disabled ? 0.68 : 1,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+              <action.icon size={18} style={{ color: style.icon, marginTop: 2 }} />
+              <span style={{ fontSize: 30, fontWeight: 750, lineHeight: 1, color: theme.aubergine }}>{action.count}</span>
+            </div>
+            <div style={{ fontSize: 15, color: theme.ink, fontWeight: 700, marginBottom: 6 }}>{action.title}</div>
+            <div style={{ fontSize: 12.5, color: `${theme.ink}99`, lineHeight: 1.45, minHeight: 36 }}>{action.description}</div>
+            <div style={{ marginTop: 14, color: disabled ? `${theme.ink}66` : theme.aubergine, fontSize: 12.5, fontWeight: 750, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              {action.actionLabel} <ChevronRight size={13} />
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const DashboardSearch = ({ value, onChange }) => (
+  <div style={{ position: 'relative', width: 'min(100%, 320px)' }}>
+    <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: `${theme.aubergine}88` }} />
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder="Fall oder Kunde suchen"
+      style={{
+        width: '100%',
+        padding: '9px 12px 9px 34px',
+        border: `1px solid ${theme.border}`,
+        borderRadius: 6,
+        background: 'white',
+        color: theme.ink,
+        fontSize: 13,
+        outline: 'none',
+        fontFamily: 'inherit',
+        boxSizing: 'border-box',
+      }}
+    />
+  </div>
+);
+
+const ActiveCasesTable = ({ items, onOpenCase, onOpenLeads }) => (
+  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+    <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: theme.mintLight }}>
+            {['Fallnummer', 'Kunde', 'Objekt', 'Status', 'Nächster Schritt', 'Letzte Aktivität', ''].map((h, i) => (
+              <th key={i} style={{ textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 ? (
+            <tr>
+              <td colSpan={7} style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine passenden aktiven Fälle gefunden.</td>
+            </tr>
+          ) : items.map((item, index) => {
+            const open = () => item.kind === 'lead' ? onOpenLeads() : onOpenCase(item.propertyId || item.id);
+            return (
+              <tr key={`${item.kind || 'case'}-${item.propertyId || item.id}`} onClick={open} style={{ borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', cursor: 'pointer' }}>
+                <td style={{ padding: '12px 16px', fontFamily: 'ui-monospace, "SF Mono", monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{item.id}</td>
+                <td style={{ padding: '12px 16px', color: theme.ink, fontWeight: 600 }}>{item.kunde}{item.alter ? <span style={{ color: `${theme.ink}77`, fontSize: 12, fontWeight: 500 }}> ({item.alter})</span> : null}</td>
+                <td style={{ padding: '12px 16px', color: `${theme.ink}cc` }}>{item.objekt}</td>
+                <td style={{ padding: '12px 16px' }}>{item.kind === 'lead' ? <LeadStatusBadge status={item.status} /> : <StatusBadge status={item.status} />}</td>
+                <td style={{ padding: '12px 16px', color: theme.ink, fontWeight: 650 }}>{item.nextStep}</td>
+                <td style={{ padding: '12px 16px', color: `${theme.ink}88`, fontSize: 12 }}>{item.vor}</td>
+                <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                  <button onClick={(event) => { event.stopPropagation(); open(); }} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 11.5, fontWeight: 700, padding: '5px 9px', borderRadius: 5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    Öffnen <ChevronRight size={12} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
+const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onOpenLeads }) => {
+  const [search, setSearch] = useState('');
+  const dashboardStatuses = ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT'];
+  const hasDashboardCases = cases.some((item) => item.followUp || dashboardStatuses.includes(item.status));
+  const dashboardCases = hasDashboardCases ? cases : mockCases;
+  const assignedLeads = leads.filter((lead) => !['CONVERTED', 'REJECTED'].includes(lead.status));
+  const followUpCases = dashboardCases.filter((item) => item.followUp || item.status === 'DATA_INCOMPLETE');
+  const activeCases = dashboardCases.filter((item) => dashboardStatuses.includes(item.status));
+  const offerCases = dashboardCases.filter((item) => ['APPROVED', 'SENT', 'OFFER_ACCEPTED'].includes(item.status));
+  const activeLeadRows = assignedLeads.map((lead) => ({
+    kind: 'lead',
+    id: lead.leadNumber,
+    kunde: leadDisplayName(lead),
+    objekt: `${propertyTypeLabel(lead.propertyType)} ${lead.city || ''}`.trim(),
+    status: lead.status,
+    nextStep: 'Lead prüfen',
+    vor: dateLabel(lead.updatedAt || lead.createdAt),
+    priority: 2,
+  }));
+  const activeCaseRows = activeCases.map((item) => ({
+    ...item,
+    kind: 'case',
+    nextStep: getBrokerNextStep(item),
+    priority: item.followUp || item.status === 'DATA_INCOMPLETE'
+      ? 1
+      : ['APPROVED', 'SENT', 'OFFER_ACCEPTED'].includes(item.status)
+        ? 3
+        : 4,
+  }));
+  const normalizedSearch = search.trim().toLowerCase();
+  const tableItems = [...activeCaseRows, ...activeLeadRows]
+    .filter((item) => !normalizedSearch || [item.id, item.kunde, item.objekt, item.status, item.nextStep].some((value) => String(value || '').toLowerCase().includes(normalizedSearch)))
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, 7);
+
+  return (
+    <div style={{ padding: '22px 28px 28px' }}>
+      <div className="broker-dashboard-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
         <div>
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Guten Morgen, Markus</div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Deine Übersicht</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Was steht heute an?</h1>
         </div>
         <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
           <Plus size={15} /> Neuer Fall
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 22 }}>
-        {stats.map((s, i) => (
-          <div key={i} style={{ background: 'white', borderRadius: 8, padding: '14px 16px', border: `1px solid ${theme.borderSoft}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{s.label}</span>
-              <s.icon size={14} style={{ color: `${theme.aubergine}55` }} />
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: theme.aubergine, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
-            <div style={{ fontSize: 11.5, color: `${theme.ink}99` }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
+      <PriorityActionCards assignedLeads={assignedLeads} followUpCases={followUpCases} offerCases={offerCases} onOpenLeads={onOpenLeads} onOpenCase={onOpenCase} />
 
-      <div className="partner-workbench-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
-        {workQueues.map((queue) => (
-          <button
-            key={queue.title}
-            onClick={() => queue.action ? queue.action() : queue.firstCase ? onOpenCase(queue.firstCase.propertyId || queue.firstCase.id) : undefined}
-            style={{
-              textAlign: 'left',
-              background: queue.tone === 'warning' ? theme.goldSoft : 'white',
-              border: `1px solid ${queue.tone === 'warning' ? `${theme.gold}66` : theme.borderSoft}`,
-              borderLeft: `3px solid ${queue.tone === 'warning' ? theme.gold : theme.aubergine}`,
-              borderRadius: 8,
-              padding: '14px 16px',
-              minHeight: 122,
-              cursor: queue.count ? 'pointer' : 'default',
-              opacity: queue.count ? 1 : 0.72
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
-              <queue.icon size={16} style={{ color: queue.tone === 'warning' ? '#A87308' : theme.aubergine }} />
-              <span style={{ fontSize: 24, lineHeight: 1, color: theme.aubergine, fontWeight: 750 }}>{queue.count}</span>
-            </div>
-            <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 700, marginBottom: 5 }}>{queue.title}</div>
-            <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>{queue.text}</div>
-          </button>
-        ))}
-      </div>
-
-      {followUpCase && (
-        <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderLeft: `3px solid ${theme.gold}`, borderRadius: 6, padding: '12px 14px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <AlertCircle size={18} style={{ color: theme.gold, flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: theme.ink, marginBottom: 2 }}>Offene Rückfrage, Wiedervorlage heute</div>
-            <div style={{ fontSize: 12, color: `${theme.ink}aa` }}>Fall {followUpCase.id}: {followUpCase.followUpReason || 'Bitte Rückfrage bearbeiten.'}</div>
+      <div style={{ marginTop: 2 }}>
+        <div className="active-cases-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+          <div>
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: theme.aubergine, margin: 0 }}>Aktive Fälle</h2>
+            <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 3 }}>Handlungsbedarf zuerst, maximal sieben Vorgänge.</div>
           </div>
-          <button onClick={() => onOpenCase(followUpCase.propertyId || followUpCase.id)} style={{ background: 'transparent', border: `1px solid ${theme.aubergine}44`, color: theme.aubergine, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
+          <DashboardSearch value={search} onChange={setSearch} />
         </div>
-      )}
-
-      {assignedLeads.length > 0 && (
-        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden', marginBottom: 22 }}>
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Zugewiesene Leads</span>
-              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>Vom Admin übergebene Homepage-Leads zur Erstbearbeitung.</div>
-            </div>
-            <button onClick={onOpenLeads} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12, fontWeight: 700, padding: '7px 12px', borderRadius: 5, cursor: 'pointer' }}>Alle Leads</button>
-          </div>
-          <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: theme.mintLight }}>
-                  {['Lead', 'Kontakt', 'Objektinteresse', 'Status', 'Aktion'].map((h, i) => (
-                    <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {assignedLeads.slice(0, 5).map((lead) => (
-                  <tr key={lead.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
-                    <td style={{ padding: '11px 16px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{lead.leadNumber}</td>
-                    <td style={{ padding: '11px 16px', color: theme.ink }}>
-                      <div style={{ fontWeight: 600 }}>{leadDisplayName(lead)}</div>
-                      <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>{[lead.email, lead.phone].filter(Boolean).join(' · ') || 'Kontaktdaten offen'}</div>
-                    </td>
-                    <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>
-                      <div>{propertyTypeLabel(lead.propertyType)} {lead.city || ''}</div>
-                      <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>{[lead.postalCode, lead.estimatedPropertyValueRange && `${lead.estimatedPropertyValueRange} Tsd.`, lead.youngestOwnerAgeRange && `${lead.youngestOwnerAgeRange} Jahre`].filter(Boolean).join(' · ') || '-'}</div>
-                    </td>
-                    <td style={{ padding: '11px 16px' }}><LeadStatusBadge status={lead.status} /></td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button onClick={() => onMarkLeadContacted(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>Kontaktiert</button>
-                        <button onClick={() => onConvertLead(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>Kundenfall anlegen</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 22 }}>
-        {caseStats.map((s, i) => (
-          <div key={i} style={{ background: 'white', borderRadius: 8, padding: '14px 16px', border: `1px solid ${theme.borderSoft}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{s.label}</span>
-              <s.icon size={14} style={{ color: `${theme.aubergine}55` }} />
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: theme.aubergine, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
-            <div style={{ fontSize: 11.5, color: `${theme.ink}99` }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Aktive Fälle</span>
-          <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Sortiert nach letzter Aktivität</span>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: theme.mintLight }}>
-              {['Fall', 'Kunde', 'Objekt', 'Status', 'Letzte Aktivität', ''].map((h, i) => (
-                <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {cases.map((r, i) => (
-              <tr key={r.propertyId || r.id || i} onClick={() => onOpenCase(r.propertyId || r.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, cursor: 'pointer' }}>
-                <td style={{ padding: '11px 16px', fontFamily: 'ui-monospace, "SF Mono", monospace', fontSize: 12, color: theme.aubergine, fontWeight: 600 }}>{r.id}</td>
-                <td style={{ padding: '11px 16px', color: theme.ink }}>{r.kunde} {r.alter && <span style={{ color: `${theme.ink}77`, fontSize: 12 }}>({r.alter})</span>}</td>
-                <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>{r.objekt}</td>
-                <td style={{ padding: '11px 16px' }}><StatusBadge status={r.status} /></td>
-                <td style={{ padding: '11px 16px', color: `${theme.ink}88`, fontSize: 12 }}>{r.vor}</td>
-                <td style={{ padding: '11px 16px', textAlign: 'right' }}><ChevronRight size={15} style={{ color: `${theme.aubergine}88` }} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ActiveCasesTable items={tableItems} onOpenCase={onOpenCase} onOpenLeads={onOpenLeads} />
       </div>
     </div>
   );
@@ -815,6 +874,172 @@ const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
   );
 };
 
+const acquisitionStages = [
+  {
+    title: 'Angebot angenommen',
+    statuses: ['OFFER_ACCEPTED'],
+    icon: CheckCircle2,
+    tone: '#5B8C2B',
+    text: 'Kunde hat das Angebot bestätigt. Ankauf muss intern gestartet werden.',
+  },
+  {
+    title: 'Ankauf gestartet',
+    statuses: ['PURCHASE_STARTED'],
+    icon: Briefcase,
+    tone: theme.aubergineSoft,
+    text: 'Unterlagen und Vertragsvorbereitung laufen.',
+  },
+  {
+    title: 'Notartermin',
+    statuses: ['NOTARY_APPOINTMENT'],
+    icon: Calendar,
+    tone: theme.oliv,
+    text: 'Termin ist vereinbart oder steht zur finalen Koordination an.',
+  },
+  {
+    title: 'Angekauft',
+    statuses: ['PURCHASED'],
+    icon: CheckCircle,
+    tone: '#3D6B1F',
+    text: 'Ankauf ist abgeschlossen. Übergabe in den Bestand prüfen.',
+  },
+  {
+    title: 'Im Bestand',
+    statuses: ['IN_PORTFOLIO', 'WON'],
+    icon: Archive,
+    tone: '#3D6B1F',
+    text: 'Objekt ist in der Bestandsverwaltung angekommen.',
+  },
+];
+
+const nextPortfolioAction = {
+  OFFER_ACCEPTED: 'Ankauf starten',
+  PURCHASE_STARTED: 'Notartermin vorbereiten',
+  NOTARY_APPOINTMENT: 'Ankauf abschließen',
+  PURCHASED: 'In Bestand übernehmen',
+  IN_PORTFOLIO: 'Bestandsdaten prüfen',
+  WON: 'Bestandsdaten prüfen',
+};
+
+const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
+  const pipelineStatuses = ['OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'];
+  const portfolioStatuses = ['IN_PORTFOLIO', 'WON'];
+  const pipelineCases = cases.filter((item) => pipelineStatuses.includes(item.status));
+  const portfolioCases = cases.filter((item) => portfolioStatuses.includes(item.status));
+  const relevantCases = [...pipelineCases, ...portfolioCases];
+  const notaryCases = cases.filter((item) => item.status === 'NOTARY_APPOINTMENT');
+  const transitionCases = cases.filter((item) => item.status === 'PURCHASED');
+
+  const kpis = [
+    { label: 'Ankaufspipeline', value: pipelineCases.length, sub: 'angenommen bis angekauft', icon: Briefcase },
+    { label: 'Notartermine', value: notaryCases.length, sub: 'zu koordinieren', icon: Calendar },
+    { label: 'Übergabe offen', value: transitionCases.length, sub: 'noch nicht im Bestand', icon: AlertCircle },
+    { label: 'Im Bestand', value: portfolioCases.length, sub: 'aktive Bestandsobjekte', icon: Archive },
+  ];
+
+  return (
+    <div style={{ padding: '20px 28px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18, gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
+            {role === 'admin' ? 'Intern · Ankauf' : 'Partnerportal · Bestand'}
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankauf & Bestand</h1>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>
+            Vom angenommenen Angebot über Notar und Ankauf bis zur Übergabe in den Bestand.
+          </div>
+        </div>
+        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 14px', minWidth: 124, textAlign: 'right' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: theme.aubergine, lineHeight: 1 }}>{relevantCases.length}</div>
+          <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>Vorgänge</div>
+        </div>
+      </div>
+
+      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
+        {kpis.map((item) => (
+          <div key={item.label} style={{ background: 'white', borderRadius: 8, padding: '14px 16px', border: `1px solid ${theme.borderSoft}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+              <span style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{item.label}</span>
+              <item.icon size={15} style={{ color: `${theme.aubergine}66` }} />
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: theme.aubergine, lineHeight: 1, marginBottom: 4 }}>{item.value}</div>
+            <div style={{ fontSize: 11.5, color: `${theme.ink}99` }}>{item.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="portfolio-stage-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 18 }}>
+        {acquisitionStages.map((stage) => {
+          const stageCases = cases.filter((item) => stage.statuses.includes(item.status));
+          const firstCase = stageCases[0];
+          return (
+            <button key={stage.title} onClick={() => firstCase && onOpenCase(firstCase.propertyId || firstCase.id)} style={{
+              background: 'white',
+              border: `1px solid ${stageCases.length ? `${stage.tone}55` : theme.borderSoft}`,
+              borderTop: `3px solid ${stage.tone}`,
+              borderRadius: 8,
+              padding: '13px 14px',
+              textAlign: 'left',
+              cursor: firstCase ? 'pointer' : 'default',
+              minHeight: 134,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <stage.icon size={16} style={{ color: stage.tone }} />
+                <span style={{ background: `${stage.tone}1A`, color: stage.tone, borderRadius: 12, padding: '2px 9px', fontSize: 11, fontWeight: 800 }}>{stageCases.length}</span>
+              </div>
+              <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 700, marginBottom: 6 }}>{stage.title}</div>
+              <div style={{ fontSize: 11.5, color: `${theme.ink}99`, lineHeight: 1.45 }}>{stage.text}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="portfolio-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1.45fr 0.9fr', gap: 16, marginBottom: 18 }}>
+        <CaseTableCard
+          title="Ankaufspipeline"
+          emptyText="Keine Fälle in der Ankaufspipeline."
+          cases={pipelineCases}
+          onOpenCase={onOpenCase}
+          showPartner={role === 'admin'}
+        />
+        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Nächste Schritte</span>
+            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{pipelineCases.length} offen</span>
+          </div>
+          {pipelineCases.length === 0 ? (
+            <div style={{ padding: 20, color: `${theme.ink}88`, fontSize: 13 }}>Aktuell keine offenen Ankaufsschritte.</div>
+          ) : pipelineCases.slice(0, 5).map((item, index) => (
+            <div key={item.propertyId || item.id} style={{ padding: '12px 16px', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{ width: 24, height: 24, borderRadius: 12, background: theme.mintLight, color: theme.aubergine, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Clock size={13} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, marginBottom: 3 }}>{item.kunde}</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.4 }}>{item.id} · {item.objekt}</div>
+                <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <StatusBadge status={item.status} />
+                  <button onClick={() => onOpenCase(item.propertyId || item.id)} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 11.5, fontWeight: 700, padding: '4px 8px', borderRadius: 5, cursor: 'pointer' }}>
+                    {nextPortfolioAction[item.status] || 'Öffnen'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <CaseTableCard
+        title="Bestandsobjekte"
+        emptyText="Noch keine Objekte im Bestand."
+        cases={portfolioCases}
+        onOpenCase={onOpenCase}
+        showPartner={role === 'admin'}
+      />
+    </div>
+  );
+};
+
 const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, emptyText = 'Keine Fälle vorhanden.' }) => (
   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
     <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -834,7 +1059,7 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, emp
         </thead>
         <tbody>
           {cases.map((row, i) => (
-            <tr key={row.propertyId || row.id || i} onClick={() => onOpenCase(row.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, cursor: 'pointer' }}>
+            <tr key={row.propertyId || row.id || i} onClick={() => onOpenCase(row.propertyId || row.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, cursor: 'pointer' }}>
               <td style={{ padding: '11px 16px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 600 }}>{row.id}</td>
               <td style={{ padding: '11px 16px', color: theme.ink }}>{row.kunde} {row.alter ? <span style={{ color: `${theme.ink}77`, fontSize: 12 }}>({row.alter})</span> : null}</td>
               {showPartner && <td style={{ padding: '11px 16px', color: `${theme.ink}aa`, fontSize: 12 }}>{row.partner}</td>}
@@ -1483,13 +1708,20 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
     try {
       const customerPayload = {
         partnerId: 'partner_heimwert',
+        title: draft.title,
         firstName: draft.firstName,
         lastName: draft.lastName,
-        displayName: `${draft.firstName} ${draft.lastName}`,
+        displayName: [draft.title, draft.firstName, draft.lastName].filter(Boolean).join(' '),
         ageAtSubmission: Number(draft.ageAtSubmission) || undefined,
         gender: draft.gender,
         dateOfBirth: draft.dateOfBirth,
         maritalStatus: draft.maritalStatus,
+        spouseTitle: draft.maritalStatus === 'married' ? draft.spouseTitle : undefined,
+        spouseFirstName: draft.maritalStatus === 'married' ? draft.spouseFirstName : undefined,
+        spouseLastName: draft.maritalStatus === 'married' ? draft.spouseLastName : undefined,
+        spouseGender: draft.maritalStatus === 'married' ? draft.spouseGender : undefined,
+        spouseDateOfBirth: draft.maritalStatus === 'married' ? draft.spouseDateOfBirth : undefined,
+        propertyOwnership: draft.propertyOwnership,
         monthlyIncomeRange: draft.monthlyIncomeRange,
         email: draft.email,
         phone: draft.phone,
@@ -1509,22 +1741,27 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         postalCode: draft.propertyPostalCode,
         city: draft.propertyCity,
         livingAreaSqm: Number(draft.livingAreaSqm),
-        plotAreaSqm: Number(draft.plotAreaSqm) || undefined,
+        plotAreaSqm: Number(draft.plotAreaSqm),
         yearBuilt: Number(draft.yearBuilt) || undefined,
         condition: draft.condition,
         occupancyStatus: draft.occupancyStatus,
-        desiredModel: 'fixed_residential_right',
+        desiredModel: draft.desiredModel,
         residentialRightRecipients: draft.residentialRightRecipients,
         desiredResidentialRightYears: Number(draft.desiredResidentialRightYears) || 10,
+        rentalModelDisclosureAccepted: Boolean(draft.rentalModelDisclosureAccepted),
+        additionalOfferRequested: Boolean(draft.additionalOfferRequested),
+        additionalOfferModel: draft.additionalOfferRequested ? draft.additionalOfferModel : undefined,
+        additionalOfferResidentialRightYears: draft.additionalOfferRequested ? Number(draft.additionalOfferResidentialRightYears) || undefined : undefined,
+        additionalOfferReason: draft.additionalOfferRequested ? draft.additionalOfferReason : undefined,
         secondResidentialRightWanted: Boolean(draft.secondResidentialRightWanted),
         secondResidentialRightYears: Number(draft.secondResidentialRightYears) || undefined,
         fixedTermReason: draft.fixedTermReason,
         rentalOptionDeselected: Boolean(draft.rentalOptionDeselected),
         usableAreaSqm: Number(draft.usableAreaSqm) || undefined,
-        coOwnershipShares: draft.coOwnershipShares || undefined,
+        coOwnershipShares: draft.propertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
         parkingAvailable: Boolean(draft.parkingAvailable),
-        parkingType: draft.parkingType || undefined,
-        parkingCount: Number(draft.parkingCount) || undefined,
+        parkingType: draft.parkingAvailable ? draft.parkingType || undefined : undefined,
+        parkingCount: draft.parkingAvailable ? Number(draft.parkingCount) || undefined : undefined,
         basementType: draft.basementType || undefined,
         heatingType: draft.heatingType,
         heatingEnergySource: draft.heatingEnergySource,
@@ -1535,16 +1772,18 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         windowInstallationYear: Number(draft.windowInstallationYear) || undefined,
         asbestosRoofKnown: Boolean(draft.asbestosRoofKnown),
         energyCertificateAvailable: Boolean(draft.energyCertificateAvailable),
-        energyCertificateType: draft.energyCertificateType,
-        energyClass: draft.energyClass,
+        energyCertificateType: draft.energyCertificateAvailable ? draft.energyCertificateType : undefined,
+        energyClass: draft.energyCertificateAvailable ? draft.energyClass : undefined,
         visualConditionRating: draft.visualConditionRating,
         leasehold: Boolean(draft.leasehold),
         monumentProtection: Boolean(draft.monumentProtection),
         leaseholdOrMonument: Boolean(draft.leasehold || draft.monumentProtection),
         knownDefects: draft.knownDefects,
-        remainingDebtAmount: Number(draft.remainingDebtAmount) || undefined,
+        remainingDebtKnown: Boolean(draft.remainingDebtKnown),
+        remainingDebtAmount: draft.remainingDebtKnown ? Number(draft.remainingDebtAmount) || undefined : undefined,
         modernization: draft.modernization,
         buildingCondition: draft.buildingCondition,
+        generalPropertyNotes: draft.generalPropertyNotes,
       };
       const propertyResult = await postJson('/api/properties', propertyPayload);
       if (draft.documentFile || draft.documentFileName) {
@@ -1690,10 +1929,10 @@ const Field = ({ label, required, children, hint, width = '100%' }) => (
     {hint && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 4 }}>{hint}</div>}
   </div>
 );
-const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked }) => (
-  <input type={type} placeholder={placeholder} defaultValue={defaultValue} value={value} onChange={onChange} checked={checked} style={{
+const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly }) => (
+  <input type={type} placeholder={placeholder} defaultValue={defaultValue} value={value} onChange={onChange} onInput={onChange} checked={checked} readOnly={readOnly} style={{
     width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
-    borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
+    borderRadius: 5, background: readOnly ? theme.mintLighter : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
     boxSizing: 'border-box'
   }} />
 );
@@ -1730,11 +1969,17 @@ const FormStep1 = ({ draft, setDraft }) => (
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Persönliche Daten</h2>
     <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte erfasse die Stammdaten des Eigentümers.</div>
 
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Name" required><Input placeholder="Vor- und Nachname" value={`${draft.firstName} ${draft.lastName}`.trim()} onChange={(event) => {
-        const [firstName, ...rest] = event.target.value.split(' ');
-        setDraft({ ...draft, firstName, lastName: rest.join(' ') || draft.lastName });
-      }} /></Field>
+    <div style={{ display: 'grid', gridTemplateColumns: '0.7fr 1.25fr 1.4fr 1fr', gap: 16, marginBottom: 16 }}>
+      <Field label="Titel">
+        <Select value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })}>
+          <option value="">kein Titel</option>
+          <option value="Dr.">Dr.</option>
+          <option value="Prof.">Prof.</option>
+          <option value="Prof. Dr.">Prof. Dr.</option>
+        </Select>
+      </Field>
+      <Field label="Vorname" required><Input placeholder="Eva" value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></Field>
+      <Field label="Nachname" required><Input placeholder="Schmidt" value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></Field>
       <Field label="Geschlecht" required>
         <Select value={draft.gender} onChange={(event) => setDraft({ ...draft, gender: event.target.value })}>
           <option value="">Bitte wählen</option>
@@ -1746,12 +1991,12 @@ const FormStep1 = ({ draft, setDraft }) => (
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Geburtsdatum" required><Input type="date" value={draft.dateOfBirth} onChange={(event) => setDraft({ ...draft, dateOfBirth: event.target.value })} /></Field>
+      <Field label="Geburtsdatum" required><Input type="date" value={draft.dateOfBirth} onChange={(event) => setDraft({ ...draft, dateOfBirth: event.target.value, ageAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
       <Field label="Alter">
-        <Input placeholder="wird berechnet" value={draft.ageAtSubmission} onChange={(event) => setDraft({ ...draft, ageAtSubmission: event.target.value })} />
+        <Input placeholder="wird berechnet" value={draft.ageAtSubmission} readOnly />
       </Field>
       <Field label="Familienstand" required>
-        <Select value={draft.maritalStatus} onChange={(event) => setDraft({ ...draft, maritalStatus: event.target.value })}>
+        <Select value={draft.maritalStatus} onChange={(event) => setDraft({ ...draft, maritalStatus: event.target.value, propertyOwnership: event.target.value === 'married' ? draft.propertyOwnership : 'customer_1' })}>
           <option value="">Bitte wählen</option>
           <option value="single">ledig</option>
           <option value="married">verheiratet</option>
@@ -1760,6 +2005,44 @@ const FormStep1 = ({ draft, setDraft }) => (
         </Select>
       </Field>
     </div>
+
+    {draft.maritalStatus === 'married' && (
+      <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Kunde 2 / Ehepartner</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '0.7fr 1.2fr 1.2fr 1fr', gap: 16, marginBottom: 16 }}>
+          <Field label="Titel Kunde 2">
+            <Select value={draft.spouseTitle} onChange={(event) => setDraft({ ...draft, spouseTitle: event.target.value })}>
+              <option value="">kein Titel</option>
+              <option value="Dr.">Dr.</option>
+              <option value="Prof.">Prof.</option>
+              <option value="Prof. Dr.">Prof. Dr.</option>
+            </Select>
+          </Field>
+          <Field label="Vorname Kunde 2" required><Input value={draft.spouseFirstName} onChange={(event) => setDraft({ ...draft, spouseFirstName: event.target.value })} /></Field>
+          <Field label="Nachname Kunde 2" required><Input value={draft.spouseLastName} onChange={(event) => setDraft({ ...draft, spouseLastName: event.target.value })} /></Field>
+          <Field label="Geschlecht Kunde 2">
+            <Select value={draft.spouseGender} onChange={(event) => setDraft({ ...draft, spouseGender: event.target.value })}>
+              <option value="">Bitte wählen</option>
+              <option value="female">weiblich</option>
+              <option value="male">männlich</option>
+              <option value="diverse">divers</option>
+              <option value="not_specified">keine Angabe</option>
+            </Select>
+          </Field>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.7fr 2fr', gap: 16 }}>
+          <Field label="Geburtsdatum Kunde 2"><Input type="date" value={draft.spouseDateOfBirth} onChange={(event) => setDraft({ ...draft, spouseDateOfBirth: event.target.value, spouseAgeAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
+          <Field label="Alter Kunde 2"><Input placeholder="wird berechnet" value={draft.spouseAgeAtSubmission} readOnly /></Field>
+          <Field label="Eigentümer-Auswahl" required>
+            <RadioGroup name="propertyOwnership" value={draft.propertyOwnership} onChange={(value) => setDraft({ ...draft, propertyOwnership: value })} options={[
+              { value: 'customer_1', label: 'Kunde 1' },
+              { value: 'customer_2', label: 'Kunde 2' },
+              { value: 'both', label: 'Beide' },
+            ]} />
+          </Field>
+        </div>
+      </div>
+    )}
 
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1.2fr', gap: 16, marginBottom: 16 }}>
       <Field label="Straße" required><Input placeholder="Straße und Hausnr." value={draft.street} onChange={(event) => setDraft({ ...draft, street: event.target.value })} /></Field>
@@ -1797,7 +2080,25 @@ const FormStep1 = ({ draft, setDraft }) => (
 const FormStep2 = ({ draft, setDraft }) => (
   <div>
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Wunschmodell</h2>
-    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Wie soll das Wohnrecht ausgestaltet sein?</div>
+    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte wähle das Hauptmodell. Ein zweites Angebot kann optional als Vergleich angefordert werden.</div>
+
+    <div style={{ marginBottom: 18 }}>
+      <Field label="Hauptmodell" required>
+        <RadioGroup name="desiredModel" value={draft.desiredModel} onChange={(value) => setDraft({ ...draft, desiredModel: value })} options={[
+          { value: 'fixed_residential_right', label: 'Befristetes Wohnrecht' },
+          { value: 'sale_and_leaseback', label: 'Rückmiete' },
+        ]} />
+      </Field>
+    </div>
+
+    {draft.desiredModel === 'sale_and_leaseback' && (
+      <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}66`, borderLeft: `4px solid ${theme.gold}`, borderRadius: 8, padding: '13px 15px', marginBottom: 18 }}>
+        <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
+          <input type="checkbox" checked={draft.rentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, rentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
+          <span><strong>Belehrung Rückmiete:</strong> Beim Rückmietmodell fällt ab Tag 1 nach Verkauf eine laufende Miete an. Diese Information muss vor Einreichung mit dem Kunden besprochen werden.</span>
+        </label>
+      </div>
+    )}
 
     <div style={{ marginBottom: 18 }}>
       <Field label="Wer soll das Wohnrecht bekommen?" required>
@@ -1836,7 +2137,7 @@ const FormStep2 = ({ draft, setDraft }) => (
       </div>
     </div>
 
-    <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '12px 14px' }}>
+    <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '12px 14px', marginBottom: 18 }}>
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: theme.ink }}>
         <input type="checkbox" checked={draft.rentalOptionDeselected} onChange={(event) => setDraft({ ...draft, rentalOptionDeselected: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
         <div>
@@ -1844,6 +2145,33 @@ const FormStep2 = ({ draft, setDraft }) => (
           <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 3, lineHeight: 1.5 }}>Abwahl kann zu höherer Auszahlung führen, allerdings muss nach Ablauf des Wohnrechts ausgezogen werden.</div>
         </div>
       </label>
+    </div>
+
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.ink, fontWeight: 700 }}>
+        <input type="checkbox" checked={draft.additionalOfferRequested} onChange={(event) => setDraft({ ...draft, additionalOfferRequested: event.target.checked })} style={{ accentColor: theme.aubergine }} />
+        Zweites Angebot zusätzlich erstellen
+      </label>
+      {draft.additionalOfferRequested && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 16, marginTop: 14 }}>
+          <Field label="Zweites Modell">
+            <Select value={draft.additionalOfferModel} onChange={(event) => setDraft({ ...draft, additionalOfferModel: event.target.value })}>
+              <option value="fixed_residential_right">Befristetes Wohnrecht</option>
+              <option value="sale_and_leaseback">Rückmiete</option>
+            </Select>
+          </Field>
+          <Field label="Laufzeit">
+            <Select value={String(draft.additionalOfferResidentialRightYears || 10)} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightYears: Number(event.target.value) })}>
+              <option value="5">5 Jahre</option>
+              <option value="10">10 Jahre</option>
+              <option value="15">15 Jahre</option>
+            </Select>
+          </Field>
+          <Field label="Hinweis zum zweiten Angebot">
+            <Input value={draft.additionalOfferReason} onChange={(event) => setDraft({ ...draft, additionalOfferReason: event.target.value })} placeholder="z.B. Vergleich für Kundengespräch" />
+          </Field>
+        </div>
+      )}
     </div>
   </div>
 );
@@ -1869,31 +2197,17 @@ const FormStep3 = ({ draft, setDraft }) => (
       <Field label="Wohnfläche (m²)" required><Input type="number" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
     </div>
 
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Grundstück (m²)"><Input type="number" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
+    <div style={{ display: 'grid', gridTemplateColumns: draft.propertyType === 'apartment' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <Field label="Grundstück (m²)" required><Input type="number" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
       <Field label="Nutzfläche (m²)"><Input type="number" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
-      <Field label="Miteigentumsanteile" hint="Nur bei Wohnungen"><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
+      {draft.propertyType === 'apartment' && (
+        <Field label="Miteigentumsanteile" hint="Nur bei Eigentumswohnungen"><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
+      )}
     </div>
 
-    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Nutzung und Zustand</div>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Nutzung">
-        <Select value={draft.occupancyStatus} onChange={(event) => setDraft({ ...draft, occupancyStatus: event.target.value })}>
-          <option value="owner_occupied">selbst bewohnt</option>
-          <option value="rented">vermietet</option>
-          <option value="vacant">leerstehend</option>
-          <option value="partially_rented">teilweise vermietet</option>
-        </Select>
-      </Field>
-      <Field label="Zustand" required>
-        <Select value={draft.condition} onChange={(event) => setDraft({ ...draft, condition: event.target.value })}>
-          <option value="very_good">sehr gut</option>
-          <option value="good">gut</option>
-          <option value="average">durchschnittlich</option>
-          <option value="renovation_needed">renovierungsbedürftig</option>
-        </Select>
-      </Field>
-      <Field label="Optik">
+    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Objekteindruck</div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 16 }}>
+      <Field label="Optik" required>
         <Select value={draft.visualConditionRating} onChange={(event) => setDraft({ ...draft, visualConditionRating: event.target.value })}>
           <option value="very_good">sehr gut</option>
           <option value="good">gut</option>
@@ -1903,6 +2217,9 @@ const FormStep3 = ({ draft, setDraft }) => (
           <option value="very_bad">sehr schlecht</option>
         </Select>
       </Field>
+      <div style={{ background: theme.mintLight, borderRadius: 6, padding: '10px 12px', fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>
+        Weitere fachliche Einschätzungen werden intern aus Unterlagen, Rückfragen und Bewertung abgeleitet. Im Erfassungsbogen wird nur der sichtbare Objekteindruck abgefragt.
+      </div>
     </div>
 
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Technik und Energie</div>
@@ -1940,24 +2257,54 @@ const FormStep3 = ({ draft, setDraft }) => (
       </div>
     )}
 
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Energieklasse"><Input value={draft.energyClass} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })} /></Field>
-    </div>
-
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: draft.energyCertificateAvailable ? '1fr 1fr 1fr' : '1fr 2fr', gap: 16, marginBottom: 16 }}>
       <Field label="Energieausweis">
         <Select value={draft.energyCertificateAvailable ? 'yes' : 'no'} onChange={(event) => setDraft({ ...draft, energyCertificateAvailable: event.target.value === 'yes' })}>
           <option value="no">nicht vorhanden</option>
           <option value="yes">vorhanden</option>
         </Select>
       </Field>
-      <Field label="Typ Energieausweis">
-        <Select value={draft.energyCertificateType} onChange={(event) => setDraft({ ...draft, energyCertificateType: event.target.value })}>
-          <option value="demand">Bedarfsausweis</option>
-          <option value="consumption">Verbrauchsausweis</option>
-          <option value="">Keine Angabe</option>
-        </Select>
-      </Field>
+      {draft.energyCertificateAvailable && (
+        <>
+          <Field label="Typ Energieausweis">
+            <Select value={draft.energyCertificateType} onChange={(event) => setDraft({ ...draft, energyCertificateType: event.target.value })}>
+              <option value="demand">Bedarfsausweis</option>
+              <option value="consumption">Verbrauchsausweis</option>
+              <option value="">Keine Angabe</option>
+            </Select>
+          </Field>
+          <Field label="Energieklasse"><Input value={draft.energyClass} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })} /></Field>
+        </>
+      )}
+      {!draft.energyCertificateAvailable && (
+        <div style={{ alignSelf: 'end', background: theme.mintLight, borderRadius: 6, padding: '9px 12px', fontSize: 12, color: `${theme.ink}99` }}>
+          Folgefelder erscheinen erst, wenn ein Energieausweis vorhanden ist.
+        </div>
+      )}
+    </div>
+
+    <div style={{ background: theme.mintLight, borderRadius: 6, padding: '12px 14px', marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>PV / Solar / Speicher</div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, color: theme.ink }}>
+        {[
+          ['photovoltaik', 'Photovoltaik'],
+          ['solarthermie', 'Solarthermie'],
+          ['batteriespeicher', 'Batteriespeicher'],
+        ].map(([value, label]) => (
+          <label key={value} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={(draft.energyCarriers || []).includes(value)} onChange={() => {
+              const current = new Set(draft.energyCarriers || []);
+              if (current.has(value)) current.delete(value);
+              else current.add(value);
+              setDraft({ ...draft, energyCarriers: Array.from(current) });
+            }} style={{ accentColor: theme.aubergine }} />
+            {label}
+          </label>
+        ))}
+      </div>
+    </div>
+
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Keller">
         <Select value={draft.basementType} onChange={(event) => setDraft({ ...draft, basementType: event.target.value })}>
           <option value="none">kein Keller</option>
@@ -1985,8 +2332,8 @@ const FormStep3 = ({ draft, setDraft }) => (
       </Field>
     </div>
 
-    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Außenbereich und Belastungen</div>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Außenbereich</div>
+    <div style={{ display: 'grid', gridTemplateColumns: draft.parkingAvailable ? '1fr 1fr 1fr' : '1fr 2fr', gap: 16, marginBottom: 16 }}>
       <Field label="Parkplatz">
         <Select value={draft.parkingType} onChange={(event) => setDraft({ ...draft, parkingType: event.target.value, parkingAvailable: Boolean(event.target.value) })}>
           <option value="">kein Parkplatz</option>
@@ -1996,10 +2343,33 @@ const FormStep3 = ({ draft, setDraft }) => (
           <option value="duplex">Doppelparker</option>
         </Select>
       </Field>
-      <Field label="Anzahl Parkplätze"><Input type="number" value={draft.parkingCount} onChange={(event) => setDraft({ ...draft, parkingCount: event.target.value })} /></Field>
-      <Field label="Restschuld (€)">
-        <Input type="number" value={draft.remainingDebtAmount} onChange={(event) => setDraft({ ...draft, remainingDebtAmount: event.target.value })} />
-      </Field>
+      {draft.parkingAvailable && (
+        <Field label="Anzahl Parkplätze"><Input type="number" value={draft.parkingCount} onChange={(event) => setDraft({ ...draft, parkingCount: event.target.value })} /></Field>
+      )}
+    </div>
+
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Restschuld</div>
+      <div style={{ display: 'grid', gridTemplateColumns: draft.remainingDebtKnown ? '1fr 1fr' : '1fr', gap: 16 }}>
+        <Field label="Ist eine Restschuld bekannt?">
+          <RadioGroup name="remainingDebtKnown" value={draft.remainingDebtKnown ? 'yes' : 'no'} onChange={(value) => setDraft({ ...draft, remainingDebtKnown: value === 'yes' })} options={[
+            { value: 'no', label: 'Nein' },
+            { value: 'yes', label: 'Ja' },
+          ]} />
+        </Field>
+        {draft.remainingDebtKnown && (
+          <Field label="Restschuld (€)" required>
+            <Input type="number" value={draft.remainingDebtAmount} onChange={(event) => setDraft({ ...draft, remainingDebtAmount: event.target.value })} />
+          </Field>
+        )}
+      </div>
+    </div>
+
+    <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderLeft: `4px solid ${theme.oliv}`, borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.ink, marginBottom: 4 }}>Allgemeiner Hinweis</div>
+      <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>
+        Bitte Besonderheiten früh dokumentieren, zum Beispiel Nießbrauch, Wohnungsbindung, größere Schäden, laufende Teilungserklärungsänderungen oder absehbare Instandhaltungen.
+      </div>
     </div>
 
     <div style={{ background: '#9B2C2C0A', border: `1px solid #9B2C2C33`, borderLeft: `3px solid #9B2C2C`, borderRadius: 6, padding: '12px 14px', marginTop: 20 }}>
@@ -2023,6 +2393,11 @@ const FormStep3 = ({ draft, setDraft }) => (
     <div style={{ marginTop: 16 }}>
       <Field label="Bekannte Mängel / Hinweise">
         <textarea value={draft.knownDefects} onChange={(event) => setDraft({ ...draft, knownDefects: event.target.value })} rows={3} placeholder="z.B. Feuchtigkeit, Reparaturen, Sanierungsdiskussionen" style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+      </Field>
+    </div>
+    <div style={{ marginTop: 16 }}>
+      <Field label="Allgemeine Notizen zur Immobilie">
+        <textarea value={draft.generalPropertyNotes} onChange={(event) => setDraft({ ...draft, generalPropertyNotes: event.target.value })} rows={3} placeholder="Interne Hinweise oder Besonderheiten für die Prüfung" style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
       </Field>
     </div>
   </div>
@@ -2059,31 +2434,28 @@ const FormStep4 = ({ draft, setDraft }) => {
     ...draft,
     buildingCondition: { ...draft.buildingCondition, [key]: value },
   });
-  const toggleEnergyCarrier = (carrier) => {
-    const current = new Set(draft.energyCarriers || []);
-    if (current.has(carrier)) current.delete(carrier);
-    else current.add(carrier);
-    setDraft({ ...draft, energyCarriers: Array.from(current) });
-  };
-
   return (
     <div>
       <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Modernisierungen</h2>
       <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte erfasse die wichtigsten Modernisierungen und den aktuellen Bauteilzustand.</div>
 
       <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Maßnahmen</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 22 }}>
+      <div style={{ display: 'grid', gap: 10, marginBottom: 22 }}>
         {modernizationFields.map(([key, label]) => (
-          <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Field label={label}>
+          <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 0.85fr 0.9fr 1.6fr', gap: 10, alignItems: 'end', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>
+            <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, paddingBottom: 9 }}>{label}</div>
+            <Field label="Status">
               <Select value={draft.modernization?.[key]?.scope || 'none'} onChange={(event) => setModernization(key, { scope: event.target.value })}>
                 <option value="none">keine</option>
                 <option value="partial">teilweise</option>
                 <option value="complete">vollständig</option>
               </Select>
             </Field>
-            <Field label="Jahr / Hinweis">
+            <Field label="Jahr">
               <Input value={draft.modernization?.[key]?.year || ''} onChange={(event) => setModernization(key, { year: event.target.value })} placeholder="z.B. 2018" />
+            </Field>
+            <Field label="Hinweis">
+              <Input value={draft.modernization?.[key]?.note || ''} onChange={(event) => setModernization(key, { note: event.target.value })} placeholder="kurzer Hinweis" />
             </Field>
           </div>
         ))}
@@ -2104,30 +2476,37 @@ const FormStep4 = ({ draft, setDraft }) => {
           </Field>
         ))}
       </div>
-
-      <div style={{ background: theme.mintLight, borderRadius: 6, padding: '12px 14px' }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>PV / Solar / Speicher</div>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, color: theme.ink }}>
-          {[
-            ['photovoltaik', 'Photovoltaik'],
-            ['solarthermie', 'Solarthermie'],
-            ['batteriespeicher', 'Batteriespeicher'],
-          ].map(([value, label]) => (
-            <label key={value} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={(draft.energyCarriers || []).includes(value)} onChange={() => toggleEnergyCarrier(value)} style={{ accentColor: theme.aubergine }} />
-              {label}
-            </label>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
 
-const FormStep5 = ({ draft, setDraft }) => (
+const FormStep5 = ({ draft, setDraft }) => {
+  const requiredDocuments = getRequiredDocumentsForPropertyType(draft.propertyType);
+  return (
   <div>
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Dokumente</h2>
     <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Dokumente werden mit Kategorie, Pflichtstatus und Prüfstatus am Fall gespeichert.</div>
+
+    <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 18 }}>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Pflichtdokumentliste</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {requiredDocuments.map((item) => (
+          <div key={item.category} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+            <FileText size={15} style={{ color: theme.aubergine, flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>{item.label}</div>
+              {item.note && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3, lineHeight: 1.35 }}>{item.note}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {draft.propertyType === 'apartment' && (
+        <div style={{ marginTop: 10, background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '9px 11px', fontSize: 11.5, color: theme.ink, lineHeight: 1.45 }}>
+          Wohnungssonderfälle: Teilungserklärung, Hausgeld, Protokolle und Instandhaltungsrücklage sind für Eigentumswohnungen verpflichtend zu prüfen.
+        </div>
+      )}
+    </div>
+
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Unterlage hochladen">
         <input type="file" onChange={(event) => {
@@ -2137,12 +2516,9 @@ const FormStep5 = ({ draft, setDraft }) => (
       </Field>
       <Field label="Kategorie">
         <Select value={draft.documentCategory} onChange={(event) => setDraft({ ...draft, documentCategory: event.target.value })}>
-          <option value="energy_certificate">Energieausweis</option>
-          <option value="land_register">Grundbuchauszug</option>
-          <option value="floorplan">Grundriss</option>
-          <option value="living_area_calculation">Wohnflächenberechnung</option>
-          <option value="photos">Fotos</option>
-          <option value="other">Sonstiges</option>
+          {Object.entries(documentCategoryLabels).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
         </Select>
       </Field>
     </div>
@@ -2168,7 +2544,8 @@ const FormStep5 = ({ draft, setDraft }) => (
       <textarea value={draft.documentMissingReason} onChange={(event) => setDraft({ ...draft, documentMissingReason: event.target.value })} rows={3} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
     </Field>
   </div>
-);
+  );
+};
 
 // =====================================================================
 // SCREEN — LEADS
@@ -2574,10 +2951,11 @@ export default function App({ initialRole = 'partner' } = {}) {
               {loadingCases ? 'Fälle werden geladen...' : loadingLeads ? 'Leads werden geladen...' : notice}
             </div>
           )}
-          {screen === 'dashboard' && role === 'partner' && <MaklerDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} onConvertLead={handleConvertLead} onMarkLeadContacted={handleMarkLeadContacted} />}
+          {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} />}
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
-          {['drafts', 'in_progress', 'portfolio', 'sold'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
+          {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
+          {['drafts', 'in_progress', 'sold'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}

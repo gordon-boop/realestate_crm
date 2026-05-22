@@ -73,12 +73,14 @@ export type CaseIntakeStep = "customer" | "model" | "property" | "modernization"
 export type CaseIntakeDraftDto = {
   currentStep: CaseIntakeStep;
   customer: {
+    title?: string;
     firstName?: string;
     lastName?: string;
     gender?: Gender;
     dateOfBirth?: string;
     ageAtSubmission?: number;
     maritalStatus?: MaritalStatus;
+    spouseTitle?: string;
     spouseFirstName?: string;
     spouseLastName?: string;
     spouseGender?: Gender;

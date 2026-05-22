@@ -587,21 +587,35 @@ textarea {
 }
 
 @media (max-width: 1180px) {
-  .lead-workspace-grid {
+  .lead-workspace-grid,
+  .portfolio-layout-grid {
     grid-template-columns: 1fr !important;
   }
 }
 
 @media (max-width: 980px) {
   .lead-kpi-grid,
-  .partner-workbench-grid {
+  .partner-workbench-grid,
+  .portfolio-stage-grid,
+  .priority-action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
 
 @media (max-width: 560px) {
+  .broker-dashboard-header,
+  .active-cases-header {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
   .lead-kpi-grid,
-  .partner-workbench-grid {
+  .partner-workbench-grid,
+  .portfolio-stage-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .priority-action-grid {
     grid-template-columns: 1fr !important;
   }
 

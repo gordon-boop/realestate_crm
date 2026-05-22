@@ -26,6 +26,7 @@ export async function POST(request: Request): Promise<Response> {
       data: {
         partnerId,
         displayName: body.displayName ?? `${body.firstName} ${body.lastName}`,
+        title: body.title,
         firstName: body.firstName,
         lastName: body.lastName,
         ageAtSubmission: body.ageAtSubmission,
@@ -35,6 +36,7 @@ export async function POST(request: Request): Promise<Response> {
         mobile: body.mobile,
         dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : undefined,
         maritalStatus: body.maritalStatus as never,
+        spouseTitle: body.spouseTitle,
         spouseFirstName: body.spouseFirstName,
         spouseLastName: body.spouseLastName,
         spouseGender: body.spouseGender as never,
