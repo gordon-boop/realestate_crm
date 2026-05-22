@@ -1,22 +1,22 @@
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { nowIso } from "@/lib/id";
-import { addActivity, saveOfferVersion, store, updatePropertyStatus } from "@/lib/store";
+import { addDbActivity, toJsonSnapshot, updateDbPropertyStatus } from "@/lib/persistence";
+import { prisma } from "@/lib/prisma";
 
-export function POST(_request: Request, { params }: { params: { id: string } }): Response {
+export async function POST(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
     const user = requireRole("admin");
-    const offer = store.offers.find((item) => item.id === params.id);
-    if (!offer) throw new Error("Offer not found");
-    Object.assign(offer, {
-      status: "approved",
-      approvedByUserId: user.id,
-      approvedAt: nowIso(),
-      currentVersion: offer.currentVersion + 1,
-      updatedAt: nowIso()
+    const offer = await prisma.offer.update({
+      where: { id: params.id },
+      data: {
+        status: "approved",
+        approvedByUserId: user.id,
+        approvedAt: new Date(),
+        currentVersion: { increment: 1 }
+      }
     });
-    saveOfferVersion(offer, user.id);
-    updatePropertyStatus(offer.propertyId, "APPROVED");
-    addActivity(offer.propertyId, user.id, "offer_approved", "Angebot wurde intern freigegeben.");
+    await prisma.offerVersion.create({ data: { offerId: offer.id, version: offer.currentVersion, snapshotJson: toJsonSnapshot(offer), createdByUserId: user.id } });
+    await updateDbPropertyStatus(offer.propertyId, "APPROVED");
+    await addDbActivity(offer.propertyId, user.id, "offer_approved", "Angebot wurde intern freigegeben.");
     return json({ offer });
   } catch (err) {
     return handleApiError(err);

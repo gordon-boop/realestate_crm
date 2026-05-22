@@ -3,6 +3,8 @@ import {
   DocumentCategory,
   DocumentRequirementLevel,
   DocumentStatus,
+  LeadSource,
+  LeadStatus,
   OfferKind,
   OfferStatus,
   PartnerStatus,
@@ -19,10 +21,44 @@ import {
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.$executeRawUnsafe(`
+    UPDATE "partners"
+    SET "id" = 'partner_heimwert'
+    WHERE "email" = 'kontakt@heimwert.local'
+      AND "id" <> 'partner_heimwert'
+      AND NOT EXISTS (SELECT 1 FROM "partners" WHERE "id" = 'partner_heimwert')
+  `);
+  await prisma.$executeRawUnsafe(`
+    UPDATE "partners"
+    SET "id" = 'partner_nord'
+    WHERE "email" = 'team@nordlage.local'
+      AND "id" <> 'partner_nord'
+      AND NOT EXISTS (SELECT 1 FROM "partners" WHERE "id" = 'partner_nord')
+  `);
+  await prisma.$executeRawUnsafe(`
+    UPDATE "users"
+    SET "id" = 'user_admin'
+    WHERE "email" = 'admin@demo.local'
+      AND "id" <> 'user_admin'
+      AND NOT EXISTS (SELECT 1 FROM "users" WHERE "id" = 'user_admin')
+  `);
+  await prisma.$executeRawUnsafe(`
+    UPDATE "users"
+    SET "id" = 'user_partner'
+    WHERE "email" = 'makler@demo.local'
+      AND "id" <> 'user_partner'
+      AND NOT EXISTS (SELECT 1 FROM "users" WHERE "id" = 'user_partner')
+  `);
+
   const partner = await prisma.partner.upsert({
     where: { email: "kontakt@heimwert.local" },
-    update: {},
+    update: {
+      companyName: "Heimwert Makler GmbH",
+      contactName: "Mara Seidel",
+      status: PartnerStatus.active
+    },
     create: {
+      id: "partner_heimwert",
       companyName: "Heimwert Makler GmbH",
       contactName: "Mara Seidel",
       email: "kontakt@heimwert.local",
@@ -32,10 +68,25 @@ async function main() {
     }
   });
 
+  await prisma.partner.upsert({
+    where: { email: "team@nordlage.local" },
+    update: { status: PartnerStatus.active },
+    create: {
+      id: "partner_nord",
+      companyName: "Nordlage Immobilien",
+      contactName: "Tobias Brandt",
+      email: "team@nordlage.local",
+      phone: "+49 40 888888",
+      address: "Hafenstrasse 2, 20457 Hamburg",
+      status: PartnerStatus.active
+    }
+  });
+
   const admin = await prisma.user.upsert({
     where: { email: "admin@demo.local" },
-    update: {},
+    update: { name: "Admin Demo", role: UserRole.admin },
     create: {
+      id: "user_admin",
       name: "Admin Demo",
       email: "admin@demo.local",
       passwordHash: "demo1234",
@@ -45,8 +96,9 @@ async function main() {
 
   const partnerUser = await prisma.user.upsert({
     where: { email: "makler@demo.local" },
-    update: {},
+    update: { partnerId: partner.id, name: "Mara Seidel", role: UserRole.partner },
     create: {
+      id: "user_partner",
       partnerId: partner.id,
       name: "Mara Seidel",
       email: "makler@demo.local",
@@ -56,10 +108,10 @@ async function main() {
   });
 
   const customer = await prisma.customer.upsert({
-    where: { id: "seed_customer_schmidt" },
+    where: { id: "customer_schmidt" },
     update: {},
     create: {
-      id: "seed_customer_schmidt",
+      id: "customer_schmidt",
       partnerId: partner.id,
       displayName: "Eva Schmidt",
       firstName: "Eva",
@@ -81,10 +133,10 @@ async function main() {
   });
 
   const property = await prisma.property.upsert({
-    where: { id: "seed_property_stuttgart_1" },
+    where: { caseNumber: "WK-2026-014" },
     update: {},
     create: {
-      id: "seed_property_stuttgart_1",
+      id: "property_berlin_1",
       caseNumber: "WK-2026-014",
       objectTitle: "EFH Stuttgart-Vaihingen",
       customerId: customer.id,
@@ -221,6 +273,104 @@ async function main() {
       entityType: "reminder",
       entityId: reminder.id,
       metadataJson: { dueAt: "2026-05-21" }
+    }
+  });
+
+  const portfolioCustomer = await prisma.customer.upsert({
+    where: { id: "customer_mayer" },
+    update: {},
+    create: {
+      id: "customer_mayer",
+      partnerId: partner.id,
+      displayName: "Renate Mayer",
+      firstName: "Renate",
+      lastName: "Mayer",
+      ageAtSubmission: 76,
+      email: "renate.mayer@example.com",
+      phone: "+49 711 444555",
+      street: "Rosenweg 9",
+      postalCode: "70563",
+      city: "Stuttgart",
+      addressText: "Rosenweg 9, 70563 Stuttgart",
+      consentDataProcessing: true
+    }
+  });
+
+  await prisma.property.upsert({
+    where: { caseNumber: "WK-2026-008" },
+    update: {},
+    create: {
+      id: "property_stuttgart_portfolio_1",
+      caseNumber: "WK-2026-008",
+      objectTitle: "ETW Stuttgart-Vaihingen",
+      customerId: portfolioCustomer.id,
+      partnerId: partner.id,
+      propertyType: PropertyType.apartment,
+      street: "Rosenweg 9",
+      postalCode: "70563",
+      city: "Stuttgart",
+      livingAreaSqm: 86,
+      plotAreaSqm: 0,
+      yearBuilt: 1992,
+      condition: PropertyCondition.good,
+      occupancyStatus: "owner_occupied",
+      desiredModel: DesiredModel.sale_and_leaseback,
+      preferredValuationProvider: ValuationProvider.sprengnetter,
+      desiredResidentialRightYears: 10,
+      offerAcceptedAt: new Date("2026-05-01T10:00:00.000Z"),
+      purchaseStartedAt: new Date("2026-05-03T10:00:00.000Z"),
+      notaryAppointmentAt: new Date("2026-05-10T10:00:00.000Z"),
+      purchasedAt: new Date("2026-05-14T10:00:00.000Z"),
+      portfolioEnteredAt: new Date("2026-05-15T10:00:00.000Z"),
+      offerCalculationSource: "application",
+      lastActivityLabel: "Vor 12 Tagen",
+      lastActivityAt: new Date("2026-05-15T10:00:00.000Z"),
+      notes: "Demo-Bestandsobjekt nach abgeschlossenem Ankauf.",
+      status: PropertyStatus.IN_PORTFOLIO
+    }
+  });
+
+  await prisma.lead.upsert({
+    where: { leadNumber: "LD-2026-001" },
+    update: {},
+    create: {
+      id: "lead_homepage_1",
+      leadNumber: "LD-2026-001",
+      source: LeadSource.homepage,
+      status: LeadStatus.NEW,
+      name: "Maria Müller",
+      email: "maria.mueller@example.com",
+      phone: "+49 711 222333",
+      postalCode: "70563",
+      city: "Stuttgart",
+      propertyType: PropertyType.single_family,
+      estimatedPropertyValueRange: "500-800",
+      youngestOwnerAgeRange: "70-74",
+      productInterest: DesiredModel.fixed_residential_right,
+      message: "Homepage-Anfrage aus der Ersteinschätzung."
+    }
+  });
+
+  await prisma.lead.upsert({
+    where: { leadNumber: "LD-2026-002" },
+    update: {},
+    create: {
+      id: "lead_assigned_1",
+      leadNumber: "LD-2026-002",
+      source: LeadSource.homepage,
+      status: LeadStatus.ASSIGNED,
+      assignedPartnerId: partner.id,
+      assignedByUserId: admin.id,
+      assignedAt: new Date(),
+      name: "Karl Weber",
+      phone: "+49 30 555555",
+      postalCode: "14193",
+      city: "Berlin",
+      propertyType: PropertyType.apartment,
+      estimatedPropertyValueRange: "300-500",
+      youngestOwnerAgeRange: "75-79",
+      productInterest: DesiredModel.fixed_residential_right,
+      message: "Bitte Kontakt aufnehmen und Beratungsbedarf klären."
     }
   });
 }

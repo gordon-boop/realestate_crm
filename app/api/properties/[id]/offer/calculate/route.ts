@@ -1,9 +1,9 @@
 import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
-import type { DesiredModel, Offer } from "@/lib/domain";
-import { makeId, nowIso } from "@/lib/id";
+import type { DesiredModel } from "@/lib/domain";
 import { calculateOffer } from "@/lib/offer-calculator";
-import { addActivity, getCaseByPropertyId, nextOfferNumber, saveOfferVersion, store, updatePropertyStatus } from "@/lib/store";
+import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, updateDbPropertyStatus } from "@/lib/persistence";
+import { prisma } from "@/lib/prisma";
 
 type CalculateOfferBody = {
   model?: DesiredModel;
@@ -20,7 +20,7 @@ function readNumber(input: Record<string, number | string | undefined> | undefin
 export async function POST(request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
     const user = requireRole("admin");
-    const caseView = getCaseByPropertyId(params.id);
+    const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
     if (!caseView.valuation) throw new Error("Valuation required before offer calculation");
@@ -55,55 +55,60 @@ export async function POST(request: Request, { params }: { params: { id: string 
       annualRentIncome: readNumber(body.inputs, "annualRentIncome")
     });
 
-    const existing = store.offers.find((item) => item.propertyId === params.id && item.model === model);
-    const now = nowIso();
-    const offer: Offer =
-      existing ??
-      {
-        id: makeId("off"),
-        propertyId: params.id,
-        valuationId: caseView.valuation.id,
-        offerNumber: nextOfferNumber(),
-        kind: "indicative",
-        currentVersion: 0,
-        marketValue: calculation.marketValue,
-        adjustedMarketValue: calculation.adjustedMarketValue,
-        residentialRightValue: calculation.residentialRightValue,
-        riskDiscount: calculation.riskDiscount,
-        companyMargin: calculation.companyMargin,
-        payoutAmount: calculation.payoutAmount,
-        model,
-        residentialRightYears,
-        assumptions: calculation.assumptions,
-        status: "draft",
-        createdAt: now,
-        updatedAt: now
-      };
+    const existing = await prisma.offer.findFirst({ where: { propertyId: params.id, model: model as never } });
+    const offerNumber = existing?.offerNumber ?? `ANG-2026-${String((await prisma.offer.count()) + 1).padStart(4, "0")}`;
+    const offer = existing
+      ? await prisma.offer.update({
+          where: { id: existing.id },
+          data: {
+            currentVersion: { increment: 1 },
+            valuationId: caseView.valuation.id,
+            marketValue: calculation.marketValue,
+            adjustedMarketValue: calculation.adjustedMarketValue,
+            residentialRightValue: calculation.residentialRightValue,
+            riskDiscount: calculation.riskDiscount,
+            companyMargin: calculation.companyMargin,
+            payoutAmount: calculation.payoutAmount,
+            model: model as never,
+            residentialRightYears,
+            assumptionsJson: calculation.assumptions,
+            status: "draft"
+          }
+        })
+      : await prisma.offer.create({
+          data: {
+            propertyId: params.id,
+            valuationId: caseView.valuation.id,
+            offerNumber,
+            kind: "indicative",
+            currentVersion: 1,
+            marketValue: calculation.marketValue,
+            adjustedMarketValue: calculation.adjustedMarketValue,
+            residentialRightValue: calculation.residentialRightValue,
+            riskDiscount: calculation.riskDiscount,
+            companyMargin: calculation.companyMargin,
+            payoutAmount: calculation.payoutAmount,
+            model: model as never,
+            residentialRightYears,
+            assumptionsJson: calculation.assumptions,
+            status: "draft"
+          }
+        });
 
-    Object.assign(offer, {
-      currentVersion: offer.currentVersion + 1,
-      valuationId: caseView.valuation.id,
-      marketValue: calculation.marketValue,
-      adjustedMarketValue: calculation.adjustedMarketValue,
-      residentialRightValue: calculation.residentialRightValue,
-      riskDiscount: calculation.riskDiscount,
-      companyMargin: calculation.companyMargin,
-      payoutAmount: calculation.payoutAmount,
-      model,
-      residentialRightYears,
-      assumptions: calculation.assumptions,
-      status: "draft",
-      updatedAt: now
+    await prisma.offerVersion.create({
+      data: {
+        offerId: offer.id,
+        version: offer.currentVersion,
+        snapshotJson: toJsonSnapshot(offer),
+        createdByUserId: user.id
+      }
     });
-
-    if (!existing) {
-      store.offers.push(offer);
-    }
-
-    saveOfferVersion(offer, user.id);
-    caseView.property.offerCalculationSource = calculation.assumptions.sourceWorkbook ?? "application";
-    updatePropertyStatus(params.id, "OFFER_CALCULATED");
-    addActivity(
+    await prisma.property.update({
+      where: { id: params.id },
+      data: { offerCalculationSource: calculation.assumptions.sourceWorkbook ?? "application" }
+    });
+    await updateDbPropertyStatus(params.id, "OFFER_CALCULATED");
+    await addDbActivity(
       params.id,
       user.id,
       "offer_calculated",

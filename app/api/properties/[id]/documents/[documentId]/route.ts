@@ -1,8 +1,7 @@
 import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
-import type { DocumentRequirementLevel, DocumentStatus } from "@/lib/domain";
-import { nowIso } from "@/lib/id";
-import { addActivity, getCaseByPropertyId, store } from "@/lib/store";
+import { addDbActivity, getDbCaseByPropertyId } from "@/lib/persistence";
+import { prisma } from "@/lib/prisma";
 import { unlink } from "node:fs/promises";
 import { basename, join } from "node:path";
 
@@ -11,29 +10,26 @@ export const runtime = "nodejs";
 export async function PATCH(request: Request, { params }: { params: { id: string; documentId: string } }): Promise<Response> {
   try {
     const user = requireRole("admin", "partner");
-    const caseView = getCaseByPropertyId(params.id);
+    const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
 
-    const document = store.documents.find((item) => item.id === params.documentId && item.propertyId === params.id);
-    if (!document) throw new Error("Document not found");
+    const current = await prisma.document.findFirst({ where: { id: params.documentId, propertyId: params.id } });
+    if (!current) throw new Error("Document not found");
 
     const body = await request.json().catch(() => ({}));
-    if (body.status) {
-      document.status = String(body.status) as DocumentStatus;
-    }
-    if (body.requirementLevel) {
-      document.requirementLevel = String(body.requirementLevel) as DocumentRequirementLevel;
-    }
-    if (body.missingReason !== undefined) {
-      document.missingReason = body.missingReason ? String(body.missingReason) : undefined;
-    }
-    if (user.role === "admin") {
-      document.reviewedByUserId = user.id;
-      document.reviewedAt = nowIso();
-    }
+    const document = await prisma.document.update({
+      where: { id: params.documentId },
+      data: {
+        status: body.status ? String(body.status) as never : undefined,
+        requirementLevel: body.requirementLevel ? String(body.requirementLevel) as never : undefined,
+        missingReason: body.missingReason !== undefined ? body.missingReason ? String(body.missingReason) : null : undefined,
+        reviewedByUserId: user.role === "admin" ? user.id : undefined,
+        reviewedAt: user.role === "admin" ? new Date() : undefined
+      }
+    });
 
-    addActivity(params.id, user.id, "document_status_changed", `Dokumentstatus für ${document.displayName ?? document.fileName} wurde aktualisiert.`, {
+    await addDbActivity(params.id, user.id, "document_status_changed", `Dokumentstatus für ${document.displayName ?? document.fileName} wurde aktualisiert.`, {
       source: user.role,
       entityType: "document",
       entityId: document.id,
@@ -49,17 +45,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 export async function DELETE(_request: Request, { params }: { params: { id: string; documentId: string } }): Promise<Response> {
   try {
     const user = requireRole("admin", "partner");
-    const caseView = getCaseByPropertyId(params.id);
+    const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
 
-    const documentIndex = store.documents.findIndex((item) => item.id === params.documentId && item.propertyId === params.id);
-    if (documentIndex < 0) throw new Error("Document not found");
-
-    const [document] = store.documents.splice(documentIndex, 1);
+    const document = await prisma.document.findFirst({ where: { id: params.documentId, propertyId: params.id } });
+    if (!document) throw new Error("Document not found");
+    await prisma.document.delete({ where: { id: document.id } });
     await deleteStoredFile(document.storageUrl);
 
-    addActivity(params.id, user.id, "document_deleted", `Dokument ${document.displayName ?? document.fileName} wurde gelöscht.`, {
+    await addDbActivity(params.id, user.id, "document_deleted", `Dokument ${document.displayName ?? document.fileName} wurde gelöscht.`, {
       source: user.role,
       entityType: "document",
       entityId: document.id,
@@ -80,6 +75,6 @@ async function deleteStoredFile(storageUrl?: string) {
   try {
     await unlink(join(process.cwd(), "public", "mock-storage", safeName));
   } catch {
-    // The MVP store is authoritative. Missing local files should not block deletion.
+    // Missing local files should not block metadata deletion.
   }
 }

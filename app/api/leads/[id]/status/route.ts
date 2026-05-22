@@ -1,20 +1,18 @@
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { nowIso } from "@/lib/id";
-import { store } from "@/lib/store";
+import { getDbLeadById, updateDbLeadStatus } from "@/lib/persistence";
 import { leadStatusSchema } from "@/lib/validation";
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
     const user = requireRole("admin", "partner");
     const body = leadStatusSchema.parse(await request.json());
-    const lead = store.leads.find((item) => item.id === params.id);
+    const existing = await getDbLeadById(params.id);
+    const lead = existing;
     if (!lead) throw new Error("Lead not found");
     if (user.role === "partner" && lead.assignedPartnerId !== user.partnerId) throw new Error("Forbidden");
     if (body.status === "CONVERTED") throw new Error("Use convert endpoint for converted leads");
 
-    lead.status = body.status;
-    lead.updatedAt = nowIso();
-    return json({ lead });
+    return json({ lead: await updateDbLeadStatus(params.id, body.status) });
   } catch (err) {
     return handleApiError(err);
   }

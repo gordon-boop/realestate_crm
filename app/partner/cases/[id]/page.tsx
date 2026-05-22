@@ -9,12 +9,12 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { canSeeProperty } from "@/lib/access-control";
 import { getCurrentUser } from "@/lib/auth";
 import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
-import { getCaseByPropertyId } from "@/lib/store";
+import { getDbCaseByPropertyId } from "@/lib/persistence";
 
-export default function PartnerCasePage({ params }: { params: { id: string } }) {
+export default async function PartnerCasePage({ params }: { params: { id: string } }) {
   const user = getCurrentUser();
   if (!user) redirect("/login");
-  const caseView = getCaseByPropertyId(params.id);
+  const caseView = await getDbCaseByPropertyId(params.id);
   if (!caseView || !canSeeProperty(user, caseView.property)) redirect("/partner");
   const requiredDocumentRows = getRequiredDocumentsForPropertyType(caseView.property.propertyType).map((requirement) => {
     const document = caseView.documents.find((item) => item.category === requirement.category);

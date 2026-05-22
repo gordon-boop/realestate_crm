@@ -1,21 +1,23 @@
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { nowIso } from "@/lib/id";
-import { addActivity, saveOfferVersion, store, updatePropertyStatus } from "@/lib/store";
+import { addDbActivity, toJsonSnapshot, updateDbPropertyStatus } from "@/lib/persistence";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
     const user = requireRole("admin");
-    const offer = store.offers.find((item) => item.id === params.id);
-    if (!offer) throw new Error("Offer not found");
+    const existing = await prisma.offer.findUnique({ where: { id: params.id } });
+    if (!existing) throw new Error("Offer not found");
     const body = await request.json().catch(() => ({}));
-    Object.assign(offer, {
-      status: "rejected",
-      currentVersion: offer.currentVersion + 1,
-      updatedAt: nowIso()
+    const offer = await prisma.offer.update({
+      where: { id: params.id },
+      data: {
+        status: "rejected",
+        currentVersion: { increment: 1 }
+      }
     });
-    saveOfferVersion(offer, user.id);
-    updatePropertyStatus(offer.propertyId, "REJECTED");
-    addActivity(offer.propertyId, user.id, "offer_rejected", String(body.reason ?? "Angebot wurde abgelehnt."));
+    await prisma.offerVersion.create({ data: { offerId: offer.id, version: offer.currentVersion, snapshotJson: toJsonSnapshot(offer), createdByUserId: user.id } });
+    await updateDbPropertyStatus(offer.propertyId, "REJECTED");
+    await addDbActivity(offer.propertyId, user.id, "offer_rejected", String(body.reason ?? "Angebot wurde abgelehnt."));
     return json({ offer });
   } catch (err) {
     return handleApiError(err);

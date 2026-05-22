@@ -1,11 +1,11 @@
 import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { getCaseByPropertyId } from "@/lib/store";
+import { getDbCaseByPropertyId } from "@/lib/persistence";
 
-export function GET(_request: Request, { params }: { params: { id: string } }): Response {
+export async function GET(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
     const user = requireRole("admin", "partner");
-    const caseView = getCaseByPropertyId(params.id);
+    const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
     return json({ offer: caseView.offer ?? null, offers: caseView.offers });

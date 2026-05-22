@@ -9,15 +9,16 @@ import { Money } from "@/components/Money";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getCurrentUser } from "@/lib/auth";
 import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
-import { getCaseByPropertyId, store } from "@/lib/store";
+import { getDbCaseByPropertyId } from "@/lib/persistence";
+import { prisma } from "@/lib/prisma";
 
-export default function AdminCasePage({ params }: { params: { id: string } }) {
+export default async function AdminCasePage({ params }: { params: { id: string } }) {
   const user = getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/partner");
-  const caseView = getCaseByPropertyId(params.id);
+  const caseView = await getDbCaseByPropertyId(params.id);
   if (!caseView) redirect("/admin");
-  const versions = caseView.offer ? store.offerVersions.filter((item) => item.offerId === caseView.offer?.id) : [];
+  const versions = caseView.offer ? await prisma.offerVersion.findMany({ where: { offerId: caseView.offer.id } }) : [];
   const requiredDocumentRows = getRequiredDocumentsForPropertyType(caseView.property.propertyType).map((requirement) => {
     const document = caseView.documents.find((item) => item.category === requirement.category);
     return { requirement, document };

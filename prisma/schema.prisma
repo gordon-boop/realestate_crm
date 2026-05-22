@@ -454,6 +454,7 @@ model Offer {
   approvedByUser        User?       @relation("OfferApprovedBy", fields: [approvedByUserId], references: [id])
   approvedAt            DateTime?   @map("approved_at")
   sentAt                DateTime?   @map("sent_at")
+  pdfUrl                String?     @map("pdf_url")
   versions              OfferVersion[]
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
