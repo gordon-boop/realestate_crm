@@ -57,6 +57,11 @@ enum PropertyStatus {
   INTERNAL_REVIEW
   APPROVED
   SENT
+  OFFER_ACCEPTED
+  PURCHASE_STARTED
+  NOTARY_APPOINTMENT
+  PURCHASED
+  IN_PORTFOLIO
   APPOINTMENT_SCHEDULED
   REJECTED
   WON
@@ -352,6 +357,11 @@ model Property {
   followUpDueAt                DateTime?         @map("follow_up_due_at")
   customerFeedbackReceivedAt   DateTime?         @map("customer_feedback_received_at")
   offerCalculationSource       String?           @map("offer_calculation_source")
+  offerAcceptedAt              DateTime?         @map("offer_accepted_at")
+  purchaseStartedAt            DateTime?         @map("purchase_started_at")
+  notaryAppointmentAt          DateTime?         @map("notary_appointment_at")
+  purchasedAt                  DateTime?         @map("purchased_at")
+  portfolioEnteredAt           DateTime?         @map("portfolio_entered_at")
   lastActivityLabel            String?           @map("last_activity_label")
   lastActivityAt               DateTime?         @map("last_activity_at")
   notes                        String?

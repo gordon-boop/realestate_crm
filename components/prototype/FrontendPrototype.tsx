@@ -42,6 +42,11 @@ const statusConfig = {
   INTERNAL_REVIEW:     { label: 'Interne Prüfung',      color: theme.oliv },
   APPROVED:            { label: 'Freigegeben',          color: '#5B8C2B' },
   SENT:                { label: 'Versendet',            color: '#5B8C2B' },
+  OFFER_ACCEPTED:      { label: 'Angebot angenommen',   color: '#5B8C2B' },
+  PURCHASE_STARTED:    { label: 'Ankauf gestartet',     color: theme.aubergineSoft },
+  NOTARY_APPOINTMENT:  { label: 'Notartermin',          color: theme.oliv },
+  PURCHASED:           { label: 'Angekauft',            color: '#3D6B1F' },
+  IN_PORTFOLIO:        { label: 'Im Bestand',           color: '#3D6B1F' },
   APPOINTMENT_SCHEDULED:{ label: 'Termin vereinbart',   color: '#5B8C2B' },
   WON:                 { label: 'Gewonnen',             color: '#3D6B1F' },
   SOLD:                { label: 'Verkauft',             color: '#3D6B1F' },
@@ -135,20 +140,20 @@ const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0 }) => {
   const partnerNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
-    { icon: FolderOpen, label: 'Zwischengespeichert' },
-    { icon: Clock, label: 'In Bearbeitung', badge: 4 },
-    { icon: Archive, label: 'Bestand' },
-    { icon: FileText, label: 'Sonstiges' },
+    { icon: FolderOpen, label: 'Zwischengespeichert', screen: 'drafts' },
+    { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: 4 },
+    { icon: Archive, label: 'Bestand', screen: 'portfolio' },
+    { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
   const adminNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined, internal: true },
-    { icon: FolderOpen, label: 'Zwischengespeichert' },
-    { icon: Clock, label: 'In Bearbeitung', badge: 23 },
-    { icon: Archive, label: 'Bestand' },
-    { icon: CheckCircle2, label: 'Verkauft', internal: true },
-    { icon: Users, label: 'Partner' },
-    { icon: FileText, label: 'Sonstiges' },
+    { icon: FolderOpen, label: 'Zwischengespeichert', screen: 'drafts' },
+    { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: 23 },
+    { icon: Archive, label: 'Bestand', screen: 'portfolio' },
+    { icon: CheckCircle2, label: 'Verkauft', screen: 'sold', internal: true },
+    { icon: Users, label: 'Partner', screen: 'partners' },
+    { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
   const nav = role === 'admin' ? adminNav : partnerNav;
   const isActive = (item) => item.screen === currentScreen;
@@ -179,12 +184,12 @@ const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0 }) => {
       <div style={{ height: 16 }} />
       <div style={{ fontSize: 10, color: `${theme.aubergine}99`, fontWeight: 700, letterSpacing: '0.1em', padding: '0 10px 6px', textTransform: 'uppercase' }}>Wissen</div>
       {[
-        { icon: BookOpen, label: 'Broschüre' },
-        { icon: MapPin, label: 'Postbank Atlas' },
-        { icon: FileText, label: 'Leitfaden' },
-        { icon: HelpCircle, label: 'FAQs' },
+        { icon: BookOpen, label: 'Broschüre', screen: 'knowledge_brochure' },
+        { icon: MapPin, label: 'Postbank Atlas', screen: 'knowledge_atlas' },
+        { icon: FileText, label: 'Leitfaden', screen: 'knowledge_guide' },
+        { icon: HelpCircle, label: 'FAQs', screen: 'knowledge_faq' },
       ].map((item, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', fontSize: 12.5, color: `${theme.ink}cc`, cursor: 'pointer' }}>
+        <div key={i} onClick={() => onNavigate(item.screen)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 6, background: currentScreen === item.screen ? `${theme.aubergine}12` : 'transparent', fontSize: 12.5, color: currentScreen === item.screen ? theme.aubergine : `${theme.ink}cc`, cursor: 'pointer' }}>
           <item.icon size={14} />
           <span>{item.label}</span>
         </div>
@@ -365,6 +370,27 @@ function mapCaseView(item) {
     followUpReason: openReminder?.reason || property.followUpReason || '',
     raw: item,
   };
+}
+
+function filterCasesForScreen(cases, screen) {
+  const statusGroups = {
+    drafts: ['DRAFT'],
+    in_progress: ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'APPOINTMENT_SCHEDULED'],
+    portfolio: ['IN_PORTFOLIO', 'WON'],
+    sold: ['SOLD', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
+  };
+  const statuses = statusGroups[screen] || [];
+  return cases.filter((item) => statuses.includes(item.status));
+}
+
+function menuScreenTitle(screen) {
+  const labels = {
+    drafts: 'Zwischengespeichert',
+    in_progress: 'In Bearbeitung',
+    portfolio: 'Bestand',
+    sold: 'Verkauft',
+  };
+  return labels[screen] || 'Fälle';
 }
 
 const defaultDraft = {
@@ -643,6 +669,118 @@ const AdminDashboard = ({ cases = mockCases, onOpenCase }) => (
   </div>
 );
 
+const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
+  const filteredCases = filterCasesForScreen(cases, screen);
+  const title = menuScreenTitle(screen);
+  const subtitle = {
+    drafts: 'Entwürfe, die noch nicht eingereicht wurden.',
+    in_progress: 'Alle aktiven Vorgänge von Einreichung bis Freigabe.',
+    portfolio: 'Fälle im Bestand oder in der Kundenphase nach Versand.',
+    sold: 'Erfolgreich abgeschlossene und verkaufte Vorgänge.',
+  }[screen] || 'Gefilterte Fallliste.';
+
+  return (
+    <div style={{ padding: '20px 28px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
+            {role === 'admin' ? 'Intern · CRM' : 'Partnerportal'}
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>{title}</h1>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>{subtitle}</div>
+        </div>
+        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 14px', minWidth: 120, textAlign: 'right' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: theme.aubergine, lineHeight: 1 }}>{filteredCases.length}</div>
+          <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>Fälle</div>
+        </div>
+      </div>
+
+      <CaseTableCard
+        title={title}
+        emptyText={`Keine Fälle in "${title}".`}
+        cases={filteredCases}
+        onOpenCase={onOpenCase}
+        showPartner={role === 'admin'}
+      />
+    </div>
+  );
+};
+
+const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, emptyText = 'Keine Fälle vorhanden.' }) => (
+  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+    <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>{title}</span>
+      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Sortiert nach letzter Aktivität</span>
+    </div>
+    {cases.length === 0 ? (
+      <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{emptyText}</div>
+    ) : (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: theme.mintLight }}>
+            {['Fall', 'Kunde', showPartner ? 'Partner' : null, 'Objekt', 'Status', 'Letzte Aktivität', ''].filter(Boolean).map((h, i) => (
+              <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {cases.map((row, i) => (
+            <tr key={row.propertyId || row.id || i} onClick={() => onOpenCase(row.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, cursor: 'pointer' }}>
+              <td style={{ padding: '11px 16px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 600 }}>{row.id}</td>
+              <td style={{ padding: '11px 16px', color: theme.ink }}>{row.kunde} {row.alter ? <span style={{ color: `${theme.ink}77`, fontSize: 12 }}>({row.alter})</span> : null}</td>
+              {showPartner && <td style={{ padding: '11px 16px', color: `${theme.ink}aa`, fontSize: 12 }}>{row.partner}</td>}
+              <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>{row.objekt}</td>
+              <td style={{ padding: '11px 16px' }}><StatusBadge status={row.status} /></td>
+              <td style={{ padding: '11px 16px', color: `${theme.ink}88`, fontSize: 12 }}>{row.vor}</td>
+              <td style={{ padding: '11px 16px', textAlign: 'right' }}><ChevronRight size={15} style={{ color: `${theme.aubergine}88` }} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+);
+
+const PartnerDirectory = ({ partners = [], leads = [] }) => (
+  <div style={{ padding: '20px 28px' }}>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
+      <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Partner</h1>
+      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Vertriebspartner und aktuelle Lead-Zuweisungen.</div>
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+      {partners.map((partner) => {
+        const assignedLeadCount = leads.filter((lead) => lead.assignedPartnerId === partner.id && lead.status !== 'CONVERTED').length;
+        return (
+          <div key={partner.id} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: theme.aubergine }}>{partner.companyName}</div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#5B8C2B', background: '#5B8C2B1A', borderRadius: 10, padding: '3px 9px' }}>{partner.status}</span>
+            </div>
+            <div style={{ fontSize: 13, color: theme.ink, marginBottom: 4 }}>{partner.contactName}</div>
+            <div style={{ fontSize: 12, color: `${theme.ink}88`, lineHeight: 1.5 }}>{partner.email}<br />{partner.phone || 'Telefon offen'}</div>
+            <div style={{ height: 1, background: theme.borderSoft, margin: '14px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: `${theme.ink}99`, fontSize: 12 }}>
+              <span>Offene Leads</span>
+              <strong style={{ color: theme.aubergine }}>{assignedLeadCount}</strong>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
+  <div style={{ padding: '20px 28px' }}>
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '24px 28px', maxWidth: 760 }}>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>{eyebrow}</div>
+      <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: '0 0 10px' }}>{title}</h1>
+      <div style={{ fontSize: 13.5, color: `${theme.ink}aa`, lineHeight: 1.65 }}>{text}</div>
+    </div>
+  </div>
+);
+
 // =====================================================================
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
@@ -804,6 +942,17 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   });
   const markFeedbackReceived = () => runCaseAction('Kundenrückmeldung', async () => {
     await postJson(`/api/properties/${c.propertyId}/feedback-received`);
+  });
+  const acquisitionSteps = [
+    { action: 'offer_accepted', status: 'OFFER_ACCEPTED', label: 'Angebot angenommen', date: property?.offerAcceptedAt },
+    { action: 'purchase_started', status: 'PURCHASE_STARTED', label: 'Ankauf gestartet', date: property?.purchaseStartedAt },
+    { action: 'notary_appointment', status: 'NOTARY_APPOINTMENT', label: 'Notartermin', date: property?.notaryAppointmentAt },
+    { action: 'purchased', status: 'PURCHASED', label: 'Angekauft', date: property?.purchasedAt },
+    { action: 'enter_portfolio', status: 'IN_PORTFOLIO', label: 'In Bestand übernehmen', date: property?.portfolioEnteredAt },
+  ];
+  const acquisitionStatusIndex = acquisitionSteps.findIndex((step) => step.status === property?.status);
+  const handleAcquisitionAction = (step) => runCaseAction(step.label, async () => {
+    await postJson(`/api/properties/${c.propertyId}/workflow`, { action: step.action });
   });
   const uploadDocument = () => runCaseAction('Dokument-Upload', async () => {
     if (!uploadFile) {
@@ -1137,8 +1286,48 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
           )}
         </div>
 
-        {/* Right column: Activity Log */}
-        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px', height: 'fit-content' }}>
+        {/* Right column: Workflow & Activity Log */}
+        <div style={{ display: 'grid', gap: 12, height: 'fit-content' }}>
+        {role === 'admin' && (
+          <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Briefcase size={14} style={{ color: theme.aubergine }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: theme.aubergine }}>Ankaufsprozess</span>
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {acquisitionSteps.map((step, index) => {
+                const reached = acquisitionStatusIndex >= index || Boolean(step.date);
+                const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
+                const disabled = Boolean(busyAction) || reached || !nextAllowed;
+                return (
+                  <button key={step.action} onClick={() => handleAcquisitionAction(step)} disabled={disabled} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    background: reached ? `${theme.aubergine}0A` : nextAllowed ? theme.aubergine : 'white',
+                    color: reached ? theme.aubergine : nextAllowed ? 'white' : `${theme.ink}66`,
+                    border: `1px solid ${reached || nextAllowed ? theme.aubergine : theme.border}`,
+                    borderRadius: 6,
+                    padding: '8px 10px',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: disabled ? 'default' : 'pointer',
+                    opacity: disabled && !reached ? 0.55 : 1,
+                    textAlign: 'left'
+                  }}>
+                    <span>{step.label}</span>
+                    {reached ? <CheckCircle size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 10, lineHeight: 1.45 }}>
+              Der Bestand beginnt, sobald der Fall als angekauft markiert und anschließend übernommen wurde.
+            </div>
+          </div>
+        )}
+        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Activity size={14} style={{ color: theme.aubergine }} />
             <span style={{ fontSize: 13, fontWeight: 600, color: theme.aubergine }}>Aktivitätslog</span>
@@ -1154,6 +1343,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
               </div>
             ))}
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -2040,7 +2230,7 @@ export default function App({ initialRole = 'partner' } = {}) {
   const handleNavigate = (s) => {
     setScreen(s);
     setCaseId(null);
-    if (s === 'leads') loadLeads(role);
+    if (s === 'leads' || s === 'partners') loadLeads(role);
   };
   const handleOpenCase = (id) => {
     setCaseId(id);
@@ -2114,6 +2304,13 @@ export default function App({ initialRole = 'partner' } = {}) {
           {screen === 'dashboard' && role === 'partner' && <MaklerDashboard cases={cases} onOpenCase={handleOpenCase} onNewCase={handleNewCase} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} />}
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} loading={loadingLeads} />}
+          {['drafts', 'in_progress', 'portfolio', 'sold'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
+          {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} />}
+          {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
+          {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}
+          {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}
+          {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und Übergabe an WohnKapital." />}
+          {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
           {screen === 'case' && <FallDetail caseId={caseId} onBack={handleBack} role={role} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} />}
           {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} />}
         </div>

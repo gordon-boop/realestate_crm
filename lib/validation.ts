@@ -150,3 +150,7 @@ export const leadAssignSchema = z.object({
 export const leadStatusSchema = z.object({
   status: z.enum(["NEW", "QUALIFIED", "ASSIGNED", "CONTACTED", "CONVERTED", "REJECTED"])
 });
+
+export const acquisitionWorkflowSchema = z.object({
+  action: z.enum(["offer_accepted", "purchase_started", "notary_appointment", "purchased", "enter_portfolio"])
+});

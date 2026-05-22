@@ -19,7 +19,7 @@ export function AppShell({ user, children }: { user?: User; children: React.Reac
               {user.role === "admin" ? <Link className="nav-link" href="/admin">Leads</Link> : null}
               <Link className="nav-link" href={`${home}?status=DRAFT`}>Zwischengespeichert</Link>
               <Link className="nav-link" href={`${home}?status=INTERNAL_REVIEW`}>In Bearbeitung</Link>
-              <Link className="nav-link" href={`${home}?status=WON`}>Bestand</Link>
+              <Link className="nav-link" href={`${home}?status=IN_PORTFOLIO`}>Bestand</Link>
               {user.role === "admin" ? <Link className="nav-link" href={`${home}?status=SOLD`}>Verkauft</Link> : null}
               <Link className="nav-link" href={home}>Sonstiges</Link>
               <Link className="nav-link" href={home}>Broschüre</Link>

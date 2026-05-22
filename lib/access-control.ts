@@ -9,7 +9,18 @@ export function canMutateProperty(user: User, property: Property): boolean {
     return true;
   }
 
-  return property.partnerId === user.partnerId && !["APPROVED", "SENT", "WON", "LOST"].includes(property.status);
+  return property.partnerId === user.partnerId && ![
+    "APPROVED",
+    "SENT",
+    "OFFER_ACCEPTED",
+    "PURCHASE_STARTED",
+    "NOTARY_APPOINTMENT",
+    "PURCHASED",
+    "IN_PORTFOLIO",
+    "WON",
+    "SOLD",
+    "LOST"
+  ].includes(property.status);
 }
 
 export function filterVisibleCases(user: User, cases: CaseView[]): CaseView[] {

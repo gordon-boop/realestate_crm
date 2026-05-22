@@ -24,6 +24,11 @@ export type PropertyStatus =
   | "INTERNAL_REVIEW"
   | "APPROVED"
   | "SENT"
+  | "OFFER_ACCEPTED"
+  | "PURCHASE_STARTED"
+  | "NOTARY_APPOINTMENT"
+  | "PURCHASED"
+  | "IN_PORTFOLIO"
   | "APPOINTMENT_SCHEDULED"
   | "REJECTED"
   | "WON"
@@ -164,6 +169,11 @@ export type Property = {
   followUpDueAt?: string;
   customerFeedbackReceivedAt?: string;
   offerCalculationSource?: string;
+  offerAcceptedAt?: string;
+  purchaseStartedAt?: string;
+  notaryAppointmentAt?: string;
+  purchasedAt?: string;
+  portfolioEnteredAt?: string;
   lastActivityLabel?: string;
   lastActivityAt?: string;
   notes?: string;

@@ -82,6 +82,23 @@ const customers: Customer[] = [
     consentDataProcessing: true,
     createdAt: stamp,
     updatedAt: stamp
+  },
+  {
+    id: "customer_mayer",
+    partnerId: "partner_heimwert",
+    displayName: "Renate Mayer",
+    firstName: "Renate",
+    lastName: "Mayer",
+    ageAtSubmission: 76,
+    email: "renate.mayer@example.com",
+    phone: "+49 711 444555",
+    street: "Rosenweg 9",
+    postalCode: "70563",
+    city: "Stuttgart",
+    addressText: "Rosenweg 9, 70563 Stuttgart",
+    consentDataProcessing: true,
+    createdAt: stamp,
+    updatedAt: stamp
   }
 ];
 
@@ -113,6 +130,37 @@ const properties: Property[] = [
     lastActivityAt: stamp,
     notes: "Eigentümerin wünscht schnelle indikative Rückmeldung.",
     status: "INTERNAL_REVIEW",
+    createdAt: stamp,
+    updatedAt: stamp
+  },
+  {
+    id: "property_stuttgart_portfolio_1",
+    caseNumber: "WK-2026-008",
+    objectTitle: "ETW Stuttgart-Vaihingen",
+    customerId: "customer_mayer",
+    partnerId: "partner_heimwert",
+    propertyType: "apartment",
+    street: "Rosenweg 9",
+    postalCode: "70563",
+    city: "Stuttgart",
+    livingAreaSqm: 86,
+    plotAreaSqm: 0,
+    yearBuilt: 1992,
+    condition: "good",
+    occupancyStatus: "owner_occupied",
+    desiredModel: "sale_and_leaseback",
+    preferredValuationProvider: "sprengnetter",
+    desiredResidentialRightYears: 10,
+    offerAcceptedAt: stamp,
+    purchaseStartedAt: stamp,
+    notaryAppointmentAt: stamp,
+    purchasedAt: stamp,
+    portfolioEnteredAt: stamp,
+    offerCalculationSource: "application",
+    lastActivityLabel: "Vor 12 Tagen",
+    lastActivityAt: stamp,
+    notes: "Demo-Bestandsobjekt nach abgeschlossenem Ankauf.",
+    status: "IN_PORTFOLIO",
     createdAt: stamp,
     updatedAt: stamp
   }
@@ -397,6 +445,61 @@ export function updatePropertyStatus(propertyId: string, status: PropertyStatus)
 
   property.status = status;
   property.updatedAt = nowIso();
+  return property;
+}
+
+export function advanceAcquisitionWorkflow(
+  propertyId: string,
+  action: "offer_accepted" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
+  userId: string
+): Property {
+  const property = properties.find((item) => item.id === propertyId);
+  if (!property) {
+    throw new Error("Property not found");
+  }
+
+  const now = nowIso();
+  const config = {
+    offer_accepted: {
+      status: "OFFER_ACCEPTED" as const,
+      field: "offerAcceptedAt" as const,
+      type: "offer_accepted",
+      message: "Kunde hat das Angebot angenommen."
+    },
+    purchase_started: {
+      status: "PURCHASE_STARTED" as const,
+      field: "purchaseStartedAt" as const,
+      type: "purchase_started",
+      message: "Ankaufsprozess wurde gestartet."
+    },
+    notary_appointment: {
+      status: "NOTARY_APPOINTMENT" as const,
+      field: "notaryAppointmentAt" as const,
+      type: "notary_appointment",
+      message: "Notartermin wurde vereinbart."
+    },
+    purchased: {
+      status: "PURCHASED" as const,
+      field: "purchasedAt" as const,
+      type: "property_purchased",
+      message: "Immobilie wurde angekauft."
+    },
+    enter_portfolio: {
+      status: "IN_PORTFOLIO" as const,
+      field: "portfolioEnteredAt" as const,
+      type: "portfolio_entered",
+      message: "Immobilie wurde in den Bestand übernommen."
+    }
+  }[action];
+
+  property.status = config.status;
+  property[config.field] = now;
+  property.updatedAt = now;
+  addActivity(property.id, userId, config.type, config.message, {
+    source: "admin",
+    entityType: "property",
+    entityId: property.id
+  });
   return property;
 }
 
