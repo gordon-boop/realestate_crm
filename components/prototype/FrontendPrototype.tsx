@@ -280,6 +280,10 @@ function labelFrom(map, value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : (map[value] || value);
 }
 
+function leadDisplayName(lead) {
+  return lead?.name || [lead?.firstName, lead?.lastName].filter(Boolean).join(' ') || 'Kontakt offen';
+}
+
 function isPreviewImage(document) {
   return document.fileType?.startsWith('image/');
 }
@@ -472,13 +476,33 @@ const defaultDraft = {
 // =====================================================================
 // SCREEN 1 — MAKLER-DASHBOARD
 // =====================================================================
-const MaklerDashboard = ({ cases = mockCases, onOpenCase, onNewCase }) => {
-  const followUpCase = cases.find((item) => item.followUp);
+const MaklerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onOpenLeads, onConvertLead, onMarkLeadContacted }) => {
+  const assignedLeads = leads.filter((lead) => !['CONVERTED', 'REJECTED'].includes(lead.status));
+  const draftCases = cases.filter((item) => item.status === 'DRAFT');
+  const followUpCases = cases.filter((item) => item.followUp || item.status === 'DATA_INCOMPLETE');
+  const activeCases = cases.filter((item) => ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT'].includes(item.status));
+  const offerCases = cases.filter((item) => ['APPROVED', 'SENT', 'OFFER_ACCEPTED'].includes(item.status));
+  const portfolioCases = cases.filter((item) => ['IN_PORTFOLIO', 'PURCHASED', 'WON', 'SOLD'].includes(item.status));
+  const followUpCase = followUpCases[0];
   const stats = [
-    { label: 'In Bearbeitung', value: cases.filter((item) => !['DRAFT', 'SENT', 'WON', 'SOLD', 'LOST'].includes(item.status)).length, sub: `davon ${cases.filter((item) => item.followUp).length} mit Rückfrage`, icon: Clock },
+    { label: 'Zugewiesene Leads', value: assignedLeads.length, sub: 'Kontakt aufnehmen', icon: TrendingUp },
+    { label: 'Rückfragen', value: followUpCases.length, sub: 'Unterlagen oder Antwort offen', icon: AlertCircle },
+    { label: 'Entwürfe', value: draftCases.length, sub: 'noch nicht eingereicht', icon: FolderOpen },
+    { label: 'Angebote offen', value: offerCases.length, sub: 'beim Kunden oder freigegeben', icon: FileText },
+  ];
+  const workQueues = [
+    { title: 'Zugewiesene Leads', count: assignedLeads.length, text: 'Neue Homepage-Leads prüfen, Kunden kontaktieren und bei Interesse in einen Kundenfall umwandeln.', icon: TrendingUp, action: onOpenLeads },
+    { title: 'Entwürfe', count: draftCases.length, text: 'Angelegte Fälle vervollständigen und danach einreichen.', icon: FolderOpen, firstCase: draftCases[0] },
+    { title: 'Rückfragen', count: followUpCases.length, text: 'Fehlende Unterlagen oder offene Kundenantworten nachfassen.', icon: AlertCircle, firstCase: followUpCases[0], tone: 'warning' },
+    { title: 'In Bearbeitung', count: activeCases.length, text: 'Eingereichte Vorgänge, Bewertung und Angebotsprozess verfolgen.', icon: Clock, firstCase: activeCases[0] },
+    { title: 'Angebote beim Kunden', count: offerCases.length, text: 'Versendete oder freigegebene Angebote nachfassen und nächsten Schritt dokumentieren.', icon: Send, firstCase: offerCases[0] },
+    { title: 'Bestand / abgeschlossen', count: portfolioCases.length, text: 'Angekaufte oder abgeschlossene Objekte im Überblick behalten.', icon: Archive, firstCase: portfolioCases[0] },
+  ];
+  const caseStats = [
+    { label: 'In Bearbeitung', value: activeCases.length, sub: `davon ${followUpCases.length} mit Rückfrage`, icon: Clock },
     { label: 'Eingereicht', value: cases.filter((item) => ['SUBMITTED', 'VALUATION_PENDING'].includes(item.status)).length, sub: 'wartet auf Bewertung', icon: TrendingUp },
-    { label: 'Angebote offen', value: cases.filter((item) => ['OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'SENT'].includes(item.status)).length, sub: 'beim Kunden oder intern', icon: FileText },
-    { label: 'Abgeschlossen', value: cases.filter((item) => ['WON', 'SOLD'].includes(item.status)).length, sub: 'YTD 2026', icon: CheckCircle2 },
+    { label: 'Aktive Fälle', value: cases.filter((item) => !['DRAFT', 'IN_PORTFOLIO', 'WON', 'SOLD', 'LOST'].includes(item.status)).length, sub: 'laufende Pipeline', icon: Briefcase },
+    { label: 'Bestand', value: portfolioCases.length, sub: 'abgeschlossen / Bestand', icon: CheckCircle2 },
   ];
 
   return (
@@ -506,6 +530,33 @@ const MaklerDashboard = ({ cases = mockCases, onOpenCase, onNewCase }) => {
         ))}
       </div>
 
+      <div className="partner-workbench-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
+        {workQueues.map((queue) => (
+          <button
+            key={queue.title}
+            onClick={() => queue.action ? queue.action() : queue.firstCase ? onOpenCase(queue.firstCase.propertyId || queue.firstCase.id) : undefined}
+            style={{
+              textAlign: 'left',
+              background: queue.tone === 'warning' ? theme.goldSoft : 'white',
+              border: `1px solid ${queue.tone === 'warning' ? `${theme.gold}66` : theme.borderSoft}`,
+              borderLeft: `3px solid ${queue.tone === 'warning' ? theme.gold : theme.aubergine}`,
+              borderRadius: 8,
+              padding: '14px 16px',
+              minHeight: 122,
+              cursor: queue.count ? 'pointer' : 'default',
+              opacity: queue.count ? 1 : 0.72
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
+              <queue.icon size={16} style={{ color: queue.tone === 'warning' ? '#A87308' : theme.aubergine }} />
+              <span style={{ fontSize: 24, lineHeight: 1, color: theme.aubergine, fontWeight: 750 }}>{queue.count}</span>
+            </div>
+            <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 700, marginBottom: 5 }}>{queue.title}</div>
+            <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>{queue.text}</div>
+          </button>
+        ))}
+      </div>
+
       {followUpCase && (
         <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderLeft: `3px solid ${theme.gold}`, borderRadius: 6, padding: '12px 14px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12 }}>
           <AlertCircle size={18} style={{ color: theme.gold, flexShrink: 0 }} />
@@ -516,6 +567,64 @@ const MaklerDashboard = ({ cases = mockCases, onOpenCase, onNewCase }) => {
           <button onClick={() => onOpenCase(followUpCase.propertyId || followUpCase.id)} style={{ background: 'transparent', border: `1px solid ${theme.aubergine}44`, color: theme.aubergine, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
         </div>
       )}
+
+      {assignedLeads.length > 0 && (
+        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden', marginBottom: 22 }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Zugewiesene Leads</span>
+              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>Vom Admin übergebene Homepage-Leads zur Erstbearbeitung.</div>
+            </div>
+            <button onClick={onOpenLeads} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12, fontWeight: 700, padding: '7px 12px', borderRadius: 5, cursor: 'pointer' }}>Alle Leads</button>
+          </div>
+          <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: theme.mintLight }}>
+                  {['Lead', 'Kontakt', 'Objektinteresse', 'Status', 'Aktion'].map((h, i) => (
+                    <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {assignedLeads.slice(0, 5).map((lead) => (
+                  <tr key={lead.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+                    <td style={{ padding: '11px 16px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{lead.leadNumber}</td>
+                    <td style={{ padding: '11px 16px', color: theme.ink }}>
+                      <div style={{ fontWeight: 600 }}>{leadDisplayName(lead)}</div>
+                      <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>{[lead.email, lead.phone].filter(Boolean).join(' · ') || 'Kontaktdaten offen'}</div>
+                    </td>
+                    <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>
+                      <div>{propertyTypeLabel(lead.propertyType)} {lead.city || ''}</div>
+                      <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>{[lead.postalCode, lead.estimatedPropertyValueRange && `${lead.estimatedPropertyValueRange} Tsd.`, lead.youngestOwnerAgeRange && `${lead.youngestOwnerAgeRange} Jahre`].filter(Boolean).join(' · ') || '-'}</div>
+                    </td>
+                    <td style={{ padding: '11px 16px' }}><LeadStatusBadge status={lead.status} /></td>
+                    <td style={{ padding: '11px 16px' }}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button onClick={() => onMarkLeadContacted(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>Kontaktiert</button>
+                        <button onClick={() => onConvertLead(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>Kundenfall anlegen</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 22 }}>
+        {caseStats.map((s, i) => (
+          <div key={i} style={{ background: 'white', borderRadius: 8, padding: '14px 16px', border: `1px solid ${theme.borderSoft}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{s.label}</span>
+              <s.icon size={14} style={{ color: `${theme.aubergine}55` }} />
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: theme.aubergine, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
+            <div style={{ fontSize: 11.5, color: `${theme.ink}99` }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
 
       <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2064,11 +2173,52 @@ const FormStep5 = ({ draft, setDraft }) => (
 // =====================================================================
 // SCREEN — LEADS
 // =====================================================================
-const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMarkContacted, loading }) => {
+const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
   const [partnerSelection, setPartnerSelection] = useState({});
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [partnerFilter, setPartnerFilter] = useState('ALL');
+  const [search, setSearch] = useState('');
+  const [selectedLeadId, setSelectedLeadId] = useState(null);
   const visibleLeads = role === 'admin'
     ? leads
     : leads.filter((lead) => lead.status !== 'CONVERTED' && lead.status !== 'REJECTED');
+  const searchNeedle = search.trim().toLowerCase();
+  const filteredLeads = visibleLeads.filter((lead) => {
+    const haystack = [
+      lead.leadNumber,
+      lead.name,
+      lead.firstName,
+      lead.lastName,
+      lead.email,
+      lead.phone,
+      lead.postalCode,
+      lead.city,
+      lead.message,
+      lead.estimatedPropertyValueRange,
+      propertyTypeLabel(lead.propertyType)
+    ].filter(Boolean).join(' ').toLowerCase();
+    const matchesSearch = !searchNeedle || haystack.includes(searchNeedle);
+    const matchesStatus = statusFilter === 'ALL' || lead.status === statusFilter;
+    const matchesPartner = role !== 'admin' || partnerFilter === 'ALL' || (partnerFilter === 'UNASSIGNED' ? !lead.assignedPartnerId : lead.assignedPartnerId === partnerFilter);
+    return matchesSearch && matchesStatus && matchesPartner;
+  });
+  const selectedLead = filteredLeads.find((lead) => lead.id === selectedLeadId) || filteredLeads[0];
+  const leadStats = {
+    new: visibleLeads.filter((lead) => lead.status === 'NEW').length,
+    assigned: visibleLeads.filter((lead) => lead.status === 'ASSIGNED').length,
+    contacted: visibleLeads.filter((lead) => lead.status === 'CONTACTED').length,
+    converted: visibleLeads.filter((lead) => lead.status === 'CONVERTED').length
+  };
+  const activePartnerCount = partners.filter((partner) => partner.status === 'active').length;
+  const activeStatusFilters = role === 'admin'
+    ? ['ALL', 'NEW', 'QUALIFIED', 'ASSIGNED', 'CONTACTED', 'CONVERTED', 'REJECTED']
+    : ['ALL', 'ASSIGNED', 'CONTACTED'];
+
+  const leadName = leadDisplayName;
+  const partnerName = (partnerId) => {
+    const partner = partners.find((item) => item.id === partnerId);
+    return partner ? `${partner.contactName || partner.companyName}` : 'nicht zugewiesen';
+  };
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -2080,88 +2230,202 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Leads</h1>
         </div>
         <div style={{ fontSize: 12, color: `${theme.ink}88` }}>
-          {loading ? 'Leads werden geladen...' : `${visibleLeads.length} Einträge`}
+          {loading ? 'Leads werden geladen...' : `${filteredLeads.length} von ${visibleLeads.length} Einträgen`}
         </div>
       </div>
 
-      <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>
-            {role === 'admin' ? 'Neue und verteilte Leads' : 'Zur Bearbeitung'}
-          </span>
-          <span style={{ fontSize: 12, color: `${theme.ink}88` }}>
-            {role === 'admin' ? 'Admin weist Leads an Vertriebspartner zu' : 'Partner wandelt Lead in Kundenfall um'}
-          </span>
+      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: role === 'admin' ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        {[
+          { label: 'Neue Leads', value: leadStats.new, sub: 'noch nicht verteilt', icon: TrendingUp },
+          { label: 'Zugewiesen', value: leadStats.assigned, sub: role === 'admin' ? `${activePartnerCount} aktive Partner` : 'zur Bearbeitung', icon: Users },
+          { label: 'Kontaktiert', value: leadStats.contacted, sub: 'Nachfassen', icon: Phone },
+          { label: 'Umgewandelt', value: leadStats.converted, sub: 'Kundenfall erstellt', icon: CheckCircle2 },
+          ...(role === 'admin' ? [{ label: 'Offen gesamt', value: visibleLeads.filter((lead) => !['CONVERTED', 'REJECTED'].includes(lead.status)).length, sub: 'aktive Pipeline', icon: Briefcase }] : [])
+        ].map((stat) => (
+          <div key={stat.label} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '13px 15px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{stat.label}</span>
+              <stat.icon size={14} style={{ color: `${theme.aubergine}66` }} />
+            </div>
+            <div style={{ fontSize: 25, lineHeight: 1, fontWeight: 750, color: theme.aubergine }}>{stat.value}</div>
+            <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 5 }}>{stat.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="lead-workspace-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 16, alignItems: 'start' }}>
+        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>
+                {role === 'admin' ? 'Leadverteilung' : 'Zur Bearbeitung'}
+              </span>
+              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>
+                {role === 'admin' ? 'Homepage-Leads qualifizieren, Partner auswählen und übergeben.' : 'Lead kontaktieren und als Kundenfall übernehmen.'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 5, padding: '6px 10px', minWidth: 220 }}>
+                <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Lead, Ort, Kontakt suchen" style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: 12.5, color: theme.ink }} />
+              </div>
+              {role === 'admin' && (
+                <select value={partnerFilter} onChange={(event) => setPartnerFilter(event.target.value)} style={{ padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: 'white', fontSize: 12 }}>
+                  <option value="ALL">Alle Partner</option>
+                  <option value="UNASSIGNED">Nicht zugewiesen</option>
+                  {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div style={{ padding: '10px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', gap: 6, flexWrap: 'wrap', background: theme.mintLighter }}>
+            {activeStatusFilters.map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                style={{
+                  background: statusFilter === status ? theme.aubergine : 'white',
+                  color: statusFilter === status ? 'white' : theme.aubergine,
+                  border: statusFilter === status ? 'none' : `1px solid ${theme.border}`,
+                  borderRadius: 5,
+                  padding: '5px 10px',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {status === 'ALL' ? 'Alle' : leadStatusLabels[status]}
+              </button>
+            ))}
+          </div>
+
+          {filteredLeads.length === 0 ? (
+            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Leads für diesen Filter.</div>
+          ) : (
+            <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: theme.mintLight }}>
+                  {['Lead', 'Kontakt', 'Objektinteresse', 'Status', role === 'admin' ? 'Zuweisung' : 'Aktion'].map((h, i) => (
+                    <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLeads.map((lead) => {
+                  const assignedPartner = partners.find((partner) => partner.id === lead.assignedPartnerId);
+                  const selectedPartnerId = partnerSelection[lead.id] || lead.assignedPartnerId || partners[0]?.id || '';
+                  const rowActive = selectedLead?.id === lead.id;
+                  return (
+                    <tr key={lead.id} onClick={() => setSelectedLeadId(lead.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, background: rowActive ? `${theme.aubergine}08` : 'white', cursor: 'pointer' }}>
+                      <td style={{ padding: '12px 16px', fontFamily: 'ui-monospace, monospace', color: theme.aubergine, fontWeight: 700 }}>
+                        <div>{lead.leadNumber}</div>
+                        <div style={{ fontFamily: 'inherit', fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{formatDate(lead.createdAt)}</div>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: theme.ink }}>
+                        <div style={{ fontWeight: 600 }}>{leadName(lead)}</div>
+                        <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
+                          {[lead.email, lead.phone].filter(Boolean).join(' · ') || 'Kontaktdaten offen'}
+                        </div>
+                        {lead.message && <div style={{ color: `${theme.ink}99`, fontSize: 12, marginTop: 4, maxWidth: 340, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.message}</div>}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: `${theme.ink}cc` }}>
+                        <div>{propertyTypeLabel(lead.propertyType)} {lead.city || ''}</div>
+                        <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
+                          {[lead.postalCode, lead.estimatedPropertyValueRange && `${lead.estimatedPropertyValueRange} Tsd.`, lead.youngestOwnerAgeRange && `${lead.youngestOwnerAgeRange} Jahre`].filter(Boolean).join(' · ') || '-'}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}><LeadStatusBadge status={lead.status} /></td>
+                      <td style={{ padding: '12px 16px' }} onClick={(event) => event.stopPropagation()}>
+                        {role === 'admin' ? (
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <select
+                              value={selectedPartnerId}
+                              onChange={(event) => setPartnerSelection((current) => ({ ...current, [lead.id]: event.target.value }))}
+                              disabled={lead.status === 'CONVERTED'}
+                              style={{ minWidth: 180, padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: 'white' }}
+                            >
+                              {partners.length === 0 && <option value="">Kein Partner</option>}
+                              {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
+                            </select>
+                            <button
+                              onClick={() => onAssign(lead.id, selectedPartnerId)}
+                              disabled={!selectedPartnerId || lead.status === 'CONVERTED'}
+                              style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: !selectedPartnerId || lead.status === 'CONVERTED' ? 0.45 : 1 }}
+                            >
+                              {assignedPartner ? 'Neu zuweisen' : 'Zuweisen'}
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button onClick={() => onMarkContacted(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>
+                              Kontaktiert
+                            </button>
+                            <button onClick={() => onConvert(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>
+                              In Kundenfall umwandeln
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            </div>
+          )}
         </div>
 
-        {visibleLeads.length === 0 ? (
-          <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Leads vorhanden.</div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: theme.mintLight }}>
-                {['Lead', 'Kontakt', 'Objektinteresse', 'Status', role === 'admin' ? 'Zuweisung' : 'Aktion'].map((h, i) => (
-                  <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px', minHeight: 360 }}>
+          {selectedLead ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 750 }}>{selectedLead.leadNumber}</div>
+                  <h2 style={{ margin: '4px 0 0', fontSize: 18, color: theme.ink, fontWeight: 650 }}>{leadName(selectedLead)}</h2>
+                </div>
+                <LeadStatusBadge status={selectedLead.status} />
+              </div>
+              <div style={{ display: 'grid', gap: 12, fontSize: 12.5 }}>
+                {[
+                  ['Quelle', selectedLead.source || 'homepage'],
+                  ['Erfasst', formatDate(selectedLead.createdAt)],
+                  ['Kontakt', [selectedLead.email, selectedLead.phone].filter(Boolean).join(' · ') || 'offen'],
+                  ['Objekt', `${propertyTypeLabel(selectedLead.propertyType)} ${selectedLead.city || ''}`.trim()],
+                  ['PLZ', selectedLead.postalCode || '-'],
+                  ['Wertindikation', selectedLead.estimatedPropertyValueRange ? `${selectedLead.estimatedPropertyValueRange} Tsd.` : '-'],
+                  ['Jüngster Eigentümer', selectedLead.youngestOwnerAgeRange ? `${selectedLead.youngestOwnerAgeRange} Jahre` : '-'],
+                  ['Interesse', productModelLabels[selectedLead.productInterest] || '-'],
+                  ['Partner', partnerName(selectedLead.assignedPartnerId)]
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <div style={{ color: `${theme.ink}77`, fontSize: 11, fontWeight: 700, marginBottom: 3 }}>{label}</div>
+                    <div style={{ color: theme.ink, lineHeight: 1.4 }}>{value || '-'}</div>
+                  </div>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleLeads.map((lead) => {
-                const assignedPartner = partners.find((partner) => partner.id === lead.assignedPartnerId);
-                const selectedPartnerId = partnerSelection[lead.id] || lead.assignedPartnerId || partners[0]?.id || '';
-                return (
-                  <tr key={lead.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
-                    <td style={{ padding: '12px 16px', fontFamily: 'ui-monospace, monospace', color: theme.aubergine, fontWeight: 700 }}>{lead.leadNumber}</td>
-                    <td style={{ padding: '12px 16px', color: theme.ink }}>
-                      <div style={{ fontWeight: 600 }}>{lead.name || [lead.firstName, lead.lastName].filter(Boolean).join(' ') || 'Kontakt offen'}</div>
-                      <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
-                        {[lead.email, lead.phone].filter(Boolean).join(' · ') || 'Kontaktdaten offen'}
-                      </div>
-                      {lead.message && <div style={{ color: `${theme.ink}99`, fontSize: 12, marginTop: 4, maxWidth: 340 }}>{lead.message}</div>}
-                    </td>
-                    <td style={{ padding: '12px 16px', color: `${theme.ink}cc` }}>
-                      <div>{propertyTypeLabel(lead.propertyType)} {lead.city || ''}</div>
-                      <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
-                        {[lead.postalCode, lead.estimatedPropertyValueRange && `${lead.estimatedPropertyValueRange} Tsd.`, lead.youngestOwnerAgeRange && `${lead.youngestOwnerAgeRange} Jahre`].filter(Boolean).join(' · ') || '-'}
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}><LeadStatusBadge status={lead.status} /></td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {role === 'admin' ? (
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <select
-                            value={selectedPartnerId}
-                            onChange={(event) => setPartnerSelection({ ...partnerSelection, [lead.id]: event.target.value })}
-                            disabled={lead.status === 'CONVERTED'}
-                            style={{ minWidth: 180, padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: 'white' }}
-                          >
-                            {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
-                          </select>
-                          <button
-                            onClick={() => onAssign(lead.id, selectedPartnerId)}
-                            disabled={!selectedPartnerId || lead.status === 'CONVERTED'}
-                            style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}
-                          >
-                            {assignedPartner ? 'Neu zuweisen' : 'Zuweisen'}
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => onMarkContacted(lead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                            Kontaktiert
-                          </button>
-                          <button onClick={() => onConvert(lead.id)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                            In Kundenfall umwandeln
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                <div>
+                  <div style={{ color: `${theme.ink}77`, fontSize: 11, fontWeight: 700, marginBottom: 3 }}>Nachricht</div>
+                  <div style={{ color: theme.ink, lineHeight: 1.55, background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>{selectedLead.message || 'Keine Nachricht hinterlegt.'}</div>
+                </div>
+              </div>
+
+              {role === 'admin' ? (
+                <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
+                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onUpdateStatus(selectedLead.id, 'QUALIFIED')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Als qualifiziert markieren</button>
+                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Lead ablehnen</button>
+                </div>
+              ) : (
+                <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
+                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Kontaktiert markieren</button>
+                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>In Kundenfall umwandeln</button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ color: `${theme.ink}88`, fontSize: 13 }}>Kein Lead ausgewählt.</div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2269,6 +2533,15 @@ export default function App({ initialRole = 'partner' } = {}) {
       setNotice(err instanceof Error ? err.message : 'Lead konnte nicht aktualisiert werden');
     }
   };
+  const handleUpdateLeadStatus = async (leadId, status) => {
+    try {
+      await patchJson(`/api/leads/${leadId}/status`, { status });
+      setNotice(`Lead wurde auf "${leadStatusLabels[status] || status}" gesetzt.`);
+      await loadLeads(role);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht aktualisiert werden');
+    }
+  };
   const handleConvertLead = async (leadId) => {
     try {
       const payload = await postJson(`/api/leads/${leadId}/convert`);
@@ -2301,9 +2574,9 @@ export default function App({ initialRole = 'partner' } = {}) {
               {loadingCases ? 'Fälle werden geladen...' : loadingLeads ? 'Leads werden geladen...' : notice}
             </div>
           )}
-          {screen === 'dashboard' && role === 'partner' && <MaklerDashboard cases={cases} onOpenCase={handleOpenCase} onNewCase={handleNewCase} />}
+          {screen === 'dashboard' && role === 'partner' && <MaklerDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} onConvertLead={handleConvertLead} onMarkLeadContacted={handleMarkLeadContacted} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} />}
-          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} loading={loadingLeads} />}
+          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {['drafts', 'in_progress', 'portfolio', 'sold'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}

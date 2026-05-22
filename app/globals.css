@@ -585,3 +585,27 @@ textarea {
     overflow-x: auto;
   }
 }
+
+@media (max-width: 1180px) {
+  .lead-workspace-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .lead-kpi-grid,
+  .partner-workbench-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .lead-kpi-grid,
+  .partner-workbench-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .lead-table-scroll {
+    margin: 0 -1px;
+  }
+}
