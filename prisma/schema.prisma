@@ -12,6 +12,13 @@ enum PartnerStatus {
   inactive
 }
 
+enum BrokerRegistrationStatus {
+  email_pending
+  pending_approval
+  approved
+  rejected
+}
+
 enum UserRole {
   admin
   partner
@@ -258,6 +265,26 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("users")
+}
+
+model BrokerRegistration {
+  id                     String                   @id @default(cuid())
+  companyName            String                   @map("company_name")
+  contactName            String                   @map("contact_name")
+  email                  String                   @unique
+  phone                  String?
+  address                String?
+  passwordHash           String                   @map("password_hash")
+  status                 BrokerRegistrationStatus @default(email_pending)
+  emailConfirmationToken String                   @unique @map("email_confirmation_token")
+  emailConfirmedAt       DateTime?                @map("email_confirmed_at")
+  partnerId              String?                  @map("partner_id")
+  userId                 String?                  @map("user_id")
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  updatedAt              DateTime                 @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("broker_registrations")
 }
 
 model Customer {

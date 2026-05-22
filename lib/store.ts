@@ -375,6 +375,16 @@ export function findUserById(id: string): User | undefined {
   return users.find((user) => user.id === id);
 }
 
+export function upsertRuntimeUser(user: User): User {
+  const existingIndex = users.findIndex((item) => item.id === user.id);
+  if (existingIndex >= 0) {
+    users[existingIndex] = user;
+    return users[existingIndex];
+  }
+  users.push(user);
+  return user;
+}
+
 export function getCases(): CaseView[] {
   return properties.map((property) => {
     const customer = customers.find((item) => item.id === property.customerId);

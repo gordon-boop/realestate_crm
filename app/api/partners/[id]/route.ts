@@ -29,6 +29,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         status: body.status ?? partner.status
       }
     });
+    if (body.status === "active") {
+      await prisma.brokerRegistration.updateMany({
+        where: { partnerId: params.id },
+        data: { status: "approved" }
+      });
+    }
     return json({ partner: updated });
   } catch (err) {
     return handleApiError(err);

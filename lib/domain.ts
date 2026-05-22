@@ -1,4 +1,5 @@
 export type PartnerStatus = "active" | "inactive";
+export type BrokerRegistrationStatus = "email_pending" | "pending_approval" | "approved" | "rejected";
 export type UserRole = "admin" | "partner";
 export type PropertyType = "house" | "single_family" | "semi_detached" | "row_house" | "apartment" | "multi_family" | "other";
 export type PropertyCondition = "very_good" | "good" | "average" | "renovation_needed";
@@ -76,6 +77,21 @@ export type User = {
   email: string;
   passwordHash: string;
   role: UserRole;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BrokerRegistration = {
+  id: string;
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  status: BrokerRegistrationStatus;
+  emailConfirmedAt?: string;
+  partnerId?: string;
+  userId?: string;
   createdAt: string;
   updatedAt: string;
 };

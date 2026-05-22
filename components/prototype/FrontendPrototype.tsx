@@ -97,7 +97,7 @@ const Logo = ({ size = 28 }) => (
 // =====================================================================
 // SHARED — Header & Sidebar
 // =====================================================================
-const Header = ({ role, user, onRoleToggle, onLogout }) => (
+const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen }) => (
   <div style={{ background: theme.mintLight, borderBottom: `1px solid ${theme.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -126,8 +126,10 @@ const Header = ({ role, user, onRoleToggle, onLogout }) => (
       </div>
       <MessageSquare size={18} style={{ color: theme.aubergine, cursor: 'pointer' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12, borderLeft: `1px solid ${theme.border}` }}>
-        <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.aubergine, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>{user.initials}</div>
-        <span style={{ fontSize: 13, color: theme.ink, fontWeight: 500 }}>{user.name}</span>
+        <button onClick={onProfileOpen} title="Profil öffnen" style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', maxWidth: 190 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.aubergine, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>{user.initials}</div>
+          <span style={{ fontSize: 13, color: theme.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user.name}</span>
+        </button>
         <button onClick={onLogout} title="Abmelden" style={{ background: theme.mintLight, border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '5px 8px', marginLeft: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600 }}>
           <LogOut size={14} /> Logout
         </button>
@@ -194,6 +196,117 @@ const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0 }) => {
           <span>{item.label}</span>
         </div>
       ))}
+    </div>
+  );
+};
+
+function initialsFromName(name = '') {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  return (parts[0]?.[0] || 'U') + (parts[1]?.[0] || '');
+}
+
+function splitProfileName(profile = {}) {
+  if (profile.firstName || profile.lastName) {
+    return {
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || ''
+    };
+  }
+  const parts = String(profile.name || '').trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || '',
+    lastName: parts.slice(1).join(' ')
+  };
+}
+
+function profileDisplayName(profile = {}) {
+  const { firstName, lastName } = splitProfileName(profile);
+  return [firstName, lastName].filter(Boolean).join(' ') || profile.name || 'Benutzer';
+}
+
+const defaultProfiles = {
+  admin: {
+    firstName: 'Anna',
+    lastName: 'Klein',
+    name: 'Anna Klein',
+    initials: 'AK',
+    email: 'admin@demo.local',
+    phone: '+49 711 100200',
+    company: 'WohnKapital',
+    roleLabel: 'Admin'
+  },
+  partner: {
+    firstName: 'Markus',
+    lastName: 'Krüger',
+    name: 'Markus Krüger',
+    initials: 'MK',
+    email: 'makler@demo.local',
+    phone: '+49 711 234567',
+    company: 'Krüger Immobilien',
+    roleLabel: 'Partner'
+  }
+};
+
+const ProfileModal = ({ user, role, onClose, onSave }) => {
+  const firstNameRef = React.useRef(null);
+  const lastNameRef = React.useRef(null);
+  const emailRef = React.useRef(null);
+  const phoneRef = React.useRef(null);
+  const companyRef = React.useRef(null);
+  const profileName = splitProfileName(user);
+  const save = () => {
+    const nextFirstName = firstNameRef.current?.value?.trim() || profileName.firstName;
+    const nextLastName = lastNameRef.current?.value?.trim() || profileName.lastName;
+    const nextName = [nextFirstName, nextLastName].filter(Boolean).join(' ') || user.name;
+    onSave({
+      ...user,
+      firstName: nextFirstName,
+      lastName: nextLastName,
+      name: nextName,
+      email: emailRef.current?.value?.trim() || user.email,
+      phone: phoneRef.current?.value?.trim() || '',
+      company: companyRef.current?.value?.trim() || '',
+      initials: initialsFromName(nextName).toUpperCase()
+    });
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: theme.aubergine, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{user.initials}</div>
+            <div>
+              <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 700 }}>Mein Profil</div>
+              <div style={{ fontSize: 11.5, color: `${theme.ink}99` }}>{role === 'admin' ? 'Interner CRM-Zugang' : 'Maklerprofil'}</div>
+            </div>
+          </div>
+          <button onClick={onClose} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <X size={15} />
+          </button>
+        </div>
+        <div style={{ padding: '20px 22px', display: 'grid', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Field label="Vorname" required><Input defaultValue={profileName.firstName} inputRef={firstNameRef} /></Field>
+            <Field label="Nachname" required><Input defaultValue={profileName.lastName} inputRef={lastNameRef} /></Field>
+          </div>
+          <Field label="E-Mail" required><Input type="email" defaultValue={user.email} inputRef={emailRef} /></Field>
+          <Field label="Telefon"><Input defaultValue={user.phone} inputRef={phoneRef} /></Field>
+          <Field label={role === 'admin' ? 'Organisation' : 'Firma'}><Input defaultValue={user.company} inputRef={companyRef} /></Field>
+          {role === 'admin' && (
+            <Field label="Rolle">
+              <Input value={user.roleLabel} readOnly />
+            </Field>
+          )}
+          <div style={{ background: theme.mintLight, borderRadius: 6, padding: '11px 13px', fontSize: 12.5, lineHeight: 1.5, color: `${theme.ink}cc` }}>
+            Änderungen werden im MVP direkt für diese Sitzung gespeichert. Für produktive Nutzung wird dieser Bereich später an die Benutzerverwaltung angebunden.
+          </div>
+        </div>
+        <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button onClick={onClose} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
+          <button onClick={save} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Profil speichern</button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -1075,35 +1188,113 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, emp
   </div>
 );
 
-const PartnerDirectory = ({ partners = [], leads = [] }) => (
-  <div style={{ padding: '20px 28px' }}>
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
-      <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Partner</h1>
-      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Vertriebspartner und aktuelle Lead-Zuweisungen.</div>
-    </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-      {partners.map((partner) => {
-        const assignedLeadCount = leads.filter((lead) => lead.assignedPartnerId === partner.id && lead.status !== 'CONVERTED').length;
-        return (
-          <div key={partner.id} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: theme.aubergine }}>{partner.companyName}</div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#5B8C2B', background: '#5B8C2B1A', borderRadius: 10, padding: '3px 9px' }}>{partner.status}</span>
+const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+const partnerInitial = (partner) => {
+  const source = (partner.companyName || partner.contactName || '').trim();
+  return source ? source[0].toUpperCase() : '#';
+};
+
+const PartnerDirectory = ({ partners = [], leads = [], onActivatePartner }) => {
+  const [selectedLetter, setSelectedLetter] = useState('ALL');
+  const [search, setSearch] = useState('');
+  const availableLetters = new Set(partners.map(partnerInitial));
+  const normalizedSearch = search.trim().toLowerCase();
+  const visiblePartners = partners
+    .filter((partner) => selectedLetter === 'ALL' || partnerInitial(partner) === selectedLetter)
+    .filter((partner) => {
+      if (!normalizedSearch) return true;
+      return [partner.companyName, partner.contactName, partner.email, partner.phone, partner.address]
+        .some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
+    })
+    .sort((left, right) => String(left.companyName || left.contactName).localeCompare(String(right.companyName || right.contactName), 'de'));
+
+  const activePartners = partners.filter((partner) => partner.status === 'active').length;
+  const pendingPartners = partners.length - activePartners;
+
+  return (
+    <div style={{ padding: '20px 28px' }}>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
+        <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Partner</h1>
+        <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Tabellarische Übersicht aller Vertriebspartner mit Lead-Zuweisungen und Freischaltung.</div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 48px', gap: 14, alignItems: 'start' }}>
+        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Partnerliste</div>
+              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{visiblePartners.length} von {partners.length} Partnern · {activePartners} aktiv · {pendingPartners} offen</div>
             </div>
-            <div style={{ fontSize: 13, color: theme.ink, marginBottom: 4 }}>{partner.contactName}</div>
-            <div style={{ fontSize: 12, color: `${theme.ink}88`, lineHeight: 1.5 }}>{partner.email}<br />{partner.phone || 'Telefon offen'}</div>
-            <div style={{ height: 1, background: theme.borderSoft, margin: '14px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: `${theme.ink}99`, fontSize: 12 }}>
-              <span>Offene Leads</span>
-              <strong style={{ color: theme.aubergine }}>{assignedLeadCount}</strong>
+            <div style={{ display: 'flex', alignItems: 'center', background: theme.mintLighter, borderRadius: 6, padding: '7px 10px', border: `1px solid ${theme.border}`, width: 280, maxWidth: '100%' }}>
+              <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Partner suchen" style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
             </div>
           </div>
-        );
-      })}
+
+          {visiblePartners.length === 0 ? (
+            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Partner für die aktuelle Auswahl gefunden.</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: theme.mintLight }}>
+                  {['Firma', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Status', 'Offene Leads', ''].map((h, i) => (
+                    <th key={i} style={{ textAlign: 'left', padding: '9px 14px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visiblePartners.map((partner) => {
+                  const assignedLeadCount = leads.filter((lead) => lead.assignedPartnerId === partner.id && lead.status !== 'CONVERTED').length;
+                  const isActive = partner.status === 'active';
+                  return (
+                    <tr key={partner.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+                      <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 700 }}>{partner.companyName}</td>
+                      <td style={{ padding: '12px 14px', color: theme.ink }}>{partner.contactName}</td>
+                      <td style={{ padding: '12px 14px', color: theme.ink }}>{partner.email}</td>
+                      <td style={{ padding: '12px 14px', color: theme.ink }}>{partner.phone || 'Telefon offen'}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#5B8C2B' : '#A87308', background: isActive ? '#5B8C2B1A' : `${theme.gold}1A`, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+                          {isActive ? 'aktiv' : 'wartet auf Freischaltung'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 800 }}>{assignedLeadCount}</td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        {!isActive ? (
+                          <button onClick={() => onActivatePartner?.(partner.id)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            Freischalten
+                          </button>
+                        ) : (
+                          <span style={{ color: `${theme.ink}66`, fontSize: 12 }}>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '8px 6px', display: 'grid', gap: 3, justifyItems: 'center', position: 'sticky', top: 16 }}>
+          <button onClick={() => setSelectedLetter('ALL')} title="Alle Partner" style={{ width: 32, height: 28, borderRadius: 5, border: selectedLetter === 'ALL' ? 'none' : `1px solid ${theme.borderSoft}`, background: selectedLetter === 'ALL' ? theme.aubergine : theme.mintLighter, color: selectedLetter === 'ALL' ? 'white' : theme.aubergine, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
+            Alle
+          </button>
+          {alphabet.map((letter) => {
+            const enabled = availableLetters.has(letter);
+            const active = selectedLetter === letter;
+            return (
+              <button key={letter} onClick={() => enabled && setSelectedLetter(letter)} disabled={!enabled} title={`Partner mit ${letter}`} style={{ width: 28, height: 24, borderRadius: 5, border: active ? 'none' : `1px solid ${theme.borderSoft}`, background: active ? theme.aubergine : enabled ? 'white' : theme.mintLighter, color: active ? 'white' : enabled ? theme.aubergine : `${theme.ink}33`, fontSize: 11, fontWeight: 800, cursor: enabled ? 'pointer' : 'not-allowed' }}>
+                {letter}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
   <div style={{ padding: '20px 28px' }}>
@@ -1929,8 +2120,8 @@ const Field = ({ label, required, children, hint, width = '100%' }) => (
     {hint && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 4 }}>{hint}</div>}
   </div>
 );
-const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly }) => (
-  <input type={type} placeholder={placeholder} defaultValue={defaultValue} value={value} onChange={onChange} onInput={onChange} checked={checked} readOnly={readOnly} style={{
+const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly, inputRef }) => (
+  <input ref={inputRef} type={type} placeholder={placeholder} defaultValue={defaultValue} value={value} onChange={onChange} onInput={onChange} checked={checked} readOnly={readOnly} style={{
     width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
     borderRadius: 5, background: readOnly ? theme.mintLighter : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
     boxSizing: 'border-box'
@@ -2821,10 +3012,11 @@ export default function App({ initialRole = 'partner' } = {}) {
   const [notice, setNotice] = useState('');
   const [loadingCases, setLoadingCases] = useState(false);
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [profiles, setProfiles] = useState(defaultProfiles);
+  const [profileOpen, setProfileOpen] = useState(false);
 
-  const user = role === 'admin'
-    ? { name: 'A. Klein', initials: 'AK' }
-    : { name: 'M. Krüger', initials: 'MK' };
+  const rawUser = profiles[role] || defaultProfiles[role];
+  const user = { ...rawUser, name: profileDisplayName(rawUser), initials: initialsFromName(profileDisplayName(rawUser)).toUpperCase() };
 
   async function loadCases(nextRole = role) {
     setLoadingCases(true);
@@ -2868,6 +3060,15 @@ export default function App({ initialRole = 'partner' } = {}) {
     loadLeads(initialRole);
   }, [initialRole]);
 
+  useEffect(() => {
+    try {
+      const storedProfiles = window.localStorage.getItem('wohnkapital_profiles');
+      if (storedProfiles) setProfiles({ ...defaultProfiles, ...JSON.parse(storedProfiles) });
+    } catch {
+      // Profil bleibt im MVP in der laufenden Sitzung.
+    }
+  }, []);
+
   const handleNavigate = (s) => {
     setScreen(s);
     setCaseId(null);
@@ -2889,8 +3090,20 @@ export default function App({ initialRole = 'partner' } = {}) {
     setRole(nextRole);
     setScreen('dashboard');
     setCaseId(null);
+    setProfileOpen(false);
     loadCases(nextRole);
     loadLeads(nextRole);
+  };
+  const handleSaveProfile = (profile) => {
+    const nextProfiles = { ...profiles, [role]: profile };
+    setProfiles(nextProfiles);
+    try {
+      window.localStorage.setItem('wohnkapital_profiles', JSON.stringify(nextProfiles));
+    } catch {
+      // Speichern im Browser ist optional.
+    }
+    setProfileOpen(false);
+    setNotice('Profil wurde gespeichert.');
   };
   const handleAssignLead = async (leadId, partnerId) => {
     try {
@@ -2931,6 +3144,15 @@ export default function App({ initialRole = 'partner' } = {}) {
       setNotice(err instanceof Error ? err.message : 'Lead konnte nicht umgewandelt werden');
     }
   };
+  const handleActivatePartner = async (partnerId) => {
+    try {
+      await patchJson(`/api/partners/${partnerId}`, { status: 'active' });
+      setNotice('Maklerzugang wurde freigeschaltet.');
+      await loadLeads('admin');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Maklerzugang konnte nicht freigeschaltet werden');
+    }
+  };
   const handleLogout = async () => {
     try {
       const payload = await postJson('/api/auth/logout');
@@ -2942,7 +3164,8 @@ export default function App({ initialRole = 'partner' } = {}) {
 
   return (
     <div style={{ background: theme.mint, fontFamily: '"Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} />
+      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} />
+      {profileOpen && <ProfileModal user={user} role={role} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar role={role} currentScreen={screen} onNavigate={handleNavigate} leadCount={leads.filter((lead) => role === 'admin' ? lead.status === 'NEW' : lead.status !== 'CONVERTED' && lead.status !== 'REJECTED').length} />
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -2956,7 +3179,7 @@ export default function App({ initialRole = 'partner' } = {}) {
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
-          {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} />}
+          {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} onActivatePartner={handleActivatePartner} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}
           {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}

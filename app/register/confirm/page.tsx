@@ -1,18 +1,16 @@
 import { AppShell } from "@/components/AppShell";
-import { LoginForm } from "@/components/LoginForm";
-import Link from "next/link";
+import { ConfirmRegistration } from "@/components/ConfirmRegistration";
 
-export default function LoginPage() {
+export default function ConfirmRegistrationPage({ searchParams }: { searchParams: { token?: string } }) {
   return (
     <AppShell>
       <div className="login-scene">
-        <section className="login-panel">
+        <section className="register-panel">
           <div className="login-brand-block">
             <img className="login-logo" src="/brand/wohnkapital-logo.svg" alt="WohnKapital" />
             <span>Maklerportal</span>
           </div>
-          <LoginForm />
-          <Link className="register-cta" href="/register">Als Partner registrieren</Link>
+          <ConfirmRegistration token={searchParams.token} />
         </section>
       </div>
     </AppShell>
