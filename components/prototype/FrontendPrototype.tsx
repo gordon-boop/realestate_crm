@@ -49,7 +49,7 @@ const statusConfig = {
   BINDING_OFFER_SENT:  { label: 'VA abgegeben',         color: '#5B8C2B' },
   BINDING_OFFER_ACCEPTED:{ label: 'VA angenommen',      color: '#5B8C2B' },
   PURCHASE_STARTED:    { label: 'Ankauf gestartet',     color: theme.aubergineSoft },
-  NOTARY_APPOINTMENT:  { label: 'Notartermin beauftragt', color: theme.oliv },
+  NOTARY_APPOINTMENT:  { label: 'Notartermin vereinbart', color: theme.oliv },
   PURCHASED:           { label: 'Kaufvertrag abgeschlossen', color: '#3D6B1F' },
   IN_PORTFOLIO:        { label: 'Im Bestand',           color: '#3D6B1F' },
   APPOINTMENT_SCHEDULED:{ label: 'Termin vereinbart',   color: '#5B8C2B' },
@@ -143,22 +143,22 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen }) => (
   </div>
 );
 
-const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0, rejectedCount = 0 }) => {
+const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0, draftCount = 0, inProgressCount = 0, portfolioCount = 0, rejectedCount = 0 }) => {
   const partnerNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
-    { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts' },
-    { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: 4 },
-    { icon: Archive, label: 'Bestand', screen: 'portfolio' },
+    { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts', badge: draftCount || undefined },
+    { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: inProgressCount || undefined },
+    { icon: Archive, label: 'Bestand', screen: 'portfolio', badge: portfolioCount || undefined },
     { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined },
     { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
   const adminNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined, internal: true },
-    { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts' },
-    { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: 23 },
-    { icon: Archive, label: 'Bestand', screen: 'portfolio' },
+    { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts', badge: draftCount || undefined },
+    { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: inProgressCount || undefined },
+    { icon: Archive, label: 'Bestand', screen: 'portfolio', badge: portfolioCount || undefined },
     { icon: CheckCircle2, label: 'Verkauft', screen: 'sold', internal: true },
     { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined, internal: true },
     { icon: Users, label: 'Partner', screen: 'partners' },
@@ -1298,7 +1298,7 @@ const nextPortfolioAction = {
   EXPERT_OPINION_ORDERED: 'Gutachteneingang dokumentieren',
   EXPERT_OPINION_RECEIVED: 'VA abgeben',
   BINDING_OFFER_SENT: 'VA nachfassen',
-  BINDING_OFFER_ACCEPTED: 'Notartermin beauftragen',
+  BINDING_OFFER_ACCEPTED: 'Notartermin vereinbaren',
   NOTARY_APPOINTMENT: 'Kaufvertrag abschließen',
   IN_PORTFOLIO: 'Bestandsdaten prüfen',
   WON: 'Bestandsdaten prüfen',
@@ -1599,6 +1599,9 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectionReasonCode, setRejectionReasonCode] = useState('location');
   const [rejectionNote, setRejectionNote] = useState('');
+  const [expertOpinionOrderedDate, setExpertOpinionOrderedDate] = useState('');
+  const [expertOpinionReceivedDate, setExpertOpinionReceivedDate] = useState('');
+  const [expertOpinionCompany, setExpertOpinionCompany] = useState('');
   const [notaryAppointmentDate, setNotaryAppointmentDate] = useState('');
   const [expertOpinionValue, setExpertOpinionValue] = useState('');
   const c = cases.find(x => x.propertyId === caseId || x.id === caseId) || mockCases[0];
@@ -1610,6 +1613,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const indicativeOffers = productOffers.filter((offer) => offer.kind !== 'binding');
   const bindingOffers = productOffers.filter((offer) => offer.kind === 'binding');
   const hasBindingOffer = bindingOffers.length > 0;
+  const canPrepareBindingOffer = Boolean(property?.expertOpinionReceivedAt) || ['EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT', 'IN_PORTFOLIO', 'WON'].includes(property?.status);
   const requestedOfferModels = property ? [
     {
       key: property.desiredModel || 'fixed_residential_right',
@@ -1777,6 +1781,9 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
   });
   const calculateBindingOffer = (modelRequest, index) => runCaseAction('VA-Kalkulation', async () => {
+    if (!canPrepareBindingOffer) {
+      throw new Error('Bitte zuerst das Gutachten als eingegangen markieren.');
+    }
     const parsedExpertOpinionValue = Number(String(expertOpinionValue).replace(',', '.'));
     if (!Number.isFinite(parsedExpertOpinionValue) || parsedExpertOpinionValue <= 0) {
       throw new Error('Bitte zuerst den Gutachtenwert eintragen.');
@@ -1826,7 +1833,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     { action: 'expert_opinion_received', status: 'EXPERT_OPINION_RECEIVED', label: 'Gutachten eingegangen', date: property?.expertOpinionReceivedAt },
     { action: 'binding_offer_sent', status: 'BINDING_OFFER_SENT', label: 'Verbindl. Angebot (VA) abgegeben', date: property?.bindingOfferSentAt },
     { action: 'binding_offer_accepted', status: 'BINDING_OFFER_ACCEPTED', label: 'VA angenommen', date: property?.bindingOfferAcceptedAt },
-    { action: 'notary_appointment_ordered', status: 'NOTARY_APPOINTMENT', label: 'Notartermin beauftragt', date: property?.notaryAppointmentAt, needsDate: true },
+    { action: 'notary_appointment_ordered', status: 'NOTARY_APPOINTMENT', label: 'Notartermin vereinbart', date: property?.notaryAppointmentAt, needsDate: true },
     { action: 'contract_signed', status: 'IN_PORTFOLIO', label: 'Kaufvertrag abgeschlossen', date: property?.portfolioEnteredAt },
   ];
   const acquisitionStatusAliases = {
@@ -1842,14 +1849,32 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     WON: 'IN_PORTFOLIO'
   };
   const workflowStatus = acquisitionStatusAliases[property?.status] || property?.status;
-  const acquisitionStatusIndex = acquisitionSteps.findIndex((step) => step.status === workflowStatus);
+  const acquisitionStatusIndexFromStatus = acquisitionSteps.findIndex((step) => step.status === workflowStatus);
+  const acquisitionStatusIndexFromDates = acquisitionSteps.reduce((highestIndex, step, index) => (
+    step.date ? Math.max(highestIndex, index) : highestIndex
+  ), -1);
+  const acquisitionStatusIndex = Math.max(acquisitionStatusIndexFromStatus, acquisitionStatusIndexFromDates);
   const handleAcquisitionAction = (step) => runCaseAction(step.label, async () => {
     if (!step.action) return;
+    if (step.action === 'expert_opinion_ordered') {
+      if (!expertOpinionOrderedDate && !property?.expertOpinionOrderedAt) {
+        throw new Error('Bitte Datum der Gutachterbeauftragung eintragen.');
+      }
+      if (!expertOpinionCompany.trim() && !property?.expertOpinionCompany) {
+        throw new Error('Bitte Gutachterfirma eintragen.');
+      }
+    }
+    if (step.action === 'expert_opinion_received' && !expertOpinionReceivedDate && !property?.expertOpinionReceivedAt) {
+      throw new Error('Bitte Eingangsdatum des Gutachtens eintragen.');
+    }
     if (step.needsDate && !notaryAppointmentDate && !property?.notaryAppointmentAt) {
       throw new Error('Bitte zuerst den Notartermin eintragen.');
     }
     await postJson(`/api/properties/${c.propertyId}/workflow`, {
       action: step.action,
+      expertOpinionOrderedAt: step.action === 'expert_opinion_ordered' ? (expertOpinionOrderedDate || property?.expertOpinionOrderedAt) : undefined,
+      expertOpinionReceivedAt: step.action === 'expert_opinion_received' ? (expertOpinionReceivedDate || property?.expertOpinionReceivedAt) : undefined,
+      expertOpinionCompany: step.action === 'expert_opinion_ordered' ? (expertOpinionCompany.trim() || property?.expertOpinionCompany) : undefined,
       notaryAppointmentAt: step.needsDate ? (notaryAppointmentDate || property?.notaryAppointmentAt) : undefined
     });
   });
@@ -2312,6 +2337,58 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                     </div>
                   );
                 })}
+                {role === 'admin' && (
+                  <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: 'white' }}>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Gutachterbeauftragung</div>
+                    <div style={{ fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5, marginBottom: 12 }}>
+                      Sobald der Kunde das unverbindliche Angebot angenommen hat, wird hier der Gutachter beauftragt. Nach Eingang des Gutachtens wird rechts im Prozess das verbindliche Angebot freigeschaltet.
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 10, marginBottom: 12 }}>
+                      <Field label="Beauftragt am" required>
+                        <Input
+                          type="date"
+                          value={expertOpinionOrderedDate || (property?.expertOpinionOrderedAt ? property.expertOpinionOrderedAt.slice(0, 10) : '')}
+                          onChange={(event) => setExpertOpinionOrderedDate(event.target.value)}
+                          readOnly={workflowActionState('expert_opinion_ordered').reached}
+                        />
+                      </Field>
+                      <Field label="Gutachterfirma" required>
+                        <Input
+                          value={expertOpinionCompany || property?.expertOpinionCompany || ''}
+                          onChange={(event) => setExpertOpinionCompany(event.target.value)}
+                          placeholder="z.B. Sprengnetter, DEKRA, freier Sachverständiger"
+                          readOnly={workflowActionState('expert_opinion_ordered').reached}
+                        />
+                      </Field>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center' }}>
+                      {['expert_opinion_ordered', 'expert_opinion_received'].map((action) => {
+                        const state = workflowActionState(action);
+                        return (
+                          <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                            {state.reached ? <CheckCircle size={13} /> : null}
+                            {state.step?.label || action}
+                          </button>
+                        );
+                      })}
+                      <div style={{ minWidth: 170 }}>
+                        <input
+                          type="date"
+                          value={expertOpinionReceivedDate || (property?.expertOpinionReceivedAt ? property.expertOpinionReceivedAt.slice(0, 10) : '')}
+                          onChange={(event) => setExpertOpinionReceivedDate(event.target.value)}
+                          disabled={workflowActionState('expert_opinion_received').reached}
+                          title="Gutachten eingegangen am"
+                          style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box', background: workflowActionState('expert_opinion_received').reached ? theme.mintLighter : 'white' }}
+                        />
+                      </div>
+                    </div>
+                    {property?.expertOpinionCompany && (
+                      <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 10 }}>
+                        Beauftragte Firma: {property.expertOpinionCompany}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {latestValuation ? (
                   <div style={{ fontSize: 12, color: `${theme.ink}88` }}>Wertspanne: {formatEuro(latestValuation.valueMin)} bis {formatEuro(latestValuation.valueMax)}</div>
                 ) : null}
@@ -2325,6 +2402,11 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
               <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5, marginBottom: 14 }}>
                 Nach Eingang des Gutachtens wird das verbindliche Angebot auf Basis des Gutachtenwerts neu berechnet. Die UVA bleibt als eigene Version bestehen.
               </div>
+              {!canPrepareBindingOffer && (
+                <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, marginBottom: 14 }}>
+                  Das verbindliche Angebot wird freigeschaltet, sobald im Bereich „Unverbindliches Angebot“ das Gutachten als eingegangen markiert wurde.
+                </div>
+              )}
               <div style={{ display: 'grid', gap: 12 }}>
                 {requestedOfferModels.map((modelRequest, index) => {
                   const bindingOffer = bindingOffers.find((item) => item.model === modelRequest.model);
@@ -2359,7 +2441,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                               <Input type="number" value={params.saleAndLeasebackPayoutRate || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, saleAndLeasebackPayoutRate: event.target.value } })} />
                             </Field>
                           </div>
-                          <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
+                          <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction) || !canPrepareBindingOffer} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : canPrepareBindingOffer ? 'pointer' : 'default', opacity: busyAction || !canPrepareBindingOffer ? 0.55 : 1 }}>
                             {busyAction ? 'Berechnet...' : 'VA auf Gutachtenwert kalkulieren'}
                           </button>
                         </div>
@@ -2398,7 +2480,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                 <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 12 }}>
                   <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Prozessschritte speichern</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
-                    {['expert_opinion_ordered', 'expert_opinion_received', 'binding_offer_sent', 'binding_offer_accepted'].map((action) => {
+                    {['binding_offer_sent', 'binding_offer_accepted'].map((action) => {
                       const state = workflowActionState(action);
                       return (
                         <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
@@ -2408,25 +2490,27 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                       );
                     })}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 240px) auto auto', gap: 9, alignItems: 'center' }}>
-                    <input
-                      type="datetime-local"
-                      value={notaryAppointmentDate}
-                      onChange={(event) => setNotaryAppointmentDate(event.target.value)}
-                      disabled={workflowActionState('notary_appointment_ordered').reached}
-                      title="Notartermin"
-                      style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
-                    />
-                    {['notary_appointment_ordered', 'contract_signed'].map((action) => {
-                      const state = workflowActionState(action);
-                      return (
-                        <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
-                          {state.reached ? <CheckCircle size={13} /> : null}
-                          {state.step?.label || action}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {(workflowActionState('notary_appointment_ordered').nextAllowed || workflowActionState('notary_appointment_ordered').reached || workflowActionState('contract_signed').nextAllowed) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 240px) auto auto', gap: 9, alignItems: 'center' }}>
+                      <input
+                        type="datetime-local"
+                        value={notaryAppointmentDate}
+                        onChange={(event) => setNotaryAppointmentDate(event.target.value)}
+                        disabled={workflowActionState('notary_appointment_ordered').reached}
+                        title="Notartermin"
+                        style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                      {['notary_appointment_ordered', 'contract_signed'].map((action) => {
+                        const state = workflowActionState(action);
+                        return (
+                          <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                            {state.reached ? <CheckCircle size={13} /> : null}
+                            {state.step?.label || action}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2447,19 +2531,10 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                 const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
                 const needsDateBeforeAction = step.needsDate && nextAllowed && !notaryAppointmentDate && !property?.notaryAppointmentAt;
                 const missingBindingOffer = step.action === 'binding_offer_sent' && !hasBindingOffer;
+                const waitingForVaAcceptance = step.action === 'notary_appointment_ordered' && workflowStatus !== 'BINDING_OFFER_ACCEPTED' && !reached;
                 const disabled = Boolean(busyAction) || reached || !nextAllowed || !step.action || needsDateBeforeAction || missingBindingOffer;
                 return (
                   <div key={step.status} style={{ display: 'grid', gap: 6 }}>
-                    {step.needsDate && (nextAllowed || reached) && (
-                      <input
-                        type="datetime-local"
-                        value={notaryAppointmentDate}
-                        onChange={(event) => setNotaryAppointmentDate(event.target.value)}
-                        disabled={reached}
-                        title="Notartermin"
-                        style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box', background: reached ? theme.mintLighter : 'white' }}
-                      />
-                    )}
                     <button onClick={() => handleAcquisitionAction(step)} disabled={disabled} style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -2481,6 +2556,16 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                     </button>
                     {step.needsDate && reached && property?.notaryAppointmentAt && (
                       <div style={{ fontSize: 11, color: `${theme.ink}88`, paddingLeft: 2 }}>Termin: {dateLabel(property.notaryAppointmentAt)}</div>
+                    )}
+                    {waitingForVaAcceptance && (
+                      <div style={{ fontSize: 11, color: `${theme.ink}88`, paddingLeft: 2 }}>
+                        Erst verfügbar, wenn „VA angenommen“ gespeichert wurde.
+                      </div>
+                    )}
+                    {step.action === 'notary_appointment_ordered' && nextAllowed && needsDateBeforeAction && (
+                      <div style={{ fontSize: 11, color: theme.aubergine, fontWeight: 700, paddingLeft: 2 }}>
+                        Termin im Tab „Verbindliches Angebot“ eintragen.
+                      </div>
                     )}
                   </div>
                 );
@@ -3945,7 +4030,16 @@ export default function App({ initialRole = 'partner' } = {}) {
       <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} />
       {profileOpen && <ProfileModal user={user} role={role} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        <Sidebar role={role} currentScreen={screen} onNavigate={handleNavigate} leadCount={leads.filter((lead) => role === 'admin' ? lead.status === 'NEW' : lead.status !== 'CONVERTED' && lead.status !== 'REJECTED').length} rejectedCount={cases.filter((item) => item.status === 'REJECTED' || item.status === 'LOST').length} />
+        <Sidebar
+          role={role}
+          currentScreen={screen}
+          onNavigate={handleNavigate}
+          leadCount={leads.filter((lead) => role === 'admin' ? lead.status === 'NEW' : lead.status !== 'CONVERTED' && lead.status !== 'REJECTED').length}
+          draftCount={filterCasesForScreen(cases, 'drafts').length}
+          inProgressCount={filterCasesForScreen(cases, 'in_progress').length}
+          portfolioCount={filterCasesForScreen(cases, 'portfolio').length}
+          rejectedCount={cases.filter((item) => item.status === 'REJECTED' || item.status === 'LOST').length}
+        />
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {(notice || loadingCases || loadingLeads) && (
             <div style={{ margin: '14px 28px 0', background: loadingCases ? theme.mintLight : theme.goldSoft, border: `1px solid ${loadingCases ? theme.border : `${theme.gold}55`}`, borderRadius: 6, padding: '9px 12px', fontSize: 12.5, color: theme.ink }}>

@@ -462,7 +462,7 @@ export function advanceAcquisitionWorkflow(
   propertyId: string,
   action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted" | "notary_appointment_ordered" | "contract_signed" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
   userId: string,
-  options: { notaryAppointmentAt?: string } = {}
+  options: { expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; notaryAppointmentAt?: string } = {}
 ): Property {
   const property = properties.find((item) => item.id === propertyId);
   if (!property) {
@@ -470,7 +470,10 @@ export function advanceAcquisitionWorkflow(
   }
 
   const now = nowIso();
+  const expertOrderedAt = options.expertOpinionOrderedAt || now;
+  const expertReceivedAt = options.expertOpinionReceivedAt || now;
   const notaryAt = options.notaryAppointmentAt || now;
+  const expertCompany = options.expertOpinionCompany?.trim();
   const config = {
     indicative_offer_sent: {
       status: "INDICATIVE_OFFER_SENT" as const,
@@ -486,13 +489,13 @@ export function advanceAcquisitionWorkflow(
     },
     expert_opinion_ordered: {
       status: "EXPERT_OPINION_ORDERED" as const,
-      data: { expertOpinionOrderedAt: now },
+      data: { expertOpinionOrderedAt: expertOrderedAt, expertOpinionCompany: expertCompany },
       type: "expert_opinion_ordered",
-      message: "Gutachten wurde beauftragt."
+      message: `Gutachten wurde beauftragt${expertCompany ? `: ${expertCompany}` : "."}`
     },
     expert_opinion_received: {
       status: "EXPERT_OPINION_RECEIVED" as const,
-      data: { expertOpinionReceivedAt: now },
+      data: { expertOpinionReceivedAt: expertReceivedAt },
       type: "expert_opinion_received",
       message: "Gutachten ist eingegangen."
     },
@@ -512,7 +515,7 @@ export function advanceAcquisitionWorkflow(
       status: "NOTARY_APPOINTMENT" as const,
       data: { notaryAppointmentAt: notaryAt },
       type: "notary_appointment_ordered",
-      message: "Notartermin wurde beauftragt."
+      message: "Notartermin wurde vereinbart."
     },
     contract_signed: {
       status: "IN_PORTFOLIO" as const,

@@ -401,6 +401,7 @@ model Property {
   rejectedByUserId             String?           @map("rejected_by_user_id")
   indicativeOfferSentAt        DateTime?         @map("indicative_offer_sent_at")
   expertOpinionOrderedAt       DateTime?         @map("expert_opinion_ordered_at")
+  expertOpinionCompany         String?           @map("expert_opinion_company")
   expertOpinionReceivedAt      DateTime?         @map("expert_opinion_received_at")
   bindingOfferSentAt           DateTime?         @map("binding_offer_sent_at")
   bindingOfferAcceptedAt       DateTime?         @map("binding_offer_accepted_at")

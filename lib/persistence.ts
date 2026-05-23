@@ -58,6 +58,7 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     rejectedAt: iso(property.rejectedAt),
     indicativeOfferSentAt: iso(property.indicativeOfferSentAt),
     expertOpinionOrderedAt: iso(property.expertOpinionOrderedAt),
+    expertOpinionCompany: property.expertOpinionCompany ?? undefined,
     expertOpinionReceivedAt: iso(property.expertOpinionReceivedAt),
     bindingOfferSentAt: iso(property.bindingOfferSentAt),
     bindingOfferAcceptedAt: iso(property.bindingOfferAcceptedAt),
@@ -367,19 +368,29 @@ export async function advanceDbAcquisitionWorkflow(
   propertyId: string,
   action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted" | "notary_appointment_ordered" | "contract_signed" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
   userId: string,
-  options: { notaryAppointmentAt?: string } = {}
+  options: { expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; notaryAppointmentAt?: string } = {}
 ) {
   const now = new Date();
+  const parsedExpertOrderedDate = options.expertOpinionOrderedAt ? new Date(options.expertOpinionOrderedAt) : now;
+  const expertOrderedDate = Number.isNaN(parsedExpertOrderedDate.getTime()) ? now : parsedExpertOrderedDate;
+  const parsedExpertReceivedDate = options.expertOpinionReceivedAt ? new Date(options.expertOpinionReceivedAt) : now;
+  const expertReceivedDate = Number.isNaN(parsedExpertReceivedDate.getTime()) ? now : parsedExpertReceivedDate;
   const parsedNotaryDate = options.notaryAppointmentAt ? new Date(options.notaryAppointmentAt) : now;
   const notaryDate = Number.isNaN(parsedNotaryDate.getTime()) ? now : parsedNotaryDate;
+  const expertCompany = options.expertOpinionCompany?.trim();
   const config = {
     indicative_offer_sent: { status: "INDICATIVE_OFFER_SENT", data: { indicativeOfferSentAt: now }, type: "indicative_offer_sent", message: "Unverbindliches Angebot (UVA) wurde abgegeben." },
     offer_accepted: { status: "OFFER_ACCEPTED", data: { offerAcceptedAt: now }, type: "offer_accepted", message: "Unverbindliches Angebot (UVA) wurde angenommen." },
-    expert_opinion_ordered: { status: "EXPERT_OPINION_ORDERED", data: { expertOpinionOrderedAt: now }, type: "expert_opinion_ordered", message: "Gutachten wurde beauftragt." },
-    expert_opinion_received: { status: "EXPERT_OPINION_RECEIVED", data: { expertOpinionReceivedAt: now }, type: "expert_opinion_received", message: "Gutachten ist eingegangen." },
+    expert_opinion_ordered: {
+      status: "EXPERT_OPINION_ORDERED",
+      data: { expertOpinionOrderedAt: expertOrderedDate, expertOpinionCompany: expertCompany },
+      type: "expert_opinion_ordered",
+      message: `Gutachten wurde beauftragt${expertCompany ? `: ${expertCompany}` : "."}`
+    },
+    expert_opinion_received: { status: "EXPERT_OPINION_RECEIVED", data: { expertOpinionReceivedAt: expertReceivedDate }, type: "expert_opinion_received", message: "Gutachten ist eingegangen." },
     binding_offer_sent: { status: "BINDING_OFFER_SENT", data: { bindingOfferSentAt: now }, type: "binding_offer_sent", message: "Verbindliches Angebot (VA) wurde abgegeben." },
     binding_offer_accepted: { status: "BINDING_OFFER_ACCEPTED", data: { bindingOfferAcceptedAt: now }, type: "binding_offer_accepted", message: "Verbindliches Angebot (VA) wurde angenommen." },
-    notary_appointment_ordered: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: notaryDate }, type: "notary_appointment_ordered", message: "Notartermin wurde beauftragt." },
+    notary_appointment_ordered: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: notaryDate }, type: "notary_appointment_ordered", message: "Notartermin wurde vereinbart." },
     contract_signed: { status: "IN_PORTFOLIO", data: { purchasedAt: now, portfolioEnteredAt: now }, type: "contract_signed", message: "Kaufvertrag wurde abgeschlossen. Der Fall ist in den Bestand gewechselt." },
     purchase_started: { status: "PURCHASE_STARTED", data: { purchaseStartedAt: now }, type: "purchase_started", message: "Ankaufsprozess wurde gestartet." },
     notary_appointment: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: now }, type: "notary_appointment", message: "Notartermin wurde vereinbart." },

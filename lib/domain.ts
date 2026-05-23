@@ -202,6 +202,7 @@ export type Property = {
   rejectedByUserId?: string;
   indicativeOfferSentAt?: string;
   expertOpinionOrderedAt?: string;
+  expertOpinionCompany?: string;
   expertOpinionReceivedAt?: string;
   bindingOfferSentAt?: string;
   bindingOfferAcceptedAt?: string;

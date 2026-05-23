@@ -172,6 +172,9 @@ export const acquisitionWorkflowSchema = z.object({
     "purchased",
     "enter_portfolio"
   ]),
+  expertOpinionOrderedAt: optionalString,
+  expertOpinionReceivedAt: optionalString,
+  expertOpinionCompany: optionalString,
   notaryAppointmentAt: optionalString
 });
 
