@@ -43,10 +43,14 @@ const statusConfig = {
   APPROVED:            { label: 'Freigegeben',          color: '#5B8C2B' },
   SENT:                { label: 'Versendet',            color: '#5B8C2B' },
   INDICATIVE_OFFER_SENT:{ label: 'Unverbindliches Angebot abgegeben', color: '#5B8C2B' },
-  OFFER_ACCEPTED:      { label: 'Angebot angenommen',   color: '#5B8C2B' },
+  OFFER_ACCEPTED:      { label: 'UVA angenommen',       color: '#5B8C2B' },
+  EXPERT_OPINION_ORDERED:{ label: 'Gutachten beauftragt', color: theme.aubergineSoft },
+  EXPERT_OPINION_RECEIVED:{ label: 'Gutachten eingegangen', color: '#7B61C7' },
+  BINDING_OFFER_SENT:  { label: 'VA abgegeben',         color: '#5B8C2B' },
+  BINDING_OFFER_ACCEPTED:{ label: 'VA angenommen',      color: '#5B8C2B' },
   PURCHASE_STARTED:    { label: 'Ankauf gestartet',     color: theme.aubergineSoft },
-  NOTARY_APPOINTMENT:  { label: 'Notartermin',          color: theme.oliv },
-  PURCHASED:           { label: 'Angekauft',            color: '#3D6B1F' },
+  NOTARY_APPOINTMENT:  { label: 'Notartermin beauftragt', color: theme.oliv },
+  PURCHASED:           { label: 'Kaufvertrag abgeschlossen', color: '#3D6B1F' },
   IN_PORTFOLIO:        { label: 'Im Bestand',           color: '#3D6B1F' },
   APPOINTMENT_SCHEDULED:{ label: 'Termin vereinbart',   color: '#5B8C2B' },
   WON:                 { label: 'Gewonnen',             color: '#3D6B1F' },
@@ -510,8 +514,8 @@ function mapCaseView(item) {
 function filterCasesForScreen(cases, screen) {
   const statusGroups = {
     drafts: ['DRAFT'],
-    in_progress: ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'APPOINTMENT_SCHEDULED'],
-    portfolio: ['OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
+    in_progress: ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'APPOINTMENT_SCHEDULED'],
+    portfolio: ['IN_PORTFOLIO', 'WON'],
     sold: ['SOLD', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
     rejected: ['REJECTED', 'LOST'],
   };
@@ -879,11 +883,14 @@ function validateCaseDraft(draft) {
 const getBrokerNextStep = (item) => {
   if (item.kind === 'lead') return 'Lead prüfen';
   if (item.followUp || item.status === 'DATA_INCOMPLETE') return 'Unterlagen anfordern';
-  if (['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED'].includes(item.status)) return 'Angebot nachfassen';
+  if (['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT'].includes(item.status)) return 'UVA nachfassen';
+  if (item.status === 'OFFER_ACCEPTED') return 'Gutachten abwarten';
+  if (['EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED'].includes(item.status)) return 'Gutachten / VA verfolgen';
+  if (['BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED'].includes(item.status)) return 'VA nachfassen';
   if (item.status === 'DRAFT') return 'Entwurf vervollständigen';
   if (['SUBMITTED', 'VALUATION_PENDING', 'VALUATED'].includes(item.status)) return 'Bewertung abwarten';
   if (['OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW'].includes(item.status)) return 'Prüfung beobachten';
-  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'Ankauf verfolgen';
+  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'Notarprozess verfolgen';
   if (item.status === 'REJECTED') return 'Ablehnungsgrund ansehen';
   return 'Fall öffnen';
 };
@@ -1027,7 +1034,7 @@ const ActiveCasesTable = ({ items, onOpenCase, onOpenLeads }) => (
 
 const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onOpenLeads }) => {
   const [search, setSearch] = useState('');
-  const dashboardStatuses = ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT'];
+  const dashboardStatuses = ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT'];
   const hasDashboardCases = cases.some((item) => item.followUp || dashboardStatuses.includes(item.status));
   const dashboardCases = hasDashboardCases ? cases : mockCases;
   const assignedLeads = leads.filter((lead) => !['CONVERTED', 'REJECTED'].includes(lead.status));
@@ -1250,32 +1257,32 @@ const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
 
 const acquisitionStages = [
   {
-    title: 'Angebot angenommen',
+    title: 'UVA angenommen',
     statuses: ['OFFER_ACCEPTED'],
     icon: CheckCircle2,
     tone: '#5B8C2B',
-    text: 'Kunde hat das Angebot bestätigt. Ankauf muss intern gestartet werden.',
+    text: 'Kunde hat das unverbindliche Angebot bestätigt. Gutachten beauftragen.',
   },
   {
-    title: 'Ankauf gestartet',
-    statuses: ['PURCHASE_STARTED'],
+    title: 'Gutachten',
+    statuses: ['EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED'],
     icon: Briefcase,
     tone: theme.aubergineSoft,
-    text: 'Unterlagen und Vertragsvorbereitung laufen.',
+    text: 'Gutachten ist beauftragt oder bereits eingegangen.',
   },
   {
-    title: 'Notartermin',
+    title: 'VA / Notartermin',
+    statuses: ['BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'],
+    icon: Calendar,
+    tone: theme.oliv,
+    text: 'Verbindliches Angebot und Notartermin laufen.',
+  },
+  {
+    title: 'Kaufvertrag',
     statuses: ['NOTARY_APPOINTMENT'],
     icon: Calendar,
     tone: theme.oliv,
-    text: 'Termin ist vereinbart oder steht zur finalen Koordination an.',
-  },
-  {
-    title: 'Angekauft',
-    statuses: ['PURCHASED'],
-    icon: CheckCircle,
-    tone: '#3D6B1F',
-    text: 'Ankauf ist abgeschlossen. Übergabe in den Bestand prüfen.',
+    text: 'Kaufvertrag steht vor Abschluss.',
   },
   {
     title: 'Im Bestand',
@@ -1287,16 +1294,18 @@ const acquisitionStages = [
 ];
 
 const nextPortfolioAction = {
-  OFFER_ACCEPTED: 'Ankauf starten',
-  PURCHASE_STARTED: 'Notartermin vorbereiten',
-  NOTARY_APPOINTMENT: 'Ankauf abschließen',
-  PURCHASED: 'In Bestand übernehmen',
+  OFFER_ACCEPTED: 'Gutachten beauftragen',
+  EXPERT_OPINION_ORDERED: 'Gutachteneingang dokumentieren',
+  EXPERT_OPINION_RECEIVED: 'VA abgeben',
+  BINDING_OFFER_SENT: 'VA nachfassen',
+  BINDING_OFFER_ACCEPTED: 'Notartermin beauftragen',
+  NOTARY_APPOINTMENT: 'Kaufvertrag abschließen',
   IN_PORTFOLIO: 'Bestandsdaten prüfen',
   WON: 'Bestandsdaten prüfen',
 };
 
 const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
-  const pipelineStatuses = ['OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'];
+  const pipelineStatuses = ['OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'];
   const portfolioStatuses = ['IN_PORTFOLIO', 'WON'];
   const pipelineCases = cases.filter((item) => pipelineStatuses.includes(item.status));
   const portfolioCases = cases.filter((item) => portfolioStatuses.includes(item.status));
@@ -1583,7 +1592,6 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const [busyAction, setBusyAction] = useState('');
   const [openCalculation, setOpenCalculation] = useState('');
   const [calculationParams, setCalculationParams] = useState({});
-  const [acceptedIndicativeOffers, setAcceptedIndicativeOffers] = useState({});
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadCategory, setUploadCategory] = useState('energy_certificate');
   const [uploadRequirementLevel, setUploadRequirementLevel] = useState('required');
@@ -1591,6 +1599,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectionReasonCode, setRejectionReasonCode] = useState('location');
   const [rejectionNote, setRejectionNote] = useState('');
+  const [notaryAppointmentDate, setNotaryAppointmentDate] = useState('');
   const c = cases.find(x => x.propertyId === caseId || x.id === caseId) || mockCases[0];
   const caseView = c.raw;
   const customer = caseView?.customer;
@@ -1766,6 +1775,12 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const markIndicativeOfferSent = () => runCaseAction('Unverbindliches Angebot verschickt', async () => {
     await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'indicative_offer_sent' });
   });
+  const markIndicativeOfferAccepted = () => runCaseAction('UVA angenommen', async () => {
+    if (property?.status !== 'INDICATIVE_OFFER_SENT' && property?.status !== 'OFFER_ACCEPTED') {
+      throw new Error('Bitte zuerst das unverbindliche Angebot als abgegeben markieren.');
+    }
+    await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'offer_accepted' });
+  });
   const markFeedbackReceived = () => runCaseAction('Kundenrückmeldung', async () => {
     await postJson(`/api/properties/${c.propertyId}/feedback-received`);
   });
@@ -1780,16 +1795,76 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     setRejectionNote('');
   });
   const acquisitionSteps = [
-    { action: 'indicative_offer_sent', status: 'INDICATIVE_OFFER_SENT', label: 'Unverbindliches Angebot abgegeben', date: property?.status === 'INDICATIVE_OFFER_SENT' ? property?.updatedAt : undefined },
-    { action: 'offer_accepted', status: 'OFFER_ACCEPTED', label: 'Angebot angenommen', date: property?.offerAcceptedAt },
-    { action: 'purchase_started', status: 'PURCHASE_STARTED', label: 'Ankauf gestartet', date: property?.purchaseStartedAt },
-    { action: 'notary_appointment', status: 'NOTARY_APPOINTMENT', label: 'Notartermin', date: property?.notaryAppointmentAt },
-    { action: 'purchased', status: 'PURCHASED', label: 'Angekauft', date: property?.purchasedAt },
-    { action: 'enter_portfolio', status: 'IN_PORTFOLIO', label: 'In Bestand übernehmen', date: property?.portfolioEnteredAt },
+    { action: null, status: 'SUBMITTED', label: 'Eingereicht', date: property?.createdAt },
+    { action: 'indicative_offer_sent', status: 'INDICATIVE_OFFER_SENT', label: 'Unverbindl. Angebot (UVA) abgegeben', date: property?.indicativeOfferSentAt },
+    { action: 'offer_accepted', status: 'OFFER_ACCEPTED', label: 'UVA angenommen', date: property?.offerAcceptedAt },
+    { action: 'expert_opinion_ordered', status: 'EXPERT_OPINION_ORDERED', label: 'Gutachten beauftragt', date: property?.expertOpinionOrderedAt },
+    { action: 'expert_opinion_received', status: 'EXPERT_OPINION_RECEIVED', label: 'Gutachten eingegangen', date: property?.expertOpinionReceivedAt },
+    { action: 'binding_offer_sent', status: 'BINDING_OFFER_SENT', label: 'Verbindl. Angebot (VA) abgegeben', date: property?.bindingOfferSentAt },
+    { action: 'binding_offer_accepted', status: 'BINDING_OFFER_ACCEPTED', label: 'VA angenommen', date: property?.bindingOfferAcceptedAt },
+    { action: 'notary_appointment_ordered', status: 'NOTARY_APPOINTMENT', label: 'Notartermin beauftragt', date: property?.notaryAppointmentAt, needsDate: true },
+    { action: 'contract_signed', status: 'IN_PORTFOLIO', label: 'Kaufvertrag abgeschlossen', date: property?.portfolioEnteredAt },
   ];
-  const acquisitionStatusIndex = acquisitionSteps.findIndex((step) => step.status === property?.status);
+  const acquisitionStatusAliases = {
+    DATA_INCOMPLETE: 'SUBMITTED',
+    VALUATION_PENDING: 'SUBMITTED',
+    VALUATED: 'SUBMITTED',
+    OFFER_CALCULATED: 'SUBMITTED',
+    OFFER_DRAFTED: 'SUBMITTED',
+    INTERNAL_REVIEW: 'SUBMITTED',
+    APPROVED: 'SUBMITTED',
+    SENT: 'SUBMITTED',
+    PURCHASED: 'IN_PORTFOLIO',
+    WON: 'IN_PORTFOLIO'
+  };
+  const workflowStatus = acquisitionStatusAliases[property?.status] || property?.status;
+  const acquisitionStatusIndex = acquisitionSteps.findIndex((step) => step.status === workflowStatus);
   const handleAcquisitionAction = (step) => runCaseAction(step.label, async () => {
-    await postJson(`/api/properties/${c.propertyId}/workflow`, { action: step.action });
+    if (!step.action) return;
+    if (step.needsDate && !notaryAppointmentDate && !property?.notaryAppointmentAt) {
+      throw new Error('Bitte zuerst den Notartermin eintragen.');
+    }
+    await postJson(`/api/properties/${c.propertyId}/workflow`, {
+      action: step.action,
+      notaryAppointmentAt: step.needsDate ? (notaryAppointmentDate || property?.notaryAppointmentAt) : undefined
+    });
+  });
+  const workflowAction = (action) => acquisitionSteps.find((step) => step.action === action);
+  const runWorkflowAction = (action) => {
+    const step = workflowAction(action);
+    if (!step) {
+      setNotice?.('Dieser Prozessschritt ist nicht vorbereitet.');
+      return;
+    }
+    handleAcquisitionAction(step);
+  };
+  const workflowActionState = (action) => {
+    const index = acquisitionSteps.findIndex((step) => step.action === action);
+    const step = acquisitionSteps[index];
+    if (index < 0 || !step) return { step: null, reached: false, nextAllowed: false, disabled: true };
+    const reached = acquisitionStatusIndex >= index || Boolean(step.date);
+    const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
+    const needsDateBeforeAction = step.needsDate && nextAllowed && !notaryAppointmentDate && !property?.notaryAppointmentAt;
+    return {
+      step,
+      reached,
+      nextAllowed,
+      disabled: Boolean(busyAction) || reached || !nextAllowed || needsDateBeforeAction
+    };
+  };
+  const workflowButtonStyle = ({ reached, nextAllowed, disabled }) => ({
+    background: reached ? `${theme.aubergine}0A` : nextAllowed ? theme.aubergine : 'white',
+    border: `1px solid ${reached || nextAllowed ? theme.aubergine : theme.border}`,
+    color: reached ? theme.aubergine : nextAllowed ? 'white' : `${theme.ink}66`,
+    borderRadius: 5,
+    padding: '7px 11px',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: disabled ? 'default' : 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    opacity: disabled && !reached ? 0.58 : 1
   });
   const uploadDocument = () => runCaseAction('Dokument-Upload', async () => {
     if (!uploadFile) {
@@ -2193,13 +2268,15 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                             ))}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
-                            <button onClick={markIndicativeOfferSent} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, borderRadius: 5, padding: '7px 11px', fontSize: 12, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                              Unverbindliches Angebot verschickt
-                            </button>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>
-                              <input type="checkbox" checked={Boolean(acceptedIndicativeOffers[key])} onChange={(event) => setAcceptedIndicativeOffers({ ...acceptedIndicativeOffers, [key]: event.target.checked })} style={{ accentColor: theme.aubergine }} />
-                              Angebot angenommen
-                            </label>
+                            {['indicative_offer_sent', 'offer_accepted'].map((action) => {
+                              const state = workflowActionState(action);
+                              return (
+                                <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                                  {state.reached ? <CheckCircle size={13} /> : null}
+                                  {state.step?.label || action}
+                                </button>
+                              );
+                            })}
                           </div>
                         </>
                       ) : (
@@ -2221,6 +2298,41 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Verbindliches Angebot</div>
               <div style={{ fontSize: 13, color: `${theme.ink}88`, whiteSpace: 'pre-line' }}>{latestOffer?.aiCustomerText || latestOffer?.bindingOfferText || 'Noch nicht erstellt.'}</div>
+              {role === 'admin' && (
+                <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 12 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Prozessschritte speichern</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
+                    {['expert_opinion_ordered', 'expert_opinion_received', 'binding_offer_sent', 'binding_offer_accepted'].map((action) => {
+                      const state = workflowActionState(action);
+                      return (
+                        <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                          {state.reached ? <CheckCircle size={13} /> : null}
+                          {state.step?.label || action}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 240px) auto auto', gap: 9, alignItems: 'center' }}>
+                    <input
+                      type="datetime-local"
+                      value={notaryAppointmentDate}
+                      onChange={(event) => setNotaryAppointmentDate(event.target.value)}
+                      disabled={workflowActionState('notary_appointment_ordered').reached}
+                      title="Notartermin"
+                      style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    />
+                    {['notary_appointment_ordered', 'contract_signed'].map((action) => {
+                      const state = workflowActionState(action);
+                      return (
+                        <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                          {state.reached ? <CheckCircle size={13} /> : null}
+                          {state.step?.label || action}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2237,32 +2349,48 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
               {acquisitionSteps.map((step, index) => {
                 const reached = acquisitionStatusIndex >= index || Boolean(step.date);
                 const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
-                const disabled = Boolean(busyAction) || reached || !nextAllowed;
+                const needsDateBeforeAction = step.needsDate && nextAllowed && !notaryAppointmentDate && !property?.notaryAppointmentAt;
+                const disabled = Boolean(busyAction) || reached || !nextAllowed || !step.action || needsDateBeforeAction;
                 return (
-                  <button key={step.action} onClick={() => handleAcquisitionAction(step)} disabled={disabled} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 10,
-                    background: reached ? `${theme.aubergine}0A` : nextAllowed ? theme.aubergine : 'white',
-                    color: reached ? theme.aubergine : nextAllowed ? 'white' : `${theme.ink}66`,
-                    border: `1px solid ${reached || nextAllowed ? theme.aubergine : theme.border}`,
-                    borderRadius: 6,
-                    padding: '8px 10px',
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    cursor: disabled ? 'default' : 'pointer',
-                    opacity: disabled && !reached ? 0.55 : 1,
-                    textAlign: 'left'
-                  }}>
-                    <span>{step.label}</span>
-                    {reached ? <CheckCircle size={14} /> : <ChevronRight size={14} />}
-                  </button>
+                  <div key={step.status} style={{ display: 'grid', gap: 6 }}>
+                    {step.needsDate && (nextAllowed || reached) && (
+                      <input
+                        type="datetime-local"
+                        value={notaryAppointmentDate}
+                        onChange={(event) => setNotaryAppointmentDate(event.target.value)}
+                        disabled={reached}
+                        title="Notartermin"
+                        style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box', background: reached ? theme.mintLighter : 'white' }}
+                      />
+                    )}
+                    <button onClick={() => handleAcquisitionAction(step)} disabled={disabled} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      background: reached ? `${theme.aubergine}0A` : nextAllowed ? theme.aubergine : 'white',
+                      color: reached ? theme.aubergine : nextAllowed ? 'white' : `${theme.ink}66`,
+                      border: `1px solid ${reached || nextAllowed ? theme.aubergine : theme.border}`,
+                      borderRadius: 6,
+                      padding: '8px 10px',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      cursor: disabled ? 'default' : 'pointer',
+                      opacity: disabled && !reached ? 0.55 : 1,
+                      textAlign: 'left'
+                    }}>
+                      <span>{step.label}</span>
+                      {reached ? <CheckCircle size={14} /> : <ChevronRight size={14} />}
+                    </button>
+                    {step.needsDate && reached && property?.notaryAppointmentAt && (
+                      <div style={{ fontSize: 11, color: `${theme.ink}88`, paddingLeft: 2 }}>Termin: {dateLabel(property.notaryAppointmentAt)}</div>
+                    )}
+                  </div>
                 );
               })}
             </div>
             <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 10, lineHeight: 1.45 }}>
-              Der Bestand beginnt, sobald der Fall als angekauft markiert und anschließend übernommen wurde.
+              Der Bestand beginnt, sobald der Kaufvertrag abgeschlossen wurde.
             </div>
           </div>
         )}

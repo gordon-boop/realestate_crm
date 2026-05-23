@@ -158,7 +158,21 @@ export const leadStatusSchema = z.object({
 });
 
 export const acquisitionWorkflowSchema = z.object({
-  action: z.enum(["indicative_offer_sent", "offer_accepted", "purchase_started", "notary_appointment", "purchased", "enter_portfolio"])
+  action: z.enum([
+    "indicative_offer_sent",
+    "offer_accepted",
+    "expert_opinion_ordered",
+    "expert_opinion_received",
+    "binding_offer_sent",
+    "binding_offer_accepted",
+    "notary_appointment_ordered",
+    "contract_signed",
+    "purchase_started",
+    "notary_appointment",
+    "purchased",
+    "enter_portfolio"
+  ]),
+  notaryAppointmentAt: optionalString
 });
 
 export const propertyRejectSchema = z.object({

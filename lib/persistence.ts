@@ -56,6 +56,11 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     followUpDueAt: iso(property.followUpDueAt),
     customerFeedbackReceivedAt: iso(property.customerFeedbackReceivedAt),
     rejectedAt: iso(property.rejectedAt),
+    indicativeOfferSentAt: iso(property.indicativeOfferSentAt),
+    expertOpinionOrderedAt: iso(property.expertOpinionOrderedAt),
+    expertOpinionReceivedAt: iso(property.expertOpinionReceivedAt),
+    bindingOfferSentAt: iso(property.bindingOfferSentAt),
+    bindingOfferAcceptedAt: iso(property.bindingOfferAcceptedAt),
     offerAcceptedAt: iso(property.offerAcceptedAt),
     purchaseStartedAt: iso(property.purchaseStartedAt),
     notaryAppointmentAt: iso(property.notaryAppointmentAt),
@@ -360,22 +365,31 @@ export async function convertDbLeadToCase(leadId: string, partnerId: string, use
 
 export async function advanceDbAcquisitionWorkflow(
   propertyId: string,
-  action: "indicative_offer_sent" | "offer_accepted" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
-  userId: string
+  action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted" | "notary_appointment_ordered" | "contract_signed" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
+  userId: string,
+  options: { notaryAppointmentAt?: string } = {}
 ) {
   const now = new Date();
+  const parsedNotaryDate = options.notaryAppointmentAt ? new Date(options.notaryAppointmentAt) : now;
+  const notaryDate = Number.isNaN(parsedNotaryDate.getTime()) ? now : parsedNotaryDate;
   const config = {
-    indicative_offer_sent: { status: "INDICATIVE_OFFER_SENT", field: "lastActivityAt", type: "indicative_offer_sent", message: "Unverbindliches Angebot wurde abgegeben." },
-    offer_accepted: { status: "OFFER_ACCEPTED", field: "offerAcceptedAt", type: "offer_accepted", message: "Kunde hat das Angebot angenommen." },
-    purchase_started: { status: "PURCHASE_STARTED", field: "purchaseStartedAt", type: "purchase_started", message: "Ankaufsprozess wurde gestartet." },
-    notary_appointment: { status: "NOTARY_APPOINTMENT", field: "notaryAppointmentAt", type: "notary_appointment", message: "Notartermin wurde vereinbart." },
-    purchased: { status: "PURCHASED", field: "purchasedAt", type: "property_purchased", message: "Immobilie wurde angekauft." },
+    indicative_offer_sent: { status: "INDICATIVE_OFFER_SENT", data: { indicativeOfferSentAt: now }, type: "indicative_offer_sent", message: "Unverbindliches Angebot (UVA) wurde abgegeben." },
+    offer_accepted: { status: "OFFER_ACCEPTED", data: { offerAcceptedAt: now }, type: "offer_accepted", message: "Unverbindliches Angebot (UVA) wurde angenommen." },
+    expert_opinion_ordered: { status: "EXPERT_OPINION_ORDERED", data: { expertOpinionOrderedAt: now }, type: "expert_opinion_ordered", message: "Gutachten wurde beauftragt." },
+    expert_opinion_received: { status: "EXPERT_OPINION_RECEIVED", data: { expertOpinionReceivedAt: now }, type: "expert_opinion_received", message: "Gutachten ist eingegangen." },
+    binding_offer_sent: { status: "BINDING_OFFER_SENT", data: { bindingOfferSentAt: now }, type: "binding_offer_sent", message: "Verbindliches Angebot (VA) wurde abgegeben." },
+    binding_offer_accepted: { status: "BINDING_OFFER_ACCEPTED", data: { bindingOfferAcceptedAt: now }, type: "binding_offer_accepted", message: "Verbindliches Angebot (VA) wurde angenommen." },
+    notary_appointment_ordered: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: notaryDate }, type: "notary_appointment_ordered", message: "Notartermin wurde beauftragt." },
+    contract_signed: { status: "IN_PORTFOLIO", data: { purchasedAt: now, portfolioEnteredAt: now }, type: "contract_signed", message: "Kaufvertrag wurde abgeschlossen. Der Fall ist in den Bestand gewechselt." },
+    purchase_started: { status: "PURCHASE_STARTED", data: { purchaseStartedAt: now }, type: "purchase_started", message: "Ankaufsprozess wurde gestartet." },
+    notary_appointment: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: now }, type: "notary_appointment", message: "Notartermin wurde vereinbart." },
+    purchased: { status: "PURCHASED", data: { purchasedAt: now }, type: "property_purchased", message: "Immobilie wurde angekauft." },
     enter_portfolio: { status: "IN_PORTFOLIO", field: "portfolioEnteredAt", type: "portfolio_entered", message: "Immobilie wurde in den Bestand übernommen." }
   }[action];
 
   const property = await prisma.property.update({
     where: { id: propertyId },
-    data: { status: config.status as PropertyStatus, [config.field]: now }
+    data: { status: config.status as PropertyStatus, ...(config.data || { [config.field]: now }) }
   });
   await addDbActivity(propertyId, userId, config.type, config.message, { source: "admin", entityType: "property", entityId: propertyId });
   return property;

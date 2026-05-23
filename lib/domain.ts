@@ -27,6 +27,10 @@ export type PropertyStatus =
   | "SENT"
   | "INDICATIVE_OFFER_SENT"
   | "OFFER_ACCEPTED"
+  | "EXPERT_OPINION_ORDERED"
+  | "EXPERT_OPINION_RECEIVED"
+  | "BINDING_OFFER_SENT"
+  | "BINDING_OFFER_ACCEPTED"
   | "PURCHASE_STARTED"
   | "NOTARY_APPOINTMENT"
   | "PURCHASED"
@@ -196,6 +200,11 @@ export type Property = {
   rejectionNote?: string;
   rejectedAt?: string;
   rejectedByUserId?: string;
+  indicativeOfferSentAt?: string;
+  expertOpinionOrderedAt?: string;
+  expertOpinionReceivedAt?: string;
+  bindingOfferSentAt?: string;
+  bindingOfferAcceptedAt?: string;
   offerCalculationSource?: string;
   offerAcceptedAt?: string;
   purchaseStartedAt?: string;

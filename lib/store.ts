@@ -460,8 +460,9 @@ export function updatePropertyStatus(propertyId: string, status: PropertyStatus)
 
 export function advanceAcquisitionWorkflow(
   propertyId: string,
-  action: "indicative_offer_sent" | "offer_accepted" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
-  userId: string
+  action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted" | "notary_appointment_ordered" | "contract_signed" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
+  userId: string,
+  options: { notaryAppointmentAt?: string } = {}
 ): Property {
   const property = properties.find((item) => item.id === propertyId);
   if (!property) {
@@ -469,47 +470,84 @@ export function advanceAcquisitionWorkflow(
   }
 
   const now = nowIso();
+  const notaryAt = options.notaryAppointmentAt || now;
   const config = {
     indicative_offer_sent: {
       status: "INDICATIVE_OFFER_SENT" as const,
-      field: "lastActivityAt" as const,
+      data: { indicativeOfferSentAt: now },
       type: "indicative_offer_sent",
-      message: "Unverbindliches Angebot wurde abgegeben."
+      message: "Unverbindliches Angebot (UVA) wurde abgegeben."
     },
     offer_accepted: {
       status: "OFFER_ACCEPTED" as const,
-      field: "offerAcceptedAt" as const,
+      data: { offerAcceptedAt: now },
       type: "offer_accepted",
-      message: "Kunde hat das Angebot angenommen."
+      message: "Unverbindliches Angebot (UVA) wurde angenommen."
+    },
+    expert_opinion_ordered: {
+      status: "EXPERT_OPINION_ORDERED" as const,
+      data: { expertOpinionOrderedAt: now },
+      type: "expert_opinion_ordered",
+      message: "Gutachten wurde beauftragt."
+    },
+    expert_opinion_received: {
+      status: "EXPERT_OPINION_RECEIVED" as const,
+      data: { expertOpinionReceivedAt: now },
+      type: "expert_opinion_received",
+      message: "Gutachten ist eingegangen."
+    },
+    binding_offer_sent: {
+      status: "BINDING_OFFER_SENT" as const,
+      data: { bindingOfferSentAt: now },
+      type: "binding_offer_sent",
+      message: "Verbindliches Angebot (VA) wurde abgegeben."
+    },
+    binding_offer_accepted: {
+      status: "BINDING_OFFER_ACCEPTED" as const,
+      data: { bindingOfferAcceptedAt: now },
+      type: "binding_offer_accepted",
+      message: "Verbindliches Angebot (VA) wurde angenommen."
+    },
+    notary_appointment_ordered: {
+      status: "NOTARY_APPOINTMENT" as const,
+      data: { notaryAppointmentAt: notaryAt },
+      type: "notary_appointment_ordered",
+      message: "Notartermin wurde beauftragt."
+    },
+    contract_signed: {
+      status: "IN_PORTFOLIO" as const,
+      data: { purchasedAt: now, portfolioEnteredAt: now },
+      type: "contract_signed",
+      message: "Kaufvertrag wurde abgeschlossen. Der Fall ist in den Bestand gewechselt."
     },
     purchase_started: {
       status: "PURCHASE_STARTED" as const,
-      field: "purchaseStartedAt" as const,
+      data: { purchaseStartedAt: now },
       type: "purchase_started",
       message: "Ankaufsprozess wurde gestartet."
     },
     notary_appointment: {
       status: "NOTARY_APPOINTMENT" as const,
-      field: "notaryAppointmentAt" as const,
+      data: { notaryAppointmentAt: now },
       type: "notary_appointment",
       message: "Notartermin wurde vereinbart."
     },
     purchased: {
       status: "PURCHASED" as const,
-      field: "purchasedAt" as const,
+      data: { purchasedAt: now },
       type: "property_purchased",
       message: "Immobilie wurde angekauft."
     },
     enter_portfolio: {
       status: "IN_PORTFOLIO" as const,
-      field: "portfolioEnteredAt" as const,
+      data: { portfolioEnteredAt: now },
       type: "portfolio_entered",
       message: "Immobilie wurde in den Bestand übernommen."
     }
   }[action];
 
   property.status = config.status;
-  property[config.field] = now;
+  Object.assign(property, config.data);
   property.updatedAt = now;
   addActivity(property.id, userId, config.type, config.message, {
     source: "admin",

@@ -11,7 +11,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
 
     const body = acquisitionWorkflowSchema.parse(await request.json());
-    const property = await advanceDbAcquisitionWorkflow(params.id, body.action, user.id);
+    const property = await advanceDbAcquisitionWorkflow(params.id, body.action, user.id, {
+      notaryAppointmentAt: body.notaryAppointmentAt
+    });
     return json({ property });
   } catch (err) {
     return handleApiError(err);

@@ -66,6 +66,10 @@ enum PropertyStatus {
   SENT
   INDICATIVE_OFFER_SENT
   OFFER_ACCEPTED
+  EXPERT_OPINION_ORDERED
+  EXPERT_OPINION_RECEIVED
+  BINDING_OFFER_SENT
+  BINDING_OFFER_ACCEPTED
   PURCHASE_STARTED
   NOTARY_APPOINTMENT
   PURCHASED
@@ -395,6 +399,11 @@ model Property {
   rejectionNote                String?           @map("rejection_note")
   rejectedAt                   DateTime?         @map("rejected_at")
   rejectedByUserId             String?           @map("rejected_by_user_id")
+  indicativeOfferSentAt        DateTime?         @map("indicative_offer_sent_at")
+  expertOpinionOrderedAt       DateTime?         @map("expert_opinion_ordered_at")
+  expertOpinionReceivedAt      DateTime?         @map("expert_opinion_received_at")
+  bindingOfferSentAt           DateTime?         @map("binding_offer_sent_at")
+  bindingOfferAcceptedAt       DateTime?         @map("binding_offer_accepted_at")
   offerCalculationSource       String?           @map("offer_calculation_source")
   offerAcceptedAt              DateTime?         @map("offer_accepted_at")
   purchaseStartedAt            DateTime?         @map("purchase_started_at")
