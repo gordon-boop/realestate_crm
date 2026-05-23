@@ -1600,12 +1600,16 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const [rejectionReasonCode, setRejectionReasonCode] = useState('location');
   const [rejectionNote, setRejectionNote] = useState('');
   const [notaryAppointmentDate, setNotaryAppointmentDate] = useState('');
+  const [expertOpinionValue, setExpertOpinionValue] = useState('');
   const c = cases.find(x => x.propertyId === caseId || x.id === caseId) || mockCases[0];
   const caseView = c.raw;
   const customer = caseView?.customer;
   const property = caseView?.property;
   const latestOffer = caseView?.offer;
   const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
+  const indicativeOffers = productOffers.filter((offer) => offer.kind !== 'binding');
+  const bindingOffers = productOffers.filter((offer) => offer.kind === 'binding');
+  const hasBindingOffer = bindingOffers.length > 0;
   const requestedOfferModels = property ? [
     {
       key: property.desiredModel || 'fixed_residential_right',
@@ -1772,6 +1776,26 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     await postJson(`/api/properties/${c.propertyId}/offer/calculate`, { model });
     await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
   });
+  const calculateBindingOffer = (modelRequest, index) => runCaseAction('VA-Kalkulation', async () => {
+    const parsedExpertOpinionValue = Number(String(expertOpinionValue).replace(',', '.'));
+    if (!Number.isFinite(parsedExpertOpinionValue) || parsedExpertOpinionValue <= 0) {
+      throw new Error('Bitte zuerst den Gutachtenwert eintragen.');
+    }
+    const key = `binding-${modelRequest.key}-${index}`;
+    const params = calculationParams[key] || {};
+    await postJson(`/api/properties/${c.propertyId}/offer/calculate`, {
+      kind: 'binding',
+      model: modelRequest.model,
+      inputs: {
+        ...params,
+        expertOpinionValue: parsedExpertOpinionValue,
+        residentialRightYears: modelRequest.residentialRightYears || property?.desiredResidentialRightYears,
+        livingAreaSqm: property?.livingAreaSqm,
+        garageCount: property?.parkingAvailable ? property?.parkingCount : 0,
+      }
+    });
+    await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
+  });
   const markIndicativeOfferSent = () => runCaseAction('Unverbindliches Angebot verschickt', async () => {
     await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'indicative_offer_sent' });
   });
@@ -1845,11 +1869,12 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     const reached = acquisitionStatusIndex >= index || Boolean(step.date);
     const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
     const needsDateBeforeAction = step.needsDate && nextAllowed && !notaryAppointmentDate && !property?.notaryAppointmentAt;
+    const missingBindingOffer = action === 'binding_offer_sent' && !hasBindingOffer;
     return {
       step,
       reached,
       nextAllowed,
-      disabled: Boolean(busyAction) || reached || !nextAllowed || needsDateBeforeAction
+      disabled: Boolean(busyAction) || reached || !nextAllowed || needsDateBeforeAction || missingBindingOffer
     };
   };
   const workflowButtonStyle = ({ reached, nextAllowed, disabled }) => ({
@@ -2208,7 +2233,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Unverbindliches Angebot</div>
               <div style={{ display: 'grid', gap: 12 }}>
                 {requestedOfferModels.map((modelRequest, index) => {
-                  const offer = productOffers.find((item) => item.model === modelRequest.model);
+                  const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
                   const key = `${modelRequest.key}-${index}`;
                   const params = calculationParams[key] || {};
                   const quote = offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
@@ -2297,7 +2322,78 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
           {activeTab === 'verbag' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Verbindliches Angebot</div>
-              <div style={{ fontSize: 13, color: `${theme.ink}88`, whiteSpace: 'pre-line' }}>{latestOffer?.aiCustomerText || latestOffer?.bindingOfferText || 'Noch nicht erstellt.'}</div>
+              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5, marginBottom: 14 }}>
+                Nach Eingang des Gutachtens wird das verbindliche Angebot auf Basis des Gutachtenwerts neu berechnet. Die UVA bleibt als eigene Version bestehen.
+              </div>
+              <div style={{ display: 'grid', gap: 12 }}>
+                {requestedOfferModels.map((modelRequest, index) => {
+                  const bindingOffer = bindingOffers.find((item) => item.model === modelRequest.model);
+                  const key = `binding-${modelRequest.key}-${index}`;
+                  const params = calculationParams[key] || {};
+                  const quote = bindingOffer?.payoutAmount && bindingOffer?.marketValue ? Math.round((bindingOffer.payoutAmount / bindingOffer.marketValue) * 100) : undefined;
+                  return (
+                    <div key={key} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: theme.mintLighter }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 800 }}>{modelRequest.primary ? 'Hauptmodell' : 'Zweites Angebot'} · {labelFrom(productModelLabels, modelRequest.model)}</div>
+                          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>
+                            Basis für VA: Gutachtenwert statt erster Schätzung
+                          </div>
+                        </div>
+                        {bindingOffer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>VA berechnet</span> : null}
+                      </div>
+
+                      {role === 'admin' && (
+                        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+                            <Field label="Gutachtenwert (€)" required>
+                              <Input type="number" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(event.target.value)} placeholder="z.B. 520000" />
+                            </Field>
+                            <Field label="Instandhaltung (€)">
+                              <Input type="number" value={params.maintenancePledge || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, maintenancePledge: event.target.value } })} />
+                            </Field>
+                            <Field label="Interne Verzinsung (%)">
+                              <Input type="number" value={params.interestRate || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, interestRate: event.target.value } })} />
+                            </Field>
+                            <Field label="Auszahlungsquote Rückmiete (%)">
+                              <Input type="number" value={params.saleAndLeasebackPayoutRate || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, saleAndLeasebackPayoutRate: event.target.value } })} />
+                            </Field>
+                          </div>
+                          <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
+                            {busyAction ? 'Berechnet...' : 'VA auf Gutachtenwert kalkulieren'}
+                          </button>
+                        </div>
+                      )}
+
+                      {bindingOffer ? (
+                        <>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px 16px' }}>
+                            {[
+                              ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
+                              ['Wohnrechtswert', bindingOffer.residentialRightValue ? formatEuro(bindingOffer.residentialRightValue) : '-'],
+                              ['Risikoabschlag', bindingOffer.riskDiscount ? formatEuro(bindingOffer.riskDiscount) : '-'],
+                              ['Marge', bindingOffer.companyMargin ? formatEuro(bindingOffer.companyMargin) : '-'],
+                              ['VA-Auszahlung', `${formatEuro(bindingOffer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                            ].map(([k, v], i) => (
+                              <div key={i}>
+                                <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, marginBottom: 3 }}>{k}</div>
+                                <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: k.includes('Auszahlung') ? 800 : 500 }}>{v}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}`, fontSize: 12.5, color: `${theme.ink}88`, whiteSpace: 'pre-line' }}>
+                            {bindingOffer.aiCustomerText || bindingOffer.bindingOfferText || 'VA-Kalkulation erstellt. Textentwurf noch nicht vorhanden.'}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', fontSize: 12.5, color: `${theme.ink}88` }}>
+                          Noch keine VA-Kalkulation vorhanden.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
               {role === 'admin' && (
                 <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 12 }}>
                   <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Prozessschritte speichern</div>
@@ -2350,7 +2446,8 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                 const reached = acquisitionStatusIndex >= index || Boolean(step.date);
                 const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
                 const needsDateBeforeAction = step.needsDate && nextAllowed && !notaryAppointmentDate && !property?.notaryAppointmentAt;
-                const disabled = Boolean(busyAction) || reached || !nextAllowed || !step.action || needsDateBeforeAction;
+                const missingBindingOffer = step.action === 'binding_offer_sent' && !hasBindingOffer;
+                const disabled = Boolean(busyAction) || reached || !nextAllowed || !step.action || needsDateBeforeAction || missingBindingOffer;
                 return (
                   <div key={step.status} style={{ display: 'grid', gap: 6 }}>
                     {step.needsDate && (nextAllowed || reached) && (

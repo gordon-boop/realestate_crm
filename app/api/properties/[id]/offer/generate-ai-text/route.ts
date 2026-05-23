@@ -26,8 +26,17 @@ export async function POST(_request: Request, { params }: { params: { id: string
     await prisma.offerVersion.create({
       data: { offerId: offer.id, version: offer.currentVersion, snapshotJson: toJsonSnapshot(offer), createdByUserId: user.id }
     });
-    await updateDbPropertyStatus(params.id, "INTERNAL_REVIEW");
-    await addDbActivity(params.id, user.id, "ai_text_created", "Mock-KI hat Angebotsentwurf erstellt.");
+    if (caseView.offer.kind !== "binding") {
+      await updateDbPropertyStatus(params.id, "INTERNAL_REVIEW");
+    }
+    await addDbActivity(
+      params.id,
+      user.id,
+      "ai_text_created",
+      caseView.offer.kind === "binding"
+        ? "Mock-KI hat den Entwurf für das verbindliche Angebot erstellt."
+        : "Mock-KI hat Angebotsentwurf erstellt."
+    );
     return json({ offer });
   } catch (err) {
     return handleApiError(err);

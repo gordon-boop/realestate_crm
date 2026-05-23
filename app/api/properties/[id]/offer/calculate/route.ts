@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 type CalculateOfferBody = {
   model?: DesiredModel;
+  kind?: "indicative" | "binding";
   inputs?: Record<string, number | string | undefined>;
 };
 
@@ -24,12 +25,44 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
     if (!caseView.valuation) throw new Error("Valuation required before offer calculation");
+
     const body = (await request.json().catch(() => ({}))) as CalculateOfferBody;
     const model = body.model ?? caseView.property.desiredModel;
+    const kind = body.kind ?? "indicative";
     const residentialRightYears = readNumber(body.inputs, "residentialRightYears") ?? caseView.property.desiredResidentialRightYears;
+    const expertOpinionValue = readNumber(body.inputs, "expertOpinionValue");
+
+    if (kind === "binding" && !expertOpinionValue) {
+      throw new Error("Gutachtenwert required before binding offer calculation");
+    }
+
+    const calculationValuation = kind === "binding" && expertOpinionValue
+      ? await prisma.valuation.create({
+          data: {
+            propertyId: params.id,
+            provider: "sprengnetter",
+            status: "completed",
+            sourceLabel: "Gutachtenwert",
+            marketValue: expertOpinionValue,
+            valueMin: expertOpinionValue,
+            valueMax: expertOpinionValue,
+            confidenceScore: 1,
+            rawResponseJson: {
+              source: "manual_expert_opinion",
+              expertOpinionValue,
+              note: "Gutachtenwert wurde manuell für die VA-Kalkulation hinterlegt."
+            },
+            completedAt: new Date()
+          }
+        })
+      : caseView.valuation;
 
     const calculation = calculateOffer({
-      valuation: caseView.valuation,
+      valuation: {
+        ...caseView.valuation,
+        id: calculationValuation.id,
+        marketValue: Number(calculationValuation.marketValue)
+      },
       condition: caseView.property.condition,
       model,
       residentialRightYears,
@@ -55,14 +88,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
       annualRentIncome: readNumber(body.inputs, "annualRentIncome")
     });
 
-    const existing = await prisma.offer.findFirst({ where: { propertyId: params.id, model: model as never } });
+    const existing = await prisma.offer.findFirst({ where: { propertyId: params.id, model: model as never, kind } });
     const offerNumber = existing?.offerNumber ?? `ANG-2026-${String((await prisma.offer.count()) + 1).padStart(4, "0")}`;
     const offer = existing
       ? await prisma.offer.update({
           where: { id: existing.id },
           data: {
             currentVersion: { increment: 1 },
-            valuationId: caseView.valuation.id,
+            valuationId: calculationValuation.id,
             marketValue: calculation.marketValue,
             adjustedMarketValue: calculation.adjustedMarketValue,
             residentialRightValue: calculation.residentialRightValue,
@@ -72,15 +105,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
             model: model as never,
             residentialRightYears,
             assumptionsJson: calculation.assumptions,
-            status: "draft"
+            status: kind === "binding" ? "review" : "draft"
           }
         })
       : await prisma.offer.create({
           data: {
             propertyId: params.id,
-            valuationId: caseView.valuation.id,
+            valuationId: calculationValuation.id,
             offerNumber,
-            kind: "indicative",
+            kind,
             currentVersion: 1,
             marketValue: calculation.marketValue,
             adjustedMarketValue: calculation.adjustedMarketValue,
@@ -91,7 +124,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             model: model as never,
             residentialRightYears,
             assumptionsJson: calculation.assumptions,
-            status: "draft"
+            status: kind === "binding" ? "review" : "draft"
           }
         });
 
@@ -107,13 +140,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
       where: { id: params.id },
       data: { offerCalculationSource: calculation.assumptions.sourceWorkbook ?? "application" }
     });
-    await updateDbPropertyStatus(params.id, "OFFER_CALCULATED");
+    if (kind === "indicative") {
+      await updateDbPropertyStatus(params.id, "OFFER_CALCULATED");
+    }
     await addDbActivity(
       params.id,
       user.id,
-      "offer_calculated",
-      `Indikatives Angebot für ${model === "sale_and_leaseback" ? "Rückmietmodell" : "Verrentungsmodell"} wurde berechnet.`,
-      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model } }
+      kind === "binding" ? "binding_offer_calculated" : "offer_calculated",
+      `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${model === "sale_and_leaseback" ? "Rückmietmodell" : "Verrentungsmodell"} wurde berechnet.`,
+      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, kind, expertOpinionValue } }
     );
     return json({ offer }, { status: existing ? 200 : 201 });
   } catch (err) {
