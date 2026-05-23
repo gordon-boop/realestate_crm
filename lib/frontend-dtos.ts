@@ -97,6 +97,7 @@ export type CaseIntakeDraftDto = {
   };
   model: {
     residentialRightRecipients?: ResidentialRightRecipients;
+    residentialRightPerson?: string;
     desiredResidentialRightYears?: number;
     secondResidentialRightWanted?: boolean;
     secondResidentialRightYears?: number;
@@ -105,8 +106,11 @@ export type CaseIntakeDraftDto = {
     rentalModelDisclosureAccepted?: boolean;
     additionalOfferRequested?: boolean;
     additionalOfferModel?: "fixed_residential_right" | "sale_and_leaseback" | "other";
+    additionalOfferResidentialRightRecipients?: ResidentialRightRecipients;
+    additionalOfferResidentialRightPerson?: string;
     additionalOfferResidentialRightYears?: number;
     additionalOfferReason?: string;
+    additionalOfferRentalModelDisclosureAccepted?: boolean;
     rentalOptionDeselected?: boolean;
   };
   property: {

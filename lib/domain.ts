@@ -145,6 +145,7 @@ export type Property = {
   desiredModel: DesiredModel;
   preferredValuationProvider?: ValuationProvider;
   residentialRightRecipients?: ResidentialRightRecipients;
+  residentialRightPerson?: string;
   desiredResidentialRightYears?: number;
   secondResidentialRightWanted?: boolean;
   secondResidentialRightYears?: number;
@@ -153,8 +154,11 @@ export type Property = {
   rentalModelDisclosureAccepted?: boolean;
   additionalOfferRequested?: boolean;
   additionalOfferModel?: DesiredModel;
+  additionalOfferResidentialRightRecipients?: ResidentialRightRecipients;
+  additionalOfferResidentialRightPerson?: string;
   additionalOfferResidentialRightYears?: number;
   additionalOfferReason?: string;
+  additionalOfferRentalModelDisclosureAccepted?: boolean;
   rentalOptionDeselected?: boolean;
   usableAreaSqm?: number;
   coOwnershipShares?: string;

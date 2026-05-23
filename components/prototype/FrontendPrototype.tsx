@@ -559,12 +559,16 @@ const defaultDraft = {
   occupancyStatus: '',
   desiredModel: '',
   residentialRightRecipients: '',
+  residentialRightPerson: '',
   desiredResidentialRightYears: '',
   rentalModelDisclosureAccepted: false,
   additionalOfferRequested: false,
   additionalOfferModel: '',
+  additionalOfferResidentialRightRecipients: '',
+  additionalOfferResidentialRightPerson: '',
   additionalOfferResidentialRightYears: '',
   additionalOfferReason: '',
+  additionalOfferRentalModelDisclosureAccepted: false,
   secondResidentialRightWanted: false,
   secondResidentialRightYears: '',
   fixedTermReason: '',
@@ -583,12 +587,12 @@ const defaultDraft = {
   basementType: '',
   windowMaterial: '',
   windowInstallationYear: '',
-  asbestosRoofKnown: false,
+  asbestosRoofKnown: '',
   visualConditionRating: '',
   energyCarriers: [],
   knownDefects: '',
   generalPropertyNotes: '',
-  remainingDebtKnown: false,
+  remainingDebtKnown: '',
   remainingDebtAmount: '',
   modernization: {
     heating: { scope: 'none', year: '', note: '' },
@@ -599,13 +603,13 @@ const defaultDraft = {
     bathrooms: { scope: 'none', year: '', note: '' },
   },
   buildingCondition: {
-    roof: 'medium',
-    facade: 'medium',
-    masonry: 'medium',
-    bathrooms: 'medium',
-    windows: 'medium',
-    electric: 'medium',
-    outdoor: 'medium',
+    roof: '',
+    facade: '',
+    masonry: '',
+    bathrooms: '',
+    windows: '',
+    electric: '',
+    outdoor: '',
   },
   leasehold: false,
   monumentProtection: false,
@@ -621,6 +625,14 @@ const defaultDraft = {
 function hasValue(value) {
   if (Array.isArray(value)) return value.length > 0;
   return value !== undefined && value !== null && String(value).trim() !== '';
+}
+
+function customerOneName(draft) {
+  return [draft.firstName, draft.lastName].filter(Boolean).join(' ').trim() || 'Kunde 1';
+}
+
+function customerTwoName(draft) {
+  return [draft.spouseFirstName, draft.spouseLastName].filter(Boolean).join(' ').trim() || 'Kunde 2';
 }
 
 function documentFilesForCategory(draft, category) {
@@ -646,6 +658,82 @@ function missingRequiredDocumentFields(draft) {
     }
   }
   return missing;
+}
+
+const validationFieldLabels = {
+  firstName: 'Persönliche Daten: Vorname',
+  lastName: 'Persönliche Daten: Nachname',
+  gender: 'Persönliche Daten: Geschlecht',
+  dateOfBirth: 'Persönliche Daten: Geburtsdatum',
+  maritalStatus: 'Persönliche Daten: Familienstand',
+  monthlyIncomeRange: 'Persönliche Daten: Monatliche Einkünfte',
+  email: 'Persönliche Daten: E-Mail',
+  phone: 'Persönliche Daten: Telefon',
+  street: 'Persönliche Daten: Straße',
+  postalCode: 'Persönliche Daten: PLZ',
+  city: 'Persönliche Daten: Ort',
+  consentDataProcessing: 'Persönliche Daten: Einwilligung zur Datenverarbeitung',
+  spouseFirstName: 'Kunde 2: Vorname',
+  spouseLastName: 'Kunde 2: Nachname',
+  spouseGender: 'Kunde 2: Geschlecht',
+  spouseDateOfBirth: 'Kunde 2: Geburtsdatum',
+  propertyOwnership: 'Kunde 2: Eigentümer-Auswahl',
+  desiredModel: 'Wunschmodell: Hauptmodell',
+  residentialRightRecipients: 'Wunschmodell: Wohnrechtsberechtigte',
+  residentialRightPerson: 'Wunschmodell: Person mit Wohnrecht',
+  desiredResidentialRightYears: 'Wunschmodell: Dauer Wohnrecht',
+  fixedTermReason: 'Wunschmodell: Grund der Befristung',
+  rentalModelDisclosureAccepted: 'Wunschmodell: Belehrung Rückmiete',
+  additionalOfferModel: 'Zweites Angebot: Modell',
+  additionalOfferResidentialRightRecipients: 'Zweites Angebot: Wohnrechtsberechtigte',
+  additionalOfferResidentialRightPerson: 'Zweites Angebot: Person mit Wohnrecht',
+  additionalOfferResidentialRightYears: 'Zweites Angebot: Laufzeit',
+  additionalOfferReason: 'Zweites Angebot: Grund / Hinweis',
+  additionalOfferRentalModelDisclosureAccepted: 'Zweites Angebot: Belehrung Rückmiete',
+  propertyType: 'Immobiliendaten: Immobilientyp',
+  yearBuilt: 'Immobiliendaten: Baujahr',
+  livingAreaSqm: 'Immobiliendaten: Wohnfläche',
+  plotAreaSqm: 'Immobiliendaten: Grundstück',
+  usableAreaSqm: 'Immobiliendaten: Nutzfläche',
+  coOwnershipShares: 'Immobiliendaten: Miteigentumsanteile',
+  visualConditionRating: 'Immobiliendaten: Optik',
+  heatingType: 'Immobiliendaten: Heizungsart',
+  heatingEnergySource: 'Immobiliendaten: Energieträger',
+  heatingEnergySourceOther: 'Immobiliendaten: Beschreibung Energieträger',
+  heatingYear: 'Immobiliendaten: Heizungsjahr',
+  energyCertificateAvailable: 'Immobiliendaten: Energieausweis',
+  energyCertificateType: 'Immobiliendaten: Typ Energieausweis',
+  energyClass: 'Immobiliendaten: Energieklasse',
+  basementType: 'Immobiliendaten: Keller',
+  windowMaterial: 'Immobiliendaten: Fenstermaterial',
+  windowInstallationYear: 'Immobiliendaten: Fensterjahr',
+  asbestosRoofKnown: 'Immobiliendaten: Asbest im Dach',
+  parkingType: 'Immobiliendaten: Parkplatz',
+  parkingCount: 'Immobiliendaten: Anzahl Parkplätze',
+  remainingDebtKnown: 'Immobiliendaten: Restschuld bekannt',
+  remainingDebtAmount: 'Immobiliendaten: Restschuld-Betrag',
+  buildingConditionRoof: 'Modernisierungen: Bauteilzustand Dach',
+  buildingConditionFacade: 'Modernisierungen: Bauteilzustand Fassade',
+  buildingConditionMasonry: 'Modernisierungen: Bauteilzustand Mauerwerk',
+  buildingConditionBathrooms: 'Modernisierungen: Bauteilzustand Bäder',
+  buildingConditionWindows: 'Modernisierungen: Bauteilzustand Fenster',
+  buildingConditionElectric: 'Modernisierungen: Bauteilzustand Elektrik',
+  buildingConditionOutdoor: 'Modernisierungen: Bauteilzustand Außenanlage',
+  'document:land_register_or_power': 'Dokumente: Grundbuchauszug',
+  'document:photos': 'Dokumente: Aussagekräftige Objektfotos',
+  'document:floorplan': 'Dokumente: Bemaßter Grundriss',
+  'document:living_area_calculation': 'Dokumente: Wohnflächenberechnung',
+  'document:declaration_of_division': 'Dokumente: Teilungserklärung',
+  'document:service_charge_statement': 'Dokumente: Hausgeldabrechnungen',
+  'document:owners_meeting_minutes': 'Dokumente: Eigentümerversammlungsprotokolle',
+  'document:maintenance_reserve': 'Dokumente: Nachweis Instandhaltungsrücklage',
+};
+
+function validationMessageFor(step, fields) {
+  if (!fields.length) return '';
+  const labels = fields.map((field) => validationFieldLabels[field] || field);
+  const intro = step === 5 ? 'Folgende Pflichtdokumente fehlen:' : 'Folgende Pflichtfelder fehlen:';
+  return `${intro} ${labels.join(', ')}.`;
 }
 
 function validateCaseStep(step, draft) {
@@ -680,6 +768,9 @@ function validateCaseStep(step, draft) {
     add('desiredModel', hasValue(draft.desiredModel));
     if (draft.desiredModel === 'fixed_residential_right') {
       add('residentialRightRecipients', hasValue(draft.residentialRightRecipients));
+      if (draft.maritalStatus === 'married' && draft.residentialRightRecipients === 'one_person') {
+        add('residentialRightPerson', hasValue(draft.residentialRightPerson));
+      }
       add('desiredResidentialRightYears', hasValue(draft.desiredResidentialRightYears));
       add('fixedTermReason', hasValue(draft.fixedTermReason));
     }
@@ -689,32 +780,58 @@ function validateCaseStep(step, draft) {
     if (draft.additionalOfferRequested) {
       add('additionalOfferModel', hasValue(draft.additionalOfferModel));
       if (draft.additionalOfferModel === 'fixed_residential_right') {
+        add('additionalOfferResidentialRightRecipients', hasValue(draft.additionalOfferResidentialRightRecipients));
+        if (draft.maritalStatus === 'married' && draft.additionalOfferResidentialRightRecipients === 'one_person') {
+          add('additionalOfferResidentialRightPerson', hasValue(draft.additionalOfferResidentialRightPerson));
+        }
         add('additionalOfferResidentialRightYears', hasValue(draft.additionalOfferResidentialRightYears));
         add('additionalOfferReason', hasValue(draft.additionalOfferReason));
+      }
+      if (draft.additionalOfferModel === 'sale_and_leaseback') {
+        add('additionalOfferRentalModelDisclosureAccepted', draft.additionalOfferRentalModelDisclosureAccepted === true);
       }
     }
   }
 
   if (step === 3) {
-    add('propertyStreet', hasValue(draft.propertyStreet));
-    add('propertyPostalCode', hasValue(draft.propertyPostalCode));
-    add('propertyCity', hasValue(draft.propertyCity));
     add('propertyType', hasValue(draft.propertyType));
     add('yearBuilt', hasValue(draft.yearBuilt));
     add('livingAreaSqm', hasValue(draft.livingAreaSqm));
     add('plotAreaSqm', hasValue(draft.plotAreaSqm));
+    add('usableAreaSqm', hasValue(draft.usableAreaSqm));
     add('visualConditionRating', hasValue(draft.visualConditionRating));
     if (draft.propertyType === 'apartment') add('coOwnershipShares', hasValue(draft.coOwnershipShares));
+    add('heatingType', hasValue(draft.heatingType));
+    add('heatingEnergySource', hasValue(draft.heatingEnergySource));
+    if (draft.heatingEnergySource === 'other') add('heatingEnergySourceOther', hasValue(draft.heatingEnergySourceOther));
+    add('heatingYear', hasValue(draft.heatingYear));
+    add('energyCertificateAvailable', draft.energyCertificateAvailable === true || draft.energyCertificateAvailable === false);
     if (draft.energyCertificateAvailable) {
       add('energyCertificateType', hasValue(draft.energyCertificateType));
       add('energyClass', hasValue(draft.energyClass));
     }
-    if (draft.parkingAvailable || draft.parkingType) {
+    add('basementType', hasValue(draft.basementType));
+    add('windowMaterial', hasValue(draft.windowMaterial));
+    add('windowInstallationYear', hasValue(draft.windowInstallationYear));
+    add('asbestosRoofKnown', draft.asbestosRoofKnown === 'yes' || draft.asbestosRoofKnown === 'no');
+    add('parkingType', hasValue(draft.parkingType));
+    if (draft.parkingType && draft.parkingType !== 'none') {
       add('parkingCount', hasValue(draft.parkingCount));
     }
+    add('remainingDebtKnown', draft.remainingDebtKnown === true || draft.remainingDebtKnown === false);
     if (draft.remainingDebtKnown) {
       add('remainingDebtAmount', hasValue(draft.remainingDebtAmount));
     }
+  }
+
+  if (step === 4) {
+    add('buildingConditionRoof', hasValue(draft.buildingCondition?.roof));
+    add('buildingConditionFacade', hasValue(draft.buildingCondition?.facade));
+    add('buildingConditionMasonry', hasValue(draft.buildingCondition?.masonry));
+    add('buildingConditionBathrooms', hasValue(draft.buildingCondition?.bathrooms));
+    add('buildingConditionWindows', hasValue(draft.buildingCondition?.windows));
+    add('buildingConditionElectric', hasValue(draft.buildingCondition?.electric));
+    add('buildingConditionOutdoor', hasValue(draft.buildingCondition?.outdoor));
   }
 
   if (step === 5) {
@@ -725,14 +842,12 @@ function validateCaseStep(step, draft) {
   return {
     valid,
     fields,
-    message: valid ? '' : step === 5
-      ? 'Bitte lade alle Pflichtdokumente hoch. Beim Grundbuch genügt alternativ die Vollmacht Grundbuch.'
-      : 'Bitte fülle die markierten Pflichtfelder aus, bevor du fortfährst.'
+    message: valid ? '' : validationMessageFor(step, fields)
   };
 }
 
 function validateCaseDraft(draft) {
-  for (const currentStep of [1, 2, 3, 5]) {
+  for (const currentStep of [1, 2, 3, 4, 5]) {
     const result = validateCaseStep(currentStep, draft);
     if (!result.valid) return { ...result, step: currentStep };
   }
@@ -1319,7 +1434,7 @@ const partnerInitial = (partner) => {
   return source ? source[0].toUpperCase() : '#';
 };
 
-const PartnerDirectory = ({ partners = [], leads = [], onActivatePartner }) => {
+const PartnerDirectory = ({ partners = [], leads = [], onSetPartnerStatus, onDeletePartner }) => {
   const [selectedLetter, setSelectedLetter] = useState('ALL');
   const [search, setSearch] = useState('');
   const availableLetters = new Set(partners.map(partnerInitial));
@@ -1334,7 +1449,7 @@ const PartnerDirectory = ({ partners = [], leads = [], onActivatePartner }) => {
     .sort((left, right) => String(left.companyName || left.contactName).localeCompare(String(right.companyName || right.contactName), 'de'));
 
   const activePartners = partners.filter((partner) => partner.status === 'active').length;
-  const pendingPartners = partners.length - activePartners;
+  const inactivePartners = partners.length - activePartners;
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -1349,7 +1464,7 @@ const PartnerDirectory = ({ partners = [], leads = [], onActivatePartner }) => {
           <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Partnerliste</div>
-              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{visiblePartners.length} von {partners.length} Partnern · {activePartners} aktiv · {pendingPartners} offen</div>
+              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{visiblePartners.length} von {partners.length} Partnern · {activePartners} aktiv · {inactivePartners} gesperrt/offen</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', background: theme.mintLighter, borderRadius: 6, padding: '7px 10px', border: `1px solid ${theme.border}`, width: 280, maxWidth: '100%' }}>
               <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
@@ -1363,7 +1478,7 @@ const PartnerDirectory = ({ partners = [], leads = [], onActivatePartner }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: theme.mintLight }}>
-                  {['Firma', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Status', 'Offene Leads', ''].map((h, i) => (
+                  {['Firma', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Status', 'Offene Leads', 'Aktionen'].map((h, i) => (
                     <th key={i} style={{ textAlign: 'left', padding: '9px 14px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -1380,18 +1495,25 @@ const PartnerDirectory = ({ partners = [], leads = [], onActivatePartner }) => {
                       <td style={{ padding: '12px 14px', color: theme.ink }}>{partner.phone || 'Telefon offen'}</td>
                       <td style={{ padding: '12px 14px' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#5B8C2B' : '#A87308', background: isActive ? '#5B8C2B1A' : `${theme.gold}1A`, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
-                          {isActive ? 'aktiv' : 'wartet auf Freischaltung'}
+                          {isActive ? 'aktiv' : 'gesperrt / offen'}
                         </span>
                       </td>
                       <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 800 }}>{assignedLeadCount}</td>
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                         {!isActive ? (
-                          <button onClick={() => onActivatePartner?.(partner.id)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => onSetPartnerStatus?.(partner.id, 'active')} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                             Freischalten
                           </button>
                         ) : (
-                          <span style={{ color: `${theme.ink}66`, fontSize: 12 }}>-</span>
+                          <button onClick={() => onSetPartnerStatus?.(partner.id, 'inactive')} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            Sperren
+                          </button>
                         )}
+                          <button onClick={() => onDeletePartner?.(partner)} style={{ background: '#fff7f5', color: '#9B2C2C', border: '1px solid #efc0b9', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            Löschen
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1455,6 +1577,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
       model: property.desiredModel || 'fixed_residential_right',
       residentialRightYears: property.desiredResidentialRightYears,
       recipient: property.residentialRightRecipients,
+      recipientPerson: property.residentialRightPerson,
       reason: property.fixedTermReason,
       primary: true
     },
@@ -1462,6 +1585,8 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
       key: `additional-${property.additionalOfferModel || 'sale_and_leaseback'}`,
       model: property.additionalOfferModel || 'sale_and_leaseback',
       residentialRightYears: property.additionalOfferResidentialRightYears,
+      recipient: property.additionalOfferResidentialRightRecipients,
+      recipientPerson: property.additionalOfferResidentialRightPerson,
       reason: property.additionalOfferReason,
       primary: false
     }] : [])
@@ -1523,6 +1648,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   ];
   const modelDetails = property ? [
     ['Wohnrechtsberechtigte', labelFrom(recipientLabels, property.residentialRightRecipients)],
+    ['Person mit Wohnrecht', property.residentialRightPerson ? labelFrom({ customer_1: 'Kunde 1', customer_2: 'Kunde 2' }, property.residentialRightPerson) : '-'],
     ['Dauer Wohnrecht', property.desiredResidentialRightYears ? `${property.desiredResidentialRightYears} Jahre` : '-'],
     ['Zweite Laufzeit gewünscht', property.secondResidentialRightWanted ? `ja${property.secondResidentialRightYears ? `, ${property.secondResidentialRightYears} Jahre` : ''}` : 'nein'],
     ['Befristungsgrund', property.fixedTermReason || '-'],
@@ -1794,7 +1920,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                 <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Neue Unterlage hochladen</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.8fr', gap: 10, alignItems: 'end' }}>
                   <Field label="Datei">
-                    <input type="file" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, boxSizing: 'border-box' }} />
+                    <input type="file" accept="application/pdf,image/*" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, boxSizing: 'border-box' }} />
                   </Field>
                   <Field label="Typ">
                     <Select value={uploadCategory} onChange={(event) => setUploadCategory(event.target.value)}>
@@ -1927,7 +2053,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                           <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 800 }}>{modelRequest.primary ? 'Hauptmodell' : 'Zweites Angebot'} · {labelFrom(productModelLabels, modelRequest.model)}</div>
                           <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>
                             {modelRequest.model === 'fixed_residential_right'
-                              ? `Laufzeit ${modelRequest.residentialRightYears || '-'} Jahre · ${labelFrom(recipientLabels, modelRequest.recipient)} · ${modelRequest.reason || 'kein Grund angegeben'}`
+                              ? `Laufzeit ${modelRequest.residentialRightYears || '-'} Jahre · ${labelFrom(recipientLabels, modelRequest.recipient)}${modelRequest.recipientPerson ? ` (${labelFrom({ customer_1: 'Kunde 1', customer_2: 'Kunde 2' }, modelRequest.recipientPerson)})` : ''} · ${modelRequest.reason || 'kein Grund angegeben'}`
                               : 'Rückmiete · Miete fällt ab Tag 1 nach Verkauf an'}
                           </div>
                         </div>
@@ -2152,11 +2278,11 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
       const customerResult = await postJson('/api/customers', customerPayload);
       const propertyPayload = {
         customerId: customerResult.customer.id,
-        objectTitle: `${propertyTypeLabel(draft.propertyType)} ${draft.propertyCity}`,
+        objectTitle: `${propertyTypeLabel(draft.propertyType)} ${draft.city}`,
         propertyType: draft.propertyType,
-        street: draft.propertyStreet,
-        postalCode: draft.propertyPostalCode,
-        city: draft.propertyCity,
+        street: draft.street,
+        postalCode: draft.postalCode,
+        city: draft.city,
         livingAreaSqm: Number(draft.livingAreaSqm),
         plotAreaSqm: Number(draft.plotAreaSqm),
         yearBuilt: Number(draft.yearBuilt) || undefined,
@@ -2164,21 +2290,25 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         occupancyStatus: draft.occupancyStatus,
         desiredModel: draft.desiredModel,
         residentialRightRecipients: draft.residentialRightRecipients,
+        residentialRightPerson: draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
         desiredResidentialRightYears: draft.desiredModel === 'fixed_residential_right' ? Number(draft.desiredResidentialRightYears) || undefined : undefined,
         rentalModelDisclosureAccepted: Boolean(draft.rentalModelDisclosureAccepted),
         additionalOfferRequested: Boolean(draft.additionalOfferRequested),
         additionalOfferModel: draft.additionalOfferRequested ? draft.additionalOfferModel : undefined,
+        additionalOfferResidentialRightRecipients: draft.additionalOfferRequested ? draft.additionalOfferResidentialRightRecipients || undefined : undefined,
+        additionalOfferResidentialRightPerson: draft.additionalOfferRequested && draft.additionalOfferResidentialRightRecipients === 'one_person' ? draft.additionalOfferResidentialRightPerson || undefined : undefined,
         additionalOfferResidentialRightYears: draft.additionalOfferRequested ? Number(draft.additionalOfferResidentialRightYears) || undefined : undefined,
         additionalOfferReason: draft.additionalOfferRequested ? draft.additionalOfferReason : undefined,
+        additionalOfferRentalModelDisclosureAccepted: draft.additionalOfferRequested ? Boolean(draft.additionalOfferRentalModelDisclosureAccepted) : false,
         secondResidentialRightWanted: false,
         secondResidentialRightYears: undefined,
         fixedTermReason: draft.fixedTermReason,
         rentalOptionDeselected: false,
         usableAreaSqm: Number(draft.usableAreaSqm) || undefined,
         coOwnershipShares: draft.propertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
-        parkingAvailable: Boolean(draft.parkingAvailable),
-        parkingType: draft.parkingAvailable ? draft.parkingType || undefined : undefined,
-        parkingCount: draft.parkingAvailable ? Number(draft.parkingCount) || undefined : undefined,
+        parkingAvailable: Boolean(draft.parkingType && draft.parkingType !== 'none'),
+        parkingType: draft.parkingType && draft.parkingType !== 'none' ? draft.parkingType || undefined : undefined,
+        parkingCount: draft.parkingType && draft.parkingType !== 'none' ? Number(draft.parkingCount) || undefined : undefined,
         basementType: draft.basementType || undefined,
         heatingType: draft.heatingType,
         heatingEnergySource: draft.heatingEnergySource,
@@ -2187,8 +2317,8 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         energyCarriers: draft.energyCarriers,
         windowMaterial: draft.windowMaterial,
         windowInstallationYear: Number(draft.windowInstallationYear) || undefined,
-        asbestosRoofKnown: Boolean(draft.asbestosRoofKnown),
-        energyCertificateAvailable: Boolean(draft.energyCertificateAvailable),
+        asbestosRoofKnown: draft.asbestosRoofKnown === 'yes',
+        energyCertificateAvailable: draft.energyCertificateAvailable === true,
         energyCertificateType: draft.energyCertificateAvailable ? draft.energyCertificateType : undefined,
         energyClass: draft.energyCertificateAvailable ? draft.energyClass : undefined,
         visualConditionRating: draft.visualConditionRating,
@@ -2196,7 +2326,7 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         monumentProtection: Boolean(draft.monumentProtection),
         leaseholdOrMonument: Boolean(draft.leasehold || draft.monumentProtection),
         knownDefects: draft.knownDefects,
-        remainingDebtKnown: Boolean(draft.remainingDebtKnown),
+        remainingDebtKnown: draft.remainingDebtKnown === true,
         remainingDebtAmount: draft.remainingDebtKnown ? Number(draft.remainingDebtAmount) || undefined : undefined,
         modernization: draft.modernization,
         buildingCondition: draft.buildingCondition,
@@ -2284,7 +2414,7 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
           {step === 1 && <FormStep1 draft={draft} setDraft={setDraft} errors={validation.fields} />}
           {step === 2 && <FormStep2 draft={draft} setDraft={setDraft} errors={validation.fields} />}
           {step === 3 && <FormStep3 draft={draft} setDraft={setDraft} errors={validation.fields} />}
-          {step === 4 && <FormStep4 draft={draft} setDraft={setDraft} />}
+          {step === 4 && <FormStep4 draft={draft} setDraft={setDraft} errors={validation.fields} />}
           {step === 5 && <FormStep5 draft={draft} setDraft={setDraft} errors={validation.fields} />}
 
           {/* Form Actions */}
@@ -2414,7 +2544,15 @@ const FormStep1 = ({ draft, setDraft, errors = [] }) => (
         <Input placeholder="wird berechnet" value={draft.ageAtSubmission} readOnly />
       </Field>
       <Field label="Familienstand" required invalid={errors.includes('maritalStatus')}>
-        <Select value={draft.maritalStatus} onChange={(event) => setDraft({ ...draft, maritalStatus: event.target.value, propertyOwnership: event.target.value === 'married' ? draft.propertyOwnership : 'customer_1' })}>
+        <Select value={draft.maritalStatus} onChange={(event) => setDraft({
+          ...draft,
+          maritalStatus: event.target.value,
+          propertyOwnership: event.target.value === 'married' ? draft.propertyOwnership : 'customer_1',
+          residentialRightRecipients: event.target.value === 'married' ? draft.residentialRightRecipients : (draft.residentialRightRecipients === 'both' ? 'one_person' : draft.residentialRightRecipients),
+          residentialRightPerson: event.target.value === 'married' ? draft.residentialRightPerson : '',
+          additionalOfferResidentialRightRecipients: event.target.value === 'married' ? draft.additionalOfferResidentialRightRecipients : (draft.additionalOfferResidentialRightRecipients === 'both' ? 'one_person' : draft.additionalOfferResidentialRightRecipients),
+          additionalOfferResidentialRightPerson: event.target.value === 'married' ? draft.additionalOfferResidentialRightPerson : '',
+        })}>
           <option value="">Bitte wählen</option>
           <option value="single">ledig</option>
           <option value="married">verheiratet</option>
@@ -2513,6 +2651,7 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
               desiredModel: option.value,
               desiredResidentialRightYears: option.value === 'fixed_residential_right' ? (draft.desiredResidentialRightYears || 10) : '',
               residentialRightRecipients: option.value === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : '',
+              residentialRightPerson: option.value === 'fixed_residential_right' ? draft.residentialRightPerson : '',
               fixedTermReason: option.value === 'fixed_residential_right' ? draft.fixedTermReason : '',
               rentalModelDisclosureAccepted: option.value === 'sale_and_leaseback' ? draft.rentalModelDisclosureAccepted : false,
             })} style={{
@@ -2552,12 +2691,24 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Befristetes Wohnrecht</div>
     <div style={{ marginBottom: 18 }}>
       <Field label="Wer soll das Wohnrecht bekommen?" required invalid={errors.includes('residentialRightRecipients')}>
-        <RadioGroup name="recipient" value={draft.residentialRightRecipients} onChange={(value) => setDraft({ ...draft, residentialRightRecipients: value })} options={[
+        <RadioGroup name="recipient" value={draft.residentialRightRecipients} onChange={(value) => setDraft({ ...draft, residentialRightRecipients: value, residentialRightPerson: value === 'one_person' ? draft.residentialRightPerson : '' })} options={[
           { value: 'one_person', label: 'Eine Person' },
-          { value: 'both', label: 'Beide Personen' },
+          ...(draft.maritalStatus === 'married' ? [{ value: 'both', label: 'Beide Personen' }] : []),
         ]} />
       </Field>
     </div>
+
+    {draft.maritalStatus === 'married' && draft.residentialRightRecipients === 'one_person' && (
+      <div style={{ marginBottom: 18 }}>
+        <Field label="Welche Person erhält das Wohnrecht?" required invalid={errors.includes('residentialRightPerson')}>
+          <Select value={draft.residentialRightPerson} onChange={(event) => setDraft({ ...draft, residentialRightPerson: event.target.value })}>
+            <option value="">Bitte wählen</option>
+            <option value="customer_1">{customerOneName(draft)}</option>
+            <option value="customer_2">{customerTwoName(draft)}</option>
+          </Select>
+        </Field>
+      </div>
+    )}
 
     <div style={{ marginBottom: 18 }}>
       <Field label="Dauer des Wohnrechts" required hint="Zwischen 5 und 15 Jahren wählbar." invalid={errors.includes('desiredResidentialRightYears')}>
@@ -2582,20 +2733,51 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
       {draft.additionalOfferRequested && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 16, marginTop: 14 }}>
           <Field label="Zweites Modell" required invalid={errors.includes('additionalOfferModel')}>
-            <Select value={draft.additionalOfferModel} onChange={(event) => setDraft({ ...draft, additionalOfferModel: event.target.value })}>
+            <Select value={draft.additionalOfferModel} onChange={(event) => setDraft({
+              ...draft,
+              additionalOfferModel: event.target.value,
+              additionalOfferResidentialRightRecipients: event.target.value === 'fixed_residential_right' ? (draft.additionalOfferResidentialRightRecipients || 'one_person') : '',
+              additionalOfferResidentialRightPerson: event.target.value === 'fixed_residential_right' ? draft.additionalOfferResidentialRightPerson : '',
+              additionalOfferRentalModelDisclosureAccepted: event.target.value === 'sale_and_leaseback' ? draft.additionalOfferRentalModelDisclosureAccepted : false,
+            })}>
               <option value="">Bitte wählen</option>
               <option value="fixed_residential_right">Befristetes Wohnrecht</option>
               <option value="sale_and_leaseback">Rückmiete</option>
             </Select>
           </Field>
           {draft.additionalOfferModel === 'fixed_residential_right' && (
-            <Field label="Laufzeit" required invalid={errors.includes('additionalOfferResidentialRightYears')}>
-              <Select value={String(draft.additionalOfferResidentialRightYears || 10)} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightYears: Number(event.target.value) })}>
-                <option value="5">5 Jahre</option>
-                <option value="10">10 Jahre</option>
-                <option value="15">15 Jahre</option>
+            <>
+              <Field label="Wer soll das Wohnrecht bekommen?" required invalid={errors.includes('additionalOfferResidentialRightRecipients')}>
+                <RadioGroup name="additionalRecipient" value={draft.additionalOfferResidentialRightRecipients} onChange={(value) => setDraft({ ...draft, additionalOfferResidentialRightRecipients: value, additionalOfferResidentialRightPerson: value === 'one_person' ? draft.additionalOfferResidentialRightPerson : '' })} options={[
+                  { value: 'one_person', label: 'Eine Person' },
+                  ...(draft.maritalStatus === 'married' ? [{ value: 'both', label: 'Beide Personen' }] : []),
+                ]} />
+              </Field>
+              <Field label="Laufzeit" required invalid={errors.includes('additionalOfferResidentialRightYears')}>
+                <Select value={String(draft.additionalOfferResidentialRightYears || 10)} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightYears: Number(event.target.value) })}>
+                  <option value="5">5 Jahre</option>
+                  <option value="10">10 Jahre</option>
+                  <option value="15">15 Jahre</option>
+                </Select>
+              </Field>
+            </>
+          )}
+          {draft.additionalOfferModel === 'fixed_residential_right' && draft.maritalStatus === 'married' && draft.additionalOfferResidentialRightRecipients === 'one_person' && (
+            <Field label="Welche Person erhält das Wohnrecht?" required invalid={errors.includes('additionalOfferResidentialRightPerson')}>
+              <Select value={draft.additionalOfferResidentialRightPerson} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightPerson: event.target.value })}>
+                <option value="">Bitte wählen</option>
+                <option value="customer_1">{customerOneName(draft)}</option>
+                <option value="customer_2">{customerTwoName(draft)}</option>
               </Select>
             </Field>
+          )}
+          {draft.additionalOfferModel === 'sale_and_leaseback' && (
+            <div style={{ gridColumn: '1 / -1', background: theme.goldSoft, border: `1px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? '#9B2C2C66' : `${theme.gold}66`}`, borderLeft: `4px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? '#9B2C2C' : theme.gold}`, borderRadius: 8, padding: '12px 14px' }}>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
+                <input type="checkbox" checked={draft.additionalOfferRentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, additionalOfferRentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
+                <span><strong>Belehrung Rückmiete:</strong> Beim Rückmietmodell fällt ab Tag 1 nach Verkauf eine laufende Miete an.</span>
+              </label>
+            </div>
           )}
           <Field label={draft.additionalOfferModel === 'fixed_residential_right' ? 'Grund / Hinweis' : 'Hinweis zum zweiten Angebot'} required={draft.additionalOfferModel === 'fixed_residential_right'} invalid={errors.includes('additionalOfferReason')}>
             <Input value={draft.additionalOfferReason} onChange={(event) => setDraft({ ...draft, additionalOfferReason: event.target.value })} placeholder="z.B. Vergleich für Kundengespräch" />
@@ -2611,13 +2793,6 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Immobiliendaten</h2>
     <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Erfasse die wesentlichen Eigenschaften der Immobilie.</div>
 
-    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Objektadresse</div>
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1.2fr', gap: 16, marginBottom: 20 }}>
-      <Field label="Straße" required invalid={errors.includes('propertyStreet')}><Input placeholder="Straße und Hausnr." value={draft.propertyStreet} onChange={(event) => setDraft({ ...draft, propertyStreet: event.target.value })} /></Field>
-      <Field label="PLZ" required invalid={errors.includes('propertyPostalCode')}><Input placeholder="PLZ" value={draft.propertyPostalCode} onChange={(event) => setDraft({ ...draft, propertyPostalCode: event.target.value })} /></Field>
-      <Field label="Ort" required invalid={errors.includes('propertyCity')}><Input placeholder="Ort" value={draft.propertyCity} onChange={(event) => setDraft({ ...draft, propertyCity: event.target.value })} /></Field>
-    </div>
-
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Grunddaten</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Immobilientyp" required invalid={errors.includes('propertyType')}>
@@ -2629,7 +2804,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
 
     <div style={{ display: 'grid', gridTemplateColumns: draft.propertyType === 'apartment' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Grundstück (m²)" required invalid={errors.includes('plotAreaSqm')}><Input type="number" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
-      <Field label="Nutzfläche (m²)"><Input type="number" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
+      <Field label="Nutzfläche (m²)" required invalid={errors.includes('usableAreaSqm')}><Input type="number" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
       {draft.propertyType === 'apartment' && (
         <Field label="Miteigentumsanteile" required hint="Nur bei Eigentumswohnungen" invalid={errors.includes('coOwnershipShares')}><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
       )}
@@ -2639,6 +2814,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 16 }}>
       <Field label="Optik" required invalid={errors.includes('visualConditionRating')}>
         <Select value={draft.visualConditionRating} onChange={(event) => setDraft({ ...draft, visualConditionRating: event.target.value })}>
+          <option value="">Bitte wählen</option>
           <option value="very_good">sehr gut</option>
           <option value="good">gut</option>
           <option value="medium">mittel</option>
@@ -2654,7 +2830,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
 
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Technik und Energie</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Heizungsart">
+      <Field label="Heizungsart" required invalid={errors.includes('heatingType')}>
         <Select value={draft.heatingType} onChange={(event) => setDraft({ ...draft, heatingType: event.target.value })}>
           <option value="">Bitte wählen</option>
           <option value="central">Zentralheizung</option>
@@ -2664,7 +2840,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
           <option value="none">Keine</option>
         </Select>
       </Field>
-      <Field label="Energieträger / Wärmeerzeuger">
+      <Field label="Energieträger / Wärmeerzeuger" required invalid={errors.includes('heatingEnergySource')}>
         <Select value={draft.heatingEnergySource || ''} onChange={(event) => setDraft({ ...draft, heatingEnergySource: event.target.value })}>
           <option value="">Bitte wählen</option>
           <option value="gas">Gas</option>
@@ -2677,19 +2853,20 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
           <option value="other">Sonstige</option>
         </Select>
       </Field>
-      <Field label="Heizungsjahr"><Input type="number" value={draft.heatingYear} onChange={(event) => setDraft({ ...draft, heatingYear: event.target.value })} /></Field>
+      <Field label="Heizungsjahr" required invalid={errors.includes('heatingYear')}><Input type="number" value={draft.heatingYear} onChange={(event) => setDraft({ ...draft, heatingYear: event.target.value })} /></Field>
     </div>
     {draft.heatingEnergySource === 'other' && (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-        <Field label="Beschreibung Energieträger">
+        <Field label="Beschreibung Energieträger" required invalid={errors.includes('heatingEnergySourceOther')}>
           <Input value={draft.heatingEnergySourceOther || ''} onChange={(event) => setDraft({ ...draft, heatingEnergySourceOther: event.target.value })} />
         </Field>
       </div>
     )}
 
     <div style={{ display: 'grid', gridTemplateColumns: draft.energyCertificateAvailable ? '1fr 1fr 1fr' : '1fr 2fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Energieausweis">
-        <Select value={draft.energyCertificateAvailable ? 'yes' : 'no'} onChange={(event) => setDraft({ ...draft, energyCertificateAvailable: event.target.value === 'yes' })}>
+      <Field label="Energieausweis" required invalid={errors.includes('energyCertificateAvailable')}>
+        <Select value={draft.energyCertificateAvailable === true ? 'yes' : draft.energyCertificateAvailable === false ? 'no' : ''} onChange={(event) => setDraft({ ...draft, energyCertificateAvailable: event.target.value === '' ? '' : event.target.value === 'yes' })}>
+          <option value="">Bitte wählen</option>
           <option value="no">nicht vorhanden</option>
           <option value="yes">vorhanden</option>
         </Select>
@@ -2698,9 +2875,9 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
         <>
           <Field label="Typ Energieausweis" required invalid={errors.includes('energyCertificateType')}>
             <Select value={draft.energyCertificateType} onChange={(event) => setDraft({ ...draft, energyCertificateType: event.target.value })}>
+              <option value="">Bitte wählen</option>
               <option value="demand">Bedarfsausweis</option>
               <option value="consumption">Verbrauchsausweis</option>
-              <option value="">Keine Angabe</option>
             </Select>
           </Field>
           <Field label="Energieklasse" required invalid={errors.includes('energyClass')}><Input value={draft.energyClass} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })} /></Field>
@@ -2735,8 +2912,9 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Keller">
+      <Field label="Keller" required invalid={errors.includes('basementType')}>
         <Select value={draft.basementType} onChange={(event) => setDraft({ ...draft, basementType: event.target.value })}>
+          <option value="">Bitte wählen</option>
           <option value="none">kein Keller</option>
           <option value="partial">teilunterkellert</option>
           <option value="full">vollunterkellert</option>
@@ -2745,17 +2923,18 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Fenstermaterial">
+      <Field label="Fenstermaterial" required invalid={errors.includes('windowMaterial')}>
         <Select value={draft.windowMaterial} onChange={(event) => setDraft({ ...draft, windowMaterial: event.target.value })}>
-          <option value="">Keine Angabe</option>
+          <option value="">Bitte wählen</option>
           <option value="wood">Holz</option>
           <option value="aluminium">Aluminium</option>
           <option value="plastic">Kunststoff</option>
         </Select>
       </Field>
-      <Field label="Fensterjahr"><Input type="number" value={draft.windowInstallationYear} onChange={(event) => setDraft({ ...draft, windowInstallationYear: event.target.value })} /></Field>
-      <Field label="Asbest im Dach bekannt?">
-        <Select value={draft.asbestosRoofKnown ? 'yes' : 'no'} onChange={(event) => setDraft({ ...draft, asbestosRoofKnown: event.target.value === 'yes' })}>
+      <Field label="Fensterjahr" required invalid={errors.includes('windowInstallationYear')}><Input type="number" value={draft.windowInstallationYear} onChange={(event) => setDraft({ ...draft, windowInstallationYear: event.target.value })} /></Field>
+      <Field label="Asbest im Dach bekannt?" required invalid={errors.includes('asbestosRoofKnown')}>
+        <Select value={draft.asbestosRoofKnown || ''} onChange={(event) => setDraft({ ...draft, asbestosRoofKnown: event.target.value })}>
+          <option value="">Bitte wählen</option>
           <option value="no">nein</option>
           <option value="yes">ja</option>
         </Select>
@@ -2763,31 +2942,32 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
     </div>
 
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Außenbereich</div>
-    <div style={{ display: 'grid', gridTemplateColumns: draft.parkingAvailable ? '1fr 1fr 1fr' : '1fr 2fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Parkplatz">
-        <Select value={draft.parkingType} onChange={(event) => setDraft({ ...draft, parkingType: event.target.value, parkingAvailable: Boolean(event.target.value) })}>
-          <option value="">kein Parkplatz</option>
+    <div style={{ display: 'grid', gridTemplateColumns: draft.parkingType && draft.parkingType !== 'none' ? '1fr 1fr 1fr' : '1fr 2fr', gap: 16, marginBottom: 16 }}>
+      <Field label="Parkplatz" required invalid={errors.includes('parkingType')}>
+        <Select value={draft.parkingType} onChange={(event) => setDraft({ ...draft, parkingType: event.target.value, parkingAvailable: Boolean(event.target.value && event.target.value !== 'none'), parkingCount: event.target.value && event.target.value !== 'none' ? draft.parkingCount : '' })}>
+          <option value="">Bitte wählen</option>
+          <option value="none">kein Parkplatz</option>
           <option value="garage">Garage</option>
           <option value="carport">Carport</option>
           <option value="outdoor_space">Stellplatz</option>
           <option value="duplex">Doppelparker</option>
         </Select>
       </Field>
-      {draft.parkingAvailable && (
+      {draft.parkingType && draft.parkingType !== 'none' && (
         <Field label="Anzahl Parkplätze" required invalid={errors.includes('parkingCount')}><Input type="number" value={draft.parkingCount} onChange={(event) => setDraft({ ...draft, parkingCount: event.target.value })} /></Field>
       )}
     </div>
 
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
       <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Restschuld</div>
-      <div style={{ display: 'grid', gridTemplateColumns: draft.remainingDebtKnown ? '1fr 1fr' : '1fr', gap: 16 }}>
-        <Field label="Ist eine Restschuld bekannt?">
-          <RadioGroup name="remainingDebtKnown" value={draft.remainingDebtKnown ? 'yes' : 'no'} onChange={(value) => setDraft({ ...draft, remainingDebtKnown: value === 'yes' })} options={[
+      <div style={{ display: 'grid', gridTemplateColumns: draft.remainingDebtKnown === true ? '1fr 1fr' : '1fr', gap: 16 }}>
+        <Field label="Ist eine Restschuld bekannt?" required invalid={errors.includes('remainingDebtKnown')}>
+          <RadioGroup name="remainingDebtKnown" value={draft.remainingDebtKnown === true ? 'yes' : draft.remainingDebtKnown === false ? 'no' : ''} onChange={(value) => setDraft({ ...draft, remainingDebtKnown: value === 'yes', remainingDebtAmount: value === 'yes' ? draft.remainingDebtAmount : '' })} options={[
             { value: 'no', label: 'Nein' },
             { value: 'yes', label: 'Ja' },
           ]} />
         </Field>
-        {draft.remainingDebtKnown && (
+        {draft.remainingDebtKnown === true && (
           <Field label="Restschuld (€)" required invalid={errors.includes('remainingDebtAmount')}>
             <Input type="number" value={draft.remainingDebtAmount} onChange={(event) => setDraft({ ...draft, remainingDebtAmount: event.target.value })} />
           </Field>
@@ -2852,7 +3032,7 @@ const buildingConditionFields = [
   ['outdoor', 'Außenanlage'],
 ];
 
-const FormStep4 = ({ draft, setDraft }) => {
+const FormStep4 = ({ draft, setDraft, errors = [] }) => {
   const setModernization = (key, patch) => setDraft({
     ...draft,
     modernization: {
@@ -2894,8 +3074,9 @@ const FormStep4 = ({ draft, setDraft }) => {
       <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Bauteilzustand</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
         {buildingConditionFields.map(([key, label]) => (
-          <Field key={key} label={label}>
-            <Select value={draft.buildingCondition?.[key] || 'medium'} onChange={(event) => setBuildingCondition(key, event.target.value)}>
+          <Field key={key} label={label} required invalid={errors.includes(`buildingCondition${key.charAt(0).toUpperCase()}${key.slice(1)}`)}>
+            <Select value={draft.buildingCondition?.[key] || ''} onChange={(event) => setBuildingCondition(key, event.target.value)}>
+              <option value="">Bitte wählen</option>
               <option value="very_good">sehr gut</option>
               <option value="good">gut</option>
               <option value="medium">mittel</option>
@@ -2912,7 +3093,7 @@ const FormStep4 = ({ draft, setDraft }) => {
 
 const FormStep5 = ({ draft, setDraft, errors = [] }) => {
   const requiredDocuments = getRequiredDocumentsForPropertyType(draft.propertyType);
-  const optionalDocuments = getOptionalDocumentsForPropertyType(draft.propertyType);
+  const optionalDocuments = getOptionalDocumentsForPropertyType(draft.propertyType).filter((item) => item.category !== 'power_of_attorney');
   const uploads = draft.documentUploads || {};
   const appendFiles = (category, fileList) => {
     const files = Array.from(fileList || []);
@@ -2966,7 +3147,7 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
         </div>
         <label style={{ background: theme.aubergine, color: 'white', borderRadius: 5, padding: '7px 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
           <Upload size={13} /> Datei hochladen
-          <input type="file" multiple onChange={(event) => {
+          <input type="file" multiple accept="application/pdf,image/*" onChange={(event) => {
             appendFiles(item.category, event.target.files);
             event.target.value = '';
           }} style={{ display: 'none' }} />
@@ -3413,13 +3594,25 @@ export default function App({ initialRole = 'partner' } = {}) {
       setNotice(err instanceof Error ? err.message : 'Lead konnte nicht umgewandelt werden');
     }
   };
-  const handleActivatePartner = async (partnerId) => {
+  const handleSetPartnerStatus = async (partnerId, status) => {
     try {
-      await patchJson(`/api/partners/${partnerId}`, { status: 'active' });
-      setNotice('Maklerzugang wurde freigeschaltet.');
+      await patchJson(`/api/partners/${partnerId}`, { status });
+      setNotice(status === 'active' ? 'Maklerzugang wurde freigeschaltet.' : 'Maklerzugang wurde gesperrt.');
       await loadLeads('admin');
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Maklerzugang konnte nicht freigeschaltet werden');
+      setNotice(err instanceof Error ? err.message : 'Maklerzugang konnte nicht aktualisiert werden');
+    }
+  };
+  const handleDeletePartner = async (partner) => {
+    if (!window.confirm(`Partner "${partner.companyName || partner.contactName}" wirklich löschen? Wenn bereits Fälle oder Leads verknüpft sind, wird das Löschen blockiert.`)) return;
+    try {
+      const response = await fetch(`/api/partners/${partner.id}`, { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Partner konnte nicht gelöscht werden');
+      setNotice('Partner wurde gelöscht.');
+      await loadLeads('admin');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Partner konnte nicht gelöscht werden');
     }
   };
   const handleLogout = async () => {
@@ -3448,7 +3641,7 @@ export default function App({ initialRole = 'partner' } = {}) {
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
-          {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} onActivatePartner={handleActivatePartner} />}
+          {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}
           {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}
