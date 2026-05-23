@@ -167,6 +167,7 @@ export const frontendStatusConfig: FrontendStatusConfigDto[] = [
   { status: "INTERNAL_REVIEW", label: "Interne Prüfung", color: "#A8A443" },
   { status: "APPROVED", label: "Freigegeben", color: "#5B8C2B" },
   { status: "SENT", label: "Versendet", color: "#5B8C2B" },
+  { status: "INDICATIVE_OFFER_SENT", label: "Unverbindliches Angebot abgegeben", color: "#5B8C2B" },
   { status: "OFFER_ACCEPTED", label: "Angebot angenommen", color: "#5B8C2B" },
   { status: "PURCHASE_STARTED", label: "Ankauf gestartet", color: "#5C1077" },
   { status: "NOTARY_APPOINTMENT", label: "Notartermin", color: "#A8A443" },

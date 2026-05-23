@@ -8,7 +8,7 @@ import {
   ArrowLeft, Upload, Calendar, Phone, Mail, Smartphone, User as UserIcon,
   Save, Send, CheckCircle, AlertTriangle, Activity, X, ChevronDown
 } from 'lucide-react';
-import { getRequiredDocumentsForPropertyType } from '@/lib/document-requirements';
+import { getOptionalDocumentsForPropertyType, getRequiredDocumentsForPropertyType } from '@/lib/document-requirements';
 
 // =====================================================================
 // THEME — WohnKapital Mint-Welt
@@ -42,6 +42,7 @@ const statusConfig = {
   INTERNAL_REVIEW:     { label: 'Interne Prüfung',      color: theme.oliv },
   APPROVED:            { label: 'Freigegeben',          color: '#5B8C2B' },
   SENT:                { label: 'Versendet',            color: '#5B8C2B' },
+  INDICATIVE_OFFER_SENT:{ label: 'Unverbindliches Angebot abgegeben', color: '#5B8C2B' },
   OFFER_ACCEPTED:      { label: 'Angebot angenommen',   color: '#5B8C2B' },
   PURCHASE_STARTED:    { label: 'Ankauf gestartet',     color: theme.aubergineSoft },
   NOTARY_APPOINTMENT:  { label: 'Notartermin',          color: theme.oliv },
@@ -492,7 +493,7 @@ function mapCaseView(item) {
 function filterCasesForScreen(cases, screen) {
   const statusGroups = {
     drafts: ['DRAFT'],
-    in_progress: ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'APPOINTMENT_SCHEDULED'],
+    in_progress: ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'APPOINTMENT_SCHEDULED'],
     portfolio: ['OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
     sold: ['SOLD', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
   };
@@ -525,95 +526,218 @@ function calculateAgeFromBirthDate(dateString) {
 
 const defaultDraft = {
   title: '',
-  firstName: 'Eva',
-  lastName: 'Schmidt',
-  ageAtSubmission: calculateAgeFromBirthDate('1953-03-12'),
-  gender: 'female',
-  dateOfBirth: '1953-03-12',
-  maritalStatus: 'widowed',
+  firstName: '',
+  lastName: '',
+  ageAtSubmission: '',
+  gender: '',
+  dateOfBirth: '',
+  maritalStatus: '',
   spouseTitle: '',
   spouseFirstName: '',
   spouseLastName: '',
   spouseGender: '',
   spouseDateOfBirth: '',
   spouseAgeAtSubmission: '',
-  propertyOwnership: 'customer_1',
-  monthlyIncomeRange: 'from_1000_to_2000',
-  email: 'eva.schmidt@web.de',
-  phone: '0711 / 23 45 67',
-  mobile: '0172 / 12 34 567',
-  street: 'Hauptstraße 14',
-  postalCode: '70563',
-  city: 'Stuttgart',
-  propertyStreet: 'Hauptstraße 14',
-  propertyPostalCode: '70563',
-  propertyCity: 'Stuttgart',
-  propertyType: 'single_family',
-  livingAreaSqm: 142,
-  plotAreaSqm: 380,
-  usableAreaSqm: 55,
-  yearBuilt: 1978,
-  condition: 'good',
-  occupancyStatus: 'owner_occupied',
-  desiredModel: 'fixed_residential_right',
-  residentialRightRecipients: 'one_person',
-  desiredResidentialRightYears: 10,
+  propertyOwnership: '',
+  monthlyIncomeRange: '',
+  email: '',
+  phone: '',
+  mobile: '',
+  street: '',
+  postalCode: '',
+  city: '',
+  consentDataProcessing: false,
+  propertyStreet: '',
+  propertyPostalCode: '',
+  propertyCity: '',
+  propertyType: '',
+  livingAreaSqm: '',
+  plotAreaSqm: '',
+  usableAreaSqm: '',
+  yearBuilt: '',
+  condition: 'average',
+  occupancyStatus: '',
+  desiredModel: '',
+  residentialRightRecipients: '',
+  desiredResidentialRightYears: '',
   rentalModelDisclosureAccepted: false,
   additionalOfferRequested: false,
-  additionalOfferModel: 'sale_and_leaseback',
-  additionalOfferResidentialRightYears: 10,
+  additionalOfferModel: '',
+  additionalOfferResidentialRightYears: '',
   additionalOfferReason: '',
-  secondResidentialRightWanted: true,
-  secondResidentialRightYears: 5,
-  fixedTermReason: 'Familienplanung',
+  secondResidentialRightWanted: false,
+  secondResidentialRightYears: '',
+  fixedTermReason: '',
   rentalOptionDeselected: false,
   coOwnershipShares: '',
-  heatingType: 'central',
-  heatingEnergySource: 'gas',
+  heatingType: '',
+  heatingEnergySource: '',
   heatingEnergySourceOther: '',
-  heatingYear: 2015,
+  heatingYear: '',
   energyCertificateAvailable: false,
-  energyCertificateType: 'demand',
-  energyClass: 'D',
-  parkingAvailable: true,
-  parkingType: 'garage',
-  parkingCount: 1,
-  basementType: 'full',
-  windowMaterial: 'plastic',
-  windowInstallationYear: 2012,
+  energyCertificateType: '',
+  energyClass: '',
+  parkingAvailable: false,
+  parkingType: '',
+  parkingCount: '',
+  basementType: '',
+  windowMaterial: '',
+  windowInstallationYear: '',
   asbestosRoofKnown: false,
-  visualConditionRating: 'good',
-  energyCarriers: ['photovoltaik'],
+  visualConditionRating: '',
+  energyCarriers: [],
   knownDefects: '',
   generalPropertyNotes: '',
   remainingDebtKnown: false,
-  remainingDebtAmount: 0,
+  remainingDebtAmount: '',
   modernization: {
-    heating: { scope: 'complete', year: '2015', note: 'Gas-Brennwert erneuert' },
-    roof: { scope: 'partial', year: '2020', note: 'PV-Anlage nachgerüstet' },
+    heating: { scope: 'none', year: '', note: '' },
+    roof: { scope: 'none', year: '', note: '' },
     facade: { scope: 'none', year: '', note: '' },
-    windows: { scope: 'complete', year: '2012', note: 'Kunststofffenster' },
-    lines: { scope: 'partial', year: '2010', note: '' },
-    bathrooms: { scope: 'partial', year: '2016', note: '' },
+    windows: { scope: 'none', year: '', note: '' },
+    lines: { scope: 'none', year: '', note: '' },
+    bathrooms: { scope: 'none', year: '', note: '' },
   },
   buildingCondition: {
-    roof: 'good',
+    roof: 'medium',
     facade: 'medium',
-    masonry: 'good',
-    bathrooms: 'good',
-    windows: 'good',
+    masonry: 'medium',
+    bathrooms: 'medium',
+    windows: 'medium',
     electric: 'medium',
-    outdoor: 'good',
+    outdoor: 'medium',
   },
   leasehold: false,
   monumentProtection: false,
   documentFile: null,
   documentFileName: '',
-  documentCategory: 'energy_certificate',
-  documentRequirementLevel: 'required',
-  documentStatus: 'missing',
-  documentMissingReason: 'Im Erfassungsbogen als erforderliches Dokument vorgemerkt.',
+  documentCategory: '',
+  documentRequirementLevel: 'optional',
+  documentStatus: 'pending',
+  documentMissingReason: '',
+  documentUploads: {},
 };
+
+function hasValue(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  return value !== undefined && value !== null && String(value).trim() !== '';
+}
+
+function documentFilesForCategory(draft, category) {
+  return draft.documentUploads?.[category] || [];
+}
+
+function hasUploadedDocument(draft, category) {
+  return documentFilesForCategory(draft, category).length > 0;
+}
+
+function missingRequiredDocumentFields(draft) {
+  const missing = [];
+  const requiredDocuments = getRequiredDocumentsForPropertyType(draft.propertyType);
+  for (const document of requiredDocuments) {
+    if (document.category === 'land_register') {
+      if (!hasUploadedDocument(draft, 'land_register') && !hasUploadedDocument(draft, 'power_of_attorney')) {
+        missing.push('document:land_register_or_power');
+      }
+      continue;
+    }
+    if (!hasUploadedDocument(draft, document.category)) {
+      missing.push(`document:${document.category}`);
+    }
+  }
+  return missing;
+}
+
+function validateCaseStep(step, draft) {
+  const fields = [];
+  const add = (field, valid) => {
+    if (!valid) fields.push(field);
+  };
+
+  if (step === 1) {
+    add('firstName', hasValue(draft.firstName));
+    add('lastName', hasValue(draft.lastName));
+    add('gender', hasValue(draft.gender));
+    add('dateOfBirth', hasValue(draft.dateOfBirth));
+    add('maritalStatus', hasValue(draft.maritalStatus));
+    add('monthlyIncomeRange', hasValue(draft.monthlyIncomeRange));
+    add('email', hasValue(draft.email));
+    add('phone', hasValue(draft.phone));
+    add('street', hasValue(draft.street));
+    add('postalCode', hasValue(draft.postalCode));
+    add('city', hasValue(draft.city));
+    add('consentDataProcessing', draft.consentDataProcessing === true);
+    if (draft.maritalStatus === 'married') {
+      add('spouseFirstName', hasValue(draft.spouseFirstName));
+      add('spouseLastName', hasValue(draft.spouseLastName));
+      add('spouseGender', hasValue(draft.spouseGender));
+      add('spouseDateOfBirth', hasValue(draft.spouseDateOfBirth));
+      add('propertyOwnership', hasValue(draft.propertyOwnership));
+    }
+  }
+
+  if (step === 2) {
+    add('desiredModel', hasValue(draft.desiredModel));
+    if (draft.desiredModel === 'fixed_residential_right') {
+      add('residentialRightRecipients', hasValue(draft.residentialRightRecipients));
+      add('desiredResidentialRightYears', hasValue(draft.desiredResidentialRightYears));
+      add('fixedTermReason', hasValue(draft.fixedTermReason));
+    }
+    if (draft.desiredModel === 'sale_and_leaseback') {
+      add('rentalModelDisclosureAccepted', draft.rentalModelDisclosureAccepted === true);
+    }
+    if (draft.additionalOfferRequested) {
+      add('additionalOfferModel', hasValue(draft.additionalOfferModel));
+      if (draft.additionalOfferModel === 'fixed_residential_right') {
+        add('additionalOfferResidentialRightYears', hasValue(draft.additionalOfferResidentialRightYears));
+        add('additionalOfferReason', hasValue(draft.additionalOfferReason));
+      }
+    }
+  }
+
+  if (step === 3) {
+    add('propertyStreet', hasValue(draft.propertyStreet));
+    add('propertyPostalCode', hasValue(draft.propertyPostalCode));
+    add('propertyCity', hasValue(draft.propertyCity));
+    add('propertyType', hasValue(draft.propertyType));
+    add('yearBuilt', hasValue(draft.yearBuilt));
+    add('livingAreaSqm', hasValue(draft.livingAreaSqm));
+    add('plotAreaSqm', hasValue(draft.plotAreaSqm));
+    add('visualConditionRating', hasValue(draft.visualConditionRating));
+    if (draft.propertyType === 'apartment') add('coOwnershipShares', hasValue(draft.coOwnershipShares));
+    if (draft.energyCertificateAvailable) {
+      add('energyCertificateType', hasValue(draft.energyCertificateType));
+      add('energyClass', hasValue(draft.energyClass));
+    }
+    if (draft.parkingAvailable || draft.parkingType) {
+      add('parkingCount', hasValue(draft.parkingCount));
+    }
+    if (draft.remainingDebtKnown) {
+      add('remainingDebtAmount', hasValue(draft.remainingDebtAmount));
+    }
+  }
+
+  if (step === 5) {
+    fields.push(...missingRequiredDocumentFields(draft));
+  }
+
+  const valid = fields.length === 0;
+  return {
+    valid,
+    fields,
+    message: valid ? '' : step === 5
+      ? 'Bitte lade alle Pflichtdokumente hoch. Beim Grundbuch genügt alternativ die Vollmacht Grundbuch.'
+      : 'Bitte fülle die markierten Pflichtfelder aus, bevor du fortfährst.'
+  };
+}
+
+function validateCaseDraft(draft) {
+  for (const currentStep of [1, 2, 3, 5]) {
+    const result = validateCaseStep(currentStep, draft);
+    if (!result.valid) return { ...result, step: currentStep };
+  }
+  return { valid: true, fields: [], step: 5, message: '' };
+}
 
 // =====================================================================
 // SCREEN 1 — MAKLER-DASHBOARD
@@ -621,7 +745,7 @@ const defaultDraft = {
 const getBrokerNextStep = (item) => {
   if (item.kind === 'lead') return 'Lead prüfen';
   if (item.followUp || item.status === 'DATA_INCOMPLETE') return 'Unterlagen anfordern';
-  if (['APPROVED', 'SENT', 'OFFER_ACCEPTED'].includes(item.status)) return 'Angebot nachfassen';
+  if (['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED'].includes(item.status)) return 'Angebot nachfassen';
   if (item.status === 'DRAFT') return 'Entwurf vervollständigen';
   if (['SUBMITTED', 'VALUATION_PENDING', 'VALUATED'].includes(item.status)) return 'Bewertung abwarten';
   if (['OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW'].includes(item.status)) return 'Prüfung beobachten';
@@ -768,13 +892,13 @@ const ActiveCasesTable = ({ items, onOpenCase, onOpenLeads }) => (
 
 const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onOpenLeads }) => {
   const [search, setSearch] = useState('');
-  const dashboardStatuses = ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT'];
+  const dashboardStatuses = ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT'];
   const hasDashboardCases = cases.some((item) => item.followUp || dashboardStatuses.includes(item.status));
   const dashboardCases = hasDashboardCases ? cases : mockCases;
   const assignedLeads = leads.filter((lead) => !['CONVERTED', 'REJECTED'].includes(lead.status));
   const followUpCases = dashboardCases.filter((item) => item.followUp || item.status === 'DATA_INCOMPLETE');
   const activeCases = dashboardCases.filter((item) => dashboardStatuses.includes(item.status));
-  const offerCases = dashboardCases.filter((item) => ['APPROVED', 'SENT', 'OFFER_ACCEPTED'].includes(item.status));
+  const offerCases = dashboardCases.filter((item) => ['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED'].includes(item.status));
   const activeLeadRows = assignedLeads.map((lead) => ({
     kind: 'lead',
     id: lead.leadNumber,
@@ -791,7 +915,7 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase,
     nextStep: getBrokerNextStep(item),
     priority: item.followUp || item.status === 'DATA_INCOMPLETE'
       ? 1
-      : ['APPROVED', 'SENT', 'OFFER_ACCEPTED'].includes(item.status)
+      : ['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED'].includes(item.status)
         ? 3
         : 4,
   }));
@@ -1312,6 +1436,9 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
 const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNotice }) => {
   const [activeTab, setActiveTab] = useState('kunde');
   const [busyAction, setBusyAction] = useState('');
+  const [openCalculation, setOpenCalculation] = useState('');
+  const [calculationParams, setCalculationParams] = useState({});
+  const [acceptedIndicativeOffers, setAcceptedIndicativeOffers] = useState({});
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadCategory, setUploadCategory] = useState('energy_certificate');
   const [uploadRequirementLevel, setUploadRequirementLevel] = useState('required');
@@ -1322,6 +1449,25 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const property = caseView?.property;
   const latestOffer = caseView?.offer;
   const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
+  const requestedOfferModels = property ? [
+    {
+      key: property.desiredModel || 'fixed_residential_right',
+      model: property.desiredModel || 'fixed_residential_right',
+      residentialRightYears: property.desiredResidentialRightYears,
+      recipient: property.residentialRightRecipients,
+      reason: property.fixedTermReason,
+      primary: true
+    },
+    ...(property.additionalOfferRequested ? [{
+      key: `additional-${property.additionalOfferModel || 'sale_and_leaseback'}`,
+      model: property.additionalOfferModel || 'sale_and_leaseback',
+      residentialRightYears: property.additionalOfferResidentialRightYears,
+      reason: property.additionalOfferReason,
+      primary: false
+    }] : [])
+  ] : [
+    { key: 'fixed_residential_right', model: 'fixed_residential_right', residentialRightYears: 10, recipient: 'one_person', reason: 'Mock-Fall', primary: true }
+  ];
   const latestValuation = caseView?.valuation;
   const documents = caseView?.documents?.length ? caseView.documents.map((document) => ({
     id: document.id,
@@ -1465,10 +1611,14 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     await postJson(`/api/properties/${c.propertyId}/offer/calculate`, { model });
     await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
   });
+  const markIndicativeOfferSent = () => runCaseAction('Unverbindliches Angebot verschickt', async () => {
+    await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'indicative_offer_sent' });
+  });
   const markFeedbackReceived = () => runCaseAction('Kundenrückmeldung', async () => {
     await postJson(`/api/properties/${c.propertyId}/feedback-received`);
   });
   const acquisitionSteps = [
+    { action: 'indicative_offer_sent', status: 'INDICATIVE_OFFER_SENT', label: 'Unverbindliches Angebot abgegeben', date: property?.status === 'INDICATIVE_OFFER_SENT' ? property?.updatedAt : undefined },
     { action: 'offer_accepted', status: 'OFFER_ACCEPTED', label: 'Angebot angenommen', date: property?.offerAcceptedAt },
     { action: 'purchase_started', status: 'PURCHASE_STARTED', label: 'Ankauf gestartet', date: property?.purchaseStartedAt },
     { action: 'notary_appointment', status: 'NOTARY_APPOINTMENT', label: 'Notartermin', date: property?.notaryAppointmentAt },
@@ -1763,43 +1913,90 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
 
           {activeTab === 'indag' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Indikatives Angebot</div>
-              {productOffers.length ? (
-                <div style={{ display: 'grid', gap: 12 }}>
-                  {productOffers.map((offer) => (
-                    <div key={offer.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: theme.mintLighter }}>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Unverbindliches Angebot</div>
+              <div style={{ display: 'grid', gap: 12 }}>
+                {requestedOfferModels.map((modelRequest, index) => {
+                  const offer = productOffers.find((item) => item.model === modelRequest.model);
+                  const key = `${modelRequest.key}-${index}`;
+                  const params = calculationParams[key] || {};
+                  const quote = offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
+                  return (
+                    <div key={key} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: theme.mintLighter }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-                        <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 700 }}>{labelFrom(productModelLabels, offer.model)}</div>
-                        <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, textTransform: 'uppercase' }}>{offer.status}</span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px 20px' }}>
-                        {[
-                          ['Marktwert', formatEuro(offer.marketValue)],
-                          ['Auszahlung', formatEuro(offer.payoutAmount)],
-                          ['Quote', offer.assumptions?.components?.payoutRatio ? `${Math.round(offer.assumptions.components.payoutRatio * 100)}%` : '-'],
-                          ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
-                          ['Instandhaltung / Abschlag', formatEuro(offer.companyMargin || offer.assumptions?.components?.maintenancePledge)],
-                          ['Bewertungsanbieter', latestValuation?.provider || '-'],
-                        ].map(([k, v], i) => (
-                          <div key={i}>
-                            <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
-                            <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
+                        <div>
+                          <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 800 }}>{modelRequest.primary ? 'Hauptmodell' : 'Zweites Angebot'} · {labelFrom(productModelLabels, modelRequest.model)}</div>
+                          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>
+                            {modelRequest.model === 'fixed_residential_right'
+                              ? `Laufzeit ${modelRequest.residentialRightYears || '-'} Jahre · ${labelFrom(recipientLabels, modelRequest.recipient)} · ${modelRequest.reason || 'kein Grund angegeben'}`
+                              : 'Rückmiete · Miete fällt ab Tag 1 nach Verkauf an'}
                           </div>
-                        ))}
+                        </div>
+                        {offer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{offer.status}</span> : null}
                       </div>
-                      <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 10 }}>{offer.assumptions?.sourceWorkbook || 'Applikationsformel'}</div>
+
+                      <button onClick={() => setOpenCalculation(openCalculation === key ? '' : key)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', marginBottom: openCalculation === key ? 12 : 0 }}>
+                        Berechnung starten
+                      </button>
+
+                      {openCalculation === key && (
+                        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Kalkulationsparameter</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+                            {[
+                              ['marketValue', 'Verkehrswert (€)'],
+                              ['maintenance', 'Instandhaltung (€)'],
+                              ['interestRate', 'Interne Verzinsung (%)'],
+                              ['safetyDiscount', 'Sicherheitsabschlag (%)'],
+                            ].map(([field, label]) => (
+                              <Field key={field} label={label}>
+                                <Input type="number" value={params[field] || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })} />
+                              </Field>
+                            ))}
+                          </div>
+                          <button onClick={() => startValuationAndOffer(modelRequest.model)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                            {busyAction ? 'Berechnet...' : 'Berechnung auslösen'}
+                          </button>
+                        </div>
+                      )}
+
+                      {offer ? (
+                        <>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px 16px', marginTop: 12 }}>
+                            {[
+                              ['Verkehrswert', formatEuro(offer.marketValue)],
+                              ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
+                              ['Instandhaltung', params.maintenance ? formatEuro(Number(params.maintenance)) : formatEuro(offer.companyMargin || offer.assumptions?.components?.maintenancePledge)],
+                              ['Interne Verzinsung', params.interestRate ? `${params.interestRate}%` : 'Dummy 5,5%'],
+                              ['Auszahlungsbetrag (Quote)', `${formatEuro(offer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                            ].map(([k, v], i) => (
+                              <div key={i}>
+                                <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, marginBottom: 3 }}>{k}</div>
+                                <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: k.includes('Auszahlung') ? 800 : 500 }}>{v}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
+                            <button onClick={markIndicativeOfferSent} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, borderRadius: 5, padding: '7px 11px', fontSize: 12, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                              Unverbindliches Angebot verschickt
+                            </button>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>
+                              <input type="checkbox" checked={Boolean(acceptedIndicativeOffers[key])} onChange={(event) => setAcceptedIndicativeOffers({ ...acceptedIndicativeOffers, [key]: event.target.checked })} style={{ accentColor: theme.aubergine }} />
+                              Angebot angenommen
+                            </label>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', fontSize: 12.5, color: `${theme.ink}88`, marginTop: 12 }}>
+                          Noch keine Berechnung vorhanden.
+                        </div>
+                      )}
                     </div>
-                  ))}
-                  {latestValuation ? (
-                    <div style={{ fontSize: 12, color: `${theme.ink}88` }}>Wertspanne: {formatEuro(latestValuation.valueMin)} bis {formatEuro(latestValuation.valueMax)}</div>
-                  ) : null}
-                </div>
-              ) : (
-                <div style={{ background: theme.mintLight, borderRadius: 6, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Clock size={16} style={{ color: theme.aubergine }} />
-                  <div style={{ fontSize: 13, color: theme.ink }}>Sobald die Rückfrage geschlossen ist, kann die Bewertung gestartet werden. Erst dann wird das indikative Angebot berechnet.</div>
-                </div>
-              )}
+                  );
+                })}
+                {latestValuation ? (
+                  <div style={{ fontSize: 12, color: `${theme.ink}88` }}>Wertspanne: {formatEuro(latestValuation.valueMin)} bis {formatEuro(latestValuation.valueMax)}</div>
+                ) : null}
+              </div>
             </div>
           )}
 
@@ -1882,6 +2079,7 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState('');
   const [draft, setDraft] = useState(defaultDraft);
+  const [validation, setValidation] = useState({ fields: [], message: '' });
   const steps = [
     { n: 1, label: 'Persönliche Daten' },
     { n: 2, label: 'Wunschmodell' },
@@ -1890,11 +2088,39 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
     { n: 5, label: 'Dokumente' },
   ];
   const progress = Math.round((step / steps.length) * 100);
+  function goToStep(nextStep) {
+    if (nextStep <= step) {
+      setValidation({ fields: [], message: '' });
+      setStep(nextStep);
+      return;
+    }
+    for (let currentStep = step; currentStep < nextStep; currentStep += 1) {
+      const result = validateCaseStep(currentStep, draft);
+      if (!result.valid) {
+        setValidation({ fields: result.fields, message: result.message });
+        setStep(currentStep);
+        setNotice?.(result.message);
+        return;
+      }
+    }
+    setValidation({ fields: [], message: '' });
+    setStep(nextStep);
+  }
   async function saveCase(submit = false) {
     if (draft.leasehold || draft.monumentProtection) {
       setNotice?.('Erbbaurecht oder Denkmalschutz ist ein Ausschlusskriterium. Der Fall kann so nicht eingereicht werden.');
       return;
     }
+    if (submit) {
+      const result = validateCaseDraft(draft);
+      if (!result.valid) {
+        setValidation({ fields: result.fields, message: result.message });
+        setStep(result.step);
+        setNotice?.(result.message);
+        return;
+      }
+    }
+    setValidation({ fields: [], message: '' });
     setSaving(submit ? 'submit' : 'draft');
     try {
       const customerPayload = {
@@ -1921,7 +2147,7 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         postalCode: draft.postalCode,
         city: draft.city,
         addressText: `${draft.street}, ${draft.postalCode} ${draft.city}`,
-        consentDataProcessing: true,
+        consentDataProcessing: Boolean(draft.consentDataProcessing),
       };
       const customerResult = await postJson('/api/customers', customerPayload);
       const propertyPayload = {
@@ -1938,16 +2164,16 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         occupancyStatus: draft.occupancyStatus,
         desiredModel: draft.desiredModel,
         residentialRightRecipients: draft.residentialRightRecipients,
-        desiredResidentialRightYears: Number(draft.desiredResidentialRightYears) || 10,
+        desiredResidentialRightYears: draft.desiredModel === 'fixed_residential_right' ? Number(draft.desiredResidentialRightYears) || undefined : undefined,
         rentalModelDisclosureAccepted: Boolean(draft.rentalModelDisclosureAccepted),
         additionalOfferRequested: Boolean(draft.additionalOfferRequested),
         additionalOfferModel: draft.additionalOfferRequested ? draft.additionalOfferModel : undefined,
         additionalOfferResidentialRightYears: draft.additionalOfferRequested ? Number(draft.additionalOfferResidentialRightYears) || undefined : undefined,
         additionalOfferReason: draft.additionalOfferRequested ? draft.additionalOfferReason : undefined,
-        secondResidentialRightWanted: Boolean(draft.secondResidentialRightWanted),
-        secondResidentialRightYears: Number(draft.secondResidentialRightYears) || undefined,
+        secondResidentialRightWanted: false,
+        secondResidentialRightYears: undefined,
         fixedTermReason: draft.fixedTermReason,
-        rentalOptionDeselected: Boolean(draft.rentalOptionDeselected),
+        rentalOptionDeselected: false,
         usableAreaSqm: Number(draft.usableAreaSqm) || undefined,
         coOwnershipShares: draft.propertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
         parkingAvailable: Boolean(draft.parkingAvailable),
@@ -1977,24 +2203,19 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         generalPropertyNotes: draft.generalPropertyNotes,
       };
       const propertyResult = await postJson('/api/properties', propertyPayload);
-      if (draft.documentFile || draft.documentFileName) {
-        if (draft.documentFile) {
-          const documentForm = new FormData();
-          documentForm.append('file', draft.documentFile);
-          documentForm.append('category', draft.documentCategory);
-          documentForm.append('requirementLevel', draft.documentRequirementLevel);
-          documentForm.append('status', 'pending');
-          if (draft.documentMissingReason) documentForm.append('missingReason', draft.documentMissingReason);
-          await postFormData(`/api/properties/${propertyResult.property.id}/documents`, documentForm);
-        } else {
-          await postJson(`/api/properties/${propertyResult.property.id}/documents`, {
-            fileName: draft.documentFileName,
-            displayName: draft.documentFileName,
-            category: draft.documentCategory,
-            requirementLevel: draft.documentRequirementLevel,
-            status: draft.documentStatus,
-            missingReason: draft.documentMissingReason,
-          });
+      const documentUploads = Object.entries(draft.documentUploads || {});
+      if (documentUploads.length) {
+        for (const [category, files] of documentUploads) {
+          for (const file of files || []) {
+            const documentForm = new FormData();
+            documentForm.append('file', file);
+            documentForm.append('category', category);
+            const isRequired = getRequiredDocumentsForPropertyType(draft.propertyType).some((item) => item.category === category)
+              || (category === 'power_of_attorney' && !hasUploadedDocument(draft, 'land_register'));
+            documentForm.append('requirementLevel', isRequired ? 'required' : 'optional');
+            documentForm.append('status', 'pending');
+            await postFormData(`/api/properties/${propertyResult.property.id}/documents`, documentForm);
+          }
         }
       }
       if (submit) {
@@ -2034,7 +2255,7 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
             const done = s.n < step;
             return (
               <React.Fragment key={s.n}>
-                <button onClick={() => setStep(s.n)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                <button onClick={() => goToStep(s.n)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
                   <div style={{
                     width: 26, height: 26, borderRadius: '50%',
                     background: active ? theme.aubergine : done ? '#5B8C2B' : 'white',
@@ -2055,11 +2276,16 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
       {/* Form Content */}
       <div style={{ padding: '24px 28px', display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24 }}>
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '24px 28px' }}>
-          {step === 1 && <FormStep1 draft={draft} setDraft={setDraft} />}
-          {step === 2 && <FormStep2 draft={draft} setDraft={setDraft} />}
-          {step === 3 && <FormStep3 draft={draft} setDraft={setDraft} />}
+          {validation.message && (
+            <div style={{ background: '#fff7f5', border: '1px solid #efc0b9', borderLeft: '4px solid #9B2C2C', borderRadius: 8, padding: '11px 13px', marginBottom: 18, fontSize: 12.5, color: '#7A1D1D', fontWeight: 650 }}>
+              {validation.message}
+            </div>
+          )}
+          {step === 1 && <FormStep1 draft={draft} setDraft={setDraft} errors={validation.fields} />}
+          {step === 2 && <FormStep2 draft={draft} setDraft={setDraft} errors={validation.fields} />}
+          {step === 3 && <FormStep3 draft={draft} setDraft={setDraft} errors={validation.fields} />}
           {step === 4 && <FormStep4 draft={draft} setDraft={setDraft} />}
-          {step === 5 && <FormStep5 draft={draft} setDraft={setDraft} />}
+          {step === 5 && <FormStep5 draft={draft} setDraft={setDraft} errors={validation.fields} />}
 
           {/* Form Actions */}
           <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 28, paddingTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2074,7 +2300,7 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
                 {saving === 'draft' ? 'Speichert...' : 'Entwurf speichern'}
               </button>
               {step < 5 ? (
-                <button onClick={() => setStep(Math.min(5, step + 1))} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={() => goToStep(Math.min(5, step + 1))} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   Weiter <ChevronRight size={15} />
                 </button>
               ) : (
@@ -2111,13 +2337,14 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
 };
 
 // Form-Felder als wiederverwendbare Komponenten
-const Field = ({ label, required, children, hint, width = '100%' }) => (
-  <div style={{ width }}>
+const Field = ({ label, required, children, hint, width = '100%', invalid = false }) => (
+  <div style={{ width, border: invalid ? '1px solid #9B2C2C55' : 'none', background: invalid ? '#9B2C2C08' : 'transparent', borderRadius: 6, padding: invalid ? 7 : 0, boxSizing: 'border-box' }}>
     <label style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: theme.ink, marginBottom: 6, letterSpacing: '0.01em' }}>
       {label}{required && <span style={{ color: theme.gold, marginLeft: 2 }}>*</span>}
     </label>
     {children}
     {hint && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 4 }}>{hint}</div>}
+    {invalid && <div style={{ fontSize: 11, color: '#9B2C2C', fontWeight: 700, marginTop: 5 }}>Bitte ausfüllen.</div>}
   </div>
 );
 const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly, inputRef }) => (
@@ -2155,7 +2382,7 @@ const RadioGroup = ({ options, name, defaultValue, value, onChange }) => (
   </div>
 );
 
-const FormStep1 = ({ draft, setDraft }) => (
+const FormStep1 = ({ draft, setDraft, errors = [] }) => (
   <div>
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Persönliche Daten</h2>
     <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte erfasse die Stammdaten des Eigentümers.</div>
@@ -2169,9 +2396,9 @@ const FormStep1 = ({ draft, setDraft }) => (
           <option value="Prof. Dr.">Prof. Dr.</option>
         </Select>
       </Field>
-      <Field label="Vorname" required><Input placeholder="Eva" value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></Field>
-      <Field label="Nachname" required><Input placeholder="Schmidt" value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></Field>
-      <Field label="Geschlecht" required>
+      <Field label="Vorname" required invalid={errors.includes('firstName')}><Input placeholder="Vorname" value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></Field>
+      <Field label="Nachname" required invalid={errors.includes('lastName')}><Input placeholder="Nachname" value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></Field>
+      <Field label="Geschlecht" required invalid={errors.includes('gender')}>
         <Select value={draft.gender} onChange={(event) => setDraft({ ...draft, gender: event.target.value })}>
           <option value="">Bitte wählen</option>
           <option value="female">weiblich</option>
@@ -2182,11 +2409,11 @@ const FormStep1 = ({ draft, setDraft }) => (
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Geburtsdatum" required><Input type="date" value={draft.dateOfBirth} onChange={(event) => setDraft({ ...draft, dateOfBirth: event.target.value, ageAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
+      <Field label="Geburtsdatum" required invalid={errors.includes('dateOfBirth')}><Input type="date" value={draft.dateOfBirth} onChange={(event) => setDraft({ ...draft, dateOfBirth: event.target.value, ageAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
       <Field label="Alter">
         <Input placeholder="wird berechnet" value={draft.ageAtSubmission} readOnly />
       </Field>
-      <Field label="Familienstand" required>
+      <Field label="Familienstand" required invalid={errors.includes('maritalStatus')}>
         <Select value={draft.maritalStatus} onChange={(event) => setDraft({ ...draft, maritalStatus: event.target.value, propertyOwnership: event.target.value === 'married' ? draft.propertyOwnership : 'customer_1' })}>
           <option value="">Bitte wählen</option>
           <option value="single">ledig</option>
@@ -2209,9 +2436,9 @@ const FormStep1 = ({ draft, setDraft }) => (
               <option value="Prof. Dr.">Prof. Dr.</option>
             </Select>
           </Field>
-          <Field label="Vorname Kunde 2" required><Input value={draft.spouseFirstName} onChange={(event) => setDraft({ ...draft, spouseFirstName: event.target.value })} /></Field>
-          <Field label="Nachname Kunde 2" required><Input value={draft.spouseLastName} onChange={(event) => setDraft({ ...draft, spouseLastName: event.target.value })} /></Field>
-          <Field label="Geschlecht Kunde 2">
+          <Field label="Vorname Kunde 2" required invalid={errors.includes('spouseFirstName')}><Input value={draft.spouseFirstName} onChange={(event) => setDraft({ ...draft, spouseFirstName: event.target.value })} /></Field>
+          <Field label="Nachname Kunde 2" required invalid={errors.includes('spouseLastName')}><Input value={draft.spouseLastName} onChange={(event) => setDraft({ ...draft, spouseLastName: event.target.value })} /></Field>
+          <Field label="Geschlecht Kunde 2" required invalid={errors.includes('spouseGender')}>
             <Select value={draft.spouseGender} onChange={(event) => setDraft({ ...draft, spouseGender: event.target.value })}>
               <option value="">Bitte wählen</option>
               <option value="female">weiblich</option>
@@ -2222,9 +2449,9 @@ const FormStep1 = ({ draft, setDraft }) => (
           </Field>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.7fr 2fr', gap: 16 }}>
-          <Field label="Geburtsdatum Kunde 2"><Input type="date" value={draft.spouseDateOfBirth} onChange={(event) => setDraft({ ...draft, spouseDateOfBirth: event.target.value, spouseAgeAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
+          <Field label="Geburtsdatum Kunde 2" required invalid={errors.includes('spouseDateOfBirth')}><Input type="date" value={draft.spouseDateOfBirth} onChange={(event) => setDraft({ ...draft, spouseDateOfBirth: event.target.value, spouseAgeAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
           <Field label="Alter Kunde 2"><Input placeholder="wird berechnet" value={draft.spouseAgeAtSubmission} readOnly /></Field>
-          <Field label="Eigentümer-Auswahl" required>
+          <Field label="Eigentümer-Auswahl" required invalid={errors.includes('propertyOwnership')}>
             <RadioGroup name="propertyOwnership" value={draft.propertyOwnership} onChange={(value) => setDraft({ ...draft, propertyOwnership: value })} options={[
               { value: 'customer_1', label: 'Kunde 1' },
               { value: 'customer_2', label: 'Kunde 2' },
@@ -2236,19 +2463,19 @@ const FormStep1 = ({ draft, setDraft }) => (
     )}
 
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1.2fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Straße" required><Input placeholder="Straße und Hausnr." value={draft.street} onChange={(event) => setDraft({ ...draft, street: event.target.value })} /></Field>
-      <Field label="PLZ" required><Input placeholder="70563" value={draft.postalCode} onChange={(event) => setDraft({ ...draft, postalCode: event.target.value })} /></Field>
-      <Field label="Ort" required><Input placeholder="Stuttgart" value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></Field>
+      <Field label="Straße" required invalid={errors.includes('street')}><Input placeholder="Straße und Hausnr." value={draft.street} onChange={(event) => setDraft({ ...draft, street: event.target.value })} /></Field>
+      <Field label="PLZ" required invalid={errors.includes('postalCode')}><Input placeholder="PLZ" value={draft.postalCode} onChange={(event) => setDraft({ ...draft, postalCode: event.target.value })} /></Field>
+      <Field label="Ort" required invalid={errors.includes('city')}><Input placeholder="Ort" value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></Field>
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Telefon"><Input placeholder="z.B. 0711 / 23 45 67" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></Field>
+      <Field label="Telefon" required invalid={errors.includes('phone')}><Input placeholder="z.B. 0711 / 23 45 67" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></Field>
       <Field label="Mobil"><Input placeholder="z.B. 0172 / 12 34 567" value={draft.mobile} onChange={(event) => setDraft({ ...draft, mobile: event.target.value })} /></Field>
-      <Field label="E-Mail"><Input type="email" placeholder="adresse@example.com" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></Field>
+      <Field label="E-Mail" required invalid={errors.includes('email')}><Input type="email" placeholder="adresse@example.com" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></Field>
     </div>
 
     <div style={{ marginBottom: 20 }}>
-      <Field label="Monatliche Einkünfte" required>
+      <Field label="Monatliche Einkünfte" required invalid={errors.includes('monthlyIncomeRange')}>
         <RadioGroup name="income" value={draft.monthlyIncomeRange} onChange={(value) => setDraft({ ...draft, monthlyIncomeRange: value })} options={[
           { value: 'under_1000', label: 'unter 1.000 €' },
           { value: 'from_1000_to_2000', label: '1.000 – 2.000 €' },
@@ -2258,8 +2485,8 @@ const FormStep1 = ({ draft, setDraft }) => (
       </Field>
     </div>
 
-    <div style={{ background: theme.mintLight, borderRadius: 6, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-      <input type="checkbox" checked readOnly style={{ marginTop: 2, accentColor: theme.aubergine }} />
+    <div style={{ background: errors.includes('consentDataProcessing') ? '#fff7f5' : theme.mintLight, border: `1px solid ${errors.includes('consentDataProcessing') ? '#efc0b9' : 'transparent'}`, borderRadius: 6, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <input type="checkbox" checked={Boolean(draft.consentDataProcessing)} onChange={(event) => setDraft({ ...draft, consentDataProcessing: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
       <div>
         <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 500 }}>Einwilligung zur Datenverarbeitung <span style={{ color: theme.gold }}>*</span></div>
         <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 3, lineHeight: 1.5 }}>Der Kunde willigt ein, dass seine Daten zum Zweck der Angebotserstellung verarbeitet und an WohnKapital übermittelt werden.</div>
@@ -2268,22 +2495,51 @@ const FormStep1 = ({ draft, setDraft }) => (
   </div>
 );
 
-const FormStep2 = ({ draft, setDraft }) => (
+const FormStep2 = ({ draft, setDraft, errors = [] }) => (
   <div>
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Wunschmodell</h2>
-    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte wähle das Hauptmodell. Ein zweites Angebot kann optional als Vergleich angefordert werden.</div>
+    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte wähle zunächst das gewünschte Hauptmodell. Danach erscheinen nur die passenden Felder.</div>
 
-    <div style={{ marginBottom: 18 }}>
-      <Field label="Hauptmodell" required>
-        <RadioGroup name="desiredModel" value={draft.desiredModel} onChange={(value) => setDraft({ ...draft, desiredModel: value })} options={[
-          { value: 'fixed_residential_right', label: 'Befristetes Wohnrecht' },
-          { value: 'sale_and_leaseback', label: 'Rückmiete' },
-        ]} />
-      </Field>
-    </div>
+    <Field label="Hauptmodell" required invalid={errors.includes('desiredModel')}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
+        {[
+          { value: 'fixed_residential_right', title: 'Befristetes Wohnrecht', text: 'Kunde verkauft und behält ein zeitlich befristetes Wohnrecht.' },
+          { value: 'sale_and_leaseback', title: 'Rückmiete', text: 'Kunde verkauft und mietet die Immobilie ab Tag 1 zurück.' },
+        ].map((option) => {
+          const active = draft.desiredModel === option.value;
+          return (
+            <button key={option.value} type="button" onClick={() => setDraft({
+              ...draft,
+              desiredModel: option.value,
+              desiredResidentialRightYears: option.value === 'fixed_residential_right' ? (draft.desiredResidentialRightYears || 10) : '',
+              residentialRightRecipients: option.value === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : '',
+              fixedTermReason: option.value === 'fixed_residential_right' ? draft.fixedTermReason : '',
+              rentalModelDisclosureAccepted: option.value === 'sale_and_leaseback' ? draft.rentalModelDisclosureAccepted : false,
+            })} style={{
+              textAlign: 'left',
+              border: `1px solid ${active ? theme.aubergine : theme.border}`,
+              background: active ? `${theme.aubergine}0A` : 'white',
+              borderRadius: 8,
+              padding: '14px 16px',
+              cursor: 'pointer',
+              color: theme.ink
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: active ? theme.aubergine : theme.ink, marginBottom: 5 }}>{option.title}</div>
+              <div style={{ fontSize: 12.5, lineHeight: 1.45, color: `${theme.ink}99` }}>{option.text}</div>
+            </button>
+          );
+        })}
+      </div>
+    </Field>
+
+    {!draft.desiredModel && (
+      <div style={{ background: theme.mintLight, borderRadius: 6, padding: '12px 14px', fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 18 }}>
+        Bitte wähle ein Modell, damit die passenden Angaben geöffnet werden.
+      </div>
+    )}
 
     {draft.desiredModel === 'sale_and_leaseback' && (
-      <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}66`, borderLeft: `4px solid ${theme.gold}`, borderRadius: 8, padding: '13px 15px', marginBottom: 18 }}>
+      <div style={{ background: theme.goldSoft, border: `1px solid ${errors.includes('rentalModelDisclosureAccepted') ? '#9B2C2C66' : `${theme.gold}66`}`, borderLeft: `4px solid ${errors.includes('rentalModelDisclosureAccepted') ? '#9B2C2C' : theme.gold}`, borderRadius: 8, padding: '13px 15px', marginBottom: 18 }}>
         <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
           <input type="checkbox" checked={draft.rentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, rentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
           <span><strong>Belehrung Rückmiete:</strong> Beim Rückmietmodell fällt ab Tag 1 nach Verkauf eine laufende Miete an. Diese Information muss vor Einreichung mit dem Kunden besprochen werden.</span>
@@ -2291,8 +2547,11 @@ const FormStep2 = ({ draft, setDraft }) => (
       </div>
     )}
 
+    {draft.desiredModel === 'fixed_residential_right' && (
+      <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 18px', marginBottom: 18 }}>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Befristetes Wohnrecht</div>
     <div style={{ marginBottom: 18 }}>
-      <Field label="Wer soll das Wohnrecht bekommen?" required>
+      <Field label="Wer soll das Wohnrecht bekommen?" required invalid={errors.includes('residentialRightRecipients')}>
         <RadioGroup name="recipient" value={draft.residentialRightRecipients} onChange={(value) => setDraft({ ...draft, residentialRightRecipients: value })} options={[
           { value: 'one_person', label: 'Eine Person' },
           { value: 'both', label: 'Beide Personen' },
@@ -2301,42 +2560,19 @@ const FormStep2 = ({ draft, setDraft }) => (
     </div>
 
     <div style={{ marginBottom: 18 }}>
-      <Field label="Dauer des Wohnrechts" required hint="Zwischen 5 und 15 Jahren wählbar.">
+      <Field label="Dauer des Wohnrechts" required hint="Zwischen 5 und 15 Jahren wählbar." invalid={errors.includes('desiredResidentialRightYears')}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <input type="range" min="5" max="15" value={draft.desiredResidentialRightYears} onChange={(event) => setDraft({ ...draft, desiredResidentialRightYears: Number(event.target.value) })} style={{ flex: 1, accentColor: theme.aubergine }} />
-          <div style={{ minWidth: 80, padding: '6px 12px', background: theme.aubergine, color: 'white', borderRadius: 5, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>{draft.desiredResidentialRightYears} Jahre</div>
+          <input type="range" min="5" max="15" value={draft.desiredResidentialRightYears || 10} onChange={(event) => setDraft({ ...draft, desiredResidentialRightYears: Number(event.target.value) })} style={{ flex: 1, accentColor: theme.aubergine }} />
+          <div style={{ minWidth: 80, padding: '6px 12px', background: theme.aubergine, color: 'white', borderRadius: 5, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>{draft.desiredResidentialRightYears || 10} Jahre</div>
         </div>
       </Field>
     </div>
 
-    <div style={{ background: theme.mintLight, borderRadius: 6, padding: '14px 16px', marginBottom: 18 }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.ink, fontWeight: 600 }}>
-        <input type="checkbox" checked={draft.secondResidentialRightWanted} onChange={(event) => setDraft({ ...draft, secondResidentialRightWanted: event.target.checked })} style={{ accentColor: theme.aubergine }} />
-        Zweite Laufzeit gewünscht (kostenpflichtig)
-      </label>
-      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
-        <Field label="Zweite Laufzeit">
-          <Select value={String(draft.secondResidentialRightYears || 5)} onChange={(event) => setDraft({ ...draft, secondResidentialRightYears: Number(event.target.value) })}>
-            <option value="5">5 Jahre</option>
-            <option value="10">10 Jahre</option>
-            <option value="15">15 Jahre</option>
-          </Select>
-        </Field>
-        <Field label="Grund der Befristung">
+        <Field label="Grund der Befristung" required invalid={errors.includes('fixedTermReason')}>
           <Input placeholder="z.B. Familienplanung, gesundheitliche Gründe" value={draft.fixedTermReason} onChange={(event) => setDraft({ ...draft, fixedTermReason: event.target.value })} />
         </Field>
       </div>
-    </div>
-
-    <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '12px 14px', marginBottom: 18 }}>
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: theme.ink }}>
-        <input type="checkbox" checked={draft.rentalOptionDeselected} onChange={(event) => setDraft({ ...draft, rentalOptionDeselected: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
-        <div>
-          <div style={{ fontWeight: 600 }}>Spätere Anmietoption abwählen</div>
-          <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 3, lineHeight: 1.5 }}>Abwahl kann zu höherer Auszahlung führen, allerdings muss nach Ablauf des Wohnrechts ausgezogen werden.</div>
-        </div>
-      </label>
-    </div>
+    )}
 
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.ink, fontWeight: 700 }}>
@@ -2345,20 +2581,23 @@ const FormStep2 = ({ draft, setDraft }) => (
       </label>
       {draft.additionalOfferRequested && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 16, marginTop: 14 }}>
-          <Field label="Zweites Modell">
+          <Field label="Zweites Modell" required invalid={errors.includes('additionalOfferModel')}>
             <Select value={draft.additionalOfferModel} onChange={(event) => setDraft({ ...draft, additionalOfferModel: event.target.value })}>
+              <option value="">Bitte wählen</option>
               <option value="fixed_residential_right">Befristetes Wohnrecht</option>
               <option value="sale_and_leaseback">Rückmiete</option>
             </Select>
           </Field>
-          <Field label="Laufzeit">
-            <Select value={String(draft.additionalOfferResidentialRightYears || 10)} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightYears: Number(event.target.value) })}>
-              <option value="5">5 Jahre</option>
-              <option value="10">10 Jahre</option>
-              <option value="15">15 Jahre</option>
-            </Select>
-          </Field>
-          <Field label="Hinweis zum zweiten Angebot">
+          {draft.additionalOfferModel === 'fixed_residential_right' && (
+            <Field label="Laufzeit" required invalid={errors.includes('additionalOfferResidentialRightYears')}>
+              <Select value={String(draft.additionalOfferResidentialRightYears || 10)} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightYears: Number(event.target.value) })}>
+                <option value="5">5 Jahre</option>
+                <option value="10">10 Jahre</option>
+                <option value="15">15 Jahre</option>
+              </Select>
+            </Field>
+          )}
+          <Field label={draft.additionalOfferModel === 'fixed_residential_right' ? 'Grund / Hinweis' : 'Hinweis zum zweiten Angebot'} required={draft.additionalOfferModel === 'fixed_residential_right'} invalid={errors.includes('additionalOfferReason')}>
             <Input value={draft.additionalOfferReason} onChange={(event) => setDraft({ ...draft, additionalOfferReason: event.target.value })} placeholder="z.B. Vergleich für Kundengespräch" />
           </Field>
         </div>
@@ -2367,38 +2606,38 @@ const FormStep2 = ({ draft, setDraft }) => (
   </div>
 );
 
-const FormStep3 = ({ draft, setDraft }) => (
+const FormStep3 = ({ draft, setDraft, errors = [] }) => (
   <div>
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Immobiliendaten</h2>
     <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Erfasse die wesentlichen Eigenschaften der Immobilie.</div>
 
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Objektadresse</div>
     <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1.2fr', gap: 16, marginBottom: 20 }}>
-      <Field label="Straße" required><Input placeholder="Straße und Hausnr." value={draft.propertyStreet} onChange={(event) => setDraft({ ...draft, propertyStreet: event.target.value })} /></Field>
-      <Field label="PLZ" required><Input placeholder="70563" value={draft.propertyPostalCode} onChange={(event) => setDraft({ ...draft, propertyPostalCode: event.target.value })} /></Field>
-      <Field label="Ort" required><Input placeholder="Stuttgart" value={draft.propertyCity} onChange={(event) => setDraft({ ...draft, propertyCity: event.target.value })} /></Field>
+      <Field label="Straße" required invalid={errors.includes('propertyStreet')}><Input placeholder="Straße und Hausnr." value={draft.propertyStreet} onChange={(event) => setDraft({ ...draft, propertyStreet: event.target.value })} /></Field>
+      <Field label="PLZ" required invalid={errors.includes('propertyPostalCode')}><Input placeholder="PLZ" value={draft.propertyPostalCode} onChange={(event) => setDraft({ ...draft, propertyPostalCode: event.target.value })} /></Field>
+      <Field label="Ort" required invalid={errors.includes('propertyCity')}><Input placeholder="Ort" value={draft.propertyCity} onChange={(event) => setDraft({ ...draft, propertyCity: event.target.value })} /></Field>
     </div>
 
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Grunddaten</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Immobilientyp" required>
+      <Field label="Immobilientyp" required invalid={errors.includes('propertyType')}>
         <Select value={draft.propertyType} onChange={(event) => setDraft({ ...draft, propertyType: event.target.value })}><option value="">Bitte wählen</option><option value="single_family">Einfamilienhaus</option><option value="semi_detached">Doppelhaushälfte</option><option value="row_house">Reihenhaus</option><option value="apartment">Eigentumswohnung</option></Select>
       </Field>
-      <Field label="Baujahr" required><Input type="number" placeholder="z.B. 1978" value={draft.yearBuilt} onChange={(event) => setDraft({ ...draft, yearBuilt: event.target.value })} /></Field>
-      <Field label="Wohnfläche (m²)" required><Input type="number" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
+      <Field label="Baujahr" required invalid={errors.includes('yearBuilt')}><Input type="number" placeholder="z.B. 1978" value={draft.yearBuilt} onChange={(event) => setDraft({ ...draft, yearBuilt: event.target.value })} /></Field>
+      <Field label="Wohnfläche (m²)" required invalid={errors.includes('livingAreaSqm')}><Input type="number" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: draft.propertyType === 'apartment' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Grundstück (m²)" required><Input type="number" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
+      <Field label="Grundstück (m²)" required invalid={errors.includes('plotAreaSqm')}><Input type="number" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
       <Field label="Nutzfläche (m²)"><Input type="number" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
       {draft.propertyType === 'apartment' && (
-        <Field label="Miteigentumsanteile" hint="Nur bei Eigentumswohnungen"><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
+        <Field label="Miteigentumsanteile" required hint="Nur bei Eigentumswohnungen" invalid={errors.includes('coOwnershipShares')}><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
       )}
     </div>
 
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Objekteindruck</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Optik" required>
+      <Field label="Optik" required invalid={errors.includes('visualConditionRating')}>
         <Select value={draft.visualConditionRating} onChange={(event) => setDraft({ ...draft, visualConditionRating: event.target.value })}>
           <option value="very_good">sehr gut</option>
           <option value="good">gut</option>
@@ -2457,14 +2696,14 @@ const FormStep3 = ({ draft, setDraft }) => (
       </Field>
       {draft.energyCertificateAvailable && (
         <>
-          <Field label="Typ Energieausweis">
+          <Field label="Typ Energieausweis" required invalid={errors.includes('energyCertificateType')}>
             <Select value={draft.energyCertificateType} onChange={(event) => setDraft({ ...draft, energyCertificateType: event.target.value })}>
               <option value="demand">Bedarfsausweis</option>
               <option value="consumption">Verbrauchsausweis</option>
               <option value="">Keine Angabe</option>
             </Select>
           </Field>
-          <Field label="Energieklasse"><Input value={draft.energyClass} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })} /></Field>
+          <Field label="Energieklasse" required invalid={errors.includes('energyClass')}><Input value={draft.energyClass} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })} /></Field>
         </>
       )}
       {!draft.energyCertificateAvailable && (
@@ -2535,7 +2774,7 @@ const FormStep3 = ({ draft, setDraft }) => (
         </Select>
       </Field>
       {draft.parkingAvailable && (
-        <Field label="Anzahl Parkplätze"><Input type="number" value={draft.parkingCount} onChange={(event) => setDraft({ ...draft, parkingCount: event.target.value })} /></Field>
+        <Field label="Anzahl Parkplätze" required invalid={errors.includes('parkingCount')}><Input type="number" value={draft.parkingCount} onChange={(event) => setDraft({ ...draft, parkingCount: event.target.value })} /></Field>
       )}
     </div>
 
@@ -2549,7 +2788,7 @@ const FormStep3 = ({ draft, setDraft }) => (
           ]} />
         </Field>
         {draft.remainingDebtKnown && (
-          <Field label="Restschuld (€)" required>
+          <Field label="Restschuld (€)" required invalid={errors.includes('remainingDebtAmount')}>
             <Input type="number" value={draft.remainingDebtAmount} onChange={(event) => setDraft({ ...draft, remainingDebtAmount: event.target.value })} />
           </Field>
         )}
@@ -2671,70 +2910,100 @@ const FormStep4 = ({ draft, setDraft }) => {
   );
 };
 
-const FormStep5 = ({ draft, setDraft }) => {
+const FormStep5 = ({ draft, setDraft, errors = [] }) => {
   const requiredDocuments = getRequiredDocumentsForPropertyType(draft.propertyType);
-  return (
-  <div>
-    <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Dokumente</h2>
-    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Dokumente werden mit Kategorie, Pflichtstatus und Prüfstatus am Fall gespeichert.</div>
-
-    <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 18 }}>
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Pflichtdokumentliste</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {requiredDocuments.map((item) => (
-          <div key={item.category} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-            <FileText size={15} style={{ color: theme.aubergine, flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>{item.label}</div>
-              {item.note && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3, lineHeight: 1.35 }}>{item.note}</div>}
-            </div>
+  const optionalDocuments = getOptionalDocumentsForPropertyType(draft.propertyType);
+  const uploads = draft.documentUploads || {};
+  const appendFiles = (category, fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    setDraft({
+      ...draft,
+      documentUploads: {
+        ...uploads,
+        [category]: [...(uploads[category] || []), ...files],
+      },
+    });
+  };
+  const removeFile = (category, index) => {
+    const nextFiles = [...(uploads[category] || [])];
+    nextFiles.splice(index, 1);
+    setDraft({
+      ...draft,
+      documentUploads: {
+        ...uploads,
+        [category]: nextFiles,
+      },
+    });
+  };
+  const row = (item, level = 'required', customErrorKey) => {
+    const files = uploads[item.category] || [];
+    const missing = level === 'required' && (customErrorKey ? errors.includes(customErrorKey) : errors.includes(`document:${item.category}`));
+    return (
+      <div key={`${level}-${item.category}`} style={{ background: 'white', border: `1px solid ${missing ? '#9B2C2C66' : theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            {files.length ? <CheckCircle size={15} style={{ color: '#5B8C2B' }} /> : <FileText size={15} style={{ color: missing ? '#9B2C2C' : theme.aubergine }} />}
+            <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{item.label}</div>
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: level === 'required' ? theme.gold : `${theme.ink}77`, background: level === 'required' ? theme.goldSoft : theme.mintLight, borderRadius: 12, padding: '2px 8px' }}>
+              {level === 'required' ? 'Pflicht' : 'Optional'}
+            </span>
           </div>
-        ))}
-      </div>
-      {draft.propertyType === 'apartment' && (
-        <div style={{ marginTop: 10, background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '9px 11px', fontSize: 11.5, color: theme.ink, lineHeight: 1.45 }}>
-          Wohnungssonderfälle: Teilungserklärung, Hausgeld, Protokolle und Instandhaltungsrücklage sind für Eigentumswohnungen verpflichtend zu prüfen.
+          {item.note && <div style={{ fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.4 }}>{item.note}</div>}
+          {missing && <div style={{ fontSize: 11.5, color: '#9B2C2C', fontWeight: 800, marginTop: 6 }}>Diese Unterlage fehlt noch.</div>}
+          {files.length > 0 && (
+            <div style={{ display: 'grid', gap: 5, marginTop: 9 }}>
+              {files.map((file, index) => (
+                <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: theme.ink, background: theme.mintLighter, borderRadius: 5, padding: '5px 7px' }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                  <button type="button" onClick={() => removeFile(item.category, index)} style={{ background: 'transparent', border: 'none', color: '#9B2C2C', cursor: 'pointer', display: 'flex', padding: 1 }} aria-label="Datei entfernen">
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+        <label style={{ background: theme.aubergine, color: 'white', borderRadius: 5, padding: '7px 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          <Upload size={13} /> Datei hochladen
+          <input type="file" multiple onChange={(event) => {
+            appendFiles(item.category, event.target.files);
+            event.target.value = '';
+          }} style={{ display: 'none' }} />
+        </label>
+      </div>
+    );
+  };
 
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Unterlage hochladen">
-        <input type="file" onChange={(event) => {
-          const file = event.target.files?.[0] || null;
-          setDraft({ ...draft, documentFile: file, documentFileName: file?.name || '' });
-        }} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-      </Field>
-      <Field label="Kategorie">
-        <Select value={draft.documentCategory} onChange={(event) => setDraft({ ...draft, documentCategory: event.target.value })}>
-          {Object.entries(documentCategoryLabels).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </Select>
-      </Field>
+  return (
+    <div>
+      <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Dokumente</h2>
+      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte lade die Unterlagen direkt in der jeweiligen Zeile hoch. Pro Unterlage sind beliebig viele Dateien möglich.</div>
+
+      <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 18 }}>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Pflichtdokumente</div>
+        <div style={{ display: 'grid', gap: 10 }}>
+          {requiredDocuments.map((item) => row(item, 'required', item.category === 'land_register' ? 'document:land_register_or_power' : undefined))}
+          {!hasUploadedDocument(draft, 'land_register') && row({
+            category: 'power_of_attorney',
+            label: 'Vollmacht Grundbuch',
+            note: 'Nur erforderlich, solange kein aktueller Grundbuchauszug hochgeladen wurde.'
+          }, 'required', 'document:land_register_or_power')}
+        </div>
+        {draft.propertyType === 'apartment' && (
+          <div style={{ marginTop: 10, background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '9px 11px', fontSize: 11.5, color: theme.ink, lineHeight: 1.45 }}>
+            Wohnungssonderfälle: Teilungserklärung, Hausgeld, Protokolle und Instandhaltungsrücklage sind für Eigentumswohnungen verpflichtend zu prüfen.
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px' }}>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Weitere Unterlagen</div>
+        <div style={{ display: 'grid', gap: 10 }}>
+          {optionalDocuments.map((item) => row(item, 'optional'))}
+        </div>
+      </div>
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Dokumentenpflicht">
-        <Select value={draft.documentRequirementLevel} onChange={(event) => setDraft({ ...draft, documentRequirementLevel: event.target.value })}>
-          <option value="required">Pflicht</option>
-          <option value="recommended">Empfohlen</option>
-          <option value="optional">Optional</option>
-        </Select>
-      </Field>
-      <Field label="Dokumentenstatus">
-        <Select value={draft.documentStatus} onChange={(event) => setDraft({ ...draft, documentStatus: event.target.value })}>
-          <option value="missing">fehlt</option>
-          <option value="pending">eingereicht</option>
-          <option value="ok">geprüft</option>
-          <option value="review_required">Prüfung nötig</option>
-          <option value="rejected">abgelehnt</option>
-        </Select>
-      </Field>
-    </div>
-    <Field label="Statusnotiz">
-      <textarea value={draft.documentMissingReason} onChange={(event) => setDraft({ ...draft, documentMissingReason: event.target.value })} rows={3} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
-    </Field>
-  </div>
   );
 };
 

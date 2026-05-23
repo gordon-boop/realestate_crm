@@ -460,7 +460,7 @@ export function updatePropertyStatus(propertyId: string, status: PropertyStatus)
 
 export function advanceAcquisitionWorkflow(
   propertyId: string,
-  action: "offer_accepted" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
+  action: "indicative_offer_sent" | "offer_accepted" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
   userId: string
 ): Property {
   const property = properties.find((item) => item.id === propertyId);
@@ -470,6 +470,12 @@ export function advanceAcquisitionWorkflow(
 
   const now = nowIso();
   const config = {
+    indicative_offer_sent: {
+      status: "INDICATIVE_OFFER_SENT" as const,
+      field: "lastActivityAt" as const,
+      type: "indicative_offer_sent",
+      message: "Unverbindliches Angebot wurde abgegeben."
+    },
     offer_accepted: {
       status: "OFFER_ACCEPTED" as const,
       field: "offerAcceptedAt" as const,

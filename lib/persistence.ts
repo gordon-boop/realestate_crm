@@ -359,11 +359,12 @@ export async function convertDbLeadToCase(leadId: string, partnerId: string, use
 
 export async function advanceDbAcquisitionWorkflow(
   propertyId: string,
-  action: "offer_accepted" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
+  action: "indicative_offer_sent" | "offer_accepted" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
   userId: string
 ) {
   const now = new Date();
   const config = {
+    indicative_offer_sent: { status: "INDICATIVE_OFFER_SENT", field: "lastActivityAt", type: "indicative_offer_sent", message: "Unverbindliches Angebot wurde abgegeben." },
     offer_accepted: { status: "OFFER_ACCEPTED", field: "offerAcceptedAt", type: "offer_accepted", message: "Kunde hat das Angebot angenommen." },
     purchase_started: { status: "PURCHASE_STARTED", field: "purchaseStartedAt", type: "purchase_started", message: "Ankaufsprozess wurde gestartet." },
     notary_appointment: { status: "NOTARY_APPOINTMENT", field: "notaryAppointmentAt", type: "notary_appointment", message: "Notartermin wurde vereinbart." },

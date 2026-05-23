@@ -2,8 +2,15 @@
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WohnKapital – Immobilienverrentung",
-  description: "Verkaufen Sie Ihr Eigenheim zum Marktpreis und bleiben Sie in Ihrem Zuhause. Kostenlose Beratung & Bewertung."
+  title: "WohnKapital - Im Haus bleiben. Im Leben gewinnen.",
+  description:
+    "WohnKapital ermöglicht Eigentümern, gebundenes Immobilienvermögen freizusetzen und gleichzeitig im vertrauten Zuhause wohnen zu bleiben.",
+  openGraph: {
+    title: "WohnKapital - Im Haus bleiben. Im Leben gewinnen.",
+    description:
+      "Faire Immobilienverrentung mit notariell gesichertem Wohnrecht. Persönliche Beratung, transparente Bewertung.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

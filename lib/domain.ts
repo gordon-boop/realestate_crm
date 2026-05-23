@@ -25,6 +25,7 @@ export type PropertyStatus =
   | "INTERNAL_REVIEW"
   | "APPROVED"
   | "SENT"
+  | "INDICATIVE_OFFER_SENT"
   | "OFFER_ACCEPTED"
   | "PURCHASE_STARTED"
   | "NOTARY_APPOINTMENT"
