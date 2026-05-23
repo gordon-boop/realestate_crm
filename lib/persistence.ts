@@ -55,6 +55,7 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     buildingCondition: property.buildingConditionJson as Record<string, unknown> | undefined,
     followUpDueAt: iso(property.followUpDueAt),
     customerFeedbackReceivedAt: iso(property.customerFeedbackReceivedAt),
+    rejectedAt: iso(property.rejectedAt),
     offerAcceptedAt: iso(property.offerAcceptedAt),
     purchaseStartedAt: iso(property.purchaseStartedAt),
     notaryAppointmentAt: iso(property.notaryAppointmentAt),

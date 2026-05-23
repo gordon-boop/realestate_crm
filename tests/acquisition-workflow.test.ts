@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { advanceAcquisitionWorkflow, getCaseByPropertyId } from "../lib/store.ts";
-import { acquisitionWorkflowSchema } from "../lib/validation.ts";
+import { acquisitionWorkflowSchema, propertyRejectSchema } from "../lib/validation.ts";
 
 test("acquisition workflow advances a case into portfolio", () => {
   assert.equal(acquisitionWorkflowSchema.parse({ action: "offer_accepted" }).action, "offer_accepted");
@@ -16,4 +16,15 @@ test("acquisition workflow advances a case into portfolio", () => {
   assert.equal(property.status, "IN_PORTFOLIO");
   assert.ok(property.portfolioEnteredAt);
   assert.equal(caseView?.activities.some((activity) => activity.type === "portfolio_entered"), true);
+});
+
+test("case rejection requires a structured reason", () => {
+  const parsed = propertyRejectSchema.parse({
+    reasonCode: "condition",
+    note: "Objektzustand passt aktuell nicht zum Ankaufsprofil."
+  });
+
+  assert.equal(parsed.reasonCode, "condition");
+  assert.equal(parsed.note, "Objektzustand passt aktuell nicht zum Ankaufsprofil.");
+  assert.throws(() => propertyRejectSchema.parse({ reasonCode: "unknown" }));
 });

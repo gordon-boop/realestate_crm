@@ -139,13 +139,14 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen }) => (
   </div>
 );
 
-const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0 }) => {
+const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0, rejectedCount = 0 }) => {
   const partnerNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
     { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts' },
     { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: 4 },
     { icon: Archive, label: 'Bestand', screen: 'portfolio' },
+    { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined },
     { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
   const adminNav = [
@@ -155,6 +156,7 @@ const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0 }) => {
     { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: 23 },
     { icon: Archive, label: 'Bestand', screen: 'portfolio' },
     { icon: CheckCircle2, label: 'Verkauft', screen: 'sold', internal: true },
+    { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined, internal: true },
     { icon: Users, label: 'Partner', screen: 'partners' },
     { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
@@ -421,6 +423,17 @@ const energyCertificateLabels = { demand: 'Bedarfsausweis', consumption: 'Verbra
 const energyCarrierLabels = { photovoltaik: 'Photovoltaik', solarthermie: 'Solarthermie', batteriespeicher: 'Batteriespeicher' };
 const documentStatusLabels = { missing: 'fehlt', pending: 'eingereicht', ok: 'geprüft', review_required: 'Prüfung nötig', rejected: 'abgelehnt' };
 const requirementLabels = { required: 'Pflicht', recommended: 'Empfohlen', optional: 'Optional' };
+const rejectionReasons = [
+  { value: 'location', label: 'Lage / Marktgängigkeit' },
+  { value: 'condition', label: 'Objektzustand' },
+  { value: 'age', label: 'Alter / Laufzeit passt nicht' },
+  { value: 'documents', label: 'Unterlagen oder Datenlage unzureichend' },
+  { value: 'valuation', label: 'Bewertung / Wirtschaftlichkeit' },
+  { value: 'legal', label: 'Rechtliche Ausschlusskriterien' },
+  { value: 'occupancy', label: 'Nutzung / Vermietung' },
+  { value: 'other', label: 'Sonstiger Grund' },
+];
+const rejectionReasonLabels = Object.fromEntries(rejectionReasons.map((item) => [item.value, item.label]));
 const documentCategoryLabels = {
   energy_certificate: 'Energieausweis',
   land_register: 'Grundbuchauszug',
@@ -483,6 +496,10 @@ function mapCaseView(item) {
     flaeche: property.livingAreaSqm,
     grundstueck: property.plotAreaSqm || null,
     status: property.status,
+    rejectionReasonCode: property.rejectionReasonCode,
+    rejectionReasonLabel: property.rejectionReasonLabel,
+    rejectionNote: property.rejectionNote,
+    rejectedAt: property.rejectedAt,
     vor: property.lastActivityLabel || dateLabel(property.updatedAt),
     followUp: Boolean(property.followUpRequired || openReminder),
     followUpReason: openReminder?.reason || property.followUpReason || '',
@@ -496,6 +513,7 @@ function filterCasesForScreen(cases, screen) {
     in_progress: ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'APPOINTMENT_SCHEDULED'],
     portfolio: ['OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
     sold: ['SOLD', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
+    rejected: ['REJECTED', 'LOST'],
   };
   const statuses = statusGroups[screen] || [];
   return cases.filter((item) => statuses.includes(item.status));
@@ -507,6 +525,7 @@ function menuScreenTitle(screen) {
     in_progress: 'In Bearbeitung',
     portfolio: 'Bestand',
     sold: 'Verkauft',
+    rejected: 'Abgelehnt',
   };
   return labels[screen] || 'Fälle';
 }
@@ -865,6 +884,7 @@ const getBrokerNextStep = (item) => {
   if (['SUBMITTED', 'VALUATION_PENDING', 'VALUATED'].includes(item.status)) return 'Bewertung abwarten';
   if (['OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW'].includes(item.status)) return 'Prüfung beobachten';
   if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'Ankauf verfolgen';
+  if (item.status === 'REJECTED') return 'Ablehnungsgrund ansehen';
   return 'Fall öffnen';
 };
 
@@ -1172,7 +1192,7 @@ const AdminDashboard = ({ cases = mockCases, onOpenCase }) => (
           </tr>
         </thead>
         <tbody>
-          {cases.map((r, i) => (
+          {cases.filter((item) => item.status !== 'REJECTED' && item.status !== 'LOST').map((r, i) => (
             <tr key={r.propertyId || r.id || i} onClick={() => onOpenCase(r.propertyId || r.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, cursor: 'pointer' }}>
               <td style={{ padding: '11px 16px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 600 }}>{r.id}</td>
               <td style={{ padding: '11px 16px', color: theme.ink }}>{r.kunde}{r.alter ? ` (${r.alter})` : ''}</td>
@@ -1197,6 +1217,7 @@ const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
     in_progress: 'Alle aktiven Vorgänge von Einreichung bis Freigabe.',
     portfolio: 'Fälle im Bestand oder in der Kundenphase nach Versand.',
     sold: 'Erfolgreich abgeschlossene und verkaufte Vorgänge.',
+    rejected: 'Abgelehnte Vorgänge mit dokumentiertem Grund für den Makler.',
   }[screen] || 'Gefilterte Fallliste.';
 
   return (
@@ -1221,6 +1242,7 @@ const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
         cases={filteredCases}
         onOpenCase={onOpenCase}
         showPartner={role === 'admin'}
+        showRejection={screen === 'rejected'}
       />
     </div>
   );
@@ -1392,7 +1414,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   );
 };
 
-const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, emptyText = 'Keine Fälle vorhanden.' }) => (
+const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, showRejection = false, emptyText = 'Keine Fälle vorhanden.' }) => (
   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
     <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>{title}</span>
@@ -1404,7 +1426,7 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, emp
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: theme.mintLight }}>
-            {['Fall', 'Kunde', showPartner ? 'Partner' : null, 'Objekt', 'Status', 'Letzte Aktivität', ''].filter(Boolean).map((h, i) => (
+            {['Fall', 'Kunde', showPartner ? 'Partner' : null, 'Objekt', 'Status', showRejection ? 'Ablehnungsgrund' : null, 'Letzte Aktivität', ''].filter(Boolean).map((h, i) => (
               <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
             ))}
           </tr>
@@ -1417,6 +1439,7 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, emp
               {showPartner && <td style={{ padding: '11px 16px', color: `${theme.ink}aa`, fontSize: 12 }}>{row.partner}</td>}
               <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>{row.objekt}</td>
               <td style={{ padding: '11px 16px' }}><StatusBadge status={row.status} /></td>
+              {showRejection && <td style={{ padding: '11px 16px', color: '#9B2C2C', fontSize: 12.5, fontWeight: 650 }}>{row.rejectionReasonLabel || labelFrom(rejectionReasonLabels, row.rejectionReasonCode, '-')}</td>}
               <td style={{ padding: '11px 16px', color: `${theme.ink}88`, fontSize: 12 }}>{row.vor}</td>
               <td style={{ padding: '11px 16px', textAlign: 'right' }}><ChevronRight size={15} style={{ color: `${theme.aubergine}88` }} /></td>
             </tr>
@@ -1565,6 +1588,9 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const [uploadCategory, setUploadCategory] = useState('energy_certificate');
   const [uploadRequirementLevel, setUploadRequirementLevel] = useState('required');
   const [uploadNote, setUploadNote] = useState('');
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectionReasonCode, setRejectionReasonCode] = useState('location');
+  const [rejectionNote, setRejectionNote] = useState('');
   const c = cases.find(x => x.propertyId === caseId || x.id === caseId) || mockCases[0];
   const caseView = c.raw;
   const customer = caseView?.customer;
@@ -1743,6 +1769,16 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const markFeedbackReceived = () => runCaseAction('Kundenrückmeldung', async () => {
     await postJson(`/api/properties/${c.propertyId}/feedback-received`);
   });
+  const rejectCase = () => runCaseAction('Fall ablehnen', async () => {
+    const reason = rejectionReasons.find((item) => item.value === rejectionReasonCode);
+    await postJson(`/api/properties/${c.propertyId}/reject`, {
+      reasonCode: rejectionReasonCode,
+      reasonLabel: reason?.label,
+      note: rejectionNote.trim() || undefined,
+    });
+    setRejectModalOpen(false);
+    setRejectionNote('');
+  });
   const acquisitionSteps = [
     { action: 'indicative_offer_sent', status: 'INDICATIVE_OFFER_SENT', label: 'Unverbindliches Angebot abgegeben', date: property?.status === 'INDICATIVE_OFFER_SENT' ? property?.updatedAt : undefined },
     { action: 'offer_accepted', status: 'OFFER_ACCEPTED', label: 'Angebot angenommen', date: property?.offerAcceptedAt },
@@ -1824,9 +1860,64 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
             <button onClick={() => startValuationAndOffer('sale_and_leaseback')} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
               Rückmiete kalkulieren
             </button>
+            {property?.status !== 'REJECTED' && (
+              <button onClick={() => setRejectModalOpen(true)} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
+                Fall ablehnen
+              </button>
+            )}
           </>
         )}
       </div>
+
+      {rejectModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', background: '#9B2C2C0F', borderBottom: '1px solid #9B2C2C22', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 15, color: '#9B2C2C', fontWeight: 800 }}>Fall ablehnen</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>Der Makler sieht den Grund im Ordner „Abgelehnt“ und in der Fallansicht.</div>
+              </div>
+              <button onClick={() => setRejectModalOpen(false)} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'grid', gap: 14 }}>
+              <Field label="Ablehnungsgrund" required>
+                <Select value={rejectionReasonCode} onChange={(event) => setRejectionReasonCode(event.target.value)}>
+                  {rejectionReasons.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}
+                </Select>
+              </Field>
+              <Field label="Hinweis an den Makler">
+                <textarea value={rejectionNote} onChange={(event) => setRejectionNote(event.target.value)} placeholder="Kurze Begründung oder nächster sinnvoller Hinweis..." style={{ width: '100%', minHeight: 96, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+              </Field>
+              <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5 }}>
+                Ablehnen ist besser als Löschen: Der Vorgang bleibt nachvollziehbar, der Makler sieht den Grund und die Historie bleibt erhalten.
+              </div>
+            </div>
+            <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setRejectModalOpen(false)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
+              <button onClick={rejectCase} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C', border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.7 : 1 }}>
+                {busyAction === 'Fall ablehnen' ? 'Wird abgelehnt...' : 'Ablehnen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {property?.status === 'REJECTED' && (
+        <div style={{ background: '#9B2C2C0F', borderBottom: '1px solid #9B2C2C33', padding: '12px 28px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <AlertTriangle size={17} style={{ color: '#9B2C2C', marginTop: 1 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12.8, fontWeight: 800, color: '#9B2C2C' }}>
+              Fall abgelehnt: {property.rejectionReasonLabel || labelFrom(rejectionReasonLabels, property.rejectionReasonCode, 'Grund nicht angegeben')}
+            </div>
+            <div style={{ fontSize: 12, color: `${theme.ink}aa`, marginTop: 3 }}>
+              {property.rejectionNote || 'Es wurde kein zusätzlicher Hinweis hinterlegt.'}
+              {property.rejectedAt ? ` · abgelehnt am ${dateLabel(property.rejectedAt)}` : ''}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rückfrage-Banner */}
       {c.followUp && (
@@ -3629,7 +3720,7 @@ export default function App({ initialRole = 'partner' } = {}) {
       <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} />
       {profileOpen && <ProfileModal user={user} role={role} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        <Sidebar role={role} currentScreen={screen} onNavigate={handleNavigate} leadCount={leads.filter((lead) => role === 'admin' ? lead.status === 'NEW' : lead.status !== 'CONVERTED' && lead.status !== 'REJECTED').length} />
+        <Sidebar role={role} currentScreen={screen} onNavigate={handleNavigate} leadCount={leads.filter((lead) => role === 'admin' ? lead.status === 'NEW' : lead.status !== 'CONVERTED' && lead.status !== 'REJECTED').length} rejectedCount={cases.filter((item) => item.status === 'REJECTED' || item.status === 'LOST').length} />
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {(notice || loadingCases || loadingLeads) && (
             <div style={{ margin: '14px 28px 0', background: loadingCases ? theme.mintLight : theme.goldSoft, border: `1px solid ${loadingCases ? theme.border : `${theme.gold}55`}`, borderRadius: 6, padding: '9px 12px', fontSize: 12.5, color: theme.ink }}>
@@ -3640,7 +3731,7 @@ export default function App({ initialRole = 'partner' } = {}) {
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} />}
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
-          {['drafts', 'in_progress', 'sold'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
+          {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}

@@ -1,5 +1,6 @@
 import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
+import { nextPropertyCaseNumber } from "@/lib/case-number";
 import { addDbActivity, getDbCases } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { propertyCreateSchema } from "@/lib/validation";
@@ -22,9 +23,11 @@ export async function POST(request: Request): Promise<Response> {
     if (!customer) throw new Error("Customer not found");
     if (user.role === "partner" && customer.partnerId !== user.partnerId) throw new Error("Forbidden");
 
+    const caseNumber = body.caseNumber || await nextPropertyCaseNumber();
+
     const property = await prisma.property.create({
       data: {
-        caseNumber: body.caseNumber,
+        caseNumber,
         objectTitle: body.objectTitle,
         customerId: customer.id,
         partnerId: customer.partnerId,

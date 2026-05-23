@@ -160,3 +160,9 @@ export const leadStatusSchema = z.object({
 export const acquisitionWorkflowSchema = z.object({
   action: z.enum(["indicative_offer_sent", "offer_accepted", "purchase_started", "notary_appointment", "purchased", "enter_portfolio"])
 });
+
+export const propertyRejectSchema = z.object({
+  reasonCode: z.enum(["location", "condition", "age", "documents", "valuation", "legal", "occupancy", "other"]),
+  reasonLabel: optionalString,
+  note: optionalString
+});

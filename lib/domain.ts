@@ -191,6 +191,11 @@ export type Property = {
   followUpReason?: string;
   followUpDueAt?: string;
   customerFeedbackReceivedAt?: string;
+  rejectionReasonCode?: string;
+  rejectionReasonLabel?: string;
+  rejectionNote?: string;
+  rejectedAt?: string;
+  rejectedByUserId?: string;
   offerCalculationSource?: string;
   offerAcceptedAt?: string;
   purchaseStartedAt?: string;
