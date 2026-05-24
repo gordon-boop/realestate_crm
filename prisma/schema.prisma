@@ -231,6 +231,12 @@ enum ActivityEntityType {
   offer
   reminder
   lead
+  chat
+}
+
+enum ChatMessageVisibility {
+  shared
+  internal
 }
 
 model Partner {
@@ -259,6 +265,7 @@ model User {
   passwordHash String   @map("password_hash")
   role         UserRole
   activities   Activity[]
+  chatMessages ChatMessage[]
   approvedOffers Offer[] @relation("OfferApprovedBy")
   uploadedDocuments Document[]
   reviewedDocuments Document[] @relation("DocumentReviewedBy")
@@ -419,6 +426,7 @@ model Property {
   valuations                   Valuation[]
   offers                       Offer[]
   activities                   Activity[]
+  chatMessages                 ChatMessage[]
   reminders                    Reminder[]
   createdAt                    DateTime          @default(now()) @map("created_at")
   updatedAt                    DateTime          @updatedAt @map("updated_at")
@@ -545,6 +553,22 @@ model Activity {
 
   @@index([propertyId])
   @@map("activities")
+}
+
+model ChatMessage {
+  id             String                @id @default(cuid())
+  propertyId     String                @map("property_id")
+  property       Property              @relation(fields: [propertyId], references: [id])
+  userId         String                @map("user_id")
+  user           User                  @relation(fields: [userId], references: [id])
+  message        String
+  source         ActivitySource        @default(user)
+  visibility     ChatMessageVisibility @default(shared)
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  @@index([propertyId])
+  @@index([createdAt])
+  @@map("chat_messages")
 }
 
 model Reminder {

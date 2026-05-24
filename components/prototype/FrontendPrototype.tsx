@@ -102,10 +102,13 @@ const Logo = ({ size = 28 }) => (
 // =====================================================================
 // SHARED — Header & Sidebar
 // =====================================================================
-const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notifications = [] }) => {
+const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notifications = [], chatNotifications = [], onOpenCase }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const visibleNotifications = notifications.slice(0, 8);
   const notificationCount = notifications.length;
+  const visibleChatNotifications = chatNotifications.slice(0, 8);
+  const chatCount = chatNotifications.length;
 
   return (
     <div style={{ background: theme.mintLight, borderBottom: `1px solid ${theme.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -133,7 +136,10 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
         <div style={{ position: 'relative' }}>
           <button
             type="button"
-            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            onClick={() => {
+              setNotificationsOpen(!notificationsOpen);
+              setChatOpen(false);
+            }}
             title="Prozessänderungen"
             style={{ position: 'relative', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
           >
@@ -171,7 +177,62 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
             </div>
           )}
         </div>
-        <MessageSquare size={18} style={{ color: theme.aubergine, cursor: 'pointer' }} />
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setChatOpen(!chatOpen);
+              setNotificationsOpen(false);
+            }}
+            title="Chat-Nachrichten"
+            style={{ position: 'relative', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+          >
+            <MessageSquare size={18} style={{ color: theme.aubergine }} />
+            {chatCount > 0 && (
+              <span style={{ position: 'absolute', top: -7, right: -8, background: theme.gold, color: theme.aubergine, fontSize: 9, fontWeight: 800, minWidth: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', borderRadius: 8 }}>
+                {chatCount > 9 ? '9+' : chatCount}
+              </span>
+            )}
+          </button>
+          {chatOpen && (
+            <div style={{ position: 'absolute', right: -12, top: 30, width: 380, background: 'white', border: `1px solid ${theme.border}`, borderRadius: 8, boxShadow: '0 18px 45px rgba(68, 0, 92, 0.16)', zIndex: 40, overflow: 'hidden' }}>
+              <div style={{ padding: '11px 14px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: theme.aubergine }}>Chat zu Kundenfällen</span>
+                <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700 }}>{chatCount} Nachrichten</span>
+              </div>
+              {visibleChatNotifications.length ? (
+                <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+                  {visibleChatNotifications.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setChatOpen(false);
+                        onOpenCase?.(item.propertyId || item.caseNumber);
+                      }}
+                      style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: `1px solid ${theme.borderSoft}`, padding: '11px 14px', cursor: 'pointer', display: 'grid', gap: 4 }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 800, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.customerName}</span>
+                        <span style={{ fontSize: 10.5, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(item.createdAt)}</span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: theme.aubergine, fontWeight: 700 }}>
+                        {item.authorName} · {item.caseNumber}
+                      </div>
+                      <div style={{ fontSize: 12, color: `${theme.ink}aa`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.message}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '16px 14px', fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5 }}>
+                  Noch keine Chat-Nachrichten zu sichtbaren Kundenfällen.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12, borderLeft: `1px solid ${theme.border}` }}>
           <button onClick={onProfileOpen} title="Profil öffnen" style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', maxWidth: 190 }}>
             <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.aubergine, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>{user.initials}</div>
@@ -460,6 +521,211 @@ function buildProcessNotifications(cases = []) {
         }));
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+function buildChatNotifications(cases = []) {
+  return cases
+    .flatMap((item) => {
+      const property = item.raw?.property || {};
+      const caseNumber = property.caseNumber || item.id || item.propertyId;
+      return (item.raw?.chatMessages || []).map((message) => ({
+        id: message.id,
+        propertyId: property.id || item.propertyId,
+        caseNumber,
+        customerName: customerNameForCase(item),
+        authorName: message.userName || (message.source === 'admin' ? 'Admin' : 'Makler'),
+        authorRole: message.userRole || message.source,
+        message: message.message,
+        createdAt: message.createdAt,
+      }));
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+const cityCoordinates = {
+  augsburg: { lat: 48.3705, lng: 10.8978 },
+  berlin: { lat: 52.52, lng: 13.405 },
+  esslingen: { lat: 48.7428, lng: 9.3072 },
+  karlsruhe: { lat: 49.0069, lng: 8.4037 },
+  münchen: { lat: 48.1351, lng: 11.582 },
+  munich: { lat: 48.1351, lng: 11.582 },
+  stuttgart: { lat: 48.7758, lng: 9.1829 },
+  tübingen: { lat: 48.5216, lng: 9.0576 },
+  tuebingen: { lat: 48.5216, lng: 9.0576 },
+};
+
+const postalPrefixCoordinates = {
+  0: { lat: 51.05, lng: 13.74 },
+  1: { lat: 52.52, lng: 13.405 },
+  2: { lat: 53.55, lng: 10.0 },
+  3: { lat: 52.37, lng: 9.73 },
+  4: { lat: 51.45, lng: 7.01 },
+  5: { lat: 50.94, lng: 6.96 },
+  6: { lat: 50.11, lng: 8.68 },
+  7: { lat: 48.78, lng: 9.18 },
+  8: { lat: 48.14, lng: 11.58 },
+  9: { lat: 49.45, lng: 11.08 },
+};
+
+function normalizeLocationText(value = '') {
+  return String(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function coordinatesForCase(item) {
+  const property = item.raw?.property || {};
+  const cityText = normalizeLocationText(`${property.city || item.adresse || item.objekt || ''}`);
+  const cityMatch = Object.entries(cityCoordinates).find(([city]) => cityText.includes(normalizeLocationText(city)));
+  if (cityMatch) return cityMatch[1];
+  const postalCode = String(property.postalCode || item.adresse || '').match(/\b\d{5}\b/)?.[0];
+  const fallback = postalPrefixCoordinates[postalCode?.[0]];
+  return fallback || { lat: 51.1657, lng: 10.4515 };
+}
+
+function buildMapPoints(cases = []) {
+  return cases
+    .filter((item) => !['REJECTED', 'LOST'].includes(item.status))
+    .map((item) => {
+      const property = item.raw?.property || {};
+      const coordinates = coordinatesForCase(item);
+      return {
+        id: item.propertyId || property.id || item.id,
+        caseNumber: property.caseNumber || item.id,
+        customerName: customerNameForCase(item),
+        objectTitle: property.objectTitle || item.objekt || property.city || 'Objekt',
+        status: item.status,
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+      };
+    });
+}
+
+function GooglePropertyMap({ points = [], onOpenCase }) {
+  const mapRef = React.useRef(null);
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  useEffect(() => {
+    if (!apiKey || !mapRef.current || !points.length) return;
+    let cancelled = false;
+
+    const loadGoogleMaps = () => new Promise((resolve, reject) => {
+      if (window.google?.maps) {
+        resolve(window.google.maps);
+        return;
+      }
+      const existingScript = document.getElementById('google-maps-script');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(window.google.maps), { once: true });
+        existingScript.addEventListener('error', reject, { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.id = 'google-maps-script';
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`;
+      script.async = true;
+      script.onload = () => resolve(window.google.maps);
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+
+    loadGoogleMaps().then((maps) => {
+      if (cancelled || !mapRef.current) return;
+      const map = new maps.Map(mapRef.current, {
+        center: { lat: 51.1657, lng: 10.4515 },
+        zoom: 5.7,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        styles: [
+          { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+          { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: '#5C4A66' }] },
+        ],
+      });
+      const bounds = new maps.LatLngBounds();
+      const infoWindow = new maps.InfoWindow();
+      points.forEach((point) => {
+        const position = { lat: point.lat, lng: point.lng };
+        bounds.extend(position);
+        const circle = new maps.Circle({
+          map,
+          center: position,
+          radius: 22000,
+          strokeColor: theme.aubergine,
+          strokeOpacity: 0.85,
+          strokeWeight: 2,
+          fillColor: theme.aubergine,
+          fillOpacity: 0.22,
+          clickable: true,
+        });
+        circle.addListener('click', () => {
+          infoWindow.setContent(`
+            <div style="font-family: Arial, sans-serif; min-width: 160px;">
+              <strong>${point.customerName}</strong><br />
+              <span>${point.objectTitle}</span><br />
+              <small>${point.caseNumber}</small>
+            </div>
+          `);
+          infoWindow.setPosition(position);
+          infoWindow.open(map);
+          onOpenCase?.(point.id);
+        });
+      });
+      if (points.length > 1) map.fitBounds(bounds, 48);
+    }).catch(() => {
+      // Fallback bleibt sichtbar, wenn Google Maps nicht geladen werden kann.
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiKey, points, onOpenCase]);
+
+  if (!apiKey) {
+    return <FallbackGermanyMap points={points} onOpenCase={onOpenCase} />;
+  }
+
+  return (
+    <div style={{ height: 240, position: 'relative' }}>
+      <div ref={mapRef} style={{ position: 'absolute', inset: 0 }} />
+      <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'white', padding: '4px 8px', borderRadius: 4, fontSize: 10, color: `${theme.ink}88`, border: `1px solid ${theme.borderSoft}` }}>
+        {points.length} Objekte · Google Maps
+      </div>
+    </div>
+  );
+}
+
+function FallbackGermanyMap({ points = [], onOpenCase }) {
+  const projectedPoints = points.map((point, index) => {
+    const x = Math.min(360, Math.max(40, ((point.lng - 5.5) / 10.5) * 320 + 40));
+    const y = Math.min(210, Math.max(24, ((55.3 - point.lat) / 8.6) * 186 + 18));
+    return { ...point, x: x + (index % 3) * 4, y: y + (index % 2) * 4 };
+  });
+
+  return (
+    <div style={{ height: 240, background: theme.mintLighter, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width="100%" height="100%" viewBox="0 0 400 240" style={{ position: 'absolute' }}>
+        <rect x="0" y="0" width="400" height="240" fill={theme.mintLighter} />
+        <path d="M196 26 L228 46 L244 77 L281 91 L266 130 L283 162 L250 205 L207 216 L165 201 L136 209 L112 174 L96 139 L113 103 L101 71 L137 49 Z" fill={theme.mint} stroke={theme.oliv} strokeWidth="1.2" opacity="0.72" />
+        {projectedPoints.map((point) => (
+          <g key={point.id} onClick={() => onOpenCase?.(point.id)} style={{ cursor: 'pointer' }}>
+            <circle cx={point.x} cy={point.y} r="11" fill={theme.aubergine} opacity="0.22" />
+            <circle cx={point.x} cy={point.y} r="5" fill={theme.aubergine} />
+            <title>{`${point.customerName} · ${point.caseNumber}`}</title>
+          </g>
+        ))}
+      </svg>
+      <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'white', padding: '4px 8px', borderRadius: 4, fontSize: 10, color: `${theme.ink}88`, border: `1px solid ${theme.borderSoft}` }}>
+        {points.length} Objekte · Deutschlandkarte
+      </div>
+      {!points.length && (
+        <div style={{ fontSize: 12, color: `${theme.ink}88`, background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '8px 10px' }}>
+          Noch keine Objekte mit Standortdaten.
+        </div>
+      )}
+    </div>
+  );
 }
 
 function propertyTypeLabel(value) {
@@ -1227,7 +1493,7 @@ const AdminDashboard = ({ cases = mockCases, onOpenCase }) => (
         ))}
       </div>
 
-      {/* Karten-Placeholder */}
+      {/* Kartenansicht */}
       <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Objekte in Bearbeitung</span>
@@ -1236,25 +1502,7 @@ const AdminDashboard = ({ cases = mockCases, onOpenCase }) => (
             <button style={{ background: 'transparent', color: theme.aubergine, border: 'none', fontSize: 11, padding: '3px 10px', borderRadius: 4, fontWeight: 600, cursor: 'pointer' }}>Bestand</button>
           </div>
         </div>
-        <div style={{ height: 220, background: theme.mintLighter, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {/* Mock Map Pins */}
-          <svg width="100%" height="100%" viewBox="0 0 400 220" style={{ position: 'absolute' }}>
-            <rect x="0" y="0" width="400" height="220" fill={theme.mintLighter} />
-            <path d="M 50 80 Q 100 60 150 90 T 280 100 L 320 140 Q 280 170 220 160 T 100 170 Z" fill={theme.mint} stroke={theme.oliv} strokeWidth="0.5" opacity="0.5" />
-            {[
-              { x: 120, y: 110 }, { x: 180, y: 90 }, { x: 240, y: 130 },
-              { x: 200, y: 70 }, { x: 280, y: 105 }, { x: 150, y: 145 },
-            ].map((p, i) => (
-              <g key={i}>
-                <circle cx={p.x} cy={p.y} r="8" fill={theme.aubergine} opacity="0.25" />
-                <circle cx={p.x} cy={p.y} r="4" fill={theme.aubergine} />
-              </g>
-            ))}
-          </svg>
-          <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'white', padding: '4px 8px', borderRadius: 4, fontSize: 10, color: `${theme.ink}88`, border: `1px solid ${theme.borderSoft}` }}>
-            23 Objekte · Süddeutschland
-          </div>
-        </div>
+        <GooglePropertyMap points={buildMapPoints(cases)} onOpenCase={onOpenCase} />
       </div>
     </div>
 
@@ -1683,6 +1931,8 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const [expertOpinionCompany, setExpertOpinionCompany] = useState('');
   const [notaryAppointmentDate, setNotaryAppointmentDate] = useState('');
   const [expertOpinionValue, setExpertOpinionValue] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [chatVisibility, setChatVisibility] = useState('shared');
   const c = cases.find(x => x.propertyId === caseId || x.id === caseId) || mockCases[0];
   const caseView = c.raw;
   const customer = caseView?.customer;
@@ -1843,6 +2093,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     { createdAt: '18.05., 11:20', userId: 'M. Krüger', message: 'Erfassung abgeschlossen' },
     { createdAt: '18.05., 09:45', userId: 'M. Krüger', message: 'Fall angelegt' },
   ];
+  const chatMessages = caseView?.chatMessages?.length ? caseView.chatMessages : [];
   async function runCaseAction(label, action) {
     if (!c.propertyId) {
       setNotice?.('Dieser Mock-Fall ist noch nicht mit einer API-ID verbunden.');
@@ -2023,6 +2274,18 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || 'Löschen fehlgeschlagen');
   });
+  const sendChatMessage = () => runCaseAction('Chat-Nachricht senden', async () => {
+    const message = chatInput.trim();
+    if (!message) {
+      throw new Error('Bitte eine Nachricht eingeben.');
+    }
+    await postJson(`/api/properties/${c.propertyId}/chat`, {
+      message,
+      visibility: role === 'admin' ? chatVisibility : 'shared',
+    });
+    setChatInput('');
+    setChatVisibility('shared');
+  });
   const tabs = role === 'admin'
     ? [
         { id: 'kunde', label: 'Kunde' },
@@ -2030,12 +2293,14 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
         { id: 'indag', label: 'Unverbindliches Angebot' },
         { id: 'verbag', label: 'Verbindliches Angebot' },
         { id: 'doks', label: 'Objektunterlagen' },
+        { id: 'chat', label: 'Chatverlauf' },
         { id: 'aufgaben', label: 'Aufgaben' },
       ]
     : [
         { id: 'kunde', label: 'Kunde' },
         { id: 'objekt', label: 'Objekt' },
         { id: 'doks', label: 'Objektunterlagen' },
+        { id: 'chat', label: 'Chatverlauf' },
         { id: 'aufgaben', label: 'Aufgaben' },
       ];
 
@@ -2334,6 +2599,65 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'chat' && (
+            <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <MessageSquare size={15} style={{ color: theme.aubergine }} />
+                  <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Chatverlauf</span>
+                </div>
+                <span style={{ fontSize: 11, color: `${theme.ink}88` }}>fallbezogene Kommunikation</span>
+              </div>
+              <div style={{ padding: '16px 18px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}` }}>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <textarea
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    placeholder="Nachricht zum Kundenfall schreiben..."
+                    rows={4}
+                    style={{ width: '100%', resize: 'vertical', padding: '10px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 6, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.45 }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    {role === 'admin' ? (
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: theme.ink, fontWeight: 600 }}>
+                        <input type="checkbox" checked={chatVisibility === 'internal'} onChange={(event) => setChatVisibility(event.target.checked ? 'internal' : 'shared')} style={{ accentColor: theme.aubergine }} />
+                        Nur intern sichtbar
+                      </label>
+                    ) : (
+                      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Nachrichten sind für WohnKapital und den zuständigen Makler sichtbar.</span>
+                    )}
+                    <button onClick={sendChatMessage} disabled={Boolean(busyAction) || !chatInput.trim()} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '9px 14px', borderRadius: 5, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: busyAction || !chatInput.trim() ? 'default' : 'pointer', opacity: busyAction || !chatInput.trim() ? 0.55 : 1 }}>
+                      <Send size={13} /> {busyAction === 'Chat-Nachricht senden' ? 'Sendet...' : 'Senden'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div style={{ padding: '16px 18px', display: 'grid', gap: 10 }}>
+                {chatMessages.length ? chatMessages.map((message) => {
+                  const isAdminMessage = message.userRole === 'admin' || message.source === 'admin';
+                  const isInternal = message.visibility === 'internal';
+                  return (
+                    <div key={message.id} style={{ border: `1px solid ${isInternal ? `${theme.gold}66` : theme.borderSoft}`, borderRadius: 8, padding: '11px 13px', background: isInternal ? theme.goldSoft : isAdminMessage ? theme.mintLighter : 'white' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 5 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 800, color: theme.aubergine }}>
+                          {message.userName || (isAdminMessage ? 'WohnKapital' : 'Makler')}
+                          <span style={{ color: `${theme.ink}88`, fontWeight: 600 }}> · {isAdminMessage ? 'Admin' : 'Makler'}</span>
+                          {isInternal && <span style={{ marginLeft: 8, color: '#A87308', fontSize: 11, fontWeight: 800 }}>Intern</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(message.createdAt)}</div>
+                      </div>
+                      <div style={{ fontSize: 13, color: theme.ink, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{message.message}</div>
+                    </div>
+                  );
+                }) : (
+                  <div style={{ padding: '18px 14px', border: `1px dashed ${theme.border}`, borderRadius: 8, fontSize: 13, color: `${theme.ink}88`, lineHeight: 1.5, background: theme.mintLighter }}>
+                    Noch keine Nachrichten zu diesem Kundenfall.
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -4127,10 +4451,11 @@ export default function App({ initialRole = 'partner' } = {}) {
     }
   };
   const processNotifications = buildProcessNotifications(cases);
+  const chatNotifications = buildChatNotifications(cases);
 
   return (
     <div style={{ background: theme.mint, fontFamily: '"Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} notifications={processNotifications} />
+      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} notifications={processNotifications} chatNotifications={chatNotifications} onOpenCase={handleOpenCase} />
       {profileOpen && <ProfileModal user={user} role={role} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar

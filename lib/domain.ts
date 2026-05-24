@@ -61,7 +61,8 @@ export type OfferStatus = "draft" | "review" | "approved" | "sent" | "rejected";
 export type ReminderStatus = "open" | "done" | "overdue" | "cancelled";
 export type LeadStatus = "NEW" | "QUALIFIED" | "ASSIGNED" | "CONTACTED" | "CONVERTED" | "REJECTED";
 export type ActivitySource = "system" | "user" | "partner" | "admin";
-export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead";
+export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead" | "chat";
+export type ChatMessageVisibility = "shared" | "internal";
 
 export type Partner = {
   id: string;
@@ -323,6 +324,18 @@ export type Activity = {
   createdAt: string;
 };
 
+export type ChatMessage = {
+  id: string;
+  propertyId: string;
+  userId: string;
+  userName?: string;
+  userRole?: UserRole;
+  message: string;
+  source: ActivitySource;
+  visibility: ChatMessageVisibility;
+  createdAt: string;
+};
+
 export type ActivityVersion = {
   id: string;
   activityId: string;
@@ -383,5 +396,6 @@ export type CaseView = {
   offer?: Offer;
   offers: Offer[];
   activities: Activity[];
+  chatMessages: ChatMessage[];
   reminders: Reminder[];
 };

@@ -129,9 +129,14 @@ export const activityCreateSchema = z.object({
   propertyId: z.string().trim().min(1),
   type: z.string().trim().min(1).default("note"),
   message: z.string().trim().min(1),
-  entityType: z.enum(["property", "customer", "document", "valuation", "offer", "reminder", "lead"]).optional(),
+  entityType: z.enum(["property", "customer", "document", "valuation", "offer", "reminder", "lead", "chat"]).optional(),
   entityId: optionalString,
   metadata: z.record(z.unknown()).optional()
+});
+
+export const chatMessageCreateSchema = z.object({
+  message: z.string().trim().min(1, "Nachricht ist erforderlich").max(4000, "Nachricht ist zu lang"),
+  visibility: z.enum(["shared", "internal"]).default("shared")
 });
 
 export const leadCreateSchema = z.object({

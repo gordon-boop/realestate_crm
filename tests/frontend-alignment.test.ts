@@ -3,7 +3,7 @@ import test from "node:test";
 import type { CaseIntakeDraftDto } from "../lib/frontend-dtos.ts";
 import { frontendStatusConfig } from "../lib/frontend-dtos.ts";
 import { completeOpenReminders, createReminder, getCaseByPropertyId } from "../lib/store.ts";
-import { documentCreateSchema, propertyCreateSchema } from "../lib/validation.ts";
+import { chatMessageCreateSchema, documentCreateSchema, propertyCreateSchema } from "../lib/validation.ts";
 
 test("frontend status config contains sold workflow state", () => {
   assert.equal(frontendStatusConfig.some((item) => item.status === "SOLD" && item.label === "Verkauft"), true);
@@ -149,6 +149,18 @@ test("document validation persists missing status and required level", () => {
 
   assert.equal(parsed.status, "missing");
   assert.equal(parsed.requirementLevel, "required");
+});
+
+test("chat messages are case linked and validated", () => {
+  const parsed = chatMessageCreateSchema.parse({
+    message: "Bitte Gutachtertermin mit dem Kunden abstimmen.",
+    visibility: "shared"
+  });
+  const caseView = getCaseByPropertyId("property_berlin_1");
+
+  assert.equal(parsed.message, "Bitte Gutachtertermin mit dem Kunden abstimmen.");
+  assert.equal(parsed.visibility, "shared");
+  assert.equal(caseView?.chatMessages.every((message) => message.propertyId === "property_berlin_1"), true);
 });
 
 test("reminders are persisted and can be completed", () => {

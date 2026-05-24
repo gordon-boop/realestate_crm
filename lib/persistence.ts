@@ -8,6 +8,10 @@ const caseInclude = {
   valuations: { orderBy: { createdAt: "desc" as const } },
   offers: { orderBy: { updatedAt: "desc" as const } },
   activities: { orderBy: { createdAt: "desc" as const } },
+  chatMessages: {
+    orderBy: { createdAt: "asc" as const },
+    include: { user: { select: { id: true, name: true, role: true } } }
+  },
   reminders: { orderBy: { createdAt: "desc" as const } }
 };
 
@@ -126,6 +130,20 @@ function mapActivity(activity: NonNullable<PrismaCase>["activities"][number]) {
   };
 }
 
+function mapChatMessage(message: NonNullable<PrismaCase>["chatMessages"][number]) {
+  return {
+    id: message.id,
+    propertyId: message.propertyId,
+    userId: message.userId,
+    userName: message.user?.name,
+    userRole: message.user?.role,
+    message: message.message,
+    source: message.source,
+    visibility: message.visibility,
+    createdAt: iso(message.createdAt)!
+  };
+}
+
 function mapReminder(reminder: NonNullable<PrismaCase>["reminders"][number]) {
   return {
     ...reminder,
@@ -148,8 +166,17 @@ export function mapCaseView(property: NonNullable<PrismaCase>): CaseView {
     offer: offers[0],
     offers,
     activities: property.activities.map(mapActivity),
+    chatMessages: property.chatMessages.map(mapChatMessage),
     reminders: property.reminders.map(mapReminder)
   } as CaseView;
+}
+
+export function filterCaseViewForUser(caseView: CaseView, user: User): CaseView {
+  if (user.role === "admin") return caseView;
+  return {
+    ...caseView,
+    chatMessages: caseView.chatMessages.filter((message) => message.visibility === "shared")
+  };
 }
 
 export async function findDbUserByEmail(email: string): Promise<User | undefined> {
@@ -182,7 +209,7 @@ export async function getDbCases(user: User): Promise<CaseView[]> {
     include: caseInclude,
     orderBy: { updatedAt: "desc" }
   });
-  return cases.map(mapCaseView);
+  return cases.map(mapCaseView).map((caseView) => filterCaseViewForUser(caseView, user));
 }
 
 export async function getDbCaseByPropertyId(propertyId: string): Promise<CaseView | undefined> {
@@ -222,6 +249,31 @@ export async function addDbActivity(
     data: { lastActivityAt: activity.createdAt, lastActivityLabel: "Gerade eben" }
   });
   return mapActivity(activity as never);
+}
+
+export async function addDbChatMessage(
+  propertyId: string,
+  userId: string,
+  userRole: "admin" | "partner",
+  message: string,
+  visibility: "shared" | "internal" = "shared"
+) {
+  const chatMessage = await prisma.chatMessage.create({
+    data: {
+      propertyId,
+      userId,
+      message,
+      source: userRole,
+      visibility
+    },
+    include: { user: { select: { id: true, name: true, role: true } } }
+  });
+  await addDbActivity(propertyId, userId, "chat_message_created", "Neue Chat-Nachricht wurde geschrieben.", {
+    source: userRole,
+    entityType: "chat",
+    entityId: chatMessage.id
+  });
+  return mapChatMessage(chatMessage as never);
 }
 
 export async function updateDbPropertyStatus(propertyId: string, status: PropertyStatus) {

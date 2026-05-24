@@ -17,6 +17,17 @@ npm install
 npm run dev
 ```
 
+## Google Maps
+
+Die Admin-Karte nutzt Google Maps, wenn `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` gesetzt ist. Ohne Key wird automatisch eine interne Deutschlandkarte als Fallback angezeigt.
+
+Für Docker muss der Key vor dem Build in `.env` stehen:
+
+```bash
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="dein-google-maps-key"
+docker compose up --build -d
+```
+
 Demo-Logins:
 
 - Admin: `admin@demo.local` / `demo1234`

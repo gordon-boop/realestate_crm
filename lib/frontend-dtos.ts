@@ -1,5 +1,6 @@
 import type {
   ActivitySource,
+  ChatMessageVisibility,
   BasementType,
   DocumentCategory,
   DocumentRequirementLevel,
@@ -66,6 +67,18 @@ export type FrontendActivityDto = {
   text: string;
   source: ActivitySource;
   version: number;
+};
+
+export type FrontendChatMessageDto = {
+  id: string;
+  propertyId: string;
+  customerName: string;
+  caseNumber: string;
+  authorName: string;
+  authorRole: "admin" | "partner";
+  message: string;
+  visibility: ChatMessageVisibility;
+  createdAt: string;
 };
 
 export type CaseIntakeStep = "customer" | "model" | "property" | "modernization" | "documents";

@@ -2,6 +2,7 @@
   Activity,
   ActivityVersion,
   CaseView,
+  ChatMessage,
   Customer,
   Document,
   Lead,
@@ -352,6 +353,31 @@ const activityVersions: ActivityVersion[] = activities.map((activity) => ({
   createdAt: activity.createdAt
 }));
 
+const chatMessages: ChatMessage[] = [
+  {
+    id: "chat_seed_1",
+    propertyId: "property_berlin_1",
+    userId: "user_admin",
+    userName: "Anna Klein",
+    userRole: "admin",
+    message: "Bitte beim Kunden noch den Energieausweis anfordern.",
+    source: "admin",
+    visibility: "shared",
+    createdAt: stamp
+  },
+  {
+    id: "chat_seed_2",
+    propertyId: "property_berlin_1",
+    userId: "user_partner",
+    userName: "Markus Krüger",
+    userRole: "partner",
+    message: "Ich frage heute nach und lade die Unterlage nach.",
+    source: "partner",
+    visibility: "shared",
+    createdAt: stamp
+  }
+];
+
 export const store = {
   partners,
   users,
@@ -364,7 +390,8 @@ export const store = {
   offerVersions,
   reminders,
   activities,
-  activityVersions
+  activityVersions,
+  chatMessages
 };
 
 export function findUserByEmail(email: string): User | undefined {
@@ -407,6 +434,7 @@ export function getCases(): CaseView[] {
       offer: propertyOffers[0],
       offers: propertyOffers,
       activities: activities.filter((item) => item.propertyId === property.id),
+      chatMessages: chatMessages.filter((item) => item.propertyId === property.id),
       reminders: reminders.filter((item) => item.propertyId === property.id)
     };
   });
