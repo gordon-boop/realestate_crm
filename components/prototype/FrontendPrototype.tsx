@@ -159,14 +159,22 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
               {visibleNotifications.length ? (
                 <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                   {visibleNotifications.map((item) => (
-                    <div key={item.id} style={{ padding: '11px 14px', borderTop: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 3 }}>
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setNotificationsOpen(false);
+                        onOpenCase?.(item.propertyId || item.caseNumber);
+                      }}
+                      style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: `1px solid ${theme.borderSoft}`, padding: '11px 14px', cursor: 'pointer', display: 'grid', gap: 3 }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
                         <span style={{ fontSize: 12.5, fontWeight: 800, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.customerName}</span>
                         <span style={{ fontSize: 10.5, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(item.date)}</span>
                       </div>
                       <div style={{ fontSize: 12.5, color: theme.aubergine, fontWeight: 700 }}>{item.step}</div>
                       <div style={{ fontSize: 11.5, color: `${theme.ink}88`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.caseNumber}</div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
@@ -208,7 +216,7 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
                       type="button"
                       onClick={() => {
                         setChatOpen(false);
-                        onOpenCase?.(item.propertyId || item.caseNumber);
+                        onOpenCase?.(item.propertyId || item.caseNumber, 'chat');
                       }}
                       style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: `1px solid ${theme.borderSoft}`, padding: '11px 14px', cursor: 'pointer', display: 'grid', gap: 4 }}
                     >
@@ -514,6 +522,7 @@ function buildProcessNotifications(cases = []) {
         .filter(([field]) => property[field])
         .map(([field, step]) => ({
           id: `${property.id || item.propertyId || caseNumber}-${field}`,
+          propertyId: property.id || item.propertyId,
           caseNumber,
           customerName: customerNameForCase(item),
           step,
@@ -1914,8 +1923,8 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
 // =====================================================================
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
-const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNotice }) => {
-  const [activeTab, setActiveTab] = useState('kunde');
+const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNotice, initialTab = 'kunde' }) => {
+  const [activeTab, setActiveTab] = useState(initialTab || 'kunde');
   const [busyAction, setBusyAction] = useState('');
   const [openCalculation, setOpenCalculation] = useState('');
   const [calculationParams, setCalculationParams] = useState({});
@@ -1937,6 +1946,10 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const caseView = c.raw;
   const customer = caseView?.customer;
   const property = caseView?.property;
+
+  useEffect(() => {
+    setActiveTab(initialTab || 'kunde');
+  }, [caseId, initialTab]);
   const latestOffer = caseView?.offer;
   const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
   const indicativeOffers = productOffers.filter((offer) => offer.kind !== 'binding');
@@ -4283,6 +4296,7 @@ export default function App({ initialRole = 'partner' } = {}) {
   const [role, setRole] = useState(initialRole);
   const [screen, setScreen] = useState('dashboard');
   const [caseId, setCaseId] = useState(null);
+  const [caseInitialTab, setCaseInitialTab] = useState('kunde');
   const [cases, setCases] = useState(mockCases);
   const [leads, setLeads] = useState([]);
   const [partners, setPartners] = useState([]);
@@ -4349,17 +4363,23 @@ export default function App({ initialRole = 'partner' } = {}) {
   const handleNavigate = (s) => {
     setScreen(s);
     setCaseId(null);
+    setCaseInitialTab('kunde');
     if (s === 'leads' || s === 'partners') loadLeads(role);
   };
-  const handleOpenCase = (id) => {
+  const handleOpenCase = (id, tab = 'kunde') => {
     setCaseId(id);
+    setCaseInitialTab(tab);
     setScreen('case');
   };
   const handleNewCase = () => setScreen('erfassung');
-  const handleBack = () => setScreen('dashboard');
+  const handleBack = () => {
+    setCaseInitialTab('kunde');
+    setScreen('dashboard');
+  };
   const handleSavedCase = async (id) => {
     await loadCases(role);
     setCaseId(id);
+    setCaseInitialTab('kunde');
     setScreen('case');
   };
   const toggleRole = () => {
@@ -4367,6 +4387,7 @@ export default function App({ initialRole = 'partner' } = {}) {
     setRole(nextRole);
     setScreen('dashboard');
     setCaseId(null);
+    setCaseInitialTab('kunde');
     setProfileOpen(false);
     loadCases(nextRole);
     loadLeads(nextRole);
@@ -4485,7 +4506,7 @@ export default function App({ initialRole = 'partner' } = {}) {
           {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}
           {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und Übergabe an WohnKapital." />}
           {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
-          {screen === 'case' && <FallDetail caseId={caseId} onBack={handleBack} role={role} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} />}
+          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} onBack={handleBack} role={role} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} />}
           {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} />}
         </div>
       </div>
