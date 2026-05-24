@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { HomepageCalculator } from "@/components/HomepageCalculator";
+import { HomepageLeadForm } from "@/components/HomepageLeadForm";
 import styles from "./page.module.css";
 
 const faqs = [
@@ -118,9 +120,11 @@ export default function Page() {
             </Link>
             <nav className={styles.nav} aria-label="Hauptnavigation">
               <a href="#modelle" className={styles.navLink}>Modelle</a>
+              <a href="#rechner" className={styles.navLink}>Rechner</a>
               <a href="#ablauf" className={styles.navLink}>Ablauf</a>
               <a href="#vorteile" className={styles.navLink}>Vorteile</a>
               <a href="#faq" className={styles.navLink}>Fragen</a>
+              <a href="#kontakt" className={styles.navLink}>Kontakt</a>
             </nav>
           </div>
         </div>
@@ -143,8 +147,9 @@ export default function Page() {
                 zu Ihnen passt, klären wir gemeinsam.
               </p>
               <div className={styles.heroCtas}>
-                <a href="#kontakt" className={styles.btnPrimary}>
-                  Unverbindlich beraten lassen
+                <a href="#rechner" className={styles.btnPrimary}>
+                  <span>Jetzt persönliche Auszahlung berechnen</span>
+                  <small>inkl. kostenloser Immobilienbewertung</small>
                 </a>
               </div>
             </div>
@@ -312,6 +317,8 @@ export default function Page() {
         </div>
       </section>
 
+      <HomepageCalculator />
+
       <section id="ablauf" className={styles.process}>
         <div className={styles.container}>
           <div className={styles.sectionHead}>
@@ -473,9 +480,7 @@ export default function Page() {
               beziehen auf Wunsch Ihre Familie ein und rechnen Ihnen beide Modelle
               individuell durch.
             </p>
-            <a href="mailto:beratung@wohn-kapital.de" className={styles.btnPrimaryLg}>
-              Unverbindliche Anfrage starten
-            </a>
+            <HomepageLeadForm />
           </div>
         </div>
       </section>
