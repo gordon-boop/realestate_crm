@@ -25,6 +25,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           email: dbUser.email,
           passwordHash: dbUser.passwordHash,
           role: dbUser.role,
+          internalRole: dbUser.internalRole ?? undefined,
           createdAt: dbUser.createdAt.toISOString(),
           updatedAt: dbUser.updatedAt.toISOString()
         } satisfies User);
@@ -47,7 +48,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const response = NextResponse.json({
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, partnerId: user.partnerId },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, internalRole: user.internalRole, partnerId: user.partnerId },
       redirectTo: user.role === "admin" ? "/admin" : "/partner"
     });
     response.cookies.set(sessionCookieName, user.id, {

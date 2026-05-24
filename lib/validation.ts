@@ -163,6 +163,20 @@ export const leadStatusSchema = z.object({
   status: z.enum(["NEW", "QUALIFIED", "ASSIGNED", "CONTACTED", "CONVERTED", "REJECTED"])
 });
 
+export const staffCreateSchema = z.object({
+  name: z.string().trim().min(1, "Name ist erforderlich"),
+  email: z.string().trim().email("E-Mail ist ungültig").toLowerCase(),
+  password: z.string().trim().min(6, "Passwort muss mindestens 6 Zeichen haben").default("demo1234"),
+  internalRole: z.enum(["employee", "admin", "super_admin"]).default("employee")
+});
+
+export const staffUpdateSchema = z.object({
+  name: optionalString,
+  email: z.string().trim().email("E-Mail ist ungültig").toLowerCase().optional(),
+  password: optionalString,
+  internalRole: z.enum(["employee", "admin", "super_admin"]).optional()
+});
+
 export const acquisitionWorkflowSchema = z.object({
   action: z.enum([
     "indicative_offer_sent",

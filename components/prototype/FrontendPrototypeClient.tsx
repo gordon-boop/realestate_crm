@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { User } from "@/lib/domain";
 
 const FrontendPrototype = dynamic(() => import("./FrontendPrototype"), {
   ssr: false,
@@ -11,6 +12,6 @@ const FrontendPrototype = dynamic(() => import("./FrontendPrototype"), {
   )
 });
 
-export function FrontendPrototypeClient({ initialRole = "partner" }: { initialRole?: "partner" | "admin" }) {
-  return <FrontendPrototype initialRole={initialRole} />;
+export function FrontendPrototypeClient({ initialRole = "partner", initialUser }: { initialRole?: "partner" | "admin"; initialUser?: User }) {
+  return <FrontendPrototype initialRole={initialRole} initialUser={initialUser} />;
 }

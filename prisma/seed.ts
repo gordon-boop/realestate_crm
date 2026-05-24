@@ -13,6 +13,7 @@ import {
   PropertyStatus,
   PropertyType,
   ReminderStatus,
+  InternalUserRole,
   UserRole,
   ValuationProvider,
   ValuationStatus
@@ -84,13 +85,27 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@demo.local" },
-    update: { name: "Admin Demo", role: UserRole.admin },
+    update: { name: "Admin Demo", role: UserRole.admin, internalRole: InternalUserRole.super_admin },
     create: {
       id: "user_admin",
       name: "Admin Demo",
       email: "admin@demo.local",
       passwordHash: "demo1234",
-      role: UserRole.admin
+      role: UserRole.admin,
+      internalRole: InternalUserRole.super_admin
+    }
+  });
+
+  await prisma.user.upsert({
+    where: { email: "mitarbeiter@demo.local" },
+    update: { name: "Mitarbeiter Demo", role: UserRole.admin, internalRole: InternalUserRole.employee },
+    create: {
+      id: "user_employee",
+      name: "Mitarbeiter Demo",
+      email: "mitarbeiter@demo.local",
+      passwordHash: "demo1234",
+      role: UserRole.admin,
+      internalRole: InternalUserRole.employee
     }
   });
 

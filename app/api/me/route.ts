@@ -8,5 +8,5 @@ export function GET(): Response {
     return json({ user: null }, { status: 401 });
   }
 
-  return json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, partnerId: user.partnerId } });
+  return json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, internalRole: user.internalRole, partnerId: user.partnerId } });
 }

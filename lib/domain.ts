@@ -1,6 +1,7 @@
 export type PartnerStatus = "active" | "inactive";
 export type BrokerRegistrationStatus = "email_pending" | "pending_approval" | "approved" | "rejected";
 export type UserRole = "admin" | "partner";
+export type InternalUserRole = "employee" | "admin" | "super_admin";
 export type PropertyType = "house" | "single_family" | "semi_detached" | "row_house" | "apartment" | "multi_family" | "other";
 export type PropertyCondition = "very_good" | "good" | "average" | "renovation_needed";
 export type DesiredModel = "fixed_residential_right" | "sale_and_leaseback" | "other";
@@ -83,6 +84,7 @@ export type User = {
   email: string;
   passwordHash: string;
   role: UserRole;
+  internalRole?: InternalUserRole;
   createdAt: string;
   updatedAt: string;
 };

@@ -7,5 +7,5 @@ export default function Page() {
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/partner");
 
-  return <FrontendPrototypeClient initialRole="admin" />;
+  return <FrontendPrototypeClient initialRole="admin" initialUser={user} />;
 }

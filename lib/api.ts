@@ -24,3 +24,13 @@ export function requireRole(...roles: UserRole[]): User {
 
   return user;
 }
+
+export function requireInternalRole(...roles: Array<NonNullable<User["internalRole"]>>): User {
+  const user = requireRole("admin");
+  const internalRole = user.internalRole ?? "employee";
+  if (!roles.includes(internalRole)) {
+    throw new Error(`${roles.join(" or ")} internal role required`);
+  }
+
+  return user;
+}

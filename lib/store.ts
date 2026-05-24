@@ -51,6 +51,7 @@ const users: User[] = [
     email: "admin@demo.local",
     passwordHash: "demo1234",
     role: "admin",
+    internalRole: "super_admin",
     createdAt: stamp,
     updatedAt: stamp
   },

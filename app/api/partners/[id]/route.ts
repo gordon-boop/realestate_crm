@@ -1,9 +1,9 @@
-import { error, handleApiError, json, requireRole } from "@/lib/api";
+import { error, handleApiError, json, requireInternalRole } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
-    requireRole("admin");
+    requireInternalRole("admin", "super_admin");
     const partner = await prisma.partner.findUnique({ where: { id: params.id } });
     if (!partner) throw new Error("Partner not found");
     return json({ partner });
@@ -14,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
-    requireRole("admin");
+    requireInternalRole("admin", "super_admin");
     const partner = await prisma.partner.findUnique({ where: { id: params.id } });
     if (!partner) throw new Error("Partner not found");
     const body = await request.json();
@@ -44,7 +44,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
-    requireRole("admin");
+    requireInternalRole("admin", "super_admin");
     const partner = await prisma.partner.findUnique({ where: { id: params.id } });
     if (!partner) throw new Error("Partner not found");
 

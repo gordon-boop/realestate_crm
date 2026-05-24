@@ -255,7 +255,7 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
   );
 };
 
-const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0, draftCount = 0, inProgressCount = 0, portfolioCount = 0, rejectedCount = 0 }) => {
+const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, leadCount = 0, draftCount = 0, inProgressCount = 0, portfolioCount = 0, rejectedCount = 0 }) => {
   const partnerNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
@@ -265,6 +265,7 @@ const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0, draftCount = 
     { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined },
     { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
+  const canViewStaff = ['admin', 'super_admin'].includes(internalRole);
   const adminNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined, internal: true },
@@ -274,6 +275,7 @@ const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0, draftCount = 
     { icon: CheckCircle2, label: 'Verkauft', screen: 'sold', internal: true },
     { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined, internal: true },
     { icon: Users, label: 'Partner', screen: 'partners' },
+    ...(canViewStaff ? [{ icon: Settings, label: 'Mitarbeiter', screen: 'staff', internal: true }] : []),
     { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
   const nav = role === 'admin' ? adminNav : partnerNav;
@@ -343,6 +345,21 @@ function profileDisplayName(profile = {}) {
   return [firstName, lastName].filter(Boolean).join(' ') || profile.name || 'Benutzer';
 }
 
+function profileFromSessionUser(sessionUser, fallback = {}) {
+  if (!sessionUser) return fallback;
+  const parts = String(sessionUser.name || '').trim().split(/\s+/).filter(Boolean);
+  return {
+    ...fallback,
+    name: sessionUser.name || fallback.name,
+    firstName: parts[0] || fallback.firstName,
+    lastName: parts.slice(1).join(' ') || fallback.lastName,
+    initials: initialsFromName(sessionUser.name || fallback.name || 'Benutzer').toUpperCase(),
+    email: sessionUser.email || fallback.email,
+    roleLabel: sessionUser.internalRole ? staffRoleLabels[sessionUser.internalRole] : fallback.roleLabel,
+    internalRole: sessionUser.internalRole || fallback.internalRole,
+  };
+}
+
 const defaultProfiles = {
   admin: {
     firstName: 'Anna',
@@ -352,7 +369,8 @@ const defaultProfiles = {
     email: 'admin@demo.local',
     phone: '+49 711 100200',
     company: 'WohnKapital',
-    roleLabel: 'Admin'
+    roleLabel: 'Super-Admin',
+    internalRole: 'super_admin'
   },
   partner: {
     firstName: 'Markus',
@@ -445,6 +463,18 @@ const demoLoginByRole = {
   partner: { email: 'makler@demo.local', password: 'demo1234' },
 };
 
+const staffRoleLabels = {
+  employee: 'Mitarbeiter',
+  admin: 'Admin',
+  super_admin: 'Super-Admin',
+};
+
+const staffRoleDescriptions = {
+  employee: 'Kann Kundenfälle bearbeiten.',
+  admin: 'Kann Partner freischalten, sperren, bearbeiten und Kundenfälle ablehnen.',
+  super_admin: 'Kann Mitarbeiter anlegen, Rollen zuordnen und alle Admin-Rechte nutzen.',
+};
+
 async function postJson(url, body) {
   const response = await fetch(url, {
     method: 'POST',
@@ -478,6 +508,15 @@ async function postFormData(url, body) {
 }
 
 async function ensureDemoSession(role) {
+  try {
+    const currentResponse = await fetch('/api/me');
+    const currentPayload = await currentResponse.json().catch(() => ({}));
+    if (currentResponse.ok && currentPayload.user?.role === role) {
+      return currentPayload;
+    }
+  } catch {
+    // Fallback auf Demo-Login, wenn keine Session gelesen werden kann.
+  }
   return postJson('/api/auth/login', demoLoginByRole[role] || demoLoginByRole.partner);
 }
 
@@ -1904,6 +1943,119 @@ const PartnerDirectory = ({ partners = [], leads = [], onSetPartnerStatus, onDel
               </button>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onUpdateStaffRole }) => {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('demo1234');
+  const [internalRole, setInternalRole] = useState('employee');
+  const [search, setSearch] = useState('');
+  const normalizedSearch = search.trim().toLowerCase();
+  const visibleStaff = staff
+    .filter((member) => !normalizedSearch || [member.name, member.email, staffRoleLabels[member.internalRole]].some((value) => String(value || '').toLowerCase().includes(normalizedSearch)))
+    .sort((left, right) => String(left.name).localeCompare(String(right.name), 'de'));
+
+  const submit = () => {
+    if (!canManageStaff) return;
+    const name = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
+    onCreateStaff?.({ name, email, password, internalRole });
+    setFirstName('');
+    setLastName('');
+    setEmail('');
+    setPassword('demo1234');
+    setInternalRole('employee');
+  };
+
+  return (
+    <div style={{ padding: '20px 28px' }}>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
+        <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Mitarbeiter</h1>
+        <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Interne Benutzer und Rollen für Bearbeitung, Admin-Rechte und Super-Admin-Verwaltung.</div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: 16, alignItems: 'start' }}>
+        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Interne Mitarbeiter</div>
+              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{visibleStaff.length} von {staff.length} Einträgen</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', background: theme.mintLighter, borderRadius: 6, padding: '7px 10px', border: `1px solid ${theme.border}`, width: 280, maxWidth: '100%' }}>
+              <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Mitarbeiter suchen" style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
+            </div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: theme.mintLight }}>
+                {['Name', 'E-Mail', 'Rolle', 'Berechtigung', 'Aktion'].map((h, i) => (
+                  <th key={i} style={{ textAlign: 'left', padding: '9px 14px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleStaff.map((member) => (
+                <tr key={member.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+                  <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 750 }}>{member.name}</td>
+                  <td style={{ padding: '12px 14px', color: theme.ink }}>{member.email}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: member.internalRole === 'super_admin' ? theme.aubergine : member.internalRole === 'admin' ? '#5B8C2B' : theme.inkSoft, background: member.internalRole === 'super_admin' ? `${theme.aubergine}14` : member.internalRole === 'admin' ? '#5B8C2B1A' : theme.mintLight, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+                      {staffRoleLabels[member.internalRole] || member.internalRole}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 14px', color: `${theme.ink}99`, fontSize: 12.5, maxWidth: 280 }}>{staffRoleDescriptions[member.internalRole]}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    {canManageStaff ? (
+                      <Select value={member.internalRole} onChange={(event) => onUpdateStaffRole?.(member.id, event.target.value)}>
+                        <option value="employee">Mitarbeiter</option>
+                        <option value="admin">Admin</option>
+                        <option value="super_admin">Super-Admin</option>
+                      </Select>
+                    ) : (
+                      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Nur Super-Admin</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 18px', opacity: canManageStaff ? 1 : 0.72 }}>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Neuen Mitarbeiter anlegen</div>
+          {!canManageStaff && (
+            <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '10px 12px', fontSize: 12, color: theme.ink, lineHeight: 1.45, marginBottom: 12 }}>
+              Nur Super-Admins können neue Mitarbeiter anlegen oder Rollen ändern.
+            </div>
+          )}
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <Field label="Vorname" required><Input value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="Vorname" /></Field>
+              <Field label="Nachname" required><Input value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Nachname" /></Field>
+            </div>
+            <Field label="E-Mail" required><Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@wohn-kapital.de" /></Field>
+            <Field label="Startpasswort" required><Input value={password} onChange={(event) => setPassword(event.target.value)} type="text" /></Field>
+            <Field label="Rolle" required>
+              <Select value={internalRole} onChange={(event) => setInternalRole(event.target.value)}>
+                <option value="employee">Mitarbeiter</option>
+                <option value="admin">Admin</option>
+                <option value="super_admin">Super-Admin</option>
+              </Select>
+            </Field>
+            <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>
+              {staffRoleDescriptions[internalRole]}
+            </div>
+            <button onClick={submit} disabled={!canManageStaff || !firstName.trim() || !lastName.trim() || !email.trim()} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 14px', borderRadius: 5, fontSize: 13, fontWeight: 800, cursor: !canManageStaff || !firstName.trim() || !lastName.trim() || !email.trim() ? 'default' : 'pointer', opacity: !canManageStaff || !firstName.trim() || !lastName.trim() || !email.trim() ? 0.55 : 1 }}>
+              Mitarbeiter anlegen
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -4292,7 +4444,7 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
 // =====================================================================
 // MAIN APP
 // =====================================================================
-export default function App({ initialRole = 'partner' } = {}) {
+export default function App({ initialRole = 'partner', initialUser } = {}) {
   const [role, setRole] = useState(initialRole);
   const [screen, setScreen] = useState('dashboard');
   const [caseId, setCaseId] = useState(null);
@@ -4300,14 +4452,22 @@ export default function App({ initialRole = 'partner' } = {}) {
   const [cases, setCases] = useState(mockCases);
   const [leads, setLeads] = useState([]);
   const [partners, setPartners] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [notice, setNotice] = useState('');
   const [loadingCases, setLoadingCases] = useState(false);
   const [loadingLeads, setLoadingLeads] = useState(false);
-  const [profiles, setProfiles] = useState(defaultProfiles);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [profiles, setProfiles] = useState(() => ({
+    ...defaultProfiles,
+    [initialRole]: profileFromSessionUser(initialUser, defaultProfiles[initialRole] || {}),
+  }));
   const [profileOpen, setProfileOpen] = useState(false);
 
   const rawUser = profiles[role] || defaultProfiles[role];
   const user = { ...rawUser, name: profileDisplayName(rawUser), initials: initialsFromName(profileDisplayName(rawUser)).toUpperCase() };
+  const currentInternalRole = role === 'admin' ? (user.internalRole || 'employee') : undefined;
+  const canViewStaff = role === 'admin' && ['admin', 'super_admin'].includes(currentInternalRole);
+  const canManageStaff = role === 'admin' && currentInternalRole === 'super_admin';
 
   async function loadCases(nextRole = role) {
     setLoadingCases(true);
@@ -4346,25 +4506,54 @@ export default function App({ initialRole = 'partner' } = {}) {
     }
   }
 
+  async function loadStaff(nextRole = role) {
+    if (nextRole !== 'admin') return;
+    setLoadingStaff(true);
+    try {
+      await ensureDemoSession(nextRole);
+      const response = await fetch('/api/staff');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Mitarbeiter konnten nicht geladen werden');
+      setStaff(payload.staff || []);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Mitarbeiter konnten nicht geladen werden');
+    } finally {
+      setLoadingStaff(false);
+    }
+  }
+
   useEffect(() => {
     loadCases(initialRole);
     loadLeads(initialRole);
+    loadStaff(initialRole);
   }, [initialRole]);
 
   useEffect(() => {
     try {
       const storedProfiles = window.localStorage.getItem('wohnkapital_profiles');
-      if (storedProfiles) setProfiles({ ...defaultProfiles, ...JSON.parse(storedProfiles) });
+      if (storedProfiles) {
+        setProfiles({
+          ...defaultProfiles,
+          ...JSON.parse(storedProfiles),
+          [initialRole]: profileFromSessionUser(initialUser, JSON.parse(storedProfiles)[initialRole] || defaultProfiles[initialRole] || {}),
+        });
+      }
     } catch {
       // Profil bleibt im MVP in der laufenden Sitzung.
     }
   }, []);
 
   const handleNavigate = (s) => {
+    if (s === 'staff' && !canViewStaff) {
+      setNotice('Der Mitarbeiterbereich ist nur für Admins und Super-Admins sichtbar.');
+      setScreen('dashboard');
+      return;
+    }
     setScreen(s);
     setCaseId(null);
     setCaseInitialTab('kunde');
     if (s === 'leads' || s === 'partners') loadLeads(role);
+    if (s === 'staff') loadStaff(role);
   };
   const handleOpenCase = (id, tab = 'kunde') => {
     setCaseId(id);
@@ -4391,6 +4580,7 @@ export default function App({ initialRole = 'partner' } = {}) {
     setProfileOpen(false);
     loadCases(nextRole);
     loadLeads(nextRole);
+    loadStaff(nextRole);
   };
   const handleSaveProfile = (profile) => {
     const nextProfiles = { ...profiles, [role]: profile };
@@ -4463,6 +4653,24 @@ export default function App({ initialRole = 'partner' } = {}) {
       setNotice(err instanceof Error ? err.message : 'Partner konnte nicht gelöscht werden');
     }
   };
+  const handleCreateStaff = async (staffInput) => {
+    try {
+      await postJson('/api/staff', staffInput);
+      setNotice('Mitarbeiter wurde angelegt.');
+      await loadStaff('admin');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Mitarbeiter konnte nicht angelegt werden');
+    }
+  };
+  const handleUpdateStaffRole = async (staffId, internalRole) => {
+    try {
+      await patchJson(`/api/staff/${staffId}`, { internalRole });
+      setNotice('Mitarbeiterrolle wurde aktualisiert.');
+      await loadStaff('admin');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Mitarbeiterrolle konnte nicht geändert werden');
+    }
+  };
   const handleLogout = async () => {
     try {
       const payload = await postJson('/api/auth/logout');
@@ -4481,6 +4689,7 @@ export default function App({ initialRole = 'partner' } = {}) {
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar
           role={role}
+          internalRole={currentInternalRole}
           currentScreen={screen}
           onNavigate={handleNavigate}
           leadCount={leads.filter((lead) => role === 'admin' ? lead.status === 'NEW' : lead.status !== 'CONVERTED' && lead.status !== 'REJECTED').length}
@@ -4490,9 +4699,9 @@ export default function App({ initialRole = 'partner' } = {}) {
           rejectedCount={cases.filter((item) => item.status === 'REJECTED' || item.status === 'LOST').length}
         />
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {(notice || loadingCases || loadingLeads) && (
+          {(notice || loadingCases || loadingLeads || loadingStaff) && (
             <div style={{ margin: '14px 28px 0', background: loadingCases ? theme.mintLight : theme.goldSoft, border: `1px solid ${loadingCases ? theme.border : `${theme.gold}55`}`, borderRadius: 6, padding: '9px 12px', fontSize: 12.5, color: theme.ink }}>
-              {loadingCases ? 'Fälle werden geladen...' : loadingLeads ? 'Leads werden geladen...' : notice}
+              {loadingCases ? 'Fälle werden geladen...' : loadingLeads ? 'Leads werden geladen...' : loadingStaff ? 'Mitarbeiter werden geladen...' : notice}
             </div>
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} />}
@@ -4501,6 +4710,7 @@ export default function App({ initialRole = 'partner' } = {}) {
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
+          {screen === 'staff' && canViewStaff && <StaffDirectory staff={staff} canManageStaff={canManageStaff} onCreateStaff={handleCreateStaff} onUpdateStaffRole={handleUpdateStaffRole} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}
           {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}

@@ -198,6 +198,7 @@ function mapDbUser(user: Awaited<ReturnType<typeof prisma.user.findUnique>>): Us
     email: user.email,
     passwordHash: user.passwordHash,
     role: user.role,
+    internalRole: user.internalRole ?? undefined,
     createdAt: iso(user.createdAt)!,
     updatedAt: iso(user.updatedAt)!
   };

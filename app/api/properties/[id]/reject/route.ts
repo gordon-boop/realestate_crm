@@ -1,5 +1,5 @@
 import { canSeeProperty } from "@/lib/access-control";
-import { handleApiError, json, requireRole } from "@/lib/api";
+import { handleApiError, json, requireInternalRole } from "@/lib/api";
 import { addDbActivity, getDbCaseByPropertyId } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { propertyRejectSchema } from "@/lib/validation";
@@ -17,7 +17,7 @@ const rejectionReasonLabels: Record<string, string> = {
 
 export async function POST(request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
-    const user = requireRole("admin");
+    const user = requireInternalRole("admin", "super_admin");
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
