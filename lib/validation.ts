@@ -4,6 +4,7 @@ const emptyToUndefined = (value: unknown) => value === "" || value === null ? un
 const optionalString = z.preprocess(emptyToUndefined, z.string().trim().min(1).optional());
 const optionalNumber = z.preprocess(emptyToUndefined, z.coerce.number().finite().optional());
 const optionalBoolean = z.preprocess((value) => value === "on" ? true : value === "yes" ? true : value === "no" ? false : value, z.boolean().optional());
+const optionalEnum = <T extends [string, ...string[]]>(values: T) => z.preprocess(emptyToUndefined, z.enum(values).optional());
 
 export const customerCreateSchema = z.object({
   partnerId: optionalString,
@@ -47,7 +48,7 @@ export const propertyCreateSchema = z.object({
   occupancyStatus: optionalString,
   desiredModel: z.enum(["fixed_residential_right", "sale_and_leaseback", "other"]).default("fixed_residential_right"),
   preferredValuationProvider: z.enum(["mock", "pricehubble", "sprengnetter", "other"]).default("sprengnetter"),
-  residentialRightRecipients: z.enum(["one_person", "both"]).optional(),
+  residentialRightRecipients: optionalEnum(["one_person", "both"]),
   residentialRightPerson: optionalString,
   desiredResidentialRightYears: optionalNumber,
   secondResidentialRightWanted: optionalBoolean.default(false),
@@ -56,8 +57,8 @@ export const propertyCreateSchema = z.object({
   modelReason: optionalString,
   rentalModelDisclosureAccepted: optionalBoolean.default(false),
   additionalOfferRequested: optionalBoolean.default(false),
-  additionalOfferModel: z.enum(["fixed_residential_right", "sale_and_leaseback", "other"]).optional(),
-  additionalOfferResidentialRightRecipients: z.enum(["one_person", "both"]).optional(),
+  additionalOfferModel: optionalEnum(["fixed_residential_right", "sale_and_leaseback", "other"]),
+  additionalOfferResidentialRightRecipients: optionalEnum(["one_person", "both"]),
   additionalOfferResidentialRightPerson: optionalString,
   additionalOfferResidentialRightYears: optionalNumber,
   additionalOfferReason: optionalString,

@@ -102,46 +102,89 @@ const Logo = ({ size = 28 }) => (
 // =====================================================================
 // SHARED — Header & Sidebar
 // =====================================================================
-const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen }) => (
-  <div style={{ background: theme.mintLight, borderBottom: `1px solid ${theme.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <img src="/brand/wohnkapital-logo.svg" alt="WohnKapital" style={{ display: 'block', width: 154, height: 'auto' }} />
+const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notifications = [] }) => {
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const visibleNotifications = notifications.slice(0, 8);
+  const notificationCount = notifications.length;
+
+  return (
+    <div style={{ background: theme.mintLight, borderBottom: `1px solid ${theme.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src="/brand/wohnkapital-logo.svg" alt="WohnKapital" style={{ display: 'block', width: 154, height: 'auto' }} />
+        </div>
+        <div style={{ width: 1, height: 22, background: theme.border, margin: '0 8px' }} />
+        <span style={{ fontSize: 12, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          {role === 'admin' ? 'Intern · CRM' : 'Partnerportal'}
+        </span>
       </div>
-      <div style={{ width: 1, height: 22, background: theme.border, margin: '0 8px' }} />
-      <span style={{ fontSize: 12, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-        {role === 'admin' ? 'Intern · CRM' : 'Partnerportal'}
-      </span>
-    </div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-      <button onClick={onRoleToggle} style={{
-        background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine,
-        fontSize: 11.5, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: 'pointer',
-        letterSpacing: '0.04em', textTransform: 'uppercase'
-      }}>
-        {role === 'admin' ? 'Zur Makleransicht' : 'Zur Admin-Ansicht'}
-      </button>
-      <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 6, padding: '6px 12px', border: `1px solid ${theme.border}`, width: 240 }}>
-        <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
-        <input placeholder="Suchen…" style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
-      </div>
-      <div style={{ position: 'relative', cursor: 'pointer' }}>
-        <Bell size={18} style={{ color: theme.aubergine }} />
-        <span style={{ position: 'absolute', top: -4, right: -4, background: theme.gold, color: theme.aubergine, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 8 }}>3</span>
-      </div>
-      <MessageSquare size={18} style={{ color: theme.aubergine, cursor: 'pointer' }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12, borderLeft: `1px solid ${theme.border}` }}>
-        <button onClick={onProfileOpen} title="Profil öffnen" style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', maxWidth: 190 }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.aubergine, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>{user.initials}</div>
-          <span style={{ fontSize: 13, color: theme.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user.name}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <button onClick={onRoleToggle} style={{
+          background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine,
+          fontSize: 11.5, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: 'pointer',
+          letterSpacing: '0.04em', textTransform: 'uppercase'
+        }}>
+          {role === 'admin' ? 'Zur Makleransicht' : 'Zur Admin-Ansicht'}
         </button>
-        <button onClick={onLogout} title="Abmelden" style={{ background: theme.mintLight, border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '5px 8px', marginLeft: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600 }}>
-          <LogOut size={14} /> Logout
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 6, padding: '6px 12px', border: `1px solid ${theme.border}`, width: 240 }}>
+          <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
+          <input placeholder="Suchen…" style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
+        </div>
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            title="Prozessänderungen"
+            style={{ position: 'relative', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+          >
+            <Bell size={18} style={{ color: theme.aubergine }} />
+            {notificationCount > 0 && (
+              <span style={{ position: 'absolute', top: -7, right: -8, background: theme.gold, color: theme.aubergine, fontSize: 9, fontWeight: 800, minWidth: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', borderRadius: 8 }}>
+                {notificationCount > 9 ? '9+' : notificationCount}
+              </span>
+            )}
+          </button>
+          {notificationsOpen && (
+            <div style={{ position: 'absolute', right: -12, top: 30, width: 360, background: 'white', border: `1px solid ${theme.border}`, borderRadius: 8, boxShadow: '0 18px 45px rgba(68, 0, 92, 0.16)', zIndex: 40, overflow: 'hidden' }}>
+              <div style={{ padding: '11px 14px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: theme.aubergine }}>Prozessänderungen</span>
+                <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700 }}>{notificationCount} gesamt</span>
+              </div>
+              {visibleNotifications.length ? (
+                <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                  {visibleNotifications.map((item) => (
+                    <div key={item.id} style={{ padding: '11px 14px', borderTop: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 3 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 800, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.customerName}</span>
+                        <span style={{ fontSize: 10.5, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(item.date)}</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: theme.aubergine, fontWeight: 700 }}>{item.step}</div>
+                      <div style={{ fontSize: 11.5, color: `${theme.ink}88`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.caseNumber}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '16px 14px', fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5 }}>
+                  Keine neuen Änderungen im Ankaufsprozess.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <MessageSquare size={18} style={{ color: theme.aubergine, cursor: 'pointer' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12, borderLeft: `1px solid ${theme.border}` }}>
+          <button onClick={onProfileOpen} title="Profil öffnen" style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', maxWidth: 190 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.aubergine, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>{user.initials}</div>
+            <span style={{ fontSize: 13, color: theme.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user.name}</span>
+          </button>
+          <button onClick={onLogout} title="Abmelden" style={{ background: theme.mintLight, border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '5px 8px', marginLeft: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600 }}>
+            <LogOut size={14} /> Logout
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const Sidebar = ({ role, currentScreen, onNavigate, leadCount = 0, draftCount = 0, inProgressCount = 0, portfolioCount = 0, rejectedCount = 0 }) => {
   const partnerNav = [
@@ -381,6 +424,42 @@ function dateLabel(value) {
   } catch {
     return 'Gerade eben';
   }
+}
+
+function customerNameForCase(item) {
+  const customer = item.raw?.customer;
+  if (customer?.displayName) return customer.displayName;
+  const fullName = [customer?.firstName, customer?.lastName].filter(Boolean).join(' ').trim();
+  return fullName || item.kunde || 'Kunde';
+}
+
+function buildProcessNotifications(cases = []) {
+  const steps = [
+    ['indicativeOfferSentAt', 'Unverbindliches Angebot abgegeben'],
+    ['offerAcceptedAt', 'UVA angenommen'],
+    ['expertOpinionOrderedAt', 'Gutachten beauftragt'],
+    ['expertOpinionReceivedAt', 'Gutachten eingegangen'],
+    ['bindingOfferSentAt', 'Verbindliches Angebot abgegeben'],
+    ['bindingOfferAcceptedAt', 'VA angenommen'],
+    ['notaryAppointmentAt', 'Notartermin vereinbart'],
+    ['portfolioEnteredAt', 'Kaufvertrag abgeschlossen'],
+  ];
+
+  return cases
+    .flatMap((item) => {
+      const property = item.raw?.property || {};
+      const caseNumber = property.caseNumber || item.id || item.propertyId;
+      return steps
+        .filter(([field]) => property[field])
+        .map(([field, step]) => ({
+          id: `${property.id || item.propertyId || caseNumber}-${field}`,
+          caseNumber,
+          customerName: customerNameForCase(item),
+          step,
+          date: property[field],
+        }));
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 function propertyTypeLabel(value) {
@@ -1636,6 +1715,11 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   ] : [
     { key: 'fixed_residential_right', model: 'fixed_residential_right', residentialRightYears: 10, recipient: 'one_person', reason: 'Mock-Fall', primary: true }
   ];
+  const topCalculationModels = Array.from(new Map(
+    requestedOfferModels
+      .filter((item) => ['fixed_residential_right', 'sale_and_leaseback'].includes(item.model))
+      .map((item) => [item.model, item])
+  ).values());
   const latestValuation = caseView?.valuation;
   const documents = caseView?.documents?.length ? caseView.documents.map((document) => ({
     id: document.id,
@@ -1979,12 +2063,30 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
         <button style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
         {role === 'admin' && (
           <>
-            <button onClick={() => startValuationAndOffer('fixed_residential_right')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, border: 'none', color: 'white', fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
-              {busyAction ? 'Läuft...' : 'Verrentung kalkulieren'}
-            </button>
-            <button onClick={() => startValuationAndOffer('sale_and_leaseback')} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
-              Rückmiete kalkulieren
-            </button>
+            {topCalculationModels.map((modelRequest, index) => {
+              const isPrimary = index === 0;
+              const label = modelRequest.model === 'sale_and_leaseback' ? 'Rückmiete kalkulieren' : 'Verrentung kalkulieren';
+              return (
+                <button
+                  key={modelRequest.key}
+                  onClick={() => startValuationAndOffer(modelRequest.model)}
+                  disabled={Boolean(busyAction)}
+                  style={{
+                    background: isPrimary ? theme.aubergine : 'white',
+                    border: isPrimary ? 'none' : `1px solid ${theme.aubergine}`,
+                    color: isPrimary ? 'white' : theme.aubergine,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    padding: '8px 14px',
+                    borderRadius: 5,
+                    cursor: busyAction ? 'wait' : 'pointer',
+                    opacity: busyAction ? 0.75 : 1
+                  }}
+                >
+                  {busyAction ? 'Läuft...' : label}
+                </button>
+              );
+            })}
             {property?.status !== 'REJECTED' && (
               <button onClick={() => setRejectModalOpen(true)} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
                 Fall ablehnen
@@ -2690,8 +2792,8 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         condition: draft.condition,
         occupancyStatus: draft.occupancyStatus,
         desiredModel: draft.desiredModel,
-        residentialRightRecipients: draft.residentialRightRecipients,
-        residentialRightPerson: draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
+        residentialRightRecipients: draft.desiredModel === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : undefined,
+        residentialRightPerson: draft.desiredModel === 'fixed_residential_right' && draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
         desiredResidentialRightYears: draft.desiredModel === 'fixed_residential_right' ? Number(draft.desiredResidentialRightYears) || undefined : undefined,
         rentalModelDisclosureAccepted: Boolean(draft.rentalModelDisclosureAccepted),
         additionalOfferRequested: Boolean(draft.additionalOfferRequested),
@@ -4024,10 +4126,11 @@ export default function App({ initialRole = 'partner' } = {}) {
       window.location.replace('/login');
     }
   };
+  const processNotifications = buildProcessNotifications(cases);
 
   return (
     <div style={{ background: theme.mint, fontFamily: '"Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} />
+      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} notifications={processNotifications} />
       {profileOpen && <ProfileModal user={user} role={role} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar

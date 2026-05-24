@@ -67,6 +67,26 @@ test("property validation accepts frontend property types and split exclusion fl
   assert.equal(parsed.remainingDebtKnown, true);
 });
 
+test("property validation treats empty optional offer enums as absent", () => {
+  const parsed = propertyCreateSchema.parse({
+    customerId: "customer_schmidt",
+    propertyType: "apartment",
+    street: "Hauptstraße 14",
+    postalCode: "70563",
+    city: "Stuttgart",
+    livingAreaSqm: 78,
+    plotAreaSqm: 0,
+    condition: "average",
+    desiredModel: "sale_and_leaseback",
+    residentialRightRecipients: "",
+    additionalOfferResidentialRightRecipients: ""
+  });
+
+  assert.equal(parsed.desiredModel, "sale_and_leaseback");
+  assert.equal(parsed.residentialRightRecipients, undefined);
+  assert.equal(parsed.additionalOfferResidentialRightRecipients, undefined);
+});
+
 test("case intake dto covers modernization, document status and technical property fields", () => {
   const draft: CaseIntakeDraftDto = {
     currentStep: "documents",
