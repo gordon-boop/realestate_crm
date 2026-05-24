@@ -2451,23 +2451,15 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     setChatInput('');
     setChatVisibility('shared');
   });
-  const tabs = role === 'admin'
-    ? [
-        { id: 'kunde', label: 'Kunde' },
-        { id: 'objekt', label: 'Objekt' },
-        { id: 'indag', label: 'Unverbindliches Angebot' },
-        { id: 'verbag', label: 'Verbindliches Angebot' },
-        { id: 'doks', label: 'Objektunterlagen' },
-        { id: 'chat', label: 'Chatverlauf' },
-        { id: 'aufgaben', label: 'Aufgaben' },
-      ]
-    : [
-        { id: 'kunde', label: 'Kunde' },
-        { id: 'objekt', label: 'Objekt' },
-        { id: 'doks', label: 'Objektunterlagen' },
-        { id: 'chat', label: 'Chatverlauf' },
-        { id: 'aufgaben', label: 'Aufgaben' },
-      ];
+  const tabs = [
+    { id: 'kunde', label: 'Kunde' },
+    { id: 'objekt', label: 'Objekt' },
+    { id: 'indag', label: 'Unverbindliches Angebot' },
+    { id: 'verbag', label: 'Verbindliches Angebot' },
+    { id: 'doks', label: 'Objektunterlagen' },
+    { id: 'chat', label: 'Chatverlauf' },
+    { id: 'aufgaben', label: 'Aufgaben' },
+  ];
 
   return (
     <div>
@@ -2847,6 +2839,11 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
           {activeTab === 'indag' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Unverbindliches Angebot</div>
+              {role !== 'admin' && (
+                <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45, marginBottom: 14 }}>
+                  Lesende Ansicht: WohnKapital berechnet und gibt Angebote intern frei. Als Makler siehst du hier die vorhandenen Angebotsdaten.
+                </div>
+              )}
               <div style={{ display: 'grid', gap: 12 }}>
                 {requestedOfferModels.map((modelRequest, index) => {
                   const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
@@ -2867,11 +2864,13 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                         {offer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{offer.status}</span> : null}
                       </div>
 
-                      <button onClick={() => setOpenCalculation(openCalculation === key ? '' : key)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', marginBottom: openCalculation === key ? 12 : 0 }}>
-                        Berechnung starten
-                      </button>
+                      {role === 'admin' && (
+                        <button onClick={() => setOpenCalculation(openCalculation === key ? '' : key)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', marginBottom: openCalculation === key ? 12 : 0 }}>
+                          Berechnung starten
+                        </button>
+                      )}
 
-                      {openCalculation === key && (
+                      {role === 'admin' && openCalculation === key && (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
                           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Kalkulationsparameter</div>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
@@ -2908,17 +2907,19 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                               </div>
                             ))}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
-                            {['indicative_offer_sent', 'offer_accepted'].map((action) => {
-                              const state = workflowActionState(action);
-                              return (
-                                <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
-                                  {state.reached ? <CheckCircle size={13} /> : null}
-                                  {state.step?.label || action}
-                                </button>
-                              );
-                            })}
-                          </div>
+                          {role === 'admin' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
+                              {['indicative_offer_sent', 'offer_accepted'].map((action) => {
+                                const state = workflowActionState(action);
+                                return (
+                                  <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                                    {state.reached ? <CheckCircle size={13} /> : null}
+                                    {state.step?.label || action}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </>
                       ) : (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', fontSize: 12.5, color: `${theme.ink}88`, marginTop: 12 }}>
@@ -2990,6 +2991,11 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
           {activeTab === 'verbag' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Verbindliches Angebot</div>
+              {role !== 'admin' && (
+                <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45, marginBottom: 14 }}>
+                  Lesende Ansicht: Das verbindliche Angebot wird erst nach Gutachten intern berechnet und im Anschluss hier angezeigt.
+                </div>
+              )}
               <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5, marginBottom: 14 }}>
                 Nach Eingang des Gutachtens wird das verbindliche Angebot auf Basis des Gutachtenwerts neu berechnet. Die UVA bleibt als eigene Version bestehen.
               </div>
