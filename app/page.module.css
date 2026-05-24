@@ -330,6 +330,145 @@
   margin: 0;
 }
 
+.modelle {
+  padding: 120px 0;
+  background: var(--bg-card);
+}
+
+.modelleGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-bottom: 32px;
+}
+
+.modellCard {
+  display: flex;
+  flex-direction: column;
+  padding: 48px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--bg-soft);
+}
+
+.modellCardA {
+  position: relative;
+  border-color: var(--line);
+  box-shadow: 0 2px 8px rgba(68, 0, 92, 0.04);
+}
+
+.modellCardA::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 48px;
+  right: 48px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+}
+
+.modellCardB {
+  border-color: var(--accent-soft);
+  background: var(--bg-warm);
+}
+
+.modellEyebrow {
+  display: inline-block;
+  margin-bottom: 14px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.modellCardB .modellEyebrow {
+  color: var(--accent-olive);
+}
+
+.modellTitle {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.modellTagline {
+  margin: 0 0 24px;
+  color: var(--ink-soft);
+  font-family: var(--font-serif);
+  font-size: 18px;
+}
+
+.modellHow {
+  margin: 0 0 28px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.68;
+}
+
+.modellSection {
+  margin-bottom: 24px;
+}
+
+.modellSection:last-child {
+  margin-bottom: 0;
+}
+
+.modellSubtitle {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.modellList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.modellList li {
+  position: relative;
+  padding-left: 20px;
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.58;
+}
+
+.modellList li::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.modelleHint {
+  max-width: 720px;
+  margin: 32px auto 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.65;
+  text-align: center;
+}
+
 .process {
   padding: 120px 0;
   background: var(--bg-card);
@@ -495,6 +634,30 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.faqGroups {
+  max-width: 820px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+
+.faqGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.faqGroupTitle {
+  padding-bottom: 12px;
+  margin: 0 0 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--accent-olive);
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .faqItem {
@@ -663,6 +826,20 @@
     padding: 40px 32px;
   }
 
+  .modelleGrid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .modellCard {
+    padding: 36px 28px;
+  }
+
+  .modellCardA::before {
+    left: 28px;
+    right: 28px;
+  }
+
   .steps {
     grid-template-columns: 1fr 1fr;
     gap: 36px;
@@ -708,6 +885,7 @@
   }
 
   .problemSolution,
+  .modelle,
   .process,
   .benefits,
   .partner,
@@ -735,13 +913,22 @@
   }
 
   .psBlock,
+  .modellCard,
   .benefitColumn {
     padding: 32px 24px;
+  }
+
+  .modellTitle {
+    font-size: 26px;
   }
 
   .faqQ {
     font-size: 19px;
     padding: 22px 0;
+  }
+
+  .faqGroupTitle {
+    font-size: 14px;
   }
 
 }

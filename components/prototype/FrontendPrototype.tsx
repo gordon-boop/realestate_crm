@@ -2458,7 +2458,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
     { id: 'verbag', label: 'Verbindliches Angebot' },
     { id: 'doks', label: 'Objektunterlagen' },
     { id: 'chat', label: 'Chatverlauf' },
-    { id: 'aufgaben', label: 'Aufgaben' },
+    ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben' }] : []),
   ];
 
   return (
