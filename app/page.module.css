@@ -44,6 +44,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 28px;
   padding: 18px 0;
 }
 
@@ -56,6 +57,7 @@
   display: flex;
   align-items: center;
   gap: 22px;
+  margin-left: auto;
 }
 
 .navLink {
@@ -115,11 +117,25 @@
   color: var(--ink);
 }
 
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.headerPhone {
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.headerContact,
 .navCta {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1px;
+  justify-content: center;
   background: var(--ink);
   color: #fff;
   text-decoration: none;
@@ -137,6 +153,7 @@
   font-weight: 600;
 }
 
+.headerContact:hover,
 .navCta:hover {
   background: #2d003d;
   transform: translateY(-1px);
@@ -1529,13 +1546,17 @@
     display: none;
   }
 
-  .navCta {
-    padding: 8px 12px;
-    font-size: 12px;
+  .headerActions {
+    gap: 10px;
   }
 
-  .navCta span {
-    display: none;
+  .headerPhone {
+    font-size: 13px;
+  }
+
+  .headerContact {
+    padding: 8px 13px;
+    font-size: 13px;
   }
 
   .heroGrid {
@@ -1626,6 +1647,20 @@
 @media (max-width: 600px) {
   .main {
     font-size: 17px;
+  }
+
+  .headerInner {
+    padding: 14px 0;
+    gap: 14px;
+  }
+
+  .logoLink img {
+    width: 142px;
+    height: auto;
+  }
+
+  .headerPhone {
+    display: none;
   }
 
   .trustText,

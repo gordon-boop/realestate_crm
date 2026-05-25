@@ -36,8 +36,11 @@ export function SiteHeader() {
                 <Link key={item.href} href={item.href} className={styles.navLink}>{item.label}</Link>
               )
             )}
-            <Link href="/#rechner" className={styles.navCta}>Ersteinschätzung anfragen</Link>
           </nav>
+          <div className={styles.headerActions}>
+            <span className={styles.headerPhone}>Hotline: 0800 000 000</span>
+            <Link href="/#kontakt" className={styles.headerContact}>Kontakt</Link>
+          </div>
         </div>
       </div>
     </header>
@@ -292,7 +295,7 @@ export function CTASection({
   href?: string;
 }) {
   return (
-    <section className={styles.finalCta}>
+    <section id="kontakt" className={styles.finalCta}>
       <div className={styles.container}>
         <div className={styles.finalInner}>
           <h2 className={styles.finalTitle}>{title}</h2>
