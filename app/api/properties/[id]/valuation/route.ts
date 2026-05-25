@@ -1,7 +1,7 @@
 import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import type { ValuationProvider } from "@/lib/domain";
-import { addDbActivity, getDbCaseByPropertyId, updateDbPropertyStatus } from "@/lib/persistence";
+import { addDbActivity, getDbCaseByPropertyId, toPrismaJson, updateDbPropertyStatus } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { createMockValuation } from "@/lib/valuation-service";
 
@@ -38,7 +38,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         valueMin: result.valueMin,
         valueMax: result.valueMax,
         confidenceScore: result.confidenceScore,
-        rawResponseJson: result.rawResponseJson,
+        rawResponseJson: toPrismaJson(result.rawResponseJson),
         startedAt: result.startedAt ? new Date(result.startedAt) : undefined,
         completedAt: result.completedAt ? new Date(result.completedAt) : undefined
       }

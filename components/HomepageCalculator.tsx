@@ -29,17 +29,24 @@ export function HomepageCalculator() {
     const high = roundToThousand(marketValue * 1.1);
     const residentialRightRate = years <= 5 ? 0.6 : years <= 10 ? 0.52 : 0.44;
     const twoPhasePayout = roundToThousand(marketValue * residentialRightRate);
-    const monthlyRent = roundToTen((marketValue * 0.035) / 12);
-    const rentPerSqm = roundToTen(monthlyRent / Math.max(1, livingArea));
+    const saleAndLeasebackPayoutLow = roundToThousand(marketValue * 0.65);
+    const saleAndLeasebackPayoutHigh = roundToThousand(marketValue * 0.75);
+    const monthlyRentLow = roundToEuro((saleAndLeasebackPayoutLow * 0.05) / 12);
+    const monthlyRentHigh = roundToEuro((saleAndLeasebackPayoutHigh * 0.06) / 12);
+    const rentPerSqmLow = roundToTen(monthlyRentLow / Math.max(1, livingArea));
+    const rentPerSqmHigh = roundToTen(monthlyRentHigh / Math.max(1, livingArea));
 
     return {
       marketValue,
       low,
       high,
       twoPhasePayout,
-      saleAndLeasebackPayout: marketValue,
-      monthlyRent,
-      rentPerSqm,
+      saleAndLeasebackPayoutLow,
+      saleAndLeasebackPayoutHigh,
+      monthlyRentLow,
+      monthlyRentHigh,
+      rentPerSqmLow,
+      rentPerSqmHigh,
     };
   }, [estimatedMarketValue, livingArea, years]);
 
@@ -68,7 +75,8 @@ export function HomepageCalculator() {
       `Gewünschtes Modell: ${productInterestLabel(productInterest)}`,
       `Orientierungswert: ${formatter.format(result.low)} bis ${formatter.format(result.high)}`,
       `Zwei-Phasen-Auszahlung ca.: ${formatter.format(result.twoPhasePayout)}`,
-      `Rückmiete-Auszahlung ca.: ${formatter.format(result.saleAndLeasebackPayout)}, Miete ca. ${formatter.format(result.monthlyRent)} mtl.`,
+      `Voraussichtliche Auszahlungsspanne Rückmietverkauf: ${formatter.format(result.saleAndLeasebackPayoutLow)} bis ${formatter.format(result.saleAndLeasebackPayoutHigh)}`,
+      `Geschätzte monatliche Miete: ${formatter.format(result.monthlyRentLow)} bis ${formatter.format(result.monthlyRentHigh)}`,
     ].join("\n");
 
     try {
@@ -198,7 +206,7 @@ export function HomepageCalculator() {
 
             <div className={styles.calculatorResult}>
               <div>
-                <span>Kostenlose Bewertung</span>
+                <span>unverbindliche Ersteinschätzung</span>
                 <strong>{formatter.format(result.low)} bis {formatter.format(result.high)}</strong>
               </div>
               <div>
@@ -206,9 +214,9 @@ export function HomepageCalculator() {
                 <strong>ca. {formatter.format(result.twoPhasePayout)}</strong>
               </div>
               <div>
-                <span>Verkauf mit Rückmiete</span>
-                <strong>ca. {formatter.format(result.saleAndLeasebackPayout)}</strong>
-                <small>Mietindikation ca. {formatter.format(result.monthlyRent)} mtl. / {formatter.format(result.rentPerSqm)} je m²</small>
+                <span>voraussichtliche Auszahlungsspanne</span>
+                <strong>{formatter.format(result.saleAndLeasebackPayoutLow)} bis {formatter.format(result.saleAndLeasebackPayoutHigh)}</strong>
+                <small>geschätzte monatliche Miete ca. {formatter.format(result.monthlyRentLow)} bis {formatter.format(result.monthlyRentHigh)} / {formatter.format(result.rentPerSqmLow)} bis {formatter.format(result.rentPerSqmHigh)} je m²</small>
               </div>
             </div>
 
@@ -220,7 +228,7 @@ export function HomepageCalculator() {
                   onChange={(event) => setProductInterest(event.target.value as ProductInterest)}
                 >
                   <option value="fixed_residential_right">Zwei-Phasen-Wohnrecht</option>
-                  <option value="sale_and_leaseback">Verkauf mit Rückmiete</option>
+                  <option value="sale_and_leaseback">Rückmietverkauf</option>
                   <option value="other">Beide vergleichen</option>
                 </select>
               </label>
@@ -245,12 +253,12 @@ export function HomepageCalculator() {
             </div>
 
             <p className={styles.calculatorNote}>
-              Hinweis: Diese Berechnung ist eine unverbindliche Orientierung und ersetzt kein
+              Hinweis: Diese Berechnung ist eine unverbindliche Ersteinschätzung und ersetzt kein
               Gutachten, keine rechtliche Prüfung und kein verbindliches Angebot.
             </p>
 
             <button className={styles.btnPrimaryLg} type="submit" disabled={state === "submitting"}>
-              {state === "submitting" ? "Ergebnis wird gesendet..." : "Rechner-Ergebnis anfragen"}
+              {state === "submitting" ? "Ergebnis wird gesendet..." : "Kostenlose Ersteinschätzung erhalten"}
             </button>
 
             {message ? (
@@ -273,6 +281,10 @@ function roundToTen(value: number): number {
   return Math.round(value / 10) * 10;
 }
 
+function roundToEuro(value: number): number {
+  return Math.round(value);
+}
+
 function propertyTypeLabel(value: string): string {
   const labels: Record<string, string> = {
     single_family: "Einfamilienhaus",
@@ -286,7 +298,7 @@ function propertyTypeLabel(value: string): string {
 function productInterestLabel(value: ProductInterest): string {
   const labels: Record<ProductInterest, string> = {
     fixed_residential_right: "Zwei-Phasen-Wohnrecht",
-    sale_and_leaseback: "Verkauf mit Rückmiete",
+    sale_and_leaseback: "Rückmietverkauf",
     other: "Beide vergleichen",
   };
   return labels[value];

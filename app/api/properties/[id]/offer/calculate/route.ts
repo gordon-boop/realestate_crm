@@ -2,7 +2,7 @@ import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import type { DesiredModel } from "@/lib/domain";
 import { calculateOffer } from "@/lib/offer-calculator";
-import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, updateDbPropertyStatus } from "@/lib/persistence";
+import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, toPrismaJson, updateDbPropertyStatus } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 
 type CalculateOfferBody = {
@@ -47,11 +47,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
             valueMin: expertOpinionValue,
             valueMax: expertOpinionValue,
             confidenceScore: 1,
-            rawResponseJson: {
+            rawResponseJson: toPrismaJson({
               source: "manual_expert_opinion",
               expertOpinionValue,
               note: "Gutachtenwert wurde manuell für die VA-Kalkulation hinterlegt."
-            },
+            }),
             completedAt: new Date()
           }
         })
@@ -59,8 +59,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const calculation = calculateOffer({
       valuation: {
-        ...caseView.valuation,
-        id: calculationValuation.id,
         marketValue: Number(calculationValuation.marketValue)
       },
       condition: caseView.property.condition,
@@ -104,7 +102,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             payoutAmount: calculation.payoutAmount,
             model: model as never,
             residentialRightYears,
-            assumptionsJson: calculation.assumptions,
+            assumptionsJson: toPrismaJson(calculation.assumptions),
             status: kind === "binding" ? "review" : "draft"
           }
         })
@@ -123,7 +121,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             payoutAmount: calculation.payoutAmount,
             model: model as never,
             residentialRightYears,
-            assumptionsJson: calculation.assumptions,
+            assumptionsJson: toPrismaJson(calculation.assumptions),
             status: kind === "binding" ? "review" : "draft"
           }
         });

@@ -92,7 +92,7 @@ export function HomepageLeadForm() {
         <select name="productInterest" defaultValue="">
           <option value="">Bitte wählen</option>
           <option value="fixed_residential_right">Zwei-Phasen-Wohnrecht</option>
-          <option value="sale_and_leaseback">Verkauf mit Rückmiete</option>
+          <option value="sale_and_leaseback">Rückmietverkauf</option>
           <option value="other">Noch offen</option>
         </select>
       </label>

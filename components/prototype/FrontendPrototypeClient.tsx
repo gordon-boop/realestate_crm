@@ -1,9 +1,17 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
 import type { User } from "@/lib/domain";
 
-const FrontendPrototype = dynamic(() => import("./FrontendPrototype"), {
+type FrontendPrototypeProps = {
+  initialRole?: "partner" | "admin";
+  initialUser?: User;
+};
+
+const FrontendPrototype = dynamic(
+  () => import("./FrontendPrototype") as Promise<{ default: ComponentType<FrontendPrototypeProps> }>,
+  {
   ssr: false,
   loading: () => (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#E8F5E0", color: "#44005C", fontFamily: "Aptos, Segoe UI, system-ui, sans-serif" }}>

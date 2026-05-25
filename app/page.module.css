@@ -55,7 +55,7 @@
 .nav {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 22px;
 }
 
 .navLink {
@@ -67,6 +67,51 @@
 }
 
 .navLink:hover {
+  color: var(--ink);
+}
+
+.navGroup {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.navDropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: -18px;
+  display: grid;
+  gap: 4px;
+  width: 280px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 38px rgba(68, 0, 92, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.navGroup:hover .navDropdown,
+.navGroup:focus-within .navDropdown {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.navDropdown a {
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.navDropdown a:hover {
+  background: var(--bg-soft);
   color: var(--ink);
 }
 
@@ -113,6 +158,55 @@
   background: linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
 }
 
+.pageHeader {
+  padding: 64px 0 92px;
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+}
+
+.pageTitle {
+  max-width: 880px;
+  margin: 0 0 24px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: clamp(38px, 5vw, 62px);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+}
+
+.pageLead {
+  max-width: 760px;
+  margin: 0 0 36px;
+  color: var(--ink-soft);
+  font-size: clamp(18px, 1.7vw, 21px);
+  font-weight: 500;
+  line-height: 1.68;
+}
+
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.breadcrumbs span {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.breadcrumbs a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.breadcrumbs a:hover {
+  color: var(--ink);
+}
+
 .heroGrid {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
@@ -146,6 +240,14 @@
   color: var(--ink-soft);
   font-weight: 500;
   margin: 0 0 40px;
+}
+
+.heroTrustHint {
+  margin: 18px 0 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .heroCtas {
@@ -355,6 +457,187 @@
   margin: 0;
 }
 
+.homeNarrative {
+  padding: 112px 0 72px;
+  background: var(--bg-soft);
+}
+
+.homeNarrativeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.homeTextBlock {
+  padding: 52px 48px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+
+.homeTextBlockWarm {
+  border-color: var(--accent-soft);
+  background: var(--bg-warm);
+}
+
+.homeTextBlock h2 {
+  max-width: 520px;
+  margin: 0 0 22px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: clamp(28px, 3.3vw, 42px);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.homeTextBlock p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.76;
+}
+
+.homeAdvantages {
+  padding: 40px 0 112px;
+  background: var(--bg-soft);
+}
+
+.homeOrientation {
+  padding: 56px 0 26px;
+  background: var(--bg-soft);
+}
+
+.orientationInner {
+  max-width: 880px;
+  padding: 34px 38px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 14px 34px rgba(68, 0, 92, 0.06);
+}
+
+.orientationInner h2 {
+  max-width: 680px;
+  margin: 0 0 14px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: clamp(27px, 3vw, 38px);
+  font-weight: 500;
+  line-height: 1.14;
+  letter-spacing: -0.01em;
+}
+
+.orientationInner p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.72;
+}
+
+.advantageGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.advantageCard {
+  display: grid;
+  gap: 16px;
+  min-height: 230px;
+  padding: 34px 30px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: 0 12px 30px rgba(68, 0, 92, 0.06);
+}
+
+.advantageIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--bg-warm);
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.advantageCard h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 25px;
+  font-weight: 500;
+  line-height: 1.16;
+}
+
+.advantageCard p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 16.5px;
+  font-weight: 500;
+  line-height: 1.68;
+}
+
+.sectionAction {
+  display: flex;
+  margin-top: 40px;
+}
+
+.securityBlock {
+  padding: 112px 0;
+  background: var(--bg-soft);
+}
+
+.securityGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.75fr);
+  gap: 72px;
+  align-items: center;
+}
+
+.securityGrid .btnSecondary {
+  margin-top: 34px;
+}
+
+.securityList {
+  display: grid;
+  gap: 16px;
+  padding: 30px;
+  margin: 0;
+  list-style: none;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: 0 16px 36px rgba(68, 0, 92, 0.08);
+}
+
+.securityList li {
+  position: relative;
+  padding-left: 30px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.securityList li::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(255, 172, 0, 0.14);
+}
+
 .modelle {
   padding: 120px 0;
   background: var(--bg-card);
@@ -495,7 +778,7 @@
 }
 
 .calculator {
-  padding: 120px 0;
+  padding: 74px 0 118px;
   background: linear-gradient(180deg, var(--bg-soft) 0%, var(--bg-card) 100%);
 }
 
@@ -677,6 +960,185 @@
 
 .benefits {
   padding: 120px 0;
+}
+
+.contentSection {
+  padding: 104px 0;
+  background: var(--bg-card);
+}
+
+.contentSectionAlt {
+  padding: 104px 0;
+  background: var(--bg-soft);
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.contentBlock {
+  max-width: 760px;
+}
+
+.contentBlock h2,
+.relatedTitle {
+  margin: 0 0 20px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: clamp(28px, 3.2vw, 42px);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.contentBlock h3 {
+  margin: 26px 0 10px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 23px;
+  font-weight: 500;
+}
+
+.contentBlock p,
+.contentBlock li {
+  color: var(--ink-soft);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.72;
+}
+
+.contentBlock p {
+  margin: 0 0 18px;
+}
+
+.contentList {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  margin: 22px 0 0;
+  list-style: none;
+}
+
+.contentList li {
+  position: relative;
+  padding-left: 22px;
+}
+
+.contentList li::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.noteBox {
+  padding: 22px;
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+  background: var(--bg-warm);
+  color: var(--ink-soft);
+  font-weight: 650;
+  line-height: 1.65;
+}
+
+.linkCardGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.linkCard {
+  display: grid;
+  gap: 12px;
+  min-height: 190px;
+  padding: 24px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.linkCard:hover {
+  border-color: var(--accent-soft);
+  box-shadow: 0 14px 32px rgba(68, 0, 92, 0.1);
+  transform: translateY(-2px);
+}
+
+.linkCard h3 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.15;
+}
+
+.linkCard p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.linkCard span {
+  align-self: end;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.related {
+  padding: 96px 0;
+  background: var(--bg-soft);
+}
+
+.comparisonTable {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.comparisonHead,
+.comparisonRow {
+  display: grid;
+  grid-template-columns: 0.75fr 1fr 1fr;
+  gap: 1px;
+}
+
+.comparisonHead span {
+  padding: 16px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.comparisonRow strong,
+.comparisonRow span {
+  padding: 16px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.comparisonRow strong {
+  color: var(--ink);
+  background: var(--bg-soft);
+  font-weight: 800;
 }
 
 .benefitsGrid {
@@ -1017,6 +1479,15 @@
   margin: 0;
 }
 
+.footerSmall {
+  max-width: 280px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
 .footerNav {
   display: flex;
   flex-wrap: wrap;
@@ -1053,7 +1524,8 @@
     gap: 18px;
   }
 
-  .navLink {
+  .navLink,
+  .navGroup {
     display: none;
   }
 
@@ -1080,6 +1552,13 @@
     grid-template-columns: 1fr;
   }
 
+  .homeNarrativeGrid,
+  .advantageGrid,
+  .securityGrid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
   .psBlock {
     padding: 40px 32px;
   }
@@ -1089,9 +1568,14 @@
     gap: 20px;
   }
 
+  .contentGrid,
   .calculatorGrid {
     grid-template-columns: 1fr;
     gap: 32px;
+  }
+
+  .linkCardGrid {
+    grid-template-columns: 1fr 1fr;
   }
 
   .calculatorResult {
@@ -1156,10 +1640,17 @@
   }
 
   .problemSolution,
+  .homeNarrative,
+  .homeOrientation,
+  .homeAdvantages,
+  .securityBlock,
+  .contentSection,
+  .contentSectionAlt,
   .modelle,
   .calculator,
   .process,
   .benefits,
+  .related,
   .partner,
   .faq {
     padding: 80px 0;
@@ -1190,6 +1681,12 @@
     grid-template-columns: 1fr;
   }
 
+  .linkCardGrid,
+  .comparisonHead,
+  .comparisonRow {
+    grid-template-columns: 1fr;
+  }
+
 .btnPrimary,
 .btnSecondary {
     font-weight: 700;
@@ -1201,9 +1698,21 @@
   }
 
   .psBlock,
+  .homeTextBlock,
   .modellCard,
   .benefitColumn {
     padding: 32px 24px;
+  }
+
+  .advantageCard,
+  .orientationInner,
+  .securityList {
+    padding: 26px 22px;
+  }
+
+  .sectionAction {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .modellTitle {

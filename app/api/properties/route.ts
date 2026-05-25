@@ -1,7 +1,7 @@
 import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import { nextPropertyCaseNumber } from "@/lib/case-number";
-import { addDbActivity, getDbCases } from "@/lib/persistence";
+import { addDbActivity, getDbCases, toOptionalPrismaJson } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { propertyCreateSchema } from "@/lib/validation";
 
@@ -68,7 +68,7 @@ export async function POST(request: Request): Promise<Response> {
         heatingEnergySource: body.heatingEnergySource,
         heatingEnergySourceOther: body.heatingEnergySourceOther,
         heatingYear: body.heatingYear,
-        energyCarriersJson: body.energyCarriers,
+        energyCarriersJson: toOptionalPrismaJson(body.energyCarriers),
         windowMaterial: body.windowMaterial,
         windowInstallationYear: body.windowInstallationYear,
         asbestosRoofKnown: body.asbestosRoofKnown,
@@ -82,8 +82,8 @@ export async function POST(request: Request): Promise<Response> {
         knownDefects: body.knownDefects,
         remainingDebtKnown: body.remainingDebtKnown,
         remainingDebtAmount: body.remainingDebtAmount,
-        modernizationJson: body.modernization,
-        buildingConditionJson: body.buildingCondition,
+        modernizationJson: toOptionalPrismaJson(body.modernization),
+        buildingConditionJson: toOptionalPrismaJson(body.buildingCondition),
         generalPropertyNotes: body.generalPropertyNotes,
         followUpRequired: false,
         offerCalculationSource: "application",

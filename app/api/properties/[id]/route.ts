@@ -1,6 +1,6 @@
 import { canMutateProperty, canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { filterCaseViewForUser, getDbCaseByPropertyId } from "@/lib/persistence";
+import { filterCaseViewForUser, getDbCaseByPropertyId, toOptionalPrismaJson } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { propertyCreateSchema } from "@/lib/validation";
 
@@ -26,7 +26,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (body.leasehold !== undefined || body.monumentProtection !== undefined || body.leaseholdOrMonument !== undefined) {
       body.leaseholdOrMonument = Boolean(body.leaseholdOrMonument || body.leasehold || body.monumentProtection);
     }
-    const { energyCarriers, modernization, buildingCondition, ...propertyData } = body;
+    const { customerId: _customerId, energyCarriers, modernization, buildingCondition, ...propertyData } = body;
     const property = await prisma.property.update({
       where: { id: params.id },
       data: {
@@ -37,12 +37,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         preferredValuationProvider: body.preferredValuationProvider as never,
         residentialRightRecipients: body.residentialRightRecipients as never,
         additionalOfferModel: body.additionalOfferModel as never,
+        additionalOfferResidentialRightRecipients: body.additionalOfferResidentialRightRecipients as never,
         parkingType: body.parkingType as never,
         basementType: body.basementType as never,
         visualConditionRating: body.visualConditionRating as never,
-        energyCarriersJson: body.energyCarriers,
-        modernizationJson: body.modernization,
-        buildingConditionJson: body.buildingCondition
+        energyCarriersJson: toOptionalPrismaJson(body.energyCarriers),
+        modernizationJson: toOptionalPrismaJson(body.modernization),
+        buildingConditionJson: toOptionalPrismaJson(body.buildingCondition)
       }
     });
     return json({ property });

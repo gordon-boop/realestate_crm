@@ -1,4 +1,5 @@
-import type { CaseView, DesiredModel, Lead, PropertyStatus, User } from "./domain.ts";
+import type { Prisma } from "@prisma/client";
+import type { CaseView, DesiredModel, Lead, OfferAssumptions, PropertyStatus, User } from "./domain.ts";
 import { prisma } from "./prisma.ts";
 
 const caseInclude = {
@@ -108,7 +109,7 @@ function mapOffer(offer: NonNullable<PrismaCase>["offers"][number]) {
     riskDiscount: Number(offer.riskDiscount),
     companyMargin: Number(offer.companyMargin),
     payoutAmount: Number(offer.payoutAmount),
-    assumptions: offer.assumptionsJson as Record<string, unknown>,
+    assumptions: offer.assumptionsJson as unknown as OfferAssumptions,
     approvedAt: iso(offer.approvedAt),
     sentAt: iso(offer.sentAt),
     validUntil: iso(offer.validUntil),
@@ -118,8 +119,16 @@ function mapOffer(offer: NonNullable<PrismaCase>["offers"][number]) {
   };
 }
 
-export function toJsonSnapshot<T>(value: T): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+export function toPrismaJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
+}
+
+export function toOptionalPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
+  return value === undefined ? undefined : toPrismaJson(value);
+}
+
+export function toJsonSnapshot<T>(value: T): Prisma.InputJsonValue {
+  return toPrismaJson(value);
 }
 
 function mapActivity(activity: NonNullable<PrismaCase>["activities"][number]) {
@@ -241,7 +250,7 @@ export async function addDbActivity(
       source: options.source ?? "user",
       entityType: options.entityType as never,
       entityId: options.entityId,
-      metadataJson: options.metadata,
+      metadataJson: toOptionalPrismaJson(options.metadata),
       version: 1
     }
   });
