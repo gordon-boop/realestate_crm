@@ -201,5 +201,5 @@ export const acquisitionWorkflowSchema = z.object({
 export const propertyRejectSchema = z.object({
   reasonCode: z.enum(["location", "condition", "age", "documents", "valuation", "legal", "occupancy", "other"]),
   reasonLabel: optionalString,
-  note: optionalString
+  note: z.string().trim().min(8, "Hinweis an den Makler ist erforderlich")
 });

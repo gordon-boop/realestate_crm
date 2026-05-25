@@ -31,4 +31,5 @@ test("case rejection requires a structured reason", () => {
   assert.equal(parsed.reasonCode, "condition");
   assert.equal(parsed.note, "Objektzustand passt aktuell nicht zum Ankaufsprofil.");
   assert.throws(() => propertyRejectSchema.parse({ reasonCode: "unknown" }));
+  assert.throws(() => propertyRejectSchema.parse({ reasonCode: "condition" }));
 });

@@ -1908,7 +1908,12 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, sho
               {showPartner && <td style={{ padding: '11px 16px', color: `${theme.ink}aa`, fontSize: 12 }}>{row.partner}</td>}
               <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>{row.objekt}</td>
               <td style={{ padding: '11px 16px' }}><StatusBadge status={row.status} /></td>
-              {showRejection && <td style={{ padding: '11px 16px', color: '#9B2C2C', fontSize: 12.5, fontWeight: 650 }}>{row.rejectionReasonLabel || labelFrom(rejectionReasonLabels, row.rejectionReasonCode, '-')}</td>}
+              {showRejection && (
+                <td style={{ padding: '11px 16px', color: '#9B2C2C', fontSize: 12.5, fontWeight: 650, maxWidth: 280 }}>
+                  <div>{row.rejectionReasonLabel || labelFrom(rejectionReasonLabels, row.rejectionReasonCode, '-')}</div>
+                  {row.rejectionNote && <div style={{ color: `${theme.ink}88`, fontSize: 11.5, fontWeight: 500, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.rejectionNote}</div>}
+                </td>
+              )}
               <td style={{ padding: '11px 16px', color: `${theme.ink}88`, fontSize: 12 }}>{row.vor}</td>
               <td style={{ padding: '11px 16px', textAlign: 'right' }}><ChevronRight size={15} style={{ color: `${theme.aubergine}88` }} /></td>
             </tr>
@@ -2160,7 +2165,7 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
 // =====================================================================
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
-const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNotice, onEdit, initialTab = 'kunde' }) => {
+const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = mockCases, onRefresh, setNotice, onEdit, initialTab = 'kunde' }) => {
   const [activeTab, setActiveTab] = useState(initialTab || 'kunde');
   const [busyAction, setBusyAction] = useState('');
   const [openCalculation, setOpenCalculation] = useState('');
@@ -2183,6 +2188,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   const caseView = c.raw;
   const customer = caseView?.customer;
   const property = caseView?.property;
+  const canRejectCase = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
 
   useEffect(() => {
     setActiveTab(initialTab || 'kunde');
@@ -2402,6 +2408,9 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
   });
   const rejectCase = () => runCaseAction('Fall ablehnen', async () => {
     const reason = rejectionReasons.find((item) => item.value === rejectionReasonCode);
+    if (rejectionNote.trim().length < 8) {
+      throw new Error('Bitte einen kurzen Hinweis an den Makler hinterlegen.');
+    }
     await postJson(`/api/properties/${c.propertyId}/reject`, {
       reasonCode: rejectionReasonCode,
       reasonLabel: reason?.label,
@@ -2594,7 +2603,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                 </button>
               );
             })}
-            {property?.status !== 'REJECTED' && (
+            {canRejectCase && property?.status !== 'REJECTED' && (
               <button onClick={() => setRejectModalOpen(true)} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
                 Fall ablehnen
               </button>
@@ -2621,7 +2630,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
                   {rejectionReasons.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}
                 </Select>
               </Field>
-              <Field label="Hinweis an den Makler">
+              <Field label="Hinweis an den Makler" required invalid={rejectionNote.trim().length > 0 && rejectionNote.trim().length < 8}>
                 <textarea value={rejectionNote} onChange={(event) => setRejectionNote(event.target.value)} placeholder="Kurze Begründung oder nächster sinnvoller Hinweis..." style={{ width: '100%', minHeight: 96, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
               </Field>
               <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5 }}>
@@ -2630,7 +2639,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
             </div>
             <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button onClick={() => setRejectModalOpen(false)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
-              <button onClick={rejectCase} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C', border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.7 : 1 }}>
+              <button onClick={rejectCase} disabled={Boolean(busyAction) || rejectionNote.trim().length < 8} style={{ background: '#9B2C2C', border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : rejectionNote.trim().length < 8 ? 'not-allowed' : 'pointer', opacity: busyAction || rejectionNote.trim().length < 8 ? 0.55 : 1 }}>
                 {busyAction === 'Fall ablehnen' ? 'Wird abgelehnt...' : 'Ablehnen'}
               </button>
             </div>
@@ -4855,7 +4864,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
           {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}
           {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und Übergabe an WohnKapital." />}
           {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
-          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} onBack={handleBack} role={role} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} onEdit={handleEditCase} />}
+          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} onEdit={handleEditCase} />}
           {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} />}
         </div>
       </div>

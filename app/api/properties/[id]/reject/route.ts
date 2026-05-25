@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
 
     const body = propertyRejectSchema.parse(await request.json());
-    const reasonLabel = body.reasonLabel || rejectionReasonLabels[body.reasonCode] || "Sonstiger Grund";
+    const reasonLabel = body.reasonLabel || (body.reasonCode === "location" ? "Lage / Marktgängigkeit" : rejectionReasonLabels[body.reasonCode]) || "Sonstiger Grund";
     const message = body.note
       ? `Fall wurde abgelehnt: ${reasonLabel}. Hinweis an Makler: ${body.note}`
       : `Fall wurde abgelehnt: ${reasonLabel}.`;
