@@ -940,6 +940,11 @@ function calculateAgeFromBirthDate(dateString) {
   return age >= 0 ? age : '';
 }
 
+function dateInputValue(value) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
 const defaultDraft = {
   title: '',
   firstName: '',
@@ -1036,7 +1041,87 @@ const defaultDraft = {
   documentStatus: 'pending',
   documentMissingReason: '',
   documentUploads: {},
+  existingDocumentCategories: [],
 };
+
+function draftFromCaseView(caseView) {
+  if (!caseView) return { ...defaultDraft };
+  const customer = caseView.customer || {};
+  const property = caseView.property || {};
+  const existingDocumentCategories = Array.from(new Set((caseView.documents || []).map((document) => document.category).filter(Boolean)));
+  return {
+    ...defaultDraft,
+    modernization: { ...defaultDraft.modernization, ...(property.modernization || {}) },
+    buildingCondition: { ...defaultDraft.buildingCondition, ...(property.buildingCondition || {}) },
+    title: customer.title || '',
+    firstName: customer.firstName || '',
+    lastName: customer.lastName || '',
+    ageAtSubmission: customer.ageAtSubmission || calculateAgeFromBirthDate(dateInputValue(customer.dateOfBirth)),
+    gender: customer.gender || '',
+    dateOfBirth: dateInputValue(customer.dateOfBirth),
+    maritalStatus: customer.maritalStatus || '',
+    spouseTitle: customer.spouseTitle || '',
+    spouseFirstName: customer.spouseFirstName || '',
+    spouseLastName: customer.spouseLastName || '',
+    spouseGender: customer.spouseGender || '',
+    spouseDateOfBirth: dateInputValue(customer.spouseDateOfBirth),
+    spouseAgeAtSubmission: calculateAgeFromBirthDate(dateInputValue(customer.spouseDateOfBirth)),
+    propertyOwnership: customer.propertyOwnership || '',
+    monthlyIncomeRange: customer.monthlyIncomeRange || '',
+    email: customer.email || '',
+    phone: customer.phone || '',
+    mobile: customer.mobile || '',
+    street: customer.street || property.street || '',
+    postalCode: customer.postalCode || property.postalCode || '',
+    city: customer.city || property.city || '',
+    consentDataProcessing: Boolean(customer.consentDataProcessing),
+    propertyType: property.propertyType || '',
+    livingAreaSqm: property.livingAreaSqm || '',
+    plotAreaSqm: property.plotAreaSqm ?? '',
+    usableAreaSqm: property.usableAreaSqm || '',
+    yearBuilt: property.yearBuilt || '',
+    condition: property.condition || 'average',
+    occupancyStatus: property.occupancyStatus || '',
+    desiredModel: property.desiredModel || '',
+    residentialRightRecipients: property.residentialRightRecipients || '',
+    residentialRightPerson: property.residentialRightPerson || '',
+    desiredResidentialRightYears: property.desiredResidentialRightYears || '',
+    rentalModelDisclosureAccepted: Boolean(property.rentalModelDisclosureAccepted),
+    additionalOfferRequested: Boolean(property.additionalOfferRequested),
+    additionalOfferModel: property.additionalOfferModel || '',
+    additionalOfferResidentialRightRecipients: property.additionalOfferResidentialRightRecipients || '',
+    additionalOfferResidentialRightPerson: property.additionalOfferResidentialRightPerson || '',
+    additionalOfferResidentialRightYears: property.additionalOfferResidentialRightYears || '',
+    additionalOfferReason: property.additionalOfferReason || '',
+    additionalOfferRentalModelDisclosureAccepted: Boolean(property.additionalOfferRentalModelDisclosureAccepted),
+    fixedTermReason: property.fixedTermReason || '',
+    coOwnershipShares: property.coOwnershipShares || '',
+    heatingType: property.heatingType || '',
+    heatingEnergySource: property.heatingEnergySource || '',
+    heatingEnergySourceOther: property.heatingEnergySourceOther || '',
+    heatingYear: property.heatingYear || '',
+    energyCertificateAvailable: Boolean(property.energyCertificateAvailable),
+    energyCertificateType: property.energyCertificateType || '',
+    energyClass: property.energyClass || '',
+    parkingAvailable: Boolean(property.parkingAvailable),
+    parkingType: property.parkingAvailable ? property.parkingType || '' : 'none',
+    parkingCount: property.parkingCount || '',
+    basementType: property.basementType || '',
+    windowMaterial: property.windowMaterial || '',
+    windowInstallationYear: property.windowInstallationYear || '',
+    asbestosRoofKnown: property.asbestosRoofKnown === true ? 'yes' : property.asbestosRoofKnown === false ? 'no' : '',
+    visualConditionRating: property.visualConditionRating || '',
+    energyCarriers: property.energyCarriers || [],
+    knownDefects: property.knownDefects || '',
+    generalPropertyNotes: property.generalPropertyNotes || property.notes || '',
+    remainingDebtKnown: property.remainingDebtKnown ?? '',
+    remainingDebtAmount: property.remainingDebtAmount || '',
+    leasehold: Boolean(property.leasehold),
+    monumentProtection: Boolean(property.monumentProtection),
+    documentUploads: {},
+    existingDocumentCategories,
+  };
+}
 
 function hasValue(value) {
   if (Array.isArray(value)) return value.length > 0;
@@ -1056,7 +1141,7 @@ function documentFilesForCategory(draft, category) {
 }
 
 function hasUploadedDocument(draft, category) {
-  return documentFilesForCategory(draft, category).length > 0;
+  return documentFilesForCategory(draft, category).length > 0 || draft.existingDocumentCategories?.includes(category);
 }
 
 function missingRequiredDocumentFields(draft) {
@@ -2075,7 +2160,7 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
 // =====================================================================
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
-const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNotice, initialTab = 'kunde' }) => {
+const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNotice, onEdit, initialTab = 'kunde' }) => {
   const [activeTab, setActiveTab] = useState(initialTab || 'kunde');
   const [busyAction, setBusyAction] = useState('');
   const [openCalculation, setOpenCalculation] = useState('');
@@ -2482,7 +2567,7 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
           <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 4 }}>{c.kunde} <span style={{ color: `${theme.ink}77`, fontSize: 14 }}>· {c.alter} Jahre</span></div>
           <div style={{ fontSize: 12, color: `${theme.ink}aa`, marginTop: 2 }}>{c.adresse} · {c.flaeche} m² Wohnfläche{c.grundstueck ? ` · ${c.grundstueck} m² Grundstück` : ''}</div>
         </div>
-        <button style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
+        <button onClick={() => onEdit?.(c.propertyId || c.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
         {role === 'admin' && (
           <>
             {topCalculationModels.map((modelRequest, index) => {
@@ -3199,11 +3284,13 @@ const FallDetail = ({ caseId, onBack, role, cases = mockCases, onRefresh, setNot
 // =====================================================================
 // SCREEN 4 — ERFASSUNGSBOGEN SCHRITT 1
 // =====================================================================
-const Erfassung = ({ onBack, onSaved, setNotice }) => {
+const Erfassung = ({ onBack, onSaved, setNotice, initialCase }) => {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState('');
-  const [draft, setDraft] = useState(defaultDraft);
+  const [draft, setDraft] = useState(() => draftFromCaseView(initialCase));
   const [validation, setValidation] = useState({ fields: [], message: '' });
+  const editMode = Boolean(initialCase?.property?.id);
+  const canSubmitCase = !editMode || initialCase?.property?.status === 'DRAFT';
   const steps = [
     { n: 1, label: 'Persönliche Daten' },
     { n: 2, label: 'Wunschmodell' },
@@ -3212,6 +3299,12 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
     { n: 5, label: 'Dokumente' },
   ];
   const progress = Math.round((step / steps.length) * 100);
+  useEffect(() => {
+    setDraft(draftFromCaseView(initialCase));
+    setValidation({ fields: [], message: '' });
+    setStep(1);
+  }, [initialCase?.property?.id]);
+
   function goToStep(nextStep) {
     if (nextStep <= step) {
       setValidation({ fields: [], message: '' });
@@ -3273,7 +3366,9 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         addressText: `${draft.street}, ${draft.postalCode} ${draft.city}`,
         consentDataProcessing: Boolean(draft.consentDataProcessing),
       };
-      const customerResult = await postJson('/api/customers', customerPayload);
+      const customerResult = editMode
+        ? await patchJson(`/api/customers/${initialCase.customer.id}`, customerPayload)
+        : await postJson('/api/customers', customerPayload);
       const propertyPayload = {
         customerId: customerResult.customer.id,
         objectTitle: `${propertyTypeLabel(draft.propertyType)} ${draft.city}`,
@@ -3330,7 +3425,9 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         buildingCondition: draft.buildingCondition,
         generalPropertyNotes: draft.generalPropertyNotes,
       };
-      const propertyResult = await postJson('/api/properties', propertyPayload);
+      const propertyResult = editMode
+        ? await patchJson(`/api/properties/${initialCase.property.id}`, propertyPayload)
+        : await postJson('/api/properties', propertyPayload);
       const documentUploads = Object.entries(draft.documentUploads || {});
       if (documentUploads.length) {
         for (const [category, files] of documentUploads) {
@@ -3349,7 +3446,7 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
       if (submit) {
         await postJson(`/api/properties/${propertyResult.property.id}/submit`);
       }
-      setNotice?.(submit ? 'Fall wurde angelegt und eingereicht.' : 'Entwurf wurde angelegt.');
+      setNotice?.(submit ? 'Fall wurde gespeichert und eingereicht.' : editMode ? 'Entwurf wurde aktualisiert.' : 'Entwurf wurde angelegt.');
       await onSaved?.(propertyResult.property.id);
     } catch (err) {
       setNotice?.(err instanceof Error ? err.message : 'Fall konnte nicht gespeichert werden');
@@ -3367,11 +3464,11 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
         </button>
         <div style={{ width: 1, height: 18, background: theme.border }} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Neuer Fall · Entwurf</div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 2 }}>Erfassung</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{editMode ? `${initialCase.property.caseNumber || 'Entwurf'} · Entwurf bearbeiten` : 'Neuer Fall · Entwurf'}</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 2 }}>{editMode ? 'Erfassung ergänzen' : 'Erfassung'}</div>
         </div>
         <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Save size={13} /> {saving === 'draft' ? 'Speichert...' : 'Entwurf speichern'}
+          <Save size={13} /> {saving === 'draft' ? 'Speichert...' : editMode ? 'Änderungen speichern' : 'Entwurf speichern'}
         </button>
       </div>
 
@@ -3425,15 +3522,19 @@ const Erfassung = ({ onBack, onSaved, setNotice }) => {
             </button>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer' }}>
-                {saving === 'draft' ? 'Speichert...' : 'Entwurf speichern'}
+                {saving === 'draft' ? 'Speichert...' : editMode ? 'Änderungen speichern' : 'Entwurf speichern'}
               </button>
               {step < 5 ? (
                 <button onClick={() => goToStep(Math.min(5, step + 1))} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   Weiter <ChevronRight size={15} />
                 </button>
-              ) : (
+              ) : canSubmitCase ? (
                 <button onClick={() => saveCase(true)} disabled={Boolean(saving)} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Send size={13} /> {saving === 'submit' ? 'Reicht ein...' : 'Einreichen'}
+                </button>
+              ) : (
+                <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Save size={13} /> {saving === 'draft' ? 'Speichert...' : 'Änderungen speichern'}
                 </button>
               )}
             </div>
@@ -4117,18 +4218,20 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
   };
   const row = (item, level = 'required', customErrorKey) => {
     const files = uploads[item.category] || [];
+    const existing = draft.existingDocumentCategories?.includes(item.category);
     const missing = level === 'required' && (customErrorKey ? errors.includes(customErrorKey) : errors.includes(`document:${item.category}`));
     return (
       <div key={`${level}-${item.category}`} style={{ background: 'white', border: `1px solid ${missing ? '#9B2C2C66' : theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            {files.length ? <CheckCircle size={15} style={{ color: '#5B8C2B' }} /> : <FileText size={15} style={{ color: missing ? '#9B2C2C' : theme.aubergine }} />}
+            {files.length || existing ? <CheckCircle size={15} style={{ color: '#5B8C2B' }} /> : <FileText size={15} style={{ color: missing ? '#9B2C2C' : theme.aubergine }} />}
             <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{item.label}</div>
             <span style={{ fontSize: 10.5, fontWeight: 800, color: level === 'required' ? theme.gold : `${theme.ink}77`, background: level === 'required' ? theme.goldSoft : theme.mintLight, borderRadius: 12, padding: '2px 8px' }}>
               {level === 'required' ? 'Pflicht' : 'Optional'}
             </span>
           </div>
           {item.note && <div style={{ fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.4 }}>{item.note}</div>}
+          {existing && <div style={{ fontSize: 11.5, color: '#5B8C2B', fontWeight: 800, marginTop: 6 }}>Bereits im Kundenordner vorhanden.</div>}
           {missing && <div style={{ fontSize: 11.5, color: '#9B2C2C', fontWeight: 800, marginTop: 6 }}>Diese Unterlage fehlt noch.</div>}
           {files.length > 0 && (
             <div style={{ display: 'grid', gap: 5, marginTop: 9 }}>
@@ -4332,6 +4435,8 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
                 {filteredLeads.map((lead) => {
                   const assignedPartner = partners.find((partner) => partner.id === lead.assignedPartnerId);
                   const selectedPartnerId = partnerSelection[lead.id] || lead.assignedPartnerId || partners[0]?.id || '';
+                  const assignmentLocked = ['CONVERTED', 'REJECTED'].includes(lead.status);
+                  const canConvertLead = lead.status === 'CONTACTED';
                   const rowActive = selectedLead?.id === lead.id;
                   return (
                     <tr key={lead.id} onClick={() => setSelectedLeadId(lead.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, background: rowActive ? `${theme.aubergine}08` : 'white', cursor: 'pointer' }}>
@@ -4359,18 +4464,18 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
                             <select
                               value={selectedPartnerId}
                               onChange={(event) => setPartnerSelection((current) => ({ ...current, [lead.id]: event.target.value }))}
-                              disabled={lead.status === 'CONVERTED'}
-                              style={{ minWidth: 180, padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: 'white' }}
+                              disabled={assignmentLocked}
+                              style={{ minWidth: 180, padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: assignmentLocked ? theme.mintLighter : 'white', opacity: assignmentLocked ? 0.65 : 1 }}
                             >
                               {partners.length === 0 && <option value="">Kein Partner</option>}
                               {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
                             </select>
                             <button
                               onClick={() => onAssign(lead.id, selectedPartnerId)}
-                              disabled={!selectedPartnerId || lead.status === 'CONVERTED'}
-                              style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: !selectedPartnerId || lead.status === 'CONVERTED' ? 0.45 : 1 }}
+                              disabled={!selectedPartnerId || assignmentLocked}
+                              style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: !selectedPartnerId || assignmentLocked ? 'not-allowed' : 'pointer', opacity: !selectedPartnerId || assignmentLocked ? 0.45 : 1 }}
                             >
-                              {assignedPartner ? 'Neu zuweisen' : 'Zuweisen'}
+                              {lead.status === 'CONVERTED' ? 'Umgewandelt' : lead.status === 'REJECTED' ? 'Abgelehnt' : assignedPartner ? 'Neu zuweisen' : 'Zuweisen'}
                             </button>
                           </div>
                         ) : (
@@ -4378,8 +4483,8 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
                             <button onClick={() => onMarkContacted(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>
                               Kontaktiert
                             </button>
-                            <button onClick={() => onConvert(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>
-                              In Kundenfall umwandeln
+                            <button onClick={() => onConvert(lead.id)} disabled={!canConvertLead} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: canConvertLead ? 'pointer' : 'not-allowed', opacity: canConvertLead ? 1 : 0.45 }}>
+                              {lead.status === 'ASSIGNED' ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}
                             </button>
                           </div>
                         )}
@@ -4433,8 +4538,21 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
                 </div>
               ) : (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
-                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Kontaktiert markieren</button>
-                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>In Kundenfall umwandeln</button>
+                  <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', display: 'grid', gap: 8 }}>
+                    {[
+                      { label: 'Kontakt aufnehmen', done: ['CONTACTED', 'CONVERTED'].includes(selectedLead.status), active: selectedLead.status === 'ASSIGNED' },
+                      { label: 'Kundenfall anlegen', done: selectedLead.status === 'CONVERTED', active: selectedLead.status === 'CONTACTED' }
+                    ].map((step, index) => (
+                      <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: 8, color: step.done ? '#5B8C2B' : step.active ? theme.aubergine : `${theme.ink}88`, fontSize: 12.5, fontWeight: step.active ? 800 : 650 }}>
+                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: step.done ? '#5B8C2B' : step.active ? theme.aubergine : 'white', color: step.done || step.active ? 'white' : `${theme.ink}88`, border: step.done || step.active ? 'none' : `1px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
+                          {step.done ? <CheckCircle size={12} /> : index + 1}
+                        </span>
+                        {step.label}
+                      </div>
+                    ))}
+                  </div>
+                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: selectedLead.status === 'CONVERTED' ? 'not-allowed' : 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Kontaktiert markieren</button>
+                  <button disabled={selectedLead.status !== 'CONTACTED'} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: selectedLead.status === 'CONTACTED' ? 'pointer' : 'not-allowed', opacity: selectedLead.status === 'CONTACTED' ? 1 : 0.45 }}>{selectedLead.status === 'ASSIGNED' ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}</button>
                 </div>
               )}
             </>
@@ -4455,6 +4573,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
   const [screen, setScreen] = useState('dashboard');
   const [caseId, setCaseId] = useState(null);
   const [caseInitialTab, setCaseInitialTab] = useState('kunde');
+  const [editingCaseId, setEditingCaseId] = useState(null);
   const [cases, setCases] = useState(mockCases);
   const [leads, setLeads] = useState([]);
   const [partners, setPartners] = useState([]);
@@ -4558,23 +4677,35 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     setScreen(s);
     setCaseId(null);
     setCaseInitialTab('kunde');
+    setEditingCaseId(null);
     if (s === 'leads' || s === 'partners') loadLeads(role);
     if (s === 'staff') loadStaff(role);
   };
   const handleOpenCase = (id, tab = 'kunde') => {
     setCaseId(id);
     setCaseInitialTab(tab);
+    setEditingCaseId(null);
     setScreen('case');
   };
-  const handleNewCase = () => setScreen('erfassung');
+  const handleNewCase = () => {
+    setEditingCaseId(null);
+    setScreen('erfassung');
+  };
+  const handleEditCase = (id) => {
+    setEditingCaseId(id);
+    setCaseInitialTab('kunde');
+    setScreen('erfassung');
+  };
   const handleBack = () => {
     setCaseInitialTab('kunde');
+    setEditingCaseId(null);
     setScreen('dashboard');
   };
   const handleSavedCase = async (id) => {
     await loadCases(role);
     setCaseId(id);
     setCaseInitialTab('kunde');
+    setEditingCaseId(null);
     setScreen('case');
   };
   const toggleRole = () => {
@@ -4583,6 +4714,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     setScreen('dashboard');
     setCaseId(null);
     setCaseInitialTab('kunde');
+    setEditingCaseId(null);
     setProfileOpen(false);
     loadCases(nextRole);
     loadLeads(nextRole);
@@ -4687,6 +4819,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
   };
   const processNotifications = buildProcessNotifications(cases);
   const chatNotifications = buildChatNotifications(cases);
+  const editingCase = editingCaseId ? cases.find((item) => item.propertyId === editingCaseId || item.id === editingCaseId)?.raw : null;
 
   return (
     <div style={{ background: theme.mint, fontFamily: '"Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -4722,8 +4855,8 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
           {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}
           {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und Übergabe an WohnKapital." />}
           {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
-          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} onBack={handleBack} role={role} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} />}
-          {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} />}
+          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} onBack={handleBack} role={role} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} onEdit={handleEditCase} />}
+          {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} />}
         </div>
       </div>
     </div>

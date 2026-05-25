@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { nextPropertyCaseNumber } from "./case-number.ts";
 import type { CaseView, DesiredModel, Lead, OfferAssumptions, PropertyStatus, User } from "./domain.ts";
 import { prisma } from "./prisma.ts";
 
@@ -332,6 +333,10 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
 export async function assignDbLead(leadId: string, partnerId: string, userId: string): Promise<Lead> {
   const partner = await prisma.partner.findFirst({ where: { id: partnerId, status: "active" } });
   if (!partner) throw new Error("Partner not found");
+  const existing = await prisma.lead.findUnique({ where: { id: leadId } });
+  if (!existing) throw new Error("Lead not found");
+  if (existing.status === "CONVERTED") throw new Error("Converted leads cannot be assigned");
+  if (existing.status === "REJECTED") throw new Error("Rejected leads must be reactivated before assignment");
   const lead = await prisma.lead.update({
     where: { id: leadId },
     data: { status: "ASSIGNED", assignedPartnerId: partnerId, assignedByUserId: userId, assignedAt: new Date() }
@@ -340,7 +345,18 @@ export async function assignDbLead(leadId: string, partnerId: string, userId: st
 }
 
 export async function updateDbLeadStatus(leadId: string, status: Lead["status"]): Promise<Lead> {
-  const lead = await prisma.lead.update({ where: { id: leadId }, data: { status } });
+  const existing = await prisma.lead.findUnique({ where: { id: leadId } });
+  if (!existing) throw new Error("Lead not found");
+  if (existing.status === "CONVERTED") throw new Error("Converted leads cannot be changed");
+  if (status === "CONVERTED") throw new Error("Use convert endpoint for converted leads");
+  if (status === "ASSIGNED") throw new Error("Use assign endpoint for lead assignment");
+
+  const lead = await prisma.lead.update({
+    where: { id: leadId },
+    data: status === "NEW"
+      ? { status, assignedPartnerId: null, assignedByUserId: null, assignedAt: null }
+      : { status }
+  });
   return mapLead(lead);
 }
 
@@ -349,17 +365,18 @@ export async function getDbLeadById(leadId: string): Promise<Lead | undefined> {
   return lead ? mapLead(lead) : undefined;
 }
 
-export async function convertDbLeadToCase(leadId: string, partnerId: string, userId: string): Promise<CaseView> {
+export async function convertDbLeadToCase(leadId: string, partnerId: string, userId: string, source: "admin" | "partner" = "partner"): Promise<CaseView> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) throw new Error("Lead not found");
   if (lead.status === "CONVERTED") throw new Error("Lead already converted");
+  if (lead.status === "REJECTED") throw new Error("Rejected leads cannot be converted");
   if (lead.assignedPartnerId !== partnerId) throw new Error("Forbidden");
 
   const displayName = [lead.firstName, lead.lastName].filter(Boolean).join(" ").trim() || lead.name || "Lead ohne Namen";
   const parts = displayName.split(/\s+/);
   const firstName = lead.firstName || parts[0] || "Unbekannt";
   const lastName = lead.lastName || parts.slice(1).join(" ") || "Lead";
-  const count = await prisma.property.count();
+  const caseNumber = await nextPropertyCaseNumber();
   const isApartment = lead.propertyType === "apartment";
 
   const result = await prisma.$transaction(async (tx) => {
@@ -379,7 +396,7 @@ export async function convertDbLeadToCase(leadId: string, partnerId: string, use
     });
     const property = await tx.property.create({
       data: {
-        caseNumber: `WK-2026-${String(count + 15).padStart(3, "0")}`,
+        caseNumber,
         objectTitle: `${propertyTypeToTitle(String(lead.propertyType || ""))} ${lead.city || "Ort offen"}`,
         customerId: customer.id,
         partnerId,
@@ -413,7 +430,7 @@ export async function convertDbLeadToCase(leadId: string, partnerId: string, use
         userId,
         type: "lead_converted",
         message: `Lead ${lead.leadNumber} wurde in einen Kundenfall umgewandelt.`,
-        source: "partner",
+        source,
         entityType: "lead",
         entityId: lead.id
       }
