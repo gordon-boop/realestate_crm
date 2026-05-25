@@ -8,6 +8,7 @@ function mapStaff(user: {
   email: string;
   role: string;
   internalRole: string | null;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -26,7 +27,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   try {
     const currentUser = requireInternalRole("super_admin");
     const body = staffUpdateSchema.parse(await request.json());
-    const existing = await prisma.user.findFirst({ where: { id: params.id, role: "admin" } });
+    const existing = await prisma.user.findFirst({ where: { id: params.id, role: "admin", deletedAt: null } });
     if (!existing) throw new Error("Mitarbeiter not found");
 
     if (existing.id === currentUser.id && body.internalRole && body.internalRole !== "super_admin") {
@@ -43,6 +44,42 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       }
     });
     return json({ staff: mapStaff(staff) });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
+
+export async function DELETE(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
+  try {
+    const currentUser = requireInternalRole("super_admin");
+    const existing = await prisma.user.findFirst({ where: { id: params.id, role: "admin", deletedAt: null } });
+    if (!existing) throw new Error("Mitarbeiter not found");
+
+    if (existing.id === currentUser.id) {
+      throw new Error("Super-Admin kann den eigenen Benutzer nicht löschen");
+    }
+
+    if (existing.internalRole === "super_admin") {
+      const superAdminCount = await prisma.user.count({
+        where: { role: "admin", internalRole: "super_admin", deletedAt: null }
+      });
+      if (superAdminCount <= 1) {
+        throw new Error("Der letzte Super-Admin kann nicht gelöscht werden");
+      }
+    }
+
+    const deletedAt = new Date();
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        deletedAt,
+        email: `deleted-${existing.id}-${existing.email}`,
+        passwordHash: `deleted-${existing.id}`,
+        name: `${existing.name} (gelöscht)`
+      }
+    });
+
+    return json({ deleted: true, staffId: existing.id });
   } catch (err) {
     return handleApiError(err);
   }

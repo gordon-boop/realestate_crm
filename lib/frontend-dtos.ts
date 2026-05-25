@@ -1,5 +1,7 @@
 import type {
+  ActivityEntityType,
   ActivitySource,
+  ChatAttachment,
   ChatMessageVisibility,
   BasementType,
   DocumentCategory,
@@ -78,6 +80,25 @@ export type FrontendChatMessageDto = {
   authorRole: "admin" | "partner";
   message: string;
   visibility: ChatMessageVisibility;
+  attachments?: ChatAttachment[];
+  readByCurrentUser?: boolean;
+  createdAt: string;
+};
+
+export type FrontendCaseNotificationDto = {
+  id: string;
+  propertyId: string;
+  caseNumber?: string;
+  customerName?: string;
+  actorName?: string;
+  type: string;
+  title: string;
+  message: string;
+  processStep?: string;
+  entityType?: ActivityEntityType;
+  entityId?: string;
+  visibility: ChatMessageVisibility;
+  readByCurrentUser: boolean;
   createdAt: string;
 };
 

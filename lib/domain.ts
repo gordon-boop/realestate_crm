@@ -86,6 +86,7 @@ export type User = {
   passwordHash: string;
   role: UserRole;
   internalRole?: InternalUserRole;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -219,6 +220,21 @@ export type Property = {
   notaryOffice?: string;
   purchasedAt?: string;
   portfolioEnteredAt?: string;
+  purchaseContractNumber?: string;
+  purchaseContractSignedAt?: string;
+  purchasePrice?: number;
+  payoutPaidAt?: string;
+  ownershipTransferAt?: string;
+  landRegisterEntryAt?: string;
+  monthlyRent?: number;
+  rentStartAt?: string;
+  rentDeposit?: number;
+  residentialRightStartAt?: string;
+  residentialRightEndAt?: string;
+  residentialRightNotes?: string;
+  maintenancePlan?: Record<string, unknown>;
+  portfolioTasks?: Record<string, unknown>;
+  portfolioNotes?: string;
   lastActivityLabel?: string;
   lastActivityAt?: string;
   notes?: string;
@@ -354,6 +370,38 @@ export type ChatMessage = {
   message: string;
   source: ActivitySource;
   visibility: ChatMessageVisibility;
+  attachments?: ChatAttachment[];
+  readByCurrentUser?: boolean;
+  createdAt: string;
+};
+
+export type ChatAttachment = {
+  id: string;
+  chatMessageId: string;
+  fileName: string;
+  fileType: string;
+  storageUrl: string;
+  createdAt: string;
+};
+
+export type CaseNotification = {
+  id: string;
+  propertyId: string;
+  actorUserId?: string;
+  actorName?: string;
+  type: string;
+  title: string;
+  message: string;
+  processStep?: string;
+  source: ActivitySource;
+  visibility: ChatMessageVisibility;
+  entityType?: ActivityEntityType;
+  entityId?: string;
+  caseNumber?: string;
+  customerName?: string;
+  readByCurrentUser?: boolean;
+  emailQueuedAt?: string;
+  emailStubMessageId?: string;
   createdAt: string;
 };
 

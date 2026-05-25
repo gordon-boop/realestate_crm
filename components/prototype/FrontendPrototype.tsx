@@ -102,7 +102,7 @@ const Logo = ({ size = 28 }) => (
 // =====================================================================
 // SHARED — Header & Sidebar
 // =====================================================================
-const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notifications = [], chatNotifications = [], onOpenCase }) => {
+const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notifications = [], chatNotifications = [], onOpenCase, onOpenNotification, onOpenChatNotification }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const visibleNotifications = notifications.slice(0, 8);
@@ -164,15 +164,15 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
                       type="button"
                       onClick={() => {
                         setNotificationsOpen(false);
-                        onOpenCase?.(item.propertyId || item.caseNumber);
+                        onOpenNotification ? onOpenNotification(item) : onOpenCase?.(item.propertyId || item.caseNumber);
                       }}
                       style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: `1px solid ${theme.borderSoft}`, padding: '11px 14px', cursor: 'pointer', display: 'grid', gap: 3 }}
                     >
                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
                         <span style={{ fontSize: 12.5, fontWeight: 800, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.customerName}</span>
-                        <span style={{ fontSize: 10.5, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(item.date)}</span>
+                        <span style={{ fontSize: 10.5, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(item.date || item.createdAt)}</span>
                       </div>
-                      <div style={{ fontSize: 12.5, color: theme.aubergine, fontWeight: 700 }}>{item.step}</div>
+                      <div style={{ fontSize: 12.5, color: theme.aubergine, fontWeight: 700 }}>{item.step || item.processStep || item.title}</div>
                       <div style={{ fontSize: 11.5, color: `${theme.ink}88`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.caseNumber}</div>
                     </button>
                   ))}
@@ -216,7 +216,7 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
                       type="button"
                       onClick={() => {
                         setChatOpen(false);
-                        onOpenCase?.(item.propertyId || item.caseNumber, 'chat');
+                        onOpenChatNotification ? onOpenChatNotification(item) : onOpenCase?.(item.propertyId || item.caseNumber, 'chat');
                       }}
                       style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: `1px solid ${theme.borderSoft}`, padding: '11px 14px', cursor: 'pointer', display: 'grid', gap: 4 }}
                     >
@@ -225,7 +225,7 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
                         <span style={{ fontSize: 10.5, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(item.createdAt)}</span>
                       </div>
                       <div style={{ fontSize: 11.5, color: theme.aubergine, fontWeight: 700 }}>
-                        {item.authorName} · {item.caseNumber}
+                        {item.authorName || item.actorName || 'WohnKapital'} · {item.caseNumber}
                       </div>
                       <div style={{ fontSize: 12, color: `${theme.ink}aa`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {item.message}
@@ -350,6 +350,7 @@ function profileFromSessionUser(sessionUser, fallback = {}) {
   const parts = String(sessionUser.name || '').trim().split(/\s+/).filter(Boolean);
   return {
     ...fallback,
+    id: sessionUser.id || fallback.id,
     name: sessionUser.name || fallback.name,
     firstName: parts[0] || fallback.firstName,
     lastName: parts.slice(1).join(' ') || fallback.lastName,
@@ -475,6 +476,14 @@ const staffRoleDescriptions = {
   advisor: 'Kann eigene Leads und Kundenfälle beraten und Angebote kalkulieren.',
   admin: 'Kann Partner freischalten, sperren, bearbeiten und Kundenfälle ablehnen.',
   super_admin: 'Kann Mitarbeiter anlegen, Rollen zuordnen und alle Admin-Rechte nutzen.',
+};
+
+const internalIntakeSourceLabels = {
+  phone: 'Telefonanruf',
+  referral: 'Empfehlung',
+  offline_ad: 'Offline-Anzeige',
+  event: 'Veranstaltung',
+  other: 'Sonstige Quelle',
 };
 
 async function postJson(url, body) {
@@ -888,6 +897,15 @@ function formatDate(value) {
   }
 }
 
+function dateInputValue(value) {
+  if (!value) return '';
+  try {
+    return new Date(value).toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+}
+
 function mapCaseView(item) {
   const openReminder = item.reminders?.find((reminder) => reminder.status === 'open');
   const property = item.property;
@@ -948,11 +966,6 @@ function calculateAgeFromBirthDate(dateString) {
     (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
   if (!hadBirthdayThisYear) age -= 1;
   return age >= 0 ? age : '';
-}
-
-function dateInputValue(value) {
-  if (!value) return '';
-  return String(value).slice(0, 10);
 }
 
 const defaultDraft = {
@@ -1597,11 +1610,18 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase,
 // =====================================================================
 // SCREEN 2 — ADMIN-DASHBOARD
 // =====================================================================
-const AdminDashboard = ({ cases = mockCases, onOpenCase }) => (
+const AdminDashboard = ({ cases = mockCases, onOpenCase, onNewCase, canCreateCase = false }) => (
   <div style={{ padding: '20px 28px' }}>
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
-      <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Pipeline-Übersicht</h1>
+    <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+      <div>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
+        <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Pipeline-Übersicht</h1>
+      </div>
+      {canCreateCase && (
+        <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 6, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <Plus size={15} /> Internen Fall anlegen
+        </button>
+      )}
     </div>
 
     {/* Pipeline-Kennzahlen */}
@@ -1785,6 +1805,45 @@ const nextPortfolioAction = {
   WON: 'Bestandsdaten prüfen',
 };
 
+function portfolioCompletion(property = {}) {
+  const checks = [
+    Boolean(property.purchaseContractNumber),
+    Boolean(property.purchaseContractSignedAt || property.purchasedAt),
+    Boolean(property.purchasePrice),
+    Boolean(property.payoutPaidAt),
+    Boolean(property.ownershipTransferAt),
+    property.desiredModel === 'sale_and_leaseback' ? Boolean(property.monthlyRent && property.rentStartAt) : Boolean(property.residentialRightStartAt || property.residentialRightEndAt),
+    Boolean(property.maintenancePlan?.nextReviewDate || property.portfolioTasks?.nextAppointmentDate),
+  ];
+  const done = checks.filter(Boolean).length;
+  return { done, total: checks.length, percent: Math.round((done / checks.length) * 100) };
+}
+
+function portfolioFormFromProperty(property = {}) {
+  return {
+    purchaseContractNumber: property.purchaseContractNumber || '',
+    purchaseContractSignedAt: dateInputValue(property.purchaseContractSignedAt || property.purchasedAt),
+    purchasePrice: property.purchasePrice || '',
+    payoutPaidAt: dateInputValue(property.payoutPaidAt),
+    ownershipTransferAt: dateInputValue(property.ownershipTransferAt),
+    landRegisterEntryAt: dateInputValue(property.landRegisterEntryAt),
+    monthlyRent: property.monthlyRent || '',
+    rentStartAt: dateInputValue(property.rentStartAt),
+    rentDeposit: property.rentDeposit || '',
+    residentialRightStartAt: dateInputValue(property.residentialRightStartAt),
+    residentialRightEndAt: dateInputValue(property.residentialRightEndAt),
+    residentialRightNotes: property.residentialRightNotes || '',
+    maintenanceNextReviewDate: property.maintenancePlan?.nextReviewDate || '',
+    maintenanceResponsible: property.maintenancePlan?.responsible || '',
+    maintenanceBudget: property.maintenancePlan?.annualBudget || '',
+    maintenanceNotes: property.maintenancePlan?.notes || '',
+    nextAppointmentDate: property.portfolioTasks?.nextAppointmentDate || '',
+    nextAppointmentType: property.portfolioTasks?.nextAppointmentType || '',
+    nextAppointmentNote: property.portfolioTasks?.nextAppointmentNote || '',
+    portfolioNotes: property.portfolioNotes || '',
+  };
+}
+
 const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   const pipelineStatuses = ['OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'];
   const portfolioStatuses = ['IN_PORTFOLIO', 'WON'];
@@ -1800,6 +1859,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
     { label: 'Übergabe offen', value: transitionCases.length, sub: 'noch nicht im Bestand', icon: AlertCircle },
     { label: 'Im Bestand', value: portfolioCases.length, sub: 'aktive Bestandsobjekte', icon: Archive },
   ];
+  const incompletePortfolioCases = portfolioCases.filter((item) => portfolioCompletion(item.raw?.property || {}).percent < 100);
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -1900,6 +1960,35 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
         onOpenCase={onOpenCase}
         showPartner={role === 'admin'}
       />
+      {portfolioCases.length > 0 && (
+        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden', marginTop: 18 }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Bestandsakte prüfen</span>
+            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{incompletePortfolioCases.length} unvollständig</span>
+          </div>
+          {portfolioCases.slice(0, 8).map((item, index) => {
+            const completion = portfolioCompletion(item.raw?.property || {});
+            return (
+              <button key={item.propertyId || item.id} onClick={() => onOpenCase(item.propertyId || item.id, 'bestand')} style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '12px 16px', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr 120px 18px', gap: 12, alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: theme.ink }}>{item.kunde} · {item.id}</div>
+                  <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{item.objekt} · {nextPortfolioAction[item.status] || 'Bestandsakte öffnen'}</div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: `${theme.ink}88`, marginBottom: 4 }}>
+                    <span>{completion.done}/{completion.total}</span>
+                    <span>{completion.percent}%</span>
+                  </div>
+                  <div style={{ height: 6, background: theme.borderSoft, borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${completion.percent}%`, background: completion.percent === 100 ? '#5B8C2B' : theme.gold }} />
+                  </div>
+                </div>
+                <ChevronRight size={15} style={{ color: theme.aubergine }} />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -2060,7 +2149,7 @@ const PartnerDirectory = ({ partners = [], leads = [], onSetPartnerStatus, onDel
   );
 };
 
-const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onUpdateStaffRole }) => {
+const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onUpdateStaffRole, onDeleteStaff }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -2124,12 +2213,19 @@ const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onU
                   <td style={{ padding: '12px 14px', color: `${theme.ink}99`, fontSize: 12.5, maxWidth: 280 }}>{staffRoleDescriptions[member.internalRole]}</td>
                   <td style={{ padding: '12px 14px' }}>
                     {canManageStaff ? (
-                      <Select value={member.internalRole} onChange={(event) => onUpdateStaffRole?.(member.id, event.target.value)}>
-                        <option value="employee">Mitarbeiter</option>
-                        <option value="advisor">Kundenberater</option>
-                        <option value="admin">Admin</option>
-                        <option value="super_admin">Super-Admin</option>
-                      </Select>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ minWidth: 150 }}>
+                          <Select value={member.internalRole} onChange={(event) => onUpdateStaffRole?.(member.id, event.target.value)}>
+                            <option value="employee">Mitarbeiter</option>
+                            <option value="advisor">Kundenberater</option>
+                            <option value="admin">Admin</option>
+                            <option value="super_admin">Super-Admin</option>
+                          </Select>
+                        </div>
+                        <button onClick={() => onDeleteStaff?.(member)} style={{ background: '#fff7f5', color: '#9B2C2C', border: '1px solid #efc0b9', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          Löschen
+                        </button>
+                      </div>
                     ) : (
                       <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Nur Super-Admin</span>
                     )}
@@ -2188,7 +2284,7 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
 // =====================================================================
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
-const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = mockCases, onRefresh, setNotice, onEdit, initialTab = 'kunde' }) => {
+const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde' }) => {
   const [activeTab, setActiveTab] = useState(initialTab || 'kunde');
   const [busyAction, setBusyAction] = useState('');
   const [openCalculation, setOpenCalculation] = useState('');
@@ -2209,12 +2305,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [expertOpinionValue, setExpertOpinionValue] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatVisibility, setChatVisibility] = useState('shared');
+  const [chatAttachmentFiles, setChatAttachmentFiles] = useState([]);
+  const [portfolioForm, setPortfolioForm] = useState(() => portfolioFormFromProperty({}));
   const c = cases.find(x => x.propertyId === caseId || x.id === caseId) || mockCases[0];
   const caseView = c.raw;
   const customer = caseView?.customer;
   const property = caseView?.property;
   const canRejectCase = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
   const canManageOffers = role === 'admin' && ['advisor', 'admin', 'super_admin'].includes(internalRole);
+  const canManagePortfolio = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
   const canReviewDocuments = canManageOffers;
   const canEditCaseData = role === 'admin' || property?.status === 'DRAFT';
   const canDeleteDocuments = role === 'admin' || property?.status === 'DRAFT';
@@ -2222,6 +2321,17 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   useEffect(() => {
     setActiveTab(initialTab || 'kunde');
   }, [caseId, initialTab]);
+
+  useEffect(() => {
+    setPortfolioForm(portfolioFormFromProperty(property || {}));
+  }, [property?.id, property?.updatedAt, property?.portfolioEnteredAt]);
+
+  useEffect(() => {
+    if (activeTab !== 'chat' || !c.propertyId) return;
+    postJson(`/api/properties/${c.propertyId}/chat/read`, {})
+      .then(() => onNotificationsRefresh?.())
+      .catch(() => undefined);
+  }, [activeTab, c.propertyId]);
   const latestOffer = caseView?.offer;
   const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
   const indicativeOffers = productOffers.filter((offer) => offer.kind !== 'binding');
@@ -2395,6 +2505,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     try {
       await action();
       await onRefresh?.();
+      await onNotificationsRefresh?.();
       setNotice?.(`${label} abgeschlossen.`);
     } catch (err) {
       setNotice?.(err instanceof Error ? err.message : 'Aktion fehlgeschlagen');
@@ -2594,21 +2705,62 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   });
   const sendChatMessage = () => runCaseAction('Chat-Nachricht senden', async () => {
     const message = chatInput.trim();
-    if (!message) {
+    if (!message && !chatAttachmentFiles.length) {
       throw new Error('Bitte eine Nachricht eingeben.');
     }
-    await postJson(`/api/properties/${c.propertyId}/chat`, {
-      message,
-      visibility: role === 'admin' ? chatVisibility : 'shared',
-    });
+    if (chatAttachmentFiles.length) {
+      const formData = new FormData();
+      formData.append('message', message || 'Anhang');
+      formData.append('visibility', role === 'admin' ? chatVisibility : 'shared');
+      chatAttachmentFiles.slice(0, 5).forEach((file) => formData.append('attachments', file));
+      await postFormData(`/api/properties/${c.propertyId}/chat`, formData);
+    } else {
+      await postJson(`/api/properties/${c.propertyId}/chat`, {
+        message,
+        visibility: role === 'admin' ? chatVisibility : 'shared',
+      });
+    }
     setChatInput('');
     setChatVisibility('shared');
+    setChatAttachmentFiles([]);
+    await onNotificationsRefresh?.();
+  });
+  const updatePortfolioForm = (patch) => setPortfolioForm((current) => ({ ...current, ...patch }));
+  const savePortfolioFile = () => runCaseAction('Bestandsakte speichern', async () => {
+    const payload = {
+      purchaseContractNumber: portfolioForm.purchaseContractNumber,
+      purchaseContractSignedAt: portfolioForm.purchaseContractSignedAt,
+      purchasePrice: portfolioForm.purchasePrice,
+      payoutPaidAt: portfolioForm.payoutPaidAt,
+      ownershipTransferAt: portfolioForm.ownershipTransferAt,
+      landRegisterEntryAt: portfolioForm.landRegisterEntryAt,
+      monthlyRent: portfolioForm.monthlyRent,
+      rentStartAt: portfolioForm.rentStartAt,
+      rentDeposit: portfolioForm.rentDeposit,
+      residentialRightStartAt: portfolioForm.residentialRightStartAt,
+      residentialRightEndAt: portfolioForm.residentialRightEndAt,
+      residentialRightNotes: portfolioForm.residentialRightNotes,
+      maintenancePlan: {
+        nextReviewDate: portfolioForm.maintenanceNextReviewDate,
+        responsible: portfolioForm.maintenanceResponsible,
+        annualBudget: portfolioForm.maintenanceBudget,
+        notes: portfolioForm.maintenanceNotes,
+      },
+      portfolioTasks: {
+        nextAppointmentDate: portfolioForm.nextAppointmentDate,
+        nextAppointmentType: portfolioForm.nextAppointmentType,
+        nextAppointmentNote: portfolioForm.nextAppointmentNote,
+      },
+      portfolioNotes: portfolioForm.portfolioNotes,
+    };
+    await patchJson(`/api/properties/${c.propertyId}/portfolio`, payload);
   });
   const tabs = [
     { id: 'kunde', label: 'Kunde' },
     { id: 'objekt', label: 'Objekt' },
     { id: 'indag', label: 'Unverbindliches Angebot' },
     { id: 'verbag', label: 'Verbindliches Angebot' },
+    { id: 'bestand', label: 'Bestand' },
     { id: 'doks', label: 'Objektunterlagen' },
     { id: 'chat', label: 'Chatverlauf' },
     ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben' }] : []),
@@ -2805,6 +2957,97 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             </div>
           )}
 
+          {activeTab === 'bestand' && (
+            <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Bestandsakte</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Kaufvertrag, Wohn-/Mietregelung und Objektverwaltung</div>
+                </div>
+                <StatusBadge status={property?.status || 'DRAFT'} />
+              </div>
+              <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
+                {property?.status !== 'IN_PORTFOLIO' && property?.status !== 'WON' && property?.status !== 'PURCHASED' ? (
+                  <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '11px 13px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
+                    Die Bestandsakte wird vollständig relevant, sobald der Kaufvertrag abgeschlossen wurde. Daten können intern bereits vorbereitet werden.
+                  </div>
+                ) : null}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {[
+                    ['Bestand seit', formatDate(property?.portfolioEnteredAt)],
+                    ['Kaufpreis', property?.purchasePrice ? formatEuro(property.purchasePrice) : '-'],
+                    ['Auszahlung erfolgt', formatDate(property?.payoutPaidAt)],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '11px 13px' }}>
+                      <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+                      <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Kaufvertrag & Grundbuch</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Kaufvertragsnummer"><Input value={portfolioForm.purchaseContractNumber} onChange={(event) => updatePortfolioForm({ purchaseContractNumber: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufvertrag abgeschlossen"><Input type="date" value={portfolioForm.purchaseContractSignedAt} onChange={(event) => updatePortfolioForm({ purchaseContractSignedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufpreis (€)"><Input type="number" value={portfolioForm.purchasePrice} onChange={(event) => updatePortfolioForm({ purchasePrice: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Auszahlung erfolgt am"><Input type="date" value={portfolioForm.payoutPaidAt} onChange={(event) => updatePortfolioForm({ payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Eigentumsübergang"><Input type="date" value={portfolioForm.ownershipTransferAt} onChange={(event) => updatePortfolioForm({ ownershipTransferAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Grundbucheintragung"><Input type="date" value={portfolioForm.landRegisterEntryAt} onChange={(event) => updatePortfolioForm({ landRegisterEntryAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                  </div>
+                </div>
+
+                <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{property?.desiredModel === 'sale_and_leaseback' ? 'Rückmietdaten' : 'Wohnrechtsdaten'}</div>
+                  {property?.desiredModel === 'sale_and_leaseback' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                      <Field label="Monatliche Miete (€)"><Input type="number" value={portfolioForm.monthlyRent} onChange={(event) => updatePortfolioForm({ monthlyRent: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                      <Field label="Mietbeginn"><Input type="date" value={portfolioForm.rentStartAt} onChange={(event) => updatePortfolioForm({ rentStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                      <Field label="Kaution / Sicherheit (€)"><Input type="number" value={portfolioForm.rentDeposit} onChange={(event) => updatePortfolioForm({ rentDeposit: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <Field label="Wohnrecht Beginn"><Input type="date" value={portfolioForm.residentialRightStartAt} onChange={(event) => updatePortfolioForm({ residentialRightStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                      <Field label="Wohnrecht Ende"><Input type="date" value={portfolioForm.residentialRightEndAt} onChange={(event) => updatePortfolioForm({ residentialRightEndAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    </div>
+                  )}
+                  <Field label="Hinweise zur Nutzung">
+                    <textarea value={portfolioForm.residentialRightNotes} onChange={(event) => updatePortfolioForm({ residentialRightNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} placeholder="z.B. besondere Vereinbarungen, Ansprechpartner, Übergaberegelungen" style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
+                  </Field>
+                </div>
+
+                <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Instandhaltung, Termine & Objektverwaltung</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Nächste Objektprüfung"><Input type="date" value={portfolioForm.maintenanceNextReviewDate} onChange={(event) => updatePortfolioForm({ maintenanceNextReviewDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Zuständig"><Input value={portfolioForm.maintenanceResponsible} onChange={(event) => updatePortfolioForm({ maintenanceResponsible: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Jahresbudget (€)"><Input type="number" value={portfolioForm.maintenanceBudget} onChange={(event) => updatePortfolioForm({ maintenanceBudget: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Nächster Termin"><Input type="date" value={portfolioForm.nextAppointmentDate} onChange={(event) => updatePortfolioForm({ nextAppointmentDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Terminart"><Input value={portfolioForm.nextAppointmentType} onChange={(event) => updatePortfolioForm({ nextAppointmentType: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Terminnotiz"><Input value={portfolioForm.nextAppointmentNote} onChange={(event) => updatePortfolioForm({ nextAppointmentNote: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <Field label="Instandhaltungshinweise">
+                      <textarea value={portfolioForm.maintenanceNotes} onChange={(event) => updatePortfolioForm({ maintenanceNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
+                    </Field>
+                    <Field label="Interne Bestandsnotizen">
+                      <textarea value={portfolioForm.portfolioNotes} onChange={(event) => updatePortfolioForm({ portfolioNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
+                    </Field>
+                  </div>
+                </div>
+
+                {canManagePortfolio ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={savePortfolioFile} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                      <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'Bestandsakte speichern'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'doks' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2973,6 +3216,24 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     rows={4}
                     style={{ width: '100%', resize: 'vertical', padding: '10px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 6, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.45 }}
                   />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 10px', borderRadius: 5, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                      <Upload size={13} /> Anhang hinzufügen
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(event) => setChatAttachmentFiles(Array.from(event.target.files || []).slice(0, 5))}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                    {chatAttachmentFiles.length ? (
+                      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>
+                        {chatAttachmentFiles.map((file) => file.name).join(', ')}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Optional: Bild oder Datei zum Fall anhängen.</span>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                     {role === 'admin' ? (
                       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: theme.ink, fontWeight: 600 }}>
@@ -2982,7 +3243,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     ) : (
                       <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Nachrichten sind für WohnKapital und den zuständigen Makler sichtbar.</span>
                     )}
-                    <button onClick={sendChatMessage} disabled={Boolean(busyAction) || !chatInput.trim()} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '9px 14px', borderRadius: 5, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: busyAction || !chatInput.trim() ? 'default' : 'pointer', opacity: busyAction || !chatInput.trim() ? 0.55 : 1 }}>
+                    <button onClick={sendChatMessage} disabled={Boolean(busyAction) || (!chatInput.trim() && !chatAttachmentFiles.length)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '9px 14px', borderRadius: 5, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: busyAction || (!chatInput.trim() && !chatAttachmentFiles.length) ? 'default' : 'pointer', opacity: busyAction || (!chatInput.trim() && !chatAttachmentFiles.length) ? 0.55 : 1 }}>
                       <Send size={13} /> {busyAction === 'Chat-Nachricht senden' ? 'Sendet...' : 'Senden'}
                     </button>
                   </div>
@@ -3003,6 +3264,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         <div style={{ fontSize: 11, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(message.createdAt)}</div>
                       </div>
                       <div style={{ fontSize: 13, color: theme.ink, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{message.message}</div>
+                      {message.attachments?.length ? (
+                        <div style={{ marginTop: 9, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {message.attachments.map((attachment) => (
+                            <a key={attachment.id} href={attachment.storageUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 9px', background: 'white', color: theme.aubergine, fontSize: 11.5, fontWeight: 800, textDecoration: 'none' }}>
+                              <FileText size={13} /> {attachment.fileName}
+                            </a>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 }) : (
@@ -3467,13 +3737,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 // =====================================================================
 // SCREEN 4 — ERFASSUNGSBOGEN SCHRITT 1
 // =====================================================================
-const Erfassung = ({ onBack, onSaved, setNotice, initialCase }) => {
+const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', user }) => {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState('');
   const [draft, setDraft] = useState(() => draftFromCaseView(initialCase));
   const [validation, setValidation] = useState({ fields: [], message: '' });
+  const [internalIntakeSource, setInternalIntakeSource] = useState('phone');
   const editMode = Boolean(initialCase?.property?.id);
   const canSubmitCase = !editMode || initialCase?.property?.status === 'DRAFT';
+  const isInternalCase = role === 'admin';
   const steps = [
     { n: 1, label: 'Persönliche Daten' },
     { n: 2, label: 'Wunschmodell' },
@@ -3524,7 +3796,8 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase }) => {
     setSaving(submit ? 'submit' : 'draft');
     try {
       const customerPayload = {
-        partnerId: 'partner_heimwert',
+        partnerId: isInternalCase ? undefined : 'partner_heimwert',
+        assignedAdvisorUserId: isInternalCase ? user?.id : undefined,
         title: draft.title,
         firstName: draft.firstName,
         lastName: draft.lastName,
@@ -3607,6 +3880,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase }) => {
         modernization: draft.modernization,
         buildingCondition: draft.buildingCondition,
         generalPropertyNotes: draft.generalPropertyNotes,
+        notes: isInternalCase ? `Direkterfassung intern · Quelle: ${labelFrom(internalIntakeSourceLabels, internalIntakeSource)}` : undefined,
       };
       const propertyResult = editMode
         ? await patchJson(`/api/properties/${initialCase.property.id}`, propertyPayload)
@@ -3647,8 +3921,8 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase }) => {
         </button>
         <div style={{ width: 1, height: 18, background: theme.border }} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{editMode ? `${initialCase.property.caseNumber || 'Entwurf'} · Entwurf bearbeiten` : 'Neuer Fall · Entwurf'}</div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 2 }}>{editMode ? 'Erfassung ergänzen' : 'Erfassung'}</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{editMode ? `${initialCase.property.caseNumber || 'Entwurf'} · Entwurf bearbeiten` : isInternalCase ? 'Neuer interner Fall · Entwurf' : 'Neuer Fall · Entwurf'}</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 2 }}>{editMode ? 'Erfassung ergänzen' : isInternalCase ? 'Direktberatung erfassen' : 'Erfassung'}</div>
         </div>
         <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
           <Save size={13} /> {saving === 'draft' ? 'Speichert...' : editMode ? 'Änderungen speichern' : 'Entwurf speichern'}
@@ -3684,6 +3958,23 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase }) => {
       {/* Form Content */}
       <div style={{ padding: '24px 28px', display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24 }}>
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '24px 28px' }}>
+          {isInternalCase && !editMode && (
+            <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderLeft: `4px solid ${theme.aubergine}`, borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>Interne Direkterfassung</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14, alignItems: 'end' }}>
+                <Field label="Kontaktquelle">
+                  <Select value={internalIntakeSource} onChange={(event) => setInternalIntakeSource(event.target.value)}>
+                    {Object.entries(internalIntakeSourceLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <div style={{ fontSize: 12.5, color: `${theme.ink}99`, lineHeight: 1.45 }}>
+                  Für Kunden aus Telefonaten, Empfehlungen oder Offline-Anzeigen wird kein Vertriebspartner hinterlegt. Der Fall bleibt intern und kann direkt beraten und kalkuliert werden.
+                </div>
+              </div>
+            </div>
+          )}
           {validation.message && (
             <div style={{ background: '#fff7f5', border: '1px solid #efc0b9', borderLeft: '4px solid #9B2C2C', borderRadius: 8, padding: '11px 13px', marginBottom: 18, fontSize: 12.5, color: '#7A1D1D', fontWeight: 650 }}>
               {validation.message}
@@ -4776,6 +5067,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
   const [leads, setLeads] = useState([]);
   const [partners, setPartners] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [notice, setNotice] = useState('');
   const [loadingCases, setLoadingCases] = useState(false);
   const [loadingLeads, setLoadingLeads] = useState(false);
@@ -4846,10 +5138,23 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     }
   }
 
+  async function loadNotifications(nextRole = role) {
+    try {
+      await ensureDemoSession(nextRole);
+      const response = await fetch('/api/notifications');
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Benachrichtigungen konnten nicht geladen werden');
+      setNotifications(payload.notifications || []);
+    } catch {
+      setNotifications([]);
+    }
+  }
+
   useEffect(() => {
     loadCases(initialRole);
     loadLeads(initialRole);
     loadStaff(initialRole);
+    loadNotifications(initialRole);
   }, [initialRole]);
 
   useEffect(() => {
@@ -4886,6 +5191,26 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     setEditingCaseId(null);
     setScreen('case');
   };
+  const handleOpenNotification = async (item) => {
+    handleOpenCase(item.propertyId || item.caseNumber, 'kunde');
+    try {
+      await postJson('/api/notifications/read', { notificationId: item.id, kind: 'process' });
+      await loadNotifications(role);
+    } catch {
+      // Der Sprung in den Fall ist wichtiger als der Lesestatus.
+    }
+  };
+  const handleOpenChatNotification = async (item) => {
+    handleOpenCase(item.propertyId || item.caseNumber, 'chat');
+    try {
+      await postJson('/api/notifications/read', { notificationId: item.id, kind: 'chat' });
+      if (item.propertyId) await postJson(`/api/properties/${item.propertyId}/chat/read`, {});
+      await loadNotifications(role);
+      await loadCases(role);
+    } catch {
+      // Der Chat wird trotzdem geöffnet.
+    }
+  };
   const handleNewCase = () => {
     setEditingCaseId(null);
     setScreen('erfassung');
@@ -4918,6 +5243,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     loadCases(nextRole);
     loadLeads(nextRole);
     loadStaff(nextRole);
+    loadNotifications(nextRole);
   };
   const handleSaveProfile = (profile) => {
     const nextProfiles = { ...profiles, [role]: profile };
@@ -5009,6 +5335,18 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
       setNotice(err instanceof Error ? err.message : 'Mitarbeiterrolle konnte nicht geändert werden');
     }
   };
+  const handleDeleteStaff = async (member) => {
+    if (!window.confirm(`Mitarbeiter "${member.name}" wirklich löschen? Bestehende Aktivitäten bleiben aus Nachvollziehbarkeitsgründen im Verlauf erhalten.`)) return;
+    try {
+      const response = await fetch(`/api/staff/${member.id}`, { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Mitarbeiter konnte nicht gelöscht werden');
+      setNotice('Mitarbeiter wurde gelöscht.');
+      await loadStaff('admin');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Mitarbeiter konnte nicht gelöscht werden');
+    }
+  };
   const handleLogout = async () => {
     try {
       const payload = await postJson('/api/auth/logout');
@@ -5017,13 +5355,20 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
       window.location.replace('/login');
     }
   };
-  const processNotifications = buildProcessNotifications(cases);
-  const chatNotifications = buildChatNotifications(cases);
+  const unreadNotifications = notifications.filter((item) => !item.readByCurrentUser && item.entityType !== 'chat');
+  const unreadChatNotifications = notifications
+    .filter((item) => !item.readByCurrentUser && item.entityType === 'chat')
+    .map((item) => ({
+      ...item,
+      authorName: item.actorName || (item.source === 'admin' ? 'Admin' : item.source === 'partner' ? 'Makler' : 'System'),
+    }));
+  const processNotifications = unreadNotifications.length ? unreadNotifications : buildProcessNotifications(cases).slice(0, 0);
+  const chatNotifications = unreadChatNotifications.length ? unreadChatNotifications : buildChatNotifications(cases).slice(0, 0);
   const editingCase = editingCaseId ? cases.find((item) => item.propertyId === editingCaseId || item.id === editingCaseId)?.raw : null;
 
   return (
     <div style={{ background: theme.mint, fontFamily: '"Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} notifications={processNotifications} chatNotifications={chatNotifications} onOpenCase={handleOpenCase} />
+      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} notifications={processNotifications} chatNotifications={chatNotifications} onOpenCase={handleOpenCase} onOpenNotification={handleOpenNotification} onOpenChatNotification={handleOpenChatNotification} />
       {profileOpen && <ProfileModal user={user} role={role} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar
@@ -5044,19 +5389,19 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
             </div>
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} />}
-          {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} />}
+          {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} onNewCase={handleNewCase} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['admin', 'super_admin'].includes(currentInternalRole)} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
-          {screen === 'staff' && canViewStaff && <StaffDirectory staff={staff} canManageStaff={canManageStaff} onCreateStaff={handleCreateStaff} onUpdateStaffRole={handleUpdateStaffRole} />}
+          {screen === 'staff' && canViewStaff && <StaffDirectory staff={staff} canManageStaff={canManageStaff} onCreateStaff={handleCreateStaff} onUpdateStaffRole={handleUpdateStaffRole} onDeleteStaff={handleDeleteStaff} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}
           {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}
           {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und Übergabe an WohnKapital." />}
           {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
-          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} setNotice={setNotice} onEdit={handleEditCase} />}
-          {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} />}
+          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
+          {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} role={role} user={user} />}
         </div>
       </div>
     </div>

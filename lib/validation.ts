@@ -170,7 +170,19 @@ export const activityCreateSchema = z.object({
 
 export const chatMessageCreateSchema = z.object({
   message: z.string().trim().min(1, "Nachricht ist erforderlich").max(4000, "Nachricht ist zu lang"),
-  visibility: z.enum(["shared", "internal"]).default("shared")
+  visibility: z.enum(["shared", "internal"]).default("shared"),
+  attachments: z.array(z.object({
+    fileName: z.string().trim().min(1),
+    fileType: z.string().trim().min(1).default("application/octet-stream"),
+    storageUrl: z.string().trim().min(1)
+  })).max(5).optional()
+});
+
+export const notificationReadSchema = z.object({
+  notificationId: optionalString,
+  notificationIds: z.array(z.string().trim().min(1)).optional(),
+  propertyId: optionalString,
+  kind: z.enum(["all", "chat", "process"]).default("all")
 });
 
 export const leadCreateSchema = z.object({
@@ -240,4 +252,22 @@ export const propertyRejectSchema = z.object({
   reasonCode: z.enum(["location", "condition", "age", "documents", "valuation", "legal", "occupancy", "other"]),
   reasonLabel: optionalString,
   note: z.string().trim().min(8, "Hinweis an den Makler ist erforderlich")
+});
+
+export const portfolioUpdateSchema = z.object({
+  purchaseContractNumber: optionalString,
+  purchaseContractSignedAt: optionalString,
+  purchasePrice: optionalNumber,
+  payoutPaidAt: optionalString,
+  ownershipTransferAt: optionalString,
+  landRegisterEntryAt: optionalString,
+  monthlyRent: optionalNumber,
+  rentStartAt: optionalString,
+  rentDeposit: optionalNumber,
+  residentialRightStartAt: optionalString,
+  residentialRightEndAt: optionalString,
+  residentialRightNotes: optionalString,
+  maintenancePlan: z.record(z.unknown()).optional(),
+  portfolioTasks: z.record(z.unknown()).optional(),
+  portfolioNotes: optionalString
 });

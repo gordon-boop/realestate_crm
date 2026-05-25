@@ -42,6 +42,19 @@ test("calculates sale and leaseback payout from the Excel waterfall assumptions"
   assert.equal(result.assumptions.components?.brokerageFee, 12500);
 });
 
+test("normalizes percentage inputs in sale and leaseback calculation", () => {
+  const result = calculateOffer({
+    valuation: { marketValue: 500000 },
+    condition: "good",
+    model: "sale_and_leaseback",
+    saleAndLeasebackPayoutRate: 70
+  });
+
+  assert.equal(result.payoutAmount, 350000);
+  assert.equal(result.riskDiscount, 150000);
+  assert.equal(result.assumptions.components?.payoutRate, 0.7);
+});
+
 test("falls back to 10 year residential right rate for unsupported MVP duration", () => {
   assert.equal(getResidentialRightRate(7), 0.28);
 });

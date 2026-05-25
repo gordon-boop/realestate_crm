@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
         objectTitle: body.objectTitle,
         customerId: customer.id,
         partnerId: customer.partnerId,
-        assignedAdvisorUserId: customer.assignedAdvisorUserId ?? (user.role === "admin" && !isInternalAdmin(user) ? user.id : undefined),
+        assignedAdvisorUserId: customer.assignedAdvisorUserId ?? (user.role === "admin" ? user.id : undefined),
         propertyType: body.propertyType as never,
         street: body.street,
         postalCode: body.postalCode,

@@ -57,6 +57,22 @@ function money(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function rate(value: number | undefined, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  if (value > 1 && value <= 100) {
+    return value / 100;
+  }
+
+  if (value < 0 || value > 1) {
+    return fallback;
+  }
+
+  return value;
+}
+
 export function getResidentialRightRate(years?: number): number {
   if (!years) {
     return 0;
@@ -114,9 +130,9 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
   const monthlyRentPerSqm = input.monthlyRentPerSqm ?? 6.2;
   const garageCount = input.garageCount ?? 0;
   const garageRentMonthly = input.garageRentMonthly ?? 30;
-  const interestRate = input.interestRate ?? 0.032;
-  const acquisitionCostRate = input.acquisitionCostRate ?? 0.08;
-  const salesCostRate = input.salesCostRate ?? 0.01;
+  const interestRate = rate(input.interestRate, 0.032);
+  const acquisitionCostRate = rate(input.acquisitionCostRate, 0.08);
+  const salesCostRate = rate(input.salesCostRate, 0.01);
   const propertyType = input.propertyType ?? "house";
   const energyClass = (input.energyClass ?? "").trim().toUpperCase();
   const isApartment = propertyType === "apartment";
@@ -188,12 +204,12 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
 
 function calculateSaleAndLeasebackOffer(input: OfferCalculationInput): OfferCalculationResult {
   const marketValue = money(input.valuation.marketValue);
-  const payoutRate = input.saleAndLeasebackPayoutRate ?? 0.46;
+  const payoutRate = rate(input.saleAndLeasebackPayoutRate, 0.46);
   const maintenancePledge = money(input.maintenancePledge ?? 12320);
-  const bankDisbursementRate = input.bankDisbursementRate ?? 0.9;
-  const brokerageFeeRate = input.brokerageFeeRate ?? 0.025;
-  const transferTaxNotaryRate = input.transferTaxNotaryRate ?? 0.05;
-  const sellingCostRate = input.sellingCostRate ?? 0.015;
+  const bankDisbursementRate = rate(input.bankDisbursementRate, 0.9);
+  const brokerageFeeRate = rate(input.brokerageFeeRate, 0.025);
+  const transferTaxNotaryRate = rate(input.transferTaxNotaryRate, 0.05);
+  const sellingCostRate = rate(input.sellingCostRate, 0.015);
   const serviceChargeMonthly = input.serviceChargeMonthly ?? 380;
   const insuranceAnnual = input.insuranceAnnual ?? 800;
   const propertyTaxAnnual = input.propertyTaxAnnual ?? 380;

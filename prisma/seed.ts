@@ -350,6 +350,27 @@ async function main() {
       notaryAppointmentAt: new Date("2026-05-10T10:00:00.000Z"),
       purchasedAt: new Date("2026-05-14T10:00:00.000Z"),
       portfolioEnteredAt: new Date("2026-05-15T10:00:00.000Z"),
+      purchaseContractNumber: "KV-2026-008",
+      purchaseContractSignedAt: new Date("2026-05-14T10:00:00.000Z"),
+      purchasePrice: 425000,
+      payoutPaidAt: new Date("2026-05-17T10:00:00.000Z"),
+      ownershipTransferAt: new Date("2026-06-01T10:00:00.000Z"),
+      landRegisterEntryAt: new Date("2026-06-12T10:00:00.000Z"),
+      monthlyRent: 1650,
+      rentStartAt: new Date("2026-06-01T10:00:00.000Z"),
+      rentDeposit: 3300,
+      maintenancePlanJson: {
+        nextReviewDate: "2026-11-15",
+        responsible: "Asset Management",
+        annualBudget: 2500,
+        notes: "Wohnung jährlich prüfen, Hausgeldabrechnung nachreichen."
+      },
+      portfolioTasksJson: {
+        nextAppointmentDate: "2026-11-15",
+        nextAppointmentType: "Objektprüfung",
+        nextAppointmentNote: "Vor-Ort-Termin mit Bewohnerin abstimmen."
+      },
+      portfolioNotes: "Mietvertrag und Bestandsübergabe im MVP dokumentiert.",
       offerCalculationSource: "application",
       lastActivityLabel: "Vor 12 Tagen",
       lastActivityAt: new Date("2026-05-15T10:00:00.000Z"),

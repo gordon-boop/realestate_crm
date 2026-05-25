@@ -17,7 +17,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         include: { partner: true }
       });
 
-      if (dbUser) {
+      if (dbUser && !dbUser.deletedAt) {
         user = upsertRuntimeUser({
           id: dbUser.id,
           partnerId: dbUser.partnerId ?? undefined,
@@ -29,6 +29,13 @@ export async function POST(request: Request): Promise<NextResponse> {
           createdAt: dbUser.createdAt.toISOString(),
           updatedAt: dbUser.updatedAt.toISOString()
         } satisfies User);
+      }
+    }
+
+    if (user) {
+      const dbUserById = await prisma.user.findUnique({ where: { id: user.id } });
+      if (dbUserById?.deletedAt) {
+        user = undefined;
       }
     }
 

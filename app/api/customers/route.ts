@@ -25,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
     const user = requireRole("admin", "partner");
     const body = customerCreateSchema.parse(await request.json());
     const partnerId = user.role === "partner" ? user.partnerId : body.partnerId;
-    const assignedAdvisorUserId = user.role === "admin" ? (body.assignedAdvisorUserId ?? (!isInternalAdmin(user) ? user.id : undefined)) : undefined;
+    const assignedAdvisorUserId = user.role === "admin" ? (body.assignedAdvisorUserId ?? user.id) : undefined;
     if (!partnerId && !assignedAdvisorUserId) throw new Error("Partner oder Kundenberater required");
 
     const customer = await prisma.customer.create({

@@ -1,7 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { nextPropertyCaseNumber } from "./case-number.ts";
 import { canSeeProperty, isInternalAdmin } from "./access-control.ts";
-import type { CaseView, DesiredModel, Lead, OfferAssumptions, PropertyStatus, User } from "./domain.ts";
+import type { CaseNotification, CaseView, DesiredModel, Lead, OfferAssumptions, PropertyStatus, User } from "./domain.ts";
+import { sendCaseNotificationEmailStub } from "./email.ts";
 import { prisma } from "./prisma.ts";
 
 const caseInclude = {
@@ -19,12 +20,30 @@ const caseInclude = {
   activities: { orderBy: { createdAt: "desc" as const } },
   chatMessages: {
     orderBy: { createdAt: "asc" as const },
-    include: { user: { select: { id: true, name: true, role: true } } }
+    include: {
+      user: { select: { id: true, name: true, role: true } },
+      attachments: { orderBy: { createdAt: "asc" as const } },
+      reads: true
+    }
   },
   reminders: { orderBy: { createdAt: "desc" as const } }
 };
 
 type PrismaCase = Awaited<ReturnType<typeof prisma.property.findFirst<{ include: typeof caseInclude }>>>;
+
+const notificationInclude = {
+  actorUser: { select: { id: true, name: true } },
+  property: {
+    select: {
+      id: true,
+      caseNumber: true,
+      partnerId: true,
+      assignedAdvisorUserId: true,
+      customer: { select: { displayName: true, firstName: true, lastName: true } }
+    }
+  },
+  reads: true
+};
 
 function iso(value: Date | string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -82,6 +101,21 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     notaryOffice: property.notaryOffice ?? undefined,
     purchasedAt: iso(property.purchasedAt),
     portfolioEnteredAt: iso(property.portfolioEnteredAt),
+    purchaseContractNumber: property.purchaseContractNumber ?? undefined,
+    purchaseContractSignedAt: iso(property.purchaseContractSignedAt),
+    purchasePrice: number(property.purchasePrice),
+    payoutPaidAt: iso(property.payoutPaidAt),
+    ownershipTransferAt: iso(property.ownershipTransferAt),
+    landRegisterEntryAt: iso(property.landRegisterEntryAt),
+    monthlyRent: number(property.monthlyRent),
+    rentStartAt: iso(property.rentStartAt),
+    rentDeposit: number(property.rentDeposit),
+    residentialRightStartAt: iso(property.residentialRightStartAt),
+    residentialRightEndAt: iso(property.residentialRightEndAt),
+    residentialRightNotes: property.residentialRightNotes ?? undefined,
+    maintenancePlan: property.maintenancePlanJson as Record<string, unknown> | undefined,
+    portfolioTasks: property.portfolioTasksJson as Record<string, unknown> | undefined,
+    portfolioNotes: property.portfolioNotes ?? undefined,
     lastActivityAt: iso(property.lastActivityAt),
     createdAt: iso(property.createdAt)!,
     updatedAt: iso(property.updatedAt)!
@@ -176,6 +210,15 @@ function mapChatMessage(message: NonNullable<PrismaCase>["chatMessages"][number]
     message: message.message,
     source: message.source,
     visibility: message.visibility,
+    attachments: message.attachments?.map((attachment) => ({
+      id: attachment.id,
+      chatMessageId: attachment.chatMessageId,
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      storageUrl: attachment.storageUrl,
+      createdAt: iso(attachment.createdAt)!
+    })),
+    readByCurrentUser: false,
     createdAt: iso(message.createdAt)!
   };
 }
@@ -188,6 +231,31 @@ function mapReminder(reminder: NonNullable<PrismaCase>["reminders"][number]) {
     lastReminderAt: iso(reminder.lastReminderAt),
     createdAt: iso(reminder.createdAt)!,
     updatedAt: iso(reminder.updatedAt)!
+  };
+}
+
+function mapCaseNotification(notification: any, currentUserId?: string): CaseNotification {
+  const customer = notification.property?.customer;
+  const customerName = customer?.displayName || [customer?.firstName, customer?.lastName].filter(Boolean).join(" ").trim() || "Kunde";
+  return {
+    id: notification.id,
+    propertyId: notification.propertyId,
+    actorUserId: notification.actorUserId ?? undefined,
+    actorName: notification.actorUser?.name ?? undefined,
+    type: notification.type,
+    title: notification.title,
+    message: notification.message,
+    processStep: notification.processStep ?? undefined,
+    source: notification.source,
+    visibility: notification.visibility,
+    entityType: notification.entityType ?? undefined,
+    entityId: notification.entityId ?? undefined,
+    caseNumber: notification.property?.caseNumber ?? undefined,
+    customerName,
+    readByCurrentUser: currentUserId ? notification.reads?.some((read: { userId: string }) => read.userId === currentUserId) ?? false : false,
+    emailQueuedAt: iso(notification.emailQueuedAt),
+    emailStubMessageId: notification.emailStubMessageId ?? undefined,
+    createdAt: iso(notification.createdAt)!
   };
 }
 
@@ -235,6 +303,7 @@ function mapDbUser(user: Awaited<ReturnType<typeof prisma.user.findUnique>>): Us
     passwordHash: user.passwordHash,
     role: user.role,
     internalRole: user.internalRole ?? undefined,
+    deletedAt: iso(user.deletedAt),
     createdAt: iso(user.createdAt)!,
     updatedAt: iso(user.updatedAt)!
   };
@@ -251,6 +320,66 @@ export async function getDbCases(user: User): Promise<CaseView[]> {
     orderBy: { updatedAt: "desc" }
   });
   return cases.map(mapCaseView).map((caseView) => filterCaseViewForUser(caseView, user));
+}
+
+export async function getDbCaseNotifications(user: User): Promise<CaseNotification[]> {
+  const notifications = await prisma.caseNotification.findMany({
+    where: user.role === "partner"
+      ? { visibility: "shared", property: { partnerId: user.partnerId } }
+      : isInternalAdmin(user)
+        ? undefined
+        : { property: { assignedAdvisorUserId: user.id } },
+    include: notificationInclude,
+    orderBy: { createdAt: "desc" },
+    take: 80
+  });
+
+  return notifications.map((notification) => mapCaseNotification(notification, user.id));
+}
+
+export async function markDbNotificationsRead(
+  user: User,
+  input: { notificationId?: string; notificationIds?: string[]; propertyId?: string; kind?: "all" | "chat" | "process" }
+): Promise<{ count: number }> {
+  const notifications = await getDbCaseNotifications(user);
+  const requestedIds = new Set([
+    ...(input.notificationId ? [input.notificationId] : []),
+    ...(input.notificationIds ?? [])
+  ]);
+  const filtered = notifications.filter((notification) => {
+    if (requestedIds.size && !requestedIds.has(notification.id)) return false;
+    if (input.propertyId && notification.propertyId !== input.propertyId) return false;
+    if (input.kind === "chat" && notification.entityType !== "chat") return false;
+    if (input.kind === "process" && notification.entityType === "chat") return false;
+    return true;
+  });
+
+  await Promise.all(filtered.map((notification) => prisma.caseNotificationRead.upsert({
+    where: { notificationId_userId: { notificationId: notification.id, userId: user.id } },
+    create: { notificationId: notification.id, userId: user.id, readAt: new Date() },
+    update: { readAt: new Date() }
+  })));
+
+  return { count: filtered.length };
+}
+
+export async function markDbChatMessagesRead(propertyId: string, user: User): Promise<{ count: number }> {
+  const caseView = await getDbCaseByPropertyId(propertyId);
+  if (!caseView) throw new Error("Property not found");
+  if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
+
+  const visibleMessages = caseView.chatMessages.filter((message) => (
+    message.userId !== user.id && (user.role === "admin" || message.visibility === "shared")
+  ));
+
+  await Promise.all(visibleMessages.map((message) => prisma.chatMessageRead.upsert({
+    where: { chatMessageId_userId: { chatMessageId: message.id, userId: user.id } },
+    create: { chatMessageId: message.id, userId: user.id, readAt: new Date() },
+    update: { readAt: new Date() }
+  })));
+
+  await markDbNotificationsRead(user, { propertyId, kind: "chat" });
+  return { count: visibleMessages.length };
 }
 
 export async function getDbCaseByPropertyId(propertyId: string): Promise<CaseView | undefined> {
@@ -289,6 +418,20 @@ export async function addDbActivity(
     where: { id: propertyId },
     data: { lastActivityAt: activity.createdAt, lastActivityLabel: "Gerade eben" }
   });
+  if (shouldCreateNotification(type)) {
+    await addDbCaseNotification({
+      propertyId,
+      actorUserId: userId,
+      type,
+      title: notificationTitle(type),
+      message,
+      processStep: notificationTitle(type),
+      source: options.source ?? "user",
+      visibility: options.metadata?.visibility === "internal" ? "internal" : "shared",
+      entityType: options.entityType as never,
+      entityId: options.entityId
+    });
+  }
   return mapActivity(activity as never);
 }
 
@@ -297,7 +440,8 @@ export async function addDbChatMessage(
   userId: string,
   userRole: "admin" | "partner",
   message: string,
-  visibility: "shared" | "internal" = "shared"
+  visibility: "shared" | "internal" = "shared",
+  attachments: Array<{ fileName: string; fileType: string; storageUrl: string }> = []
 ) {
   const chatMessage = await prisma.chatMessage.create({
     data: {
@@ -305,16 +449,112 @@ export async function addDbChatMessage(
       userId,
       message,
       source: userRole,
-      visibility
+      visibility,
+      attachments: attachments.length
+        ? {
+            create: attachments.map((attachment) => ({
+              fileName: attachment.fileName,
+              fileType: attachment.fileType,
+              storageUrl: attachment.storageUrl
+            }))
+          }
+        : undefined
     },
-    include: { user: { select: { id: true, name: true, role: true } } }
+    include: {
+      user: { select: { id: true, name: true, role: true } },
+      attachments: { orderBy: { createdAt: "asc" } },
+      reads: true
+    }
+  });
+  await prisma.chatMessageRead.create({
+    data: {
+      chatMessageId: chatMessage.id,
+      userId,
+      readAt: new Date()
+    }
   });
   await addDbActivity(propertyId, userId, "chat_message_created", "Neue Chat-Nachricht wurde geschrieben.", {
     source: userRole,
     entityType: "chat",
-    entityId: chatMessage.id
+    entityId: chatMessage.id,
+    metadata: { visibility }
   });
   return mapChatMessage(chatMessage as never);
+}
+
+function shouldCreateNotification(type: string): boolean {
+  return [
+    "chat_message_created",
+    "indicative_offer_sent",
+    "offer_accepted",
+    "expert_opinion_ordered",
+    "expert_opinion_received",
+    "binding_offer_sent",
+    "binding_offer_accepted",
+    "notary_appointment_ordered",
+    "contract_signed",
+    "property_rejected",
+    "feedback_received"
+  ].includes(type);
+}
+
+function notificationTitle(type: string): string {
+  const labels: Record<string, string> = {
+    chat_message_created: "Neue Chat-Nachricht",
+    indicative_offer_sent: "Unverbindliches Angebot abgegeben",
+    offer_accepted: "UVA angenommen",
+    expert_opinion_ordered: "Gutachten beauftragt",
+    expert_opinion_received: "Gutachten eingegangen",
+    binding_offer_sent: "Verbindliches Angebot abgegeben",
+    binding_offer_accepted: "VA angenommen",
+    notary_appointment_ordered: "Notartermin vereinbart",
+    contract_signed: "Kaufvertrag abgeschlossen",
+    property_rejected: "Fall abgelehnt",
+    feedback_received: "Kundenrückmeldung eingegangen"
+  };
+  return labels[type] ?? "Änderung im Kundenfall";
+}
+
+export async function addDbCaseNotification(input: {
+  propertyId: string;
+  actorUserId?: string;
+  type: string;
+  title: string;
+  message: string;
+  processStep?: string;
+  source?: "system" | "user" | "partner" | "admin";
+  visibility?: "shared" | "internal";
+  entityType?: "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead" | "chat";
+  entityId?: string;
+}): Promise<CaseNotification> {
+  const notification = await prisma.caseNotification.create({
+    data: {
+      propertyId: input.propertyId,
+      actorUserId: input.actorUserId,
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      processStep: input.processStep,
+      source: input.source ?? "system",
+      visibility: input.visibility ?? "shared",
+      entityType: input.entityType,
+      entityId: input.entityId
+    },
+    include: notificationInclude
+  });
+
+  const email = await sendCaseNotificationEmailStub({
+    to: "crm-notifications@wohnkapital.local",
+    subject: input.title,
+    html: `<p>${input.message}</p>`
+  });
+  const updated = await prisma.caseNotification.update({
+    where: { id: notification.id },
+    data: { emailQueuedAt: new Date(), emailStubMessageId: email.messageId },
+    include: notificationInclude
+  });
+
+  return mapCaseNotification(updated, input.actorUserId);
 }
 
 export async function updateDbPropertyStatus(propertyId: string, status: PropertyStatus) {

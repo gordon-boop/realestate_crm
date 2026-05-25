@@ -19,3 +19,11 @@ export async function sendRegistrationConfirmationEmailStub(email: EmailDraft): 
     email
   };
 }
+
+export async function sendCaseNotificationEmailStub(email: EmailDraft): Promise<{ provider: "stub"; messageId: string; email: EmailDraft }> {
+  return {
+    provider: "stub",
+    messageId: `case_notification_stub_${Date.now()}`,
+    email
+  };
+}

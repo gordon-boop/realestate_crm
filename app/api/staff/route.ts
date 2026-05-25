@@ -8,6 +8,7 @@ function mapStaff(user: {
   email: string;
   role: string;
   internalRole: string | null;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -26,7 +27,7 @@ export async function GET(): Promise<Response> {
   try {
     requireRole("admin");
     const staff = await prisma.user.findMany({
-      where: { role: "admin" },
+      where: { role: "admin", deletedAt: null },
       orderBy: [{ internalRole: "desc" }, { name: "asc" }]
     });
     return json({ staff: staff.map(mapStaff) });

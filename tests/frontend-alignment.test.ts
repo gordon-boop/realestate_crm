@@ -3,7 +3,7 @@ import test from "node:test";
 import type { CaseIntakeDraftDto } from "../lib/frontend-dtos.ts";
 import { frontendStatusConfig } from "../lib/frontend-dtos.ts";
 import { completeOpenReminders, createReminder, getCaseByPropertyId } from "../lib/store.ts";
-import { chatMessageCreateSchema, documentCreateSchema, propertyCreateSchema } from "../lib/validation.ts";
+import { chatMessageCreateSchema, documentCreateSchema, portfolioUpdateSchema, propertyCreateSchema } from "../lib/validation.ts";
 
 test("frontend status config contains sold workflow state", () => {
   assert.equal(frontendStatusConfig.some((item) => item.status === "SOLD" && item.label === "Verkauft"), true);
@@ -194,4 +194,22 @@ test("reminders are persisted and can be completed", () => {
 
   completeOpenReminders("property_berlin_1", "user_partner");
   assert.equal(reminder.status, "done");
+});
+
+test("portfolio file validation stores contract, rent and maintenance data", () => {
+  const parsed = portfolioUpdateSchema.parse({
+    purchaseContractNumber: "KV-2026-008",
+    purchaseContractSignedAt: "2026-05-14",
+    purchasePrice: "425000",
+    payoutPaidAt: "2026-05-17",
+    monthlyRent: "1650",
+    rentStartAt: "2026-06-01",
+    maintenancePlan: { nextReviewDate: "2026-11-15", responsible: "Asset Management" },
+    portfolioTasks: { nextAppointmentDate: "2026-11-15", nextAppointmentType: "Objektprüfung" },
+    portfolioNotes: "Bestandsübergabe dokumentiert."
+  });
+
+  assert.equal(parsed.purchasePrice, 425000);
+  assert.equal(parsed.monthlyRent, 1650);
+  assert.equal(parsed.maintenancePlan?.responsible, "Asset Management");
 });

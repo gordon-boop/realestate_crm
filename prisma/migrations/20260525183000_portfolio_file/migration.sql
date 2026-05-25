@@ -1,0 +1,15 @@
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "purchase_contract_number" TEXT;
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "purchase_contract_signed_at" TIMESTAMP(3);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "purchase_price" DECIMAL(14, 2);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "payout_paid_at" TIMESTAMP(3);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "ownership_transfer_at" TIMESTAMP(3);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "land_register_entry_at" TIMESTAMP(3);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "monthly_rent" DECIMAL(14, 2);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "rent_start_at" TIMESTAMP(3);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "rent_deposit" DECIMAL(14, 2);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "residential_right_start_at" TIMESTAMP(3);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "residential_right_end_at" TIMESTAMP(3);
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "residential_right_notes" TEXT;
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "maintenance_plan_json" JSONB;
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "portfolio_tasks_json" JSONB;
+ALTER TABLE "properties" ADD COLUMN IF NOT EXISTS "portfolio_notes" TEXT;

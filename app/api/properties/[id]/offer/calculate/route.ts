@@ -76,7 +76,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       interestRate: readNumber(body.inputs, "interestRate"),
       acquisitionCostRate: readNumber(body.inputs, "acquisitionCostRate"),
       salesCostRate: readNumber(body.inputs, "salesCostRate"),
-      saleAndLeasebackPayoutRate: readNumber(body.inputs, "saleAndLeasebackPayoutRate"),
+      saleAndLeasebackPayoutRate: kind === "binding" ? undefined : readNumber(body.inputs, "saleAndLeasebackPayoutRate"),
       maintenancePledge: readNumber(body.inputs, "maintenancePledge"),
       bankDisbursementRate: readNumber(body.inputs, "bankDisbursementRate"),
       brokerageFeeRate: readNumber(body.inputs, "brokerageFeeRate"),
