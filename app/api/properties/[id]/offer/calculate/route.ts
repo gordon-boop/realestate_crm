@@ -1,4 +1,4 @@
-import { canSeeProperty } from "@/lib/access-control";
+import { canCalculateOffer } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import type { DesiredModel } from "@/lib/domain";
 import { calculateOffer } from "@/lib/offer-calculator";
@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const user = requireRole("admin");
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
-    if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
+    if (!canCalculateOffer(user, caseView.property)) throw new Error("Forbidden");
     if (!caseView.valuation) throw new Error("Valuation required before offer calculation");
 
     const body = (await request.json().catch(() => ({}))) as CalculateOfferBody;
@@ -32,6 +32,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const residentialRightYears = readNumber(body.inputs, "residentialRightYears") ?? caseView.property.desiredResidentialRightYears;
     const expertOpinionValue = readNumber(body.inputs, "expertOpinionValue");
 
+    if (kind === "binding" && !caseView.property.expertOpinionReceivedAt) {
+      throw new Error("Gutachteneingang required before binding offer calculation");
+    }
     if (kind === "binding" && !expertOpinionValue) {
       throw new Error("Gutachtenwert required before binding offer calculation");
     }
@@ -85,6 +88,27 @@ export async function POST(request: Request, { params }: { params: { id: string 
       landChargeCost: readNumber(body.inputs, "landChargeCost"),
       annualRentIncome: readNumber(body.inputs, "annualRentIncome")
     });
+    const indicativeReference = kind === "binding"
+      ? caseView.offers.find((offer) => offer.kind === "indicative" && offer.model === model)
+      : undefined;
+    const assumptions = kind === "binding"
+      ? {
+          ...calculation.assumptions,
+          valuationBasis: "expert_opinion",
+          expertOpinionValue,
+          indicativeReference: indicativeReference ? {
+            offerId: indicativeReference.id,
+            offerNumber: indicativeReference.offerNumber,
+            marketValue: indicativeReference.marketValue,
+            payoutAmount: indicativeReference.payoutAmount,
+            version: indicativeReference.currentVersion
+          } : undefined,
+          deltaToIndicative: indicativeReference ? {
+            marketValue: calculation.marketValue - indicativeReference.marketValue,
+            payoutAmount: calculation.payoutAmount - indicativeReference.payoutAmount
+          } : undefined
+        }
+      : calculation.assumptions;
 
     const existing = await prisma.offer.findFirst({ where: { propertyId: params.id, model: model as never, kind } });
     const offerNumber = existing?.offerNumber ?? `ANG-2026-${String((await prisma.offer.count()) + 1).padStart(4, "0")}`;
@@ -102,7 +126,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             payoutAmount: calculation.payoutAmount,
             model: model as never,
             residentialRightYears,
-            assumptionsJson: toPrismaJson(calculation.assumptions),
+            assumptionsJson: toPrismaJson(assumptions),
             status: kind === "binding" ? "review" : "draft"
           }
         })
@@ -121,7 +145,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             payoutAmount: calculation.payoutAmount,
             model: model as never,
             residentialRightYears,
-            assumptionsJson: toPrismaJson(calculation.assumptions),
+            assumptionsJson: toPrismaJson(assumptions),
             status: kind === "binding" ? "review" : "draft"
           }
         });

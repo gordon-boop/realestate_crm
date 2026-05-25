@@ -6,7 +6,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   try {
     const user = requireRole("admin");
     const body = leadAssignSchema.parse(await request.json());
-    const lead = await assignDbLead(params.id, body.partnerId, user.id);
+    const lead = await assignDbLead(params.id, { partnerId: body.partnerId, advisorUserId: body.advisorUserId }, user.id);
     return json({ lead });
   } catch (err) {
     return handleApiError(err);

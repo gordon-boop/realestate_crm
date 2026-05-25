@@ -29,7 +29,7 @@ export default async function AdminCasePage({ params }: { params: { id: string }
       <div className="toolbar">
         <div>
           <h1 style={{ margin: 0 }}>Admin-Fallansicht</h1>
-          <p className="muted">{caseView.property.caseNumber ?? caseView.property.id} | {caseView.partner.companyName} | {caseView.customer.firstName} {caseView.customer.lastName}</p>
+          <p className="muted">{caseView.property.caseNumber ?? caseView.property.id} | {caseView.partner?.companyName ?? "Intern"} | {caseView.customer.firstName} {caseView.customer.lastName}</p>
         </div>
         <Link className="btn" href="/admin">Zurück</Link>
       </div>

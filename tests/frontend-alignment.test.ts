@@ -144,11 +144,13 @@ test("document validation persists missing status and required level", () => {
     category: "energy_certificate",
     requirementLevel: "required",
     status: "missing",
+    scanStatus: "pending",
     missingReason: "fehlt noch"
   });
 
   assert.equal(parsed.status, "missing");
   assert.equal(parsed.requirementLevel, "required");
+  assert.equal(parsed.scanStatus, "pending");
 });
 
 test("chat messages are case linked and validated", () => {

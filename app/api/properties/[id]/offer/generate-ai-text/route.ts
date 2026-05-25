@@ -1,4 +1,4 @@
-import { canSeeProperty } from "@/lib/access-control";
+import { canCalculateOffer } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import { generateMockOfferText } from "@/lib/ai-service";
 import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, updateDbPropertyStatus } from "@/lib/persistence";
@@ -6,10 +6,10 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
-    const user = requireRole("admin", "partner");
+    const user = requireRole("admin");
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
-    if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
+    if (!canCalculateOffer(user, caseView.property)) throw new Error("Forbidden");
     if (!caseView.offer) throw new Error("Offer required before AI text generation");
 
     const text = generateMockOfferText(caseView, caseView.offer);
@@ -20,23 +20,27 @@ export async function POST(_request: Request, { params }: { params: { id: string
         aiPartnerSummary: text.partnerSummary,
         aiInternalRationale: text.internalRationale,
         status: "review",
-        currentVersion: { increment: 1 }
-      }
+        currentVersion: { increment: 1 },
+      },
     });
+
     await prisma.offerVersion.create({
-      data: { offerId: offer.id, version: offer.currentVersion, snapshotJson: toJsonSnapshot(offer), createdByUserId: user.id }
+      data: { offerId: offer.id, version: offer.currentVersion, snapshotJson: toJsonSnapshot(offer), createdByUserId: user.id },
     });
+
     if (caseView.offer.kind !== "binding") {
       await updateDbPropertyStatus(params.id, "INTERNAL_REVIEW");
     }
+
     await addDbActivity(
       params.id,
       user.id,
       "ai_text_created",
       caseView.offer.kind === "binding"
         ? "Mock-KI hat den Entwurf für das verbindliche Angebot erstellt."
-        : "Mock-KI hat Angebotsentwurf erstellt."
+        : "Mock-KI hat Angebotsentwurf erstellt.",
     );
+
     return json({ offer });
   } catch (err) {
     return handleApiError(err);

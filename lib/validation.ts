@@ -8,6 +8,7 @@ const optionalEnum = <T extends [string, ...string[]]>(values: T) => z.preproces
 
 export const customerCreateSchema = z.object({
   partnerId: optionalString,
+  assignedAdvisorUserId: optionalString,
   displayName: optionalString,
   title: optionalString,
   firstName: z.string().trim().min(1, "Vorname ist erforderlich"),
@@ -116,7 +117,17 @@ export const documentCreateSchema = z.object({
   ]).default("other"),
   requirementLevel: z.enum(["required", "optional", "recommended"]).default("optional"),
   status: z.enum(["pending", "ok", "missing", "review_required", "rejected"]).default("pending"),
+  scanStatus: z.enum(["pending", "clean", "suspicious", "failed"]).default("pending"),
+  scanNote: optionalString,
   missingReason: optionalString
+});
+
+export const documentReviewSchema = z.object({
+  status: z.enum(["pending", "ok", "missing", "review_required", "rejected"]).optional(),
+  requirementLevel: z.enum(["required", "optional", "recommended"]).optional(),
+  missingReason: optionalString,
+  scanStatus: z.enum(["pending", "clean", "suspicious", "failed"]).optional(),
+  scanNote: optionalString
 });
 
 export const reminderCreateSchema = z.object({
@@ -140,7 +151,7 @@ export const chatMessageCreateSchema = z.object({
 });
 
 export const leadCreateSchema = z.object({
-  source: z.enum(["homepage", "admin", "partner", "other"]).default("homepage"),
+  source: z.enum(["homepage", "admin", "internal", "partner", "other"]).default("homepage"),
   firstName: optionalString,
   lastName: optionalString,
   name: optionalString,
@@ -156,7 +167,10 @@ export const leadCreateSchema = z.object({
 });
 
 export const leadAssignSchema = z.object({
-  partnerId: z.string().trim().min(1, "Partner ist erforderlich")
+  partnerId: optionalString,
+  advisorUserId: optionalString
+}).refine((value) => Boolean(value.partnerId || value.advisorUserId), {
+  message: "Partner oder Kundenberater ist erforderlich"
 });
 
 export const leadStatusSchema = z.object({
@@ -167,14 +181,14 @@ export const staffCreateSchema = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich"),
   email: z.string().trim().email("E-Mail ist ungültig").toLowerCase(),
   password: z.string().trim().min(6, "Passwort muss mindestens 6 Zeichen haben").default("demo1234"),
-  internalRole: z.enum(["employee", "admin", "super_admin"]).default("employee")
+  internalRole: z.enum(["employee", "advisor", "admin", "super_admin"]).default("employee")
 });
 
 export const staffUpdateSchema = z.object({
   name: optionalString,
   email: z.string().trim().email("E-Mail ist ungültig").toLowerCase().optional(),
   password: optionalString,
-  internalRole: z.enum(["employee", "admin", "super_admin"]).optional()
+  internalRole: z.enum(["employee", "advisor", "admin", "super_admin"]).optional()
 });
 
 export const acquisitionWorkflowSchema = z.object({

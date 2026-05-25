@@ -1,4 +1,5 @@
 import { handleApiError, json, requireRole } from "@/lib/api";
+import { isInternalAdmin } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 import { customerCreateSchema } from "@/lib/validation";
 
@@ -8,6 +9,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     const customer = await prisma.customer.findUnique({ where: { id: params.id } });
     if (!customer) throw new Error("Customer not found");
     if (user.role === "partner" && customer.partnerId !== user.partnerId) throw new Error("Forbidden");
+    if (user.role === "admin" && !isInternalAdmin(user) && customer.assignedAdvisorUserId !== user.id) throw new Error("Forbidden");
     return json({ customer });
   } catch (err) {
     return handleApiError(err);
@@ -20,6 +22,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const customer = await prisma.customer.findUnique({ where: { id: params.id } });
     if (!customer) throw new Error("Customer not found");
     if (user.role === "partner" && customer.partnerId !== user.partnerId) throw new Error("Forbidden");
+    if (user.role === "admin" && !isInternalAdmin(user) && customer.assignedAdvisorUserId !== user.id) throw new Error("Forbidden");
     const body = customerCreateSchema.partial().parse(await request.json());
     const updated = await prisma.customer.update({
       where: { id: params.id },

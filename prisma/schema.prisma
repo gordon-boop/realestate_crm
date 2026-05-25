@@ -26,6 +26,7 @@ enum UserRole {
 
 enum InternalUserRole {
   employee
+  advisor
   admin
   super_admin
 }
@@ -109,6 +110,13 @@ enum DocumentStatus {
   missing
   review_required
   rejected
+}
+
+enum DocumentScanStatus {
+  pending
+  clean
+  suspicious
+  failed
 }
 
 enum DocumentRequirementLevel {
@@ -209,6 +217,7 @@ enum ReminderStatus {
 enum LeadSource {
   homepage
   admin
+  internal
   partner
   other
 }
@@ -276,6 +285,9 @@ model User {
   approvedOffers Offer[] @relation("OfferApprovedBy")
   uploadedDocuments Document[]
   reviewedDocuments Document[] @relation("DocumentReviewedBy")
+  assignedCustomers Customer[] @relation("CustomerAssignedAdvisor")
+  assignedProperties Property[] @relation("PropertyAssignedAdvisor")
+  assignedLeads Lead[] @relation("LeadAssignedAdvisor")
   remindersAssigned Reminder[] @relation("ReminderAssignedTo")
   remindersCreated Reminder[] @relation("ReminderCreatedBy")
   remindersCompleted Reminder[] @relation("ReminderCompletedBy")
@@ -308,8 +320,10 @@ model BrokerRegistration {
 
 model Customer {
   id                    String    @id @default(cuid())
-  partnerId             String    @map("partner_id")
-  partner               Partner   @relation(fields: [partnerId], references: [id])
+  partnerId             String?   @map("partner_id")
+  partner               Partner?  @relation(fields: [partnerId], references: [id])
+  assignedAdvisorUserId String?   @map("assigned_advisor_user_id")
+  assignedAdvisor       User?     @relation("CustomerAssignedAdvisor", fields: [assignedAdvisorUserId], references: [id])
   displayName           String?   @map("display_name")
   title                 String?
   firstName             String    @map("first_name")
@@ -339,6 +353,7 @@ model Customer {
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
   @@index([partnerId])
+  @@index([assignedAdvisorUserId])
   @@map("customers")
 }
 
@@ -348,8 +363,10 @@ model Property {
   objectTitle                  String?           @map("object_title")
   customerId                   String            @map("customer_id")
   customer                     Customer          @relation(fields: [customerId], references: [id])
-  partnerId                    String            @map("partner_id")
-  partner                      Partner           @relation(fields: [partnerId], references: [id])
+  partnerId                    String?           @map("partner_id")
+  partner                      Partner?          @relation(fields: [partnerId], references: [id])
+  assignedAdvisorUserId        String?           @map("assigned_advisor_user_id")
+  assignedAdvisor              User?             @relation("PropertyAssignedAdvisor", fields: [assignedAdvisorUserId], references: [id])
   propertyType                 PropertyType      @map("property_type")
   street                       String
   postalCode                   String            @map("postal_code")
@@ -439,6 +456,7 @@ model Property {
   updatedAt                    DateTime          @updatedAt @map("updated_at")
 
   @@index([partnerId])
+  @@index([assignedAdvisorUserId])
   @@index([status])
   @@map("properties")
 }
@@ -458,14 +476,34 @@ model Document {
   category         DocumentCategory
   requirementLevel DocumentRequirementLevel @default(optional) @map("requirement_level")
   status           DocumentStatus   @default(pending)
+  scanStatus       DocumentScanStatus @default(pending) @map("scan_status")
+  scanNote         String?          @map("scan_note")
+  scannedAt        DateTime?        @map("scanned_at")
+  currentVersion   Int              @default(1) @map("current_version")
   missingReason    String?          @map("missing_reason")
   reviewedByUserId String?          @map("reviewed_by_user_id")
   reviewedByUser   User?            @relation("DocumentReviewedBy", fields: [reviewedByUserId], references: [id])
   reviewedAt       DateTime?        @map("reviewed_at")
+  versions         DocumentVersion[]
   createdAt        DateTime         @default(now()) @map("created_at")
 
   @@index([propertyId])
+  @@index([status])
+  @@index([scanStatus])
   @@map("documents")
+}
+
+model DocumentVersion {
+  id              String   @id @default(cuid())
+  documentId      String   @map("document_id")
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version         Int
+  snapshotJson    Json     @map("snapshot_json")
+  createdByUserId String?  @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([documentId, version])
+  @@map("document_versions")
 }
 
 model Valuation {
@@ -607,6 +645,8 @@ model Lead {
   source                      LeadSource   @default(homepage)
   status                      LeadStatus   @default(NEW)
   assignedPartnerId           String?      @map("assigned_partner_id")
+  assignedAdvisorUserId       String?      @map("assigned_advisor_user_id")
+  assignedAdvisor             User?        @relation("LeadAssignedAdvisor", fields: [assignedAdvisorUserId], references: [id])
   assignedByUserId            String?      @map("assigned_by_user_id")
   assignedAt                  DateTime?    @map("assigned_at")
   convertedCustomerId         String?      @map("converted_customer_id")
@@ -629,6 +669,7 @@ model Lead {
 
   @@index([status])
   @@index([assignedPartnerId])
+  @@index([assignedAdvisorUserId])
   @@map("leads")
 }
 

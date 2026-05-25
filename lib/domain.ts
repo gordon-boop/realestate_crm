@@ -1,7 +1,7 @@
 export type PartnerStatus = "active" | "inactive";
 export type BrokerRegistrationStatus = "email_pending" | "pending_approval" | "approved" | "rejected";
 export type UserRole = "admin" | "partner";
-export type InternalUserRole = "employee" | "admin" | "super_admin";
+export type InternalUserRole = "employee" | "advisor" | "admin" | "super_admin";
 export type PropertyType = "house" | "single_family" | "semi_detached" | "row_house" | "apartment" | "multi_family" | "other";
 export type PropertyCondition = "very_good" | "good" | "average" | "renovation_needed";
 export type DesiredModel = "fixed_residential_right" | "sale_and_leaseback" | "other";
@@ -57,6 +57,7 @@ export type DocumentCategory =
   | "other";
 export type DocumentStatus = "pending" | "ok" | "missing" | "review_required" | "rejected";
 export type DocumentRequirementLevel = "required" | "optional" | "recommended";
+export type DocumentScanStatus = "pending" | "clean" | "suspicious" | "failed";
 export type OfferKind = "indicative" | "binding";
 export type OfferStatus = "draft" | "review" | "approved" | "sent" | "rejected";
 export type ReminderStatus = "open" | "done" | "overdue" | "cancelled";
@@ -106,7 +107,8 @@ export type BrokerRegistration = {
 
 export type Customer = {
   id: string;
-  partnerId: string;
+  partnerId?: string;
+  assignedAdvisorUserId?: string;
   displayName?: string;
   title?: string;
   firstName: string;
@@ -139,7 +141,8 @@ export type Property = {
   caseNumber?: string;
   objectTitle?: string;
   customerId: string;
-  partnerId: string;
+  partnerId?: string;
+  assignedAdvisorUserId?: string;
   propertyType: PropertyType;
   street: string;
   postalCode: string;
@@ -235,9 +238,23 @@ export type Document = {
   category: DocumentCategory;
   requirementLevel: DocumentRequirementLevel;
   status: DocumentStatus;
+  scanStatus: DocumentScanStatus;
+  scanNote?: string;
+  scannedAt?: string;
+  currentVersion: number;
   missingReason?: string;
   reviewedByUserId?: string;
   reviewedAt?: string;
+  versions?: DocumentVersion[];
+  createdAt: string;
+};
+
+export type DocumentVersion = {
+  id: string;
+  documentId: string;
+  version: number;
+  snapshot: Document;
+  createdByUserId?: string;
   createdAt: string;
 };
 
@@ -298,6 +315,7 @@ export type Offer = {
   approvedAt?: string;
   sentAt?: string;
   pdfUrl?: string;
+  versions?: OfferVersion[];
   createdAt: string;
   updatedAt: string;
 };
@@ -365,9 +383,10 @@ export type Reminder = {
 export type Lead = {
   id: string;
   leadNumber: string;
-  source: "homepage" | "admin" | "partner" | "other";
+  source: "homepage" | "admin" | "internal" | "partner" | "other";
   status: LeadStatus;
   assignedPartnerId?: string;
+  assignedAdvisorUserId?: string;
   assignedByUserId?: string;
   assignedAt?: string;
   convertedCustomerId?: string;
@@ -390,7 +409,7 @@ export type Lead = {
 };
 
 export type CaseView = {
-  partner: Partner;
+  partner?: Partner;
   customer: Customer;
   property: Property;
   documents: Document[];

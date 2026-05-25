@@ -1,4 +1,4 @@
-import { canSeeProperty } from "@/lib/access-control";
+import { canSeeProperty, isInternalAdmin } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import { nextPropertyCaseNumber } from "@/lib/case-number";
 import { addDbActivity, getDbCases, toOptionalPrismaJson } from "@/lib/persistence";
@@ -22,6 +22,7 @@ export async function POST(request: Request): Promise<Response> {
     const customer = await prisma.customer.findUnique({ where: { id: String(body.customerId ?? "") } });
     if (!customer) throw new Error("Customer not found");
     if (user.role === "partner" && customer.partnerId !== user.partnerId) throw new Error("Forbidden");
+    if (user.role === "admin" && !isInternalAdmin(user) && customer.assignedAdvisorUserId !== user.id) throw new Error("Forbidden");
 
     const caseNumber = body.caseNumber || await nextPropertyCaseNumber();
 
@@ -31,6 +32,7 @@ export async function POST(request: Request): Promise<Response> {
         objectTitle: body.objectTitle,
         customerId: customer.id,
         partnerId: customer.partnerId,
+        assignedAdvisorUserId: customer.assignedAdvisorUserId ?? (user.role === "admin" && !isInternalAdmin(user) ? user.id : undefined),
         propertyType: body.propertyType as never,
         street: body.street,
         postalCode: body.postalCode,

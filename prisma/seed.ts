@@ -109,6 +109,19 @@ async function main() {
     }
   });
 
+  await prisma.user.upsert({
+    where: { email: "berater@demo.local" },
+    update: { name: "Kundenberater Demo", role: UserRole.admin, internalRole: InternalUserRole.advisor },
+    create: {
+      id: "user_advisor",
+      name: "Kundenberater Demo",
+      email: "berater@demo.local",
+      passwordHash: "demo1234",
+      role: UserRole.admin,
+      internalRole: InternalUserRole.advisor
+    }
+  });
+
   const partnerUser = await prisma.user.upsert({
     where: { email: "makler@demo.local" },
     update: { partnerId: partner.id, name: "Mara Seidel", role: UserRole.partner },

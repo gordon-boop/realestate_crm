@@ -181,6 +181,8 @@ const documents: Document[] = [
     category: "photos",
     requirementLevel: "recommended",
     status: "ok",
+    scanStatus: "clean",
+    currentVersion: 1,
     createdAt: stamp
   },
   {
@@ -195,6 +197,8 @@ const documents: Document[] = [
     category: "energy_certificate",
     requirementLevel: "required",
     status: "missing",
+    scanStatus: "pending",
+    currentVersion: 1,
     missingReason: "Energieausweis fehlt noch.",
     createdAt: stamp
   }

@@ -465,12 +465,14 @@ const demoLoginByRole = {
 
 const staffRoleLabels = {
   employee: 'Mitarbeiter',
+  advisor: 'Kundenberater',
   admin: 'Admin',
   super_admin: 'Super-Admin',
 };
 
 const staffRoleDescriptions = {
   employee: 'Kann Kundenfälle bearbeiten.',
+  advisor: 'Kann eigene Leads und Kundenfälle beraten und Angebote kalkulieren.',
   admin: 'Kann Partner freischalten, sperren, bearbeiten und Kundenfälle ablehnen.',
   super_admin: 'Kann Mitarbeiter anlegen, Rollen zuordnen und alle Admin-Rechte nutzen.',
 };
@@ -819,6 +821,7 @@ const windowLabels = { wood: 'Holz', aluminium: 'Aluminium', plastic: 'Kunststof
 const energyCertificateLabels = { demand: 'Bedarfsausweis', consumption: 'Verbrauchsausweis' };
 const energyCarrierLabels = { photovoltaik: 'Photovoltaik', solarthermie: 'Solarthermie', batteriespeicher: 'Batteriespeicher' };
 const documentStatusLabels = { missing: 'fehlt', pending: 'eingereicht', ok: 'geprüft', review_required: 'Prüfung nötig', rejected: 'abgelehnt' };
+const documentScanStatusLabels = { pending: 'Virenscan offen', clean: 'Virenscan unauffällig', suspicious: 'Auffällig', failed: 'Scan fehlgeschlagen' };
 const requirementLabels = { required: 'Pflicht', recommended: 'Empfohlen', optional: 'Optional' };
 const rejectionReasons = [
   { value: 'location', label: 'Lage / Marktgängigkeit' },
@@ -848,6 +851,13 @@ const documentCategoryLabels = {
 };
 const modernizationLabels = { none: 'keine', partial: 'teilweise', complete: 'vollständig' };
 const productModelLabels = { fixed_residential_right: 'Verrentung mit befristetem Wohnrecht', sale_and_leaseback: 'Rückmietmodell', other: 'Sonstiges Modell' };
+const offerStatusLabels = {
+  draft: 'Entwurf',
+  review: 'In Prüfung',
+  approved: 'Freigegeben',
+  sent: 'Versendet',
+  rejected: 'Abgelehnt',
+};
 const leadStatusLabels = {
   NEW: 'Neu',
   QUALIFIED: 'Qualifiziert',
@@ -2096,7 +2106,7 @@ const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onU
                   <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 750 }}>{member.name}</td>
                   <td style={{ padding: '12px 14px', color: theme.ink }}>{member.email}</td>
                   <td style={{ padding: '12px 14px' }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: member.internalRole === 'super_admin' ? theme.aubergine : member.internalRole === 'admin' ? '#5B8C2B' : theme.inkSoft, background: member.internalRole === 'super_admin' ? `${theme.aubergine}14` : member.internalRole === 'admin' ? '#5B8C2B1A' : theme.mintLight, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: member.internalRole === 'super_admin' ? theme.aubergine : member.internalRole === 'admin' ? '#5B8C2B' : member.internalRole === 'advisor' ? theme.aubergineSoft : theme.inkSoft, background: member.internalRole === 'super_admin' ? `${theme.aubergine}14` : member.internalRole === 'admin' ? '#5B8C2B1A' : member.internalRole === 'advisor' ? `${theme.aubergine}10` : theme.mintLight, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
                       {staffRoleLabels[member.internalRole] || member.internalRole}
                     </span>
                   </td>
@@ -2105,6 +2115,7 @@ const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onU
                     {canManageStaff ? (
                       <Select value={member.internalRole} onChange={(event) => onUpdateStaffRole?.(member.id, event.target.value)}>
                         <option value="employee">Mitarbeiter</option>
+                        <option value="advisor">Kundenberater</option>
                         <option value="admin">Admin</option>
                         <option value="super_admin">Super-Admin</option>
                       </Select>
@@ -2135,6 +2146,7 @@ const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onU
             <Field label="Rolle" required>
               <Select value={internalRole} onChange={(event) => setInternalRole(event.target.value)}>
                 <option value="employee">Mitarbeiter</option>
+                <option value="advisor">Kundenberater</option>
                 <option value="admin">Admin</option>
                 <option value="super_admin">Super-Admin</option>
               </Select>
@@ -2174,6 +2186,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [uploadCategory, setUploadCategory] = useState('energy_certificate');
   const [uploadRequirementLevel, setUploadRequirementLevel] = useState('required');
   const [uploadNote, setUploadNote] = useState('');
+  const [documentReviewInputs, setDocumentReviewInputs] = useState({});
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectionReasonCode, setRejectionReasonCode] = useState('location');
   const [rejectionNote, setRejectionNote] = useState('');
@@ -2189,6 +2202,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const customer = caseView?.customer;
   const property = caseView?.property;
   const canRejectCase = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
+  const canManageOffers = role === 'admin' && ['advisor', 'admin', 'super_admin'].includes(internalRole);
+  const canReviewDocuments = canManageOffers;
 
   useEffect(() => {
     setActiveTab(initialTab || 'kunde');
@@ -2197,6 +2212,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
   const indicativeOffers = productOffers.filter((offer) => offer.kind !== 'binding');
   const bindingOffers = productOffers.filter((offer) => offer.kind === 'binding');
+  const offerVersionsCount = (offer) => offer?.versions?.length || offer?.currentVersion || 1;
   const hasBindingOffer = bindingOffers.length > 0;
   const canPrepareBindingOffer = Boolean(property?.expertOpinionReceivedAt) || ['EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT', 'IN_PORTFOLIO', 'WON'].includes(property?.status);
   const requestedOfferModels = property ? [
@@ -2238,13 +2254,19 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     date: dateLabel(document.createdAt),
     status: document.status,
     statusLabel: labelFrom(documentStatusLabels, document.status),
+    scanStatus: document.scanStatus || 'pending',
+    scanStatusLabel: labelFrom(documentScanStatusLabels, document.scanStatus || 'pending'),
+    scanNote: document.scanNote,
+    reviewedAt: document.reviewedAt,
+    currentVersion: document.currentVersion || 1,
+    versions: document.versions || [],
     missingReason: document.missingReason,
   })) : [
-    { id: 'mock-land-register', name: 'Grundbuchauszug.pdf', fileName: 'Grundbuchauszug.pdf', fileType: 'application/pdf', storageUrl: '', category: 'land_register', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { id: 'mock-floorplan', name: 'Grundriss_OG.pdf', fileName: 'Grundriss_OG.pdf', fileType: 'application/pdf', storageUrl: '', category: 'floorplan', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { id: 'mock-living-area', name: 'Wohnflächenberechnung.pdf', fileName: 'Wohnflächenberechnung.pdf', fileType: 'application/pdf', storageUrl: '', category: 'living_area_calculation', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
-    { id: 'mock-energy', name: 'Energieausweis', fileName: 'Energieausweis', fileType: 'application/pdf', storageUrl: '', category: 'energy_certificate', type: 'Pflicht', date: null, status: 'missing', statusLabel: 'fehlt', missingReason: 'Energieausweis fehlt noch.' },
-    { id: 'mock-photos', name: 'Fotos außen (12)', fileName: 'Fotos außen (12)', fileType: 'image/jpeg', storageUrl: '', category: 'photos', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft' },
+    { id: 'mock-land-register', name: 'Grundbuchauszug.pdf', fileName: 'Grundbuchauszug.pdf', fileType: 'application/pdf', storageUrl: '', category: 'land_register', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft', scanStatus: 'clean', scanStatusLabel: 'Virenscan unauffällig', currentVersion: 1, versions: [] },
+    { id: 'mock-floorplan', name: 'Grundriss_OG.pdf', fileName: 'Grundriss_OG.pdf', fileType: 'application/pdf', storageUrl: '', category: 'floorplan', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft', scanStatus: 'clean', scanStatusLabel: 'Virenscan unauffällig', currentVersion: 1, versions: [] },
+    { id: 'mock-living-area', name: 'Wohnflächenberechnung.pdf', fileName: 'Wohnflächenberechnung.pdf', fileType: 'application/pdf', storageUrl: '', category: 'living_area_calculation', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft', scanStatus: 'clean', scanStatusLabel: 'Virenscan unauffällig', currentVersion: 1, versions: [] },
+    { id: 'mock-energy', name: 'Energieausweis', fileName: 'Energieausweis', fileType: 'application/pdf', storageUrl: '', category: 'energy_certificate', type: 'Pflicht', date: null, status: 'missing', statusLabel: 'fehlt', scanStatus: 'pending', scanStatusLabel: 'Virenscan offen', currentVersion: 1, versions: [], missingReason: 'Energieausweis fehlt noch.' },
+    { id: 'mock-photos', name: 'Fotos außen (12)', fileName: 'Fotos außen (12)', fileType: 'image/jpeg', storageUrl: '', category: 'photos', type: 'Pflicht', date: '18.05.2026', status: 'ok', statusLabel: 'geprüft', scanStatus: 'clean', scanStatusLabel: 'Virenscan unauffällig', currentVersion: 1, versions: [] },
   ];
   const requiredDocumentRows = getRequiredDocumentsForPropertyType(property?.propertyType).map((requirement) => {
     const matchedDocument = documents.find((document) => document.category === requirement.category);
@@ -2421,11 +2443,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   });
   const acquisitionSteps = [
     { action: null, status: 'SUBMITTED', label: 'Eingereicht', date: property?.createdAt },
-    { action: 'indicative_offer_sent', status: 'INDICATIVE_OFFER_SENT', label: 'Unverbindl. Angebot (UVA) abgegeben', date: property?.indicativeOfferSentAt },
+    { action: 'indicative_offer_sent', status: 'INDICATIVE_OFFER_SENT', label: 'Unverbindliches Angebot (UVA) abgegeben', date: property?.indicativeOfferSentAt },
     { action: 'offer_accepted', status: 'OFFER_ACCEPTED', label: 'UVA angenommen', date: property?.offerAcceptedAt },
     { action: 'expert_opinion_ordered', status: 'EXPERT_OPINION_ORDERED', label: 'Gutachten beauftragt', date: property?.expertOpinionOrderedAt },
     { action: 'expert_opinion_received', status: 'EXPERT_OPINION_RECEIVED', label: 'Gutachten eingegangen', date: property?.expertOpinionReceivedAt },
-    { action: 'binding_offer_sent', status: 'BINDING_OFFER_SENT', label: 'Verbindl. Angebot (VA) abgegeben', date: property?.bindingOfferSentAt },
+    { action: 'binding_offer_sent', status: 'BINDING_OFFER_SENT', label: 'Verbindliches Angebot (VA) abgegeben', date: property?.bindingOfferSentAt },
     { action: 'binding_offer_accepted', status: 'BINDING_OFFER_ACCEPTED', label: 'VA angenommen', date: property?.bindingOfferAcceptedAt },
     { action: 'notary_appointment_ordered', status: 'NOTARY_APPOINTMENT', label: 'Notartermin vereinbart', date: property?.notaryAppointmentAt, needsDate: true },
     { action: 'contract_signed', status: 'IN_PORTFOLIO', label: 'Kaufvertrag abgeschlossen', date: property?.portfolioEnteredAt },
@@ -2533,6 +2555,25 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || 'Löschen fehlgeschlagen');
   });
+  const updateDocumentReviewInput = (documentId, patch) => {
+    setDocumentReviewInputs((current) => ({
+      ...current,
+      [documentId]: { ...(current[documentId] || {}), ...patch },
+    }));
+  };
+  const reviewDocument = (document) => runCaseAction('Dokument prüfen', async () => {
+    if (!document.id || document.id.startsWith('mock-')) {
+      throw new Error('Dieses Mock-Dokument kann nicht geprüft werden.');
+    }
+    const input = documentReviewInputs[document.id] || {};
+    await patchJson(`/api/properties/${c.propertyId}/documents/${document.id}`, {
+      status: input.status || document.status,
+      requirementLevel: input.requirementLevel || (document.type === 'Pflicht' ? 'required' : document.type === 'Empfohlen' ? 'recommended' : 'optional'),
+      scanStatus: input.scanStatus || document.scanStatus || 'pending',
+      scanNote: input.scanNote,
+      missingReason: input.missingReason,
+    });
+  });
   const sendChatMessage = () => runCaseAction('Chat-Nachricht senden', async () => {
     const message = chatInput.trim();
     if (!message) {
@@ -2577,7 +2618,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <div style={{ fontSize: 12, color: `${theme.ink}aa`, marginTop: 2 }}>{c.adresse} · {c.flaeche} m² Wohnfläche{c.grundstueck ? ` · ${c.grundstueck} m² Grundstück` : ''}</div>
         </div>
         <button onClick={() => onEdit?.(c.propertyId || c.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
-        {role === 'admin' && (
+        {canManageOffers && (
           <>
             {topCalculationModels.map((modelRequest, index) => {
               const isPrimary = index === 0;
@@ -2832,9 +2873,50 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 2 }}>
                       <span style={{ color: d.type === 'Pflicht' ? theme.gold : `${theme.ink}66`, fontWeight: 600 }}>{d.type}</span>
                       {d.date && <span> · hochgeladen {d.date}</span>}
+                      <span> · V{d.currentVersion || 1}</span>
+                      <span> · {d.scanStatusLabel}</span>
                       {d.missingReason && <span> · {d.missingReason}</span>}
                       {d.storageUrl && <span> · <a href={d.storageUrl} target="_blank" rel="noreferrer" style={{ color: theme.aubergine, fontWeight: 700 }}>Ansehen</a></span>}
                     </div>
+                    {canReviewDocuments && d.storageUrl && !d.id?.startsWith('mock-') && (
+                      <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '130px 150px 1fr auto', gap: 7, alignItems: 'center' }}>
+                        <select
+                          value={documentReviewInputs[d.id]?.status || d.status}
+                          onChange={(event) => updateDocumentReviewInput(d.id, { status: event.target.value })}
+                          style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 8px', fontSize: 11.5, color: theme.ink, background: 'white' }}
+                        >
+                          <option value="pending">eingereicht</option>
+                          <option value="ok">geprüft</option>
+                          <option value="review_required">Prüfung nötig</option>
+                          <option value="missing">fehlt</option>
+                          <option value="rejected">abgelehnt</option>
+                        </select>
+                        <select
+                          value={documentReviewInputs[d.id]?.scanStatus || d.scanStatus || 'pending'}
+                          onChange={(event) => updateDocumentReviewInput(d.id, { scanStatus: event.target.value })}
+                          style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 8px', fontSize: 11.5, color: theme.ink, background: 'white' }}
+                        >
+                          <option value="pending">Scan offen</option>
+                          <option value="clean">Scan ok</option>
+                          <option value="suspicious">auffällig</option>
+                          <option value="failed">Scan fehlgeschlagen</option>
+                        </select>
+                        <input
+                          value={documentReviewInputs[d.id]?.missingReason ?? ''}
+                          onChange={(event) => updateDocumentReviewInput(d.id, { missingReason: event.target.value })}
+                          placeholder="Prüfhinweis / fehlende Angabe"
+                          style={{ minWidth: 0, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 8px', fontSize: 11.5, color: theme.ink, background: 'white' }}
+                        />
+                        <button onClick={() => reviewDocument(d)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '6px 10px', fontSize: 11.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                          Prüfen
+                        </button>
+                      </div>
+                    )}
+                    {d.versions?.length ? (
+                      <div style={{ fontSize: 10.5, color: `${theme.ink}77`, marginTop: 5 }}>
+                        {d.versions.length} gespeicherte Version{d.versions.length === 1 ? '' : 'en'} · letzte Prüfung {d.reviewedAt ? dateLabel(d.reviewedAt) : 'offen'}
+                      </div>
+                    ) : null}
                   </div>
                   {d.storageUrl && !d.id?.startsWith('mock-') && (
                     <button onClick={() => deleteDocument(d)} disabled={Boolean(busyAction)} style={{ background: '#fff7f5', border: '1px solid #efc0b9', color: '#9B2C2C', fontSize: 11.5, fontWeight: 700, padding: '6px 10px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer' }}>
@@ -2944,6 +3026,20 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   const key = `${modelRequest.key}-${index}`;
                   const params = calculationParams[key] || {};
                   const quote = offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
+                  const maintenanceValue = offer ? (params.maintenance || offer.companyMargin || offer.assumptions?.components?.maintenancePledge) : null;
+                  const indicativeMetricRows = offer ? (role === 'admin' ? [
+                    ['Verkehrswert', formatEuro(offer.marketValue)],
+                    ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
+                    ['Instandhaltung', maintenanceValue ? formatEuro(Number(maintenanceValue)) : '-'],
+                    ['Interne Verzinsung', params.interestRate ? `${params.interestRate}%` : 'Standard 5,5%'],
+                    ['Auszahlungsbetrag (Quote)', `${formatEuro(offer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                  ] : [
+                    ['Status', labelFrom(offerStatusLabels, offer.status, offer.status)],
+                    ['Verkehrswert', formatEuro(offer.marketValue)],
+                    ['Angebotssumme', `${formatEuro(offer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                    ['Modell', labelFrom(productModelLabels, offer.model)],
+                    ['Version', `Version ${offer.currentVersion || 1}`],
+                  ]) : [];
                   return (
                     <div key={key} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: theme.mintLighter }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
@@ -2955,16 +3051,16 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               : 'Rückmiete · Miete fällt ab Tag 1 nach Verkauf an'}
                           </div>
                         </div>
-                        {offer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{offer.status}</span> : null}
+                        {offer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{labelFrom(offerStatusLabels, offer.status, offer.status)}</span> : null}
                       </div>
 
-                      {role === 'admin' && (
+                      {canManageOffers && (
                         <button onClick={() => setOpenCalculation(openCalculation === key ? '' : key)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', marginBottom: openCalculation === key ? 12 : 0 }}>
                           Berechnung starten
                         </button>
                       )}
 
-                      {role === 'admin' && openCalculation === key && (
+                      {canManageOffers && openCalculation === key && (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
                           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Kalkulationsparameter</div>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
@@ -2987,21 +3083,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
                       {offer ? (
                         <>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px 16px', marginTop: 12 }}>
-                            {[
-                              ['Verkehrswert', formatEuro(offer.marketValue)],
-                              ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
-                              ['Instandhaltung', params.maintenance ? formatEuro(Number(params.maintenance)) : formatEuro(offer.companyMargin || offer.assumptions?.components?.maintenancePledge)],
-                              ['Interne Verzinsung', params.interestRate ? `${params.interestRate}%` : 'Dummy 5,5%'],
-                              ['Auszahlungsbetrag (Quote)', `${formatEuro(offer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
-                            ].map(([k, v], i) => (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(128px, 1fr))', gap: '12px 16px', marginTop: 12 }}>
+                            {indicativeMetricRows.map(([k, v], i) => (
                               <div key={i}>
                                 <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, marginBottom: 3 }}>{k}</div>
-                                <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: k.includes('Auszahlung') ? 800 : 500 }}>{v}</div>
+                                <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: k.includes('Auszahlung') || k.includes('Angebot') ? 800 : 500 }}>{v}</div>
                               </div>
                             ))}
                           </div>
-                          {role === 'admin' && (
+                          {canManageOffers && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
                               {['indicative_offer_sent', 'offer_accepted'].map((action) => {
                                 const state = workflowActionState(action);
@@ -3023,7 +3113,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     </div>
                   );
                 })}
-                {role === 'admin' && (
+                {canManageOffers && (
                   <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: 'white' }}>
                     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Gutachterbeauftragung</div>
                     <div style={{ fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5, marginBottom: 12 }}>
@@ -3101,9 +3191,25 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               <div style={{ display: 'grid', gap: 12 }}>
                 {requestedOfferModels.map((modelRequest, index) => {
                   const bindingOffer = bindingOffers.find((item) => item.model === modelRequest.model);
+                  const indicativeOffer = indicativeOffers.find((item) => item.model === modelRequest.model);
+                  const deltaMarket = bindingOffer && indicativeOffer ? bindingOffer.marketValue - indicativeOffer.marketValue : undefined;
+                  const deltaPayout = bindingOffer && indicativeOffer ? bindingOffer.payoutAmount - indicativeOffer.payoutAmount : undefined;
                   const key = `binding-${modelRequest.key}-${index}`;
                   const params = calculationParams[key] || {};
                   const quote = bindingOffer?.payoutAmount && bindingOffer?.marketValue ? Math.round((bindingOffer.payoutAmount / bindingOffer.marketValue) * 100) : undefined;
+                  const bindingMetricRows = bindingOffer ? (role === 'admin' ? [
+                    ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
+                    ['Wohnrechtswert', bindingOffer.residentialRightValue ? formatEuro(bindingOffer.residentialRightValue) : '-'],
+                    ['Risikoabschlag', bindingOffer.riskDiscount ? formatEuro(bindingOffer.riskDiscount) : '-'],
+                    ['Marge', bindingOffer.companyMargin ? formatEuro(bindingOffer.companyMargin) : '-'],
+                    ['VA-Auszahlung', `${formatEuro(bindingOffer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                  ] : [
+                    ['Status', labelFrom(offerStatusLabels, bindingOffer.status, bindingOffer.status)],
+                    ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
+                    ['Verbindliche Angebotssumme', `${formatEuro(bindingOffer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                    ['Modell', labelFrom(productModelLabels, bindingOffer.model)],
+                    ['Version', `Version ${bindingOffer.currentVersion || 1}`],
+                  ]) : [];
                   return (
                     <div key={key} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: theme.mintLighter }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
@@ -3113,10 +3219,31 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                             Basis für VA: Gutachtenwert statt erster Schätzung
                           </div>
                         </div>
-                        {bindingOffer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>VA berechnet</span> : null}
+                        {bindingOffer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{labelFrom(offerStatusLabels, bindingOffer.status, bindingOffer.status)}</span> : null}
                       </div>
+                      {bindingOffer && indicativeOffer && (
+                        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>UVA vs. VA</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(128px, 1fr))', gap: '10px 14px' }}>
+                            {[
+                              ['UVA-Marktwert', formatEuro(indicativeOffer.marketValue)],
+                              ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
+                              ['Differenz Wert', `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}`],
+                              ['Differenz Auszahlung', `${deltaPayout >= 0 ? '+' : ''}${formatEuro(deltaPayout)}`],
+                            ].map(([k, v]) => (
+                              <div key={k}>
+                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{k}</div>
+                                <div style={{ fontSize: 13, color: k.includes('Differenz') ? (String(v).startsWith('-') ? '#9B2C2C' : '#5B8C2B') : theme.ink, fontWeight: 800 }}>{v}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 8 }}>
+                            UVA Version {indicativeOffer.currentVersion || 1} · VA Version {bindingOffer.currentVersion || 1} · gespeicherte VA-Snapshots: {offerVersionsCount(bindingOffer)}
+                          </div>
+                        </div>
+                      )}
 
-                      {role === 'admin' && (
+                      {canManageOffers && (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
                             <Field label="Gutachtenwert (€)" required>
@@ -3140,22 +3267,19 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
                       {bindingOffer ? (
                         <>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px 16px' }}>
-                            {[
-                              ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
-                              ['Wohnrechtswert', bindingOffer.residentialRightValue ? formatEuro(bindingOffer.residentialRightValue) : '-'],
-                              ['Risikoabschlag', bindingOffer.riskDiscount ? formatEuro(bindingOffer.riskDiscount) : '-'],
-                              ['Marge', bindingOffer.companyMargin ? formatEuro(bindingOffer.companyMargin) : '-'],
-                              ['VA-Auszahlung', `${formatEuro(bindingOffer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
-                            ].map(([k, v], i) => (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(128px, 1fr))', gap: '12px 16px' }}>
+                            {bindingMetricRows.map(([k, v], i) => (
                               <div key={i}>
                                 <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, marginBottom: 3 }}>{k}</div>
-                                <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: k.includes('Auszahlung') ? 800 : 500 }}>{v}</div>
+                                <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: k.includes('Auszahlung') || k.includes('Angebot') ? 800 : 500 }}>{v}</div>
                               </div>
                             ))}
                           </div>
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}`, fontSize: 12.5, color: `${theme.ink}88`, whiteSpace: 'pre-line' }}>
                             {bindingOffer.aiCustomerText || bindingOffer.bindingOfferText || 'VA-Kalkulation erstellt. Textentwurf noch nicht vorhanden.'}
+                          </div>
+                          <div style={{ marginTop: 10, fontSize: 11.5, color: `${theme.ink}88` }}>
+                            Berechnungsbasis: {bindingOffer.assumptions?.valuationBasis === 'expert_opinion' ? 'Gutachtenwert' : 'Anwendungswert'} · Angebotsversion {bindingOffer.currentVersion || 1}
                           </div>
                         </>
                       ) : (
@@ -3167,7 +3291,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   );
                 })}
               </div>
-              {role === 'admin' && (
+              {canManageOffers && (
                 <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 12 }}>
                   <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Prozessschritte speichern</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
@@ -3210,7 +3334,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
         {/* Right column: Workflow & Activity Log */}
         <div style={{ display: 'grid', gap: 12, height: 'fit-content' }}>
-        {role === 'admin' && (
+        {canManageOffers && (
           <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <Briefcase size={14} style={{ color: theme.aubergine }} />
@@ -4301,7 +4425,7 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
 // =====================================================================
 // SCREEN — LEADS
 // =====================================================================
-const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
+const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
   const [partnerSelection, setPartnerSelection] = useState({});
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [partnerFilter, setPartnerFilter] = useState('ALL');
@@ -4327,7 +4451,9 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
     ].filter(Boolean).join(' ').toLowerCase();
     const matchesSearch = !searchNeedle || haystack.includes(searchNeedle);
     const matchesStatus = statusFilter === 'ALL' || lead.status === statusFilter;
-    const matchesPartner = role !== 'admin' || partnerFilter === 'ALL' || (partnerFilter === 'UNASSIGNED' ? !lead.assignedPartnerId : lead.assignedPartnerId === partnerFilter);
+    const matchesPartner = role !== 'admin' || !canAssignLeads
+      || partnerFilter === 'ALL'
+      || (partnerFilter === 'UNASSIGNED' ? !lead.assignedPartnerId && !lead.assignedAdvisorUserId : partnerFilter.startsWith('advisor:') ? lead.assignedAdvisorUserId === partnerFilter.replace('advisor:', '') : lead.assignedPartnerId === partnerFilter);
     return matchesSearch && matchesStatus && matchesPartner;
   });
   const selectedLead = filteredLeads.find((lead) => lead.id === selectedLeadId) || filteredLeads[0];
@@ -4338,6 +4464,11 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
     converted: visibleLeads.filter((lead) => lead.status === 'CONVERTED').length
   };
   const activePartnerCount = partners.filter((partner) => partner.status === 'active').length;
+  const advisorOptions = staff.filter((member) => ['advisor', 'admin', 'super_admin'].includes(member.internalRole));
+  const assigneeOptions = [
+    ...partners.map((partner) => ({ value: `partner:${partner.id}`, label: `Partner · ${partner.contactName || partner.companyName}` })),
+    ...advisorOptions.map((member) => ({ value: `advisor:${member.id}`, label: `Intern · ${member.name}` })),
+  ];
   const activeStatusFilters = role === 'admin'
     ? ['ALL', 'NEW', 'QUALIFIED', 'ASSIGNED', 'CONTACTED', 'CONVERTED', 'REJECTED']
     : ['ALL', 'ASSIGNED', 'CONTACTED'];
@@ -4346,6 +4477,11 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
   const partnerName = (partnerId) => {
     const partner = partners.find((item) => item.id === partnerId);
     return partner ? `${partner.contactName || partner.companyName}` : 'nicht zugewiesen';
+  };
+  const assigneeName = (lead) => {
+    if (lead.assignedPartnerId) return partnerName(lead.assignedPartnerId);
+    const advisor = staff.find((item) => item.id === lead.assignedAdvisorUserId);
+    return advisor ? `${advisor.name} (intern)` : 'nicht zugewiesen';
   };
 
   return (
@@ -4397,11 +4533,12 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
                 <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
                 <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Lead, Ort, Kontakt suchen" style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: 12.5, color: theme.ink }} />
               </div>
-              {role === 'admin' && (
+              {role === 'admin' && canAssignLeads && (
                 <select value={partnerFilter} onChange={(event) => setPartnerFilter(event.target.value)} style={{ padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: 'white', fontSize: 12 }}>
-                  <option value="ALL">Alle Partner</option>
+                  <option value="ALL">Alle Zuweisungen</option>
                   <option value="UNASSIGNED">Nicht zugewiesen</option>
                   {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
+                  {advisorOptions.map((member) => <option key={member.id} value={`advisor:${member.id}`}>{member.name} (intern)</option>)}
                 </select>
               )}
             </div>
@@ -4443,7 +4580,9 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
               <tbody>
                 {filteredLeads.map((lead) => {
                   const assignedPartner = partners.find((partner) => partner.id === lead.assignedPartnerId);
-                  const selectedPartnerId = partnerSelection[lead.id] || lead.assignedPartnerId || partners[0]?.id || '';
+                  const assignedAdvisor = staff.find((member) => member.id === lead.assignedAdvisorUserId);
+                  const currentAssigneeValue = lead.assignedAdvisorUserId ? `advisor:${lead.assignedAdvisorUserId}` : lead.assignedPartnerId ? `partner:${lead.assignedPartnerId}` : '';
+                  const selectedAssigneeValue = partnerSelection[lead.id] || currentAssigneeValue || assigneeOptions[0]?.value || '';
                   const assignmentLocked = ['CONVERTED', 'REJECTED'].includes(lead.status);
                   const canConvertLead = lead.status === 'CONTACTED';
                   const rowActive = selectedLead?.id === lead.id;
@@ -4468,23 +4607,23 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
                       </td>
                       <td style={{ padding: '12px 16px' }}><LeadStatusBadge status={lead.status} /></td>
                       <td style={{ padding: '12px 16px' }} onClick={(event) => event.stopPropagation()}>
-                        {role === 'admin' ? (
+                        {role === 'admin' && canAssignLeads ? (
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                             <select
-                              value={selectedPartnerId}
+                              value={selectedAssigneeValue}
                               onChange={(event) => setPartnerSelection((current) => ({ ...current, [lead.id]: event.target.value }))}
                               disabled={assignmentLocked}
                               style={{ minWidth: 180, padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: assignmentLocked ? theme.mintLighter : 'white', opacity: assignmentLocked ? 0.65 : 1 }}
                             >
-                              {partners.length === 0 && <option value="">Kein Partner</option>}
-                              {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
+                              {assigneeOptions.length === 0 && <option value="">Keine Zuweisung möglich</option>}
+                              {assigneeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                             </select>
                             <button
-                              onClick={() => onAssign(lead.id, selectedPartnerId)}
-                              disabled={!selectedPartnerId || assignmentLocked}
-                              style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: !selectedPartnerId || assignmentLocked ? 'not-allowed' : 'pointer', opacity: !selectedPartnerId || assignmentLocked ? 0.45 : 1 }}
+                              onClick={() => onAssign(lead.id, selectedAssigneeValue)}
+                              disabled={!selectedAssigneeValue || assignmentLocked}
+                              style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: !selectedAssigneeValue || assignmentLocked ? 'not-allowed' : 'pointer', opacity: !selectedAssigneeValue || assignmentLocked ? 0.45 : 1 }}
                             >
-                              {lead.status === 'CONVERTED' ? 'Umgewandelt' : lead.status === 'REJECTED' ? 'Abgelehnt' : assignedPartner ? 'Neu zuweisen' : 'Zuweisen'}
+                              {lead.status === 'CONVERTED' ? 'Umgewandelt' : lead.status === 'REJECTED' ? 'Abgelehnt' : assignedPartner || assignedAdvisor ? 'Neu zuweisen' : 'Zuweisen'}
                             </button>
                           </div>
                         ) : (
@@ -4527,7 +4666,7 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
                   ['Wertindikation', selectedLead.estimatedPropertyValueRange ? `${selectedLead.estimatedPropertyValueRange} Tsd.` : '-'],
                   ['Jüngster Eigentümer', selectedLead.youngestOwnerAgeRange ? `${selectedLead.youngestOwnerAgeRange} Jahre` : '-'],
                   ['Interesse', productModelLabels[selectedLead.productInterest] || '-'],
-                  ['Partner', partnerName(selectedLead.assignedPartnerId)]
+                  ['Zuweisung', assigneeName(selectedLead)]
                 ].map(([label, value]) => (
                   <div key={label}>
                     <div style={{ color: `${theme.ink}77`, fontSize: 11, fontWeight: 700, marginBottom: 3 }}>{label}</div>
@@ -4540,7 +4679,7 @@ const LeadBoard = ({ role, leads = [], partners = [], onAssign, onConvert, onMar
                 </div>
               </div>
 
-              {role === 'admin' ? (
+              {role === 'admin' && canAssignLeads ? (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
                   <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onUpdateStatus(selectedLead.id, 'QUALIFIED')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Als qualifiziert markieren</button>
                   <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Lead ablehnen</button>
@@ -4630,8 +4769,9 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
       if (nextRole === 'admin') {
         const partnerResponse = await fetch('/api/partners');
         const partnerPayload = await partnerResponse.json();
-        if (!partnerResponse.ok) throw new Error(partnerPayload.error || 'Partner konnten nicht geladen werden');
-        setPartners(partnerPayload.partners || []);
+        if (partnerResponse.ok) {
+          setPartners(partnerPayload.partners || []);
+        }
       }
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Leads konnten nicht geladen werden');
@@ -4740,9 +4880,10 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     setProfileOpen(false);
     setNotice('Profil wurde gespeichert.');
   };
-  const handleAssignLead = async (leadId, partnerId) => {
+  const handleAssignLead = async (leadId, assigneeValue) => {
     try {
-      await postJson(`/api/leads/${leadId}/assign`, { partnerId });
+      const [type, id] = String(assigneeValue || '').split(':');
+      await postJson(`/api/leads/${leadId}/assign`, type === 'advisor' ? { advisorUserId: id } : { partnerId: id });
       setNotice('Lead wurde zugewiesen.');
       await loadLeads(role);
     } catch (err) {
@@ -4854,7 +4995,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} />}
-          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
+          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['admin', 'super_admin'].includes(currentInternalRole)} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}

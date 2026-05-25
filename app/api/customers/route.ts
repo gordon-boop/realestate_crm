@@ -1,4 +1,5 @@
 import { handleApiError, json, requireRole } from "@/lib/api";
+import { isInternalAdmin } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 import { customerCreateSchema } from "@/lib/validation";
 
@@ -6,7 +7,11 @@ export async function GET(): Promise<Response> {
   try {
     const user = requireRole("admin", "partner");
     const customers = await prisma.customer.findMany({
-      where: user.role === "admin" ? undefined : { partnerId: user.partnerId },
+      where: user.role === "partner"
+        ? { partnerId: user.partnerId }
+        : isInternalAdmin(user)
+          ? undefined
+          : { assignedAdvisorUserId: user.id },
       orderBy: { updatedAt: "desc" }
     });
     return json({ customers });
@@ -19,12 +24,14 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const user = requireRole("admin", "partner");
     const body = customerCreateSchema.parse(await request.json());
-    const partnerId = user.role === "admin" ? String(body.partnerId ?? "") : user.partnerId;
-    if (!partnerId) throw new Error("Partner id required");
+    const partnerId = user.role === "partner" ? user.partnerId : body.partnerId;
+    const assignedAdvisorUserId = user.role === "admin" ? (body.assignedAdvisorUserId ?? (!isInternalAdmin(user) ? user.id : undefined)) : undefined;
+    if (!partnerId && !assignedAdvisorUserId) throw new Error("Partner oder Kundenberater required");
 
     const customer = await prisma.customer.create({
       data: {
         partnerId,
+        assignedAdvisorUserId,
         displayName: body.displayName ?? `${body.firstName} ${body.lastName}`,
         title: body.title,
         firstName: body.firstName,

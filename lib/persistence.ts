@@ -1,14 +1,21 @@
 import type { Prisma } from "@prisma/client";
 import { nextPropertyCaseNumber } from "./case-number.ts";
+import { canSeeProperty, isInternalAdmin } from "./access-control.ts";
 import type { CaseView, DesiredModel, Lead, OfferAssumptions, PropertyStatus, User } from "./domain.ts";
 import { prisma } from "./prisma.ts";
 
 const caseInclude = {
   partner: true,
   customer: true,
-  documents: { orderBy: { createdAt: "desc" as const } },
+  documents: {
+    orderBy: { createdAt: "desc" as const },
+    include: { versions: { orderBy: { version: "desc" as const } } }
+  },
   valuations: { orderBy: { createdAt: "desc" as const } },
-  offers: { orderBy: { updatedAt: "desc" as const } },
+  offers: {
+    orderBy: { updatedAt: "desc" as const },
+    include: { versions: { orderBy: { version: "desc" as const } } }
+  },
   activities: { orderBy: { createdAt: "desc" as const } },
   chatMessages: {
     orderBy: { createdAt: "asc" as const },
@@ -35,6 +42,7 @@ function jsonArray(value: unknown): string[] | undefined {
 }
 
 function mapPartner(partner: NonNullable<PrismaCase>["partner"]) {
+  if (!partner) return undefined;
   return {
     ...partner,
     createdAt: iso(partner.createdAt)!,
@@ -82,7 +90,16 @@ function mapProperty(property: NonNullable<PrismaCase>) {
 function mapDocument(document: NonNullable<PrismaCase>["documents"][number]) {
   return {
     ...document,
+    scannedAt: iso(document.scannedAt),
     reviewedAt: iso(document.reviewedAt),
+    versions: document.versions?.map((version) => ({
+      id: version.id,
+      documentId: version.documentId,
+      version: version.version,
+      snapshot: version.snapshotJson as unknown,
+      createdByUserId: version.createdByUserId ?? undefined,
+      createdAt: iso(version.createdAt)!
+    })),
     createdAt: iso(document.createdAt)!
   };
 }
@@ -115,6 +132,14 @@ function mapOffer(offer: NonNullable<PrismaCase>["offers"][number]) {
     sentAt: iso(offer.sentAt),
     validUntil: iso(offer.validUntil),
     pdfUrl: offer.pdfUrl ?? undefined,
+    versions: offer.versions?.map((version) => ({
+      id: version.id,
+      offerId: version.offerId,
+      version: version.version,
+      snapshot: version.snapshotJson as unknown,
+      createdByUserId: version.createdByUserId ?? undefined,
+      createdAt: iso(version.createdAt)!
+    })),
     createdAt: iso(offer.createdAt)!,
     updatedAt: iso(offer.updatedAt)!
   };
@@ -216,7 +241,11 @@ function mapDbUser(user: Awaited<ReturnType<typeof prisma.user.findUnique>>): Us
 
 export async function getDbCases(user: User): Promise<CaseView[]> {
   const cases = await prisma.property.findMany({
-    where: user.role === "admin" ? undefined : { partnerId: user.partnerId },
+    where: user.role === "partner"
+      ? { partnerId: user.partnerId }
+      : isInternalAdmin(user)
+        ? undefined
+        : { assignedAdvisorUserId: user.id },
     include: caseInclude,
     orderBy: { updatedAt: "desc" }
   });
@@ -296,7 +325,11 @@ export async function updateDbPropertyStatus(propertyId: string, status: Propert
 
 export async function getDbLeads(user: User): Promise<Lead[]> {
   const leads = await prisma.lead.findMany({
-    where: user.role === "admin" ? undefined : { assignedPartnerId: user.partnerId },
+    where: user.role === "partner"
+      ? { assignedPartnerId: user.partnerId }
+      : isInternalAdmin(user)
+        ? undefined
+        : { assignedAdvisorUserId: user.id },
     orderBy: { createdAt: "desc" }
   });
   return leads.map(mapLead);
@@ -308,11 +341,12 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
   const lead = await prisma.lead.create({
     data: {
       leadNumber: `LD-2026-${String(count + 1).padStart(3, "0")}`,
-      source: user?.role === "partner" ? "partner" : user?.role === "admin" ? input.source ?? "admin" : "homepage",
-      status: user?.role === "partner" && user.partnerId ? "ASSIGNED" : "NEW",
+      source: user?.role === "partner" ? "partner" : user?.role === "admin" ? (!isInternalAdmin(user) ? "internal" : input.source ?? "admin") : "homepage",
+      status: user?.role === "partner" && user.partnerId ? "ASSIGNED" : user?.role === "admin" && !isInternalAdmin(user) ? "ASSIGNED" : "NEW",
       assignedPartnerId: user?.role === "partner" ? user.partnerId : undefined,
-      assignedByUserId: user?.role === "partner" ? user.id : undefined,
-      assignedAt: user?.role === "partner" ? now : undefined,
+      assignedAdvisorUserId: user?.role === "admin" && !isInternalAdmin(user) ? user.id : undefined,
+      assignedByUserId: user?.role === "partner" || user?.role === "admin" ? user.id : undefined,
+      assignedAt: user?.role === "partner" || (user?.role === "admin" && !isInternalAdmin(user)) ? now : undefined,
       firstName: input.firstName,
       lastName: input.lastName,
       name: input.name,
@@ -330,16 +364,28 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
   return mapLead(lead);
 }
 
-export async function assignDbLead(leadId: string, partnerId: string, userId: string): Promise<Lead> {
-  const partner = await prisma.partner.findFirst({ where: { id: partnerId, status: "active" } });
-  if (!partner) throw new Error("Partner not found");
+export async function assignDbLead(leadId: string, assignment: { partnerId?: string; advisorUserId?: string }, userId: string): Promise<Lead> {
+  if (assignment.partnerId) {
+    const partner = await prisma.partner.findFirst({ where: { id: assignment.partnerId, status: "active" } });
+    if (!partner) throw new Error("Partner not found");
+  }
+  if (assignment.advisorUserId) {
+    const advisor = await prisma.user.findFirst({ where: { id: assignment.advisorUserId, role: "admin", internalRole: { in: ["advisor", "admin", "super_admin"] } } });
+    if (!advisor) throw new Error("Kundenberater not found");
+  }
   const existing = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!existing) throw new Error("Lead not found");
   if (existing.status === "CONVERTED") throw new Error("Converted leads cannot be assigned");
   if (existing.status === "REJECTED") throw new Error("Rejected leads must be reactivated before assignment");
   const lead = await prisma.lead.update({
     where: { id: leadId },
-    data: { status: "ASSIGNED", assignedPartnerId: partnerId, assignedByUserId: userId, assignedAt: new Date() }
+    data: {
+      status: "ASSIGNED",
+      assignedPartnerId: assignment.partnerId ?? null,
+      assignedAdvisorUserId: assignment.advisorUserId ?? null,
+      assignedByUserId: userId,
+      assignedAt: new Date()
+    }
   });
   return mapLead(lead);
 }
@@ -354,7 +400,7 @@ export async function updateDbLeadStatus(leadId: string, status: Lead["status"])
   const lead = await prisma.lead.update({
     where: { id: leadId },
     data: status === "NEW"
-      ? { status, assignedPartnerId: null, assignedByUserId: null, assignedAt: null }
+      ? { status, assignedPartnerId: null, assignedAdvisorUserId: null, assignedByUserId: null, assignedAt: null }
       : { status }
   });
   return mapLead(lead);
@@ -365,12 +411,14 @@ export async function getDbLeadById(leadId: string): Promise<Lead | undefined> {
   return lead ? mapLead(lead) : undefined;
 }
 
-export async function convertDbLeadToCase(leadId: string, partnerId: string, userId: string, source: "admin" | "partner" = "partner"): Promise<CaseView> {
+export async function convertDbLeadToCase(leadId: string, assignment: { partnerId?: string; advisorUserId?: string }, userId: string, source: "admin" | "partner" = "partner"): Promise<CaseView> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) throw new Error("Lead not found");
   if (lead.status === "CONVERTED") throw new Error("Lead already converted");
   if (lead.status === "REJECTED") throw new Error("Rejected leads cannot be converted");
-  if (lead.assignedPartnerId !== partnerId) throw new Error("Forbidden");
+  if (assignment.partnerId && lead.assignedPartnerId !== assignment.partnerId) throw new Error("Forbidden");
+  if (assignment.advisorUserId && lead.assignedAdvisorUserId !== assignment.advisorUserId) throw new Error("Forbidden");
+  if (!assignment.partnerId && !assignment.advisorUserId) throw new Error("Assignment required");
 
   const displayName = [lead.firstName, lead.lastName].filter(Boolean).join(" ").trim() || lead.name || "Lead ohne Namen";
   const parts = displayName.split(/\s+/);
@@ -382,7 +430,8 @@ export async function convertDbLeadToCase(leadId: string, partnerId: string, use
   const result = await prisma.$transaction(async (tx) => {
     const customer = await tx.customer.create({
       data: {
-        partnerId,
+        partnerId: assignment.partnerId,
+        assignedAdvisorUserId: assignment.advisorUserId,
         displayName,
         firstName,
         lastName,
@@ -399,7 +448,8 @@ export async function convertDbLeadToCase(leadId: string, partnerId: string, use
         caseNumber,
         objectTitle: `${propertyTypeToTitle(String(lead.propertyType || ""))} ${lead.city || "Ort offen"}`,
         customerId: customer.id,
-        partnerId,
+        partnerId: assignment.partnerId,
+        assignedAdvisorUserId: assignment.advisorUserId,
         propertyType: (lead.propertyType || "single_family") as never,
         street: "Noch offen",
         postalCode: lead.postalCode || "00000",
@@ -493,6 +543,7 @@ function mapLead(lead: Awaited<ReturnType<typeof prisma.lead.findFirst>>): Lead 
     source: lead.source,
     status: lead.status,
     assignedPartnerId: lead.assignedPartnerId ?? undefined,
+    assignedAdvisorUserId: lead.assignedAdvisorUserId ?? undefined,
     assignedByUserId: lead.assignedByUserId ?? undefined,
     assignedAt: iso(lead.assignedAt),
     convertedCustomerId: lead.convertedCustomerId ?? undefined,

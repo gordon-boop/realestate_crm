@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canMutateProperty, canSeeProperty } from "../lib/access-control.ts";
+import { canCalculateOffer, canMutateProperty, canSeeProperty } from "../lib/access-control.ts";
 import type { Property, User } from "../lib/domain.ts";
 
 const partnerUser: User = {
@@ -14,7 +14,9 @@ const partnerUser: User = {
   updatedAt: "2026-05-13T00:00:00.000Z"
 };
 
-const adminUser: User = { ...partnerUser, id: "user_admin", role: "admin", partnerId: undefined };
+const adminUser: User = { ...partnerUser, id: "user_admin", role: "admin", partnerId: undefined, internalRole: "super_admin" };
+const advisorUser: User = { ...partnerUser, id: "user_advisor", role: "admin", partnerId: undefined, internalRole: "advisor" };
+const employeeUser: User = { ...partnerUser, id: "user_employee", role: "admin", partnerId: undefined, internalRole: "employee" };
 
 const property: Property = {
   id: "property_a",
@@ -45,4 +47,12 @@ test("partner cannot see foreign property", () => {
 test("admin can see every property and partner cannot mutate approved property", () => {
   assert.equal(canSeeProperty(adminUser, { ...property, partnerId: "partner_b" }), true);
   assert.equal(canMutateProperty(partnerUser, { ...property, status: "APPROVED" }), false);
+});
+
+test("internal advisor can calculate own assigned cases only", () => {
+  const assignedProperty = { ...property, partnerId: undefined, assignedAdvisorUserId: advisorUser.id };
+  assert.equal(canSeeProperty(advisorUser, assignedProperty), true);
+  assert.equal(canCalculateOffer(advisorUser, assignedProperty), true);
+  assert.equal(canSeeProperty(advisorUser, { ...assignedProperty, assignedAdvisorUserId: "other_user" }), false);
+  assert.equal(canCalculateOffer(employeeUser, { ...assignedProperty, assignedAdvisorUserId: employeeUser.id }), false);
 });

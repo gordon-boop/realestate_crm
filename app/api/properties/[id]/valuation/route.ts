@@ -1,4 +1,4 @@
-import { canSeeProperty } from "@/lib/access-control";
+import { canCalculateOffer, canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import type { ValuationProvider } from "@/lib/domain";
 import { addDbActivity, getDbCaseByPropertyId, toPrismaJson, updateDbPropertyStatus } from "@/lib/persistence";
@@ -7,10 +7,10 @@ import { createMockValuation } from "@/lib/valuation-service";
 
 export async function GET(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
-    const user = requireRole("admin", "partner");
+    const user = requireRole("admin");
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
-    if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
+    if (!canCalculateOffer(user, caseView.property)) throw new Error("Forbidden");
     return json({ valuation: caseView.valuation ?? null });
   } catch (err) {
     return handleApiError(err);

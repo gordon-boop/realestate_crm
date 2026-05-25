@@ -1,7 +1,8 @@
 import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { addDbActivity, getDbCaseByPropertyId } from "@/lib/persistence";
+import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
+import { documentReviewSchema } from "@/lib/validation";
 import { unlink } from "node:fs/promises";
 import { basename, join } from "node:path";
 
@@ -13,27 +14,45 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
+    if (user.role !== "admin") throw new Error("Internal document review required");
 
     const current = await prisma.document.findFirst({ where: { id: params.documentId, propertyId: params.id } });
     if (!current) throw new Error("Document not found");
 
-    const body = await request.json().catch(() => ({}));
-    const document = await prisma.document.update({
-      where: { id: params.documentId },
-      data: {
-        status: body.status ? String(body.status) as never : undefined,
-        requirementLevel: body.requirementLevel ? String(body.requirementLevel) as never : undefined,
-        missingReason: body.missingReason !== undefined ? body.missingReason ? String(body.missingReason) : null : undefined,
-        reviewedByUserId: user.role === "admin" ? user.id : undefined,
-        reviewedAt: user.role === "admin" ? new Date() : undefined
-      }
+    const body = documentReviewSchema.parse(await request.json().catch(() => ({})));
+    const document = await prisma.$transaction(async (tx) => {
+      const updated = await tx.document.update({
+        where: { id: params.documentId },
+        data: {
+          currentVersion: { increment: 1 },
+          status: body.status as never,
+          requirementLevel: body.requirementLevel as never,
+          missingReason: body.missingReason !== undefined ? body.missingReason || null : undefined,
+          scanStatus: body.scanStatus as never,
+          scanNote: body.scanNote !== undefined ? body.scanNote || null : undefined,
+          scannedAt: body.scanStatus && body.scanStatus !== current.scanStatus ? new Date() : undefined,
+          reviewedByUserId: user.id,
+          reviewedAt: new Date(),
+        },
+      });
+
+      await tx.documentVersion.create({
+        data: {
+          documentId: updated.id,
+          version: updated.currentVersion,
+          snapshotJson: toJsonSnapshot(updated),
+          createdByUserId: user.id,
+        },
+      });
+
+      return updated;
     });
 
     await addDbActivity(params.id, user.id, "document_status_changed", `Dokumentstatus für ${document.displayName ?? document.fileName} wurde aktualisiert.`, {
       source: user.role,
       entityType: "document",
       entityId: document.id,
-      metadata: { status: document.status, requirementLevel: document.requirementLevel }
+      metadata: { status: document.status, requirementLevel: document.requirementLevel, scanStatus: document.scanStatus, version: document.currentVersion },
     });
 
     return json({ document });
@@ -58,7 +77,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
       source: user.role,
       entityType: "document",
       entityId: document.id,
-      metadata: { fileName: document.fileName, category: document.category, status: document.status }
+      metadata: { fileName: document.fileName, category: document.category, status: document.status, version: document.currentVersion },
     });
 
     return json({ deleted: true, documentId: document.id });

@@ -1,6 +1,6 @@
 import { canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { addDbActivity, getDbCaseByPropertyId } from "@/lib/persistence";
+import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { documentCreateSchema } from "@/lib/validation";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -27,26 +27,39 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
     const body = documentCreateSchema.parse(await readDocumentBody(request));
-    const document = await prisma.document.create({
-      data: {
-        propertyId: params.id,
-        customerId: caseView.customer.id,
-        uploadedByUserId: user.id,
-        fileName: body.fileName,
-        displayName: body.displayName ?? body.fileName,
-        fileType: body.fileType,
-        storageUrl: body.storageUrl ?? `/mock-storage/${body.fileName}`,
-        category: body.category as never,
-        requirementLevel: body.requirementLevel as never,
-        status: body.status as never,
-        missingReason: body.missingReason
-      }
+    const document = await prisma.$transaction(async (tx) => {
+      const created = await tx.document.create({
+        data: {
+          propertyId: params.id,
+          customerId: caseView.customer.id,
+          uploadedByUserId: user.id,
+          fileName: body.fileName,
+          displayName: body.displayName ?? body.fileName,
+          fileType: body.fileType,
+          storageUrl: body.storageUrl ?? `/mock-storage/${body.fileName}`,
+          category: body.category as never,
+          requirementLevel: body.requirementLevel as never,
+          status: body.status as never,
+          scanStatus: body.scanStatus as never,
+          scanNote: body.scanNote ?? "Virenscan im MVP vorgemerkt. Produktiv an Scan-Service anbinden.",
+          missingReason: body.missingReason
+        }
+      });
+      await tx.documentVersion.create({
+        data: {
+          documentId: created.id,
+          version: created.currentVersion,
+          snapshotJson: toJsonSnapshot(created),
+          createdByUserId: user.id
+        }
+      });
+      return created;
     });
     await addDbActivity(params.id, user.id, `document_uploaded`, `Dokument ${document.fileName} wurde vermerkt.`, {
       source: user.role,
       entityType: "document",
       entityId: document.id,
-      metadata: { status: document.status, requirementLevel: document.requirementLevel }
+      metadata: { status: document.status, requirementLevel: document.requirementLevel, scanStatus: document.scanStatus, version: document.currentVersion }
     });
     return json({ document }, { status: 201 });
   } catch (err) {
@@ -83,6 +96,8 @@ async function readDocumentBody(request: Request) {
     category: stringFromForm(form, "category") || "other",
     requirementLevel: stringFromForm(form, "requirementLevel") || "optional",
     status: stringFromForm(form, "status") || "pending",
+    scanStatus: stringFromForm(form, "scanStatus") || "pending",
+    scanNote: stringFromForm(form, "scanNote"),
     missingReason: stringFromForm(form, "missingReason")
   };
 }

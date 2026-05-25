@@ -29,7 +29,7 @@ export function CaseTable({ cases, basePath }: { cases: CaseView[]; basePath: "/
                 <strong>{item.property.objectTitle ?? `${item.property.street}, ${item.property.city}`}</strong>
                 <div className="muted">{item.property.livingAreaSqm} qm Wfl | {item.property.propertyType} | {item.property.lastActivityLabel ?? `${item.property.desiredResidentialRightYears ?? "-"} Jahre`}</div>
               </td>
-              <td>{item.partner.companyName}</td>
+              <td>{item.partner?.companyName ?? "Intern"}</td>
               <td><StatusBadge status={item.property.status} /></td>
               <td><Money value={item.valuation?.marketValue} /></td>
               <td><Money value={item.offer?.payoutAmount} /></td>
