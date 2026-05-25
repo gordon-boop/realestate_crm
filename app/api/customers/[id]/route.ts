@@ -19,10 +19,16 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 export async function PATCH(request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
     const user = requireRole("admin", "partner");
-    const customer = await prisma.customer.findUnique({ where: { id: params.id } });
+    const customer = await prisma.customer.findUnique({
+      where: { id: params.id },
+      include: { properties: { select: { status: true } } }
+    });
     if (!customer) throw new Error("Customer not found");
     if (user.role === "partner" && customer.partnerId !== user.partnerId) throw new Error("Forbidden");
     if (user.role === "admin" && !isInternalAdmin(user) && customer.assignedAdvisorUserId !== user.id) throw new Error("Forbidden");
+    if (user.role === "partner" && customer.properties.some((property) => property.status !== "DRAFT")) {
+      throw new Error("Submitted cases cannot be edited by partners");
+    }
     const body = customerCreateSchema.partial().parse(await request.json());
     const updated = await prisma.customer.update({
       where: { id: params.id },

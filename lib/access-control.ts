@@ -23,22 +23,7 @@ export function canMutateProperty(user: User, property: Property): boolean {
     return true;
   }
 
-  return Boolean(property.partnerId && property.partnerId === user.partnerId) && ![
-    "APPROVED",
-    "SENT",
-    "OFFER_ACCEPTED",
-    "EXPERT_OPINION_ORDERED",
-    "EXPERT_OPINION_RECEIVED",
-    "BINDING_OFFER_SENT",
-    "BINDING_OFFER_ACCEPTED",
-    "PURCHASE_STARTED",
-    "NOTARY_APPOINTMENT",
-    "PURCHASED",
-    "IN_PORTFOLIO",
-    "WON",
-    "SOLD",
-    "LOST"
-  ].includes(property.status);
+  return Boolean(property.partnerId && property.partnerId === user.partnerId) && property.status === "DRAFT";
 }
 
 export function filterVisibleCases(user: User, cases: CaseView[]): CaseView[] {
@@ -51,6 +36,10 @@ export function canCalculateOffer(user: User, property: Property): boolean {
 
 export function canAdvanceAcquisition(user: User, property: Property): boolean {
   return canCalculateOffer(user, property);
+}
+
+export function canAcceptCustomerOffer(user: User, property: Property): boolean {
+  return Boolean(user.role === "partner" && property.partnerId && property.partnerId === user.partnerId);
 }
 
 export function assertAdmin(user: User): void {

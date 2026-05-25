@@ -87,6 +87,21 @@ test("property validation treats empty optional offer enums as absent", () => {
   assert.equal(parsed.additionalOfferResidentialRightRecipients, undefined);
 });
 
+test("property validation requires modernization year when modernization is selected", () => {
+  assert.throws(() => propertyCreateSchema.parse({
+    customerId: "customer_schmidt",
+    propertyType: "single_family",
+    street: "Hauptstraße 14",
+    postalCode: "70563",
+    city: "Stuttgart",
+    livingAreaSqm: 142,
+    plotAreaSqm: 380,
+    condition: "average",
+    desiredModel: "fixed_residential_right",
+    modernization: { roof: { scope: "partial" } }
+  }), /Jahr ist erforderlich/);
+});
+
 test("case intake dto covers modernization, document status and technical property fields", () => {
   const draft: CaseIntakeDraftDto = {
     currentStep: "documents",

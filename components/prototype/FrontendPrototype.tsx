@@ -1230,6 +1230,12 @@ const validationFieldLabels = {
   buildingConditionWindows: 'Modernisierungen: Bauteilzustand Fenster',
   buildingConditionElectric: 'Modernisierungen: Bauteilzustand Elektrik',
   buildingConditionOutdoor: 'Modernisierungen: Bauteilzustand Außenanlage',
+  modernizationYearHeating: 'Modernisierungen: Jahr Heizung',
+  modernizationYearRoof: 'Modernisierungen: Jahr Dach',
+  modernizationYearFacade: 'Modernisierungen: Jahr Fassade',
+  modernizationYearWindows: 'Modernisierungen: Jahr Fenster',
+  modernizationYearLines: 'Modernisierungen: Jahr Leitungen',
+  modernizationYearBathrooms: 'Modernisierungen: Jahr Bäder',
   'document:land_register_or_power': 'Dokumente: Grundbuchauszug',
   'document:photos': 'Dokumente: Aussagekräftige Objektfotos',
   'document:floorplan': 'Dokumente: Bemaßter Grundriss',
@@ -1309,7 +1315,6 @@ function validateCaseStep(step, draft) {
     add('yearBuilt', hasValue(draft.yearBuilt));
     add('livingAreaSqm', hasValue(draft.livingAreaSqm));
     add('plotAreaSqm', hasValue(draft.plotAreaSqm));
-    add('usableAreaSqm', hasValue(draft.usableAreaSqm));
     add('visualConditionRating', hasValue(draft.visualConditionRating));
     if (draft.propertyType === 'apartment') add('coOwnershipShares', hasValue(draft.coOwnershipShares));
     add('heatingType', hasValue(draft.heatingType));
@@ -1336,6 +1341,12 @@ function validateCaseStep(step, draft) {
   }
 
   if (step === 4) {
+    modernizationFields.forEach(([key]) => {
+      const modernization = draft.modernization?.[key];
+      if (modernization?.scope && modernization.scope !== 'none') {
+        add(`modernizationYear${key.charAt(0).toUpperCase()}${key.slice(1)}`, hasValue(modernization.year));
+      }
+    });
     add('buildingConditionRoof', hasValue(draft.buildingCondition?.roof));
     add('buildingConditionFacade', hasValue(draft.buildingCondition?.facade));
     add('buildingConditionMasonry', hasValue(draft.buildingCondition?.masonry));
@@ -2194,6 +2205,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [expertOpinionReceivedDate, setExpertOpinionReceivedDate] = useState('');
   const [expertOpinionCompany, setExpertOpinionCompany] = useState('');
   const [notaryAppointmentDate, setNotaryAppointmentDate] = useState('');
+  const [notaryOffice, setNotaryOffice] = useState('');
   const [expertOpinionValue, setExpertOpinionValue] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatVisibility, setChatVisibility] = useState('shared');
@@ -2204,6 +2216,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const canRejectCase = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
   const canManageOffers = role === 'admin' && ['advisor', 'admin', 'super_admin'].includes(internalRole);
   const canReviewDocuments = canManageOffers;
+  const canEditCaseData = role === 'admin' || property?.status === 'DRAFT';
+  const canDeleteDocuments = role === 'admin' || property?.status === 'DRAFT';
 
   useEffect(() => {
     setActiveTab(initialTab || 'kunde');
@@ -2486,12 +2500,16 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     if (step.needsDate && !notaryAppointmentDate && !property?.notaryAppointmentAt) {
       throw new Error('Bitte zuerst den Notartermin eintragen.');
     }
+    if (step.needsDate && !notaryOffice.trim() && !property?.notaryOffice) {
+      throw new Error('Bitte Notar oder Notariat eintragen.');
+    }
     await postJson(`/api/properties/${c.propertyId}/workflow`, {
       action: step.action,
       expertOpinionOrderedAt: step.action === 'expert_opinion_ordered' ? (expertOpinionOrderedDate || property?.expertOpinionOrderedAt) : undefined,
       expertOpinionReceivedAt: step.action === 'expert_opinion_received' ? (expertOpinionReceivedDate || property?.expertOpinionReceivedAt) : undefined,
       expertOpinionCompany: step.action === 'expert_opinion_ordered' ? (expertOpinionCompany.trim() || property?.expertOpinionCompany) : undefined,
-      notaryAppointmentAt: step.needsDate ? (notaryAppointmentDate || property?.notaryAppointmentAt) : undefined
+      notaryAppointmentAt: step.needsDate ? (notaryAppointmentDate || property?.notaryAppointmentAt) : undefined,
+      notaryOffice: step.needsDate ? (notaryOffice.trim() || property?.notaryOffice) : undefined
     });
   });
   const workflowAction = (action) => acquisitionSteps.find((step) => step.action === action);
@@ -2509,7 +2527,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     if (index < 0 || !step) return { step: null, reached: false, nextAllowed: false, disabled: true };
     const reached = acquisitionStatusIndex >= index || Boolean(step.date);
     const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
-    const needsDateBeforeAction = step.needsDate && nextAllowed && !notaryAppointmentDate && !property?.notaryAppointmentAt;
+    const needsDateBeforeAction = step.needsDate && nextAllowed && (!notaryAppointmentDate && !property?.notaryAppointmentAt || !notaryOffice.trim() && !property?.notaryOffice);
     const missingBindingOffer = action === 'binding_offer_sent' && !hasBindingOffer;
     return {
       step,
@@ -2617,7 +2635,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 4 }}>{c.kunde} <span style={{ color: `${theme.ink}77`, fontSize: 14 }}>· {c.alter} Jahre</span></div>
           <div style={{ fontSize: 12, color: `${theme.ink}aa`, marginTop: 2 }}>{c.adresse} · {c.flaeche} m² Wohnfläche{c.grundstueck ? ` · ${c.grundstueck} m² Grundstück` : ''}</div>
         </div>
-        <button onClick={() => onEdit?.(c.propertyId || c.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
+        {canEditCaseData && (
+          <button onClick={() => onEdit?.(c.propertyId || c.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
+        )}
         {canManageOffers && (
           <>
             {topCalculationModels.map((modelRequest, index) => {
@@ -2918,7 +2938,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       </div>
                     ) : null}
                   </div>
-                  {d.storageUrl && !d.id?.startsWith('mock-') && (
+                  {d.storageUrl && !d.id?.startsWith('mock-') && canDeleteDocuments && (
                     <button onClick={() => deleteDocument(d)} disabled={Boolean(busyAction)} style={{ background: '#fff7f5', border: '1px solid #efc0b9', color: '#9B2C2C', fontSize: 11.5, fontWeight: 700, padding: '6px 10px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer' }}>
                       {busyAction === 'Dokument löschen' ? 'Löscht...' : 'Löschen'}
                     </button>
@@ -3104,6 +3124,17 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               })}
                             </div>
                           )}
+                          {role === 'partner' && (
+                            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
+                              <button onClick={() => runWorkflowAction('offer_accepted')} disabled={workflowActionState('offer_accepted').disabled} style={workflowButtonStyle(workflowActionState('offer_accepted'))}>
+                                {workflowActionState('offer_accepted').reached ? <CheckCircle size={13} /> : null}
+                                UVA angenommen
+                              </button>
+                              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 6 }}>
+                                Sobald du die Annahme bestätigst, wird der Fall intern weiterbearbeitet und das Gutachten kann beauftragt werden.
+                              </div>
+                            </div>
+                          )}
                         </>
                       ) : (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', fontSize: 12.5, color: `${theme.ink}88`, marginTop: 12 }}>
@@ -3245,7 +3276,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
                       {canManageOffers && (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
                             <Field label="Gutachtenwert (€)" required>
                               <Input type="number" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(event.target.value)} placeholder="z.B. 520000" />
                             </Field>
@@ -3254,9 +3285,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                             </Field>
                             <Field label="Interne Verzinsung (%)">
                               <Input type="number" value={params.interestRate || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, interestRate: event.target.value } })} />
-                            </Field>
-                            <Field label="Auszahlungsquote Rückmiete (%)">
-                              <Input type="number" value={params.saleAndLeasebackPayoutRate || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, saleAndLeasebackPayoutRate: event.target.value } })} />
                             </Field>
                           </div>
                           <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction) || !canPrepareBindingOffer} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : canPrepareBindingOffer ? 'pointer' : 'default', opacity: busyAction || !canPrepareBindingOffer ? 0.55 : 1 }}>
@@ -3281,6 +3309,17 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           <div style={{ marginTop: 10, fontSize: 11.5, color: `${theme.ink}88` }}>
                             Berechnungsbasis: {bindingOffer.assumptions?.valuationBasis === 'expert_opinion' ? 'Gutachtenwert' : 'Anwendungswert'} · Angebotsversion {bindingOffer.currentVersion || 1}
                           </div>
+                          {role === 'partner' && (
+                            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
+                              <button onClick={() => runWorkflowAction('binding_offer_accepted')} disabled={workflowActionState('binding_offer_accepted').disabled} style={workflowButtonStyle(workflowActionState('binding_offer_accepted'))}>
+                                {workflowActionState('binding_offer_accepted').reached ? <CheckCircle size={13} /> : null}
+                                VA angenommen
+                              </button>
+                              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 6 }}>
+                                Nach der Annahme kann intern der Notartermin vorbereitet und vereinbart werden.
+                              </div>
+                            </div>
+                          )}
                         </>
                       ) : (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', fontSize: 12.5, color: `${theme.ink}88` }}>
@@ -3306,13 +3345,22 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     })}
                   </div>
                   {(workflowActionState('notary_appointment_ordered').nextAllowed || workflowActionState('notary_appointment_ordered').reached || workflowActionState('contract_signed').nextAllowed) && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 240px) auto auto', gap: 9, alignItems: 'center' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 230px) minmax(190px, 270px) auto auto', gap: 9, alignItems: 'center' }}>
                       <input
                         type="datetime-local"
-                        value={notaryAppointmentDate}
+                        value={notaryAppointmentDate || (property?.notaryAppointmentAt ? property.notaryAppointmentAt.slice(0, 16) : '')}
                         onChange={(event) => setNotaryAppointmentDate(event.target.value)}
                         disabled={workflowActionState('notary_appointment_ordered').reached}
                         title="Notartermin"
+                        style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                      <input
+                        type="text"
+                        value={notaryOffice || property?.notaryOffice || ''}
+                        onChange={(event) => setNotaryOffice(event.target.value)}
+                        disabled={workflowActionState('notary_appointment_ordered').reached}
+                        placeholder="Notar / Notariat"
+                        title="Notar oder Notariat"
                         style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
                       />
                       {['notary_appointment_ordered', 'contract_signed'].map((action) => {
@@ -3344,7 +3392,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               {acquisitionSteps.map((step, index) => {
                 const reached = acquisitionStatusIndex >= index || Boolean(step.date);
                 const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
-                const needsDateBeforeAction = step.needsDate && nextAllowed && !notaryAppointmentDate && !property?.notaryAppointmentAt;
+                const needsDateBeforeAction = step.needsDate && nextAllowed && ((!notaryAppointmentDate && !property?.notaryAppointmentAt) || (!notaryOffice.trim() && !property?.notaryOffice));
                 const missingBindingOffer = step.action === 'binding_offer_sent' && !hasBindingOffer;
                 const waitingForVaAcceptance = step.action === 'notary_appointment_ordered' && workflowStatus !== 'BINDING_OFFER_ACCEPTED' && !reached;
                 const disabled = Boolean(busyAction) || reached || !nextAllowed || !step.action || needsDateBeforeAction || missingBindingOffer;
@@ -3370,7 +3418,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       {reached ? <CheckCircle size={14} /> : <ChevronRight size={14} />}
                     </button>
                     {step.needsDate && reached && property?.notaryAppointmentAt && (
-                      <div style={{ fontSize: 11, color: `${theme.ink}88`, paddingLeft: 2 }}>Termin: {dateLabel(property.notaryAppointmentAt)}</div>
+                      <div style={{ fontSize: 11, color: `${theme.ink}88`, paddingLeft: 2 }}>
+                        Termin: {dateLabel(property.notaryAppointmentAt)}{property.notaryOffice ? ` · ${property.notaryOffice}` : ''}
+                      </div>
                     )}
                     {waitingForVaAcceptance && (
                       <div style={{ fontSize: 11, color: `${theme.ink}88`, paddingLeft: 2 }}>
@@ -3379,7 +3429,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     )}
                     {step.action === 'notary_appointment_ordered' && nextAllowed && needsDateBeforeAction && (
                       <div style={{ fontSize: 11, color: theme.aubergine, fontWeight: 700, paddingLeft: 2 }}>
-                        Termin im Tab „Verbindliches Angebot“ eintragen.
+                        Termin und Notar im Tab „Verbindliches Angebot“ eintragen.
                       </div>
                     )}
                   </div>
@@ -4036,7 +4086,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
 
     <div style={{ display: 'grid', gridTemplateColumns: draft.propertyType === 'apartment' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Grundstück (m²)" required invalid={errors.includes('plotAreaSqm')}><Input type="number" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
-      <Field label="Nutzfläche (m²)" required invalid={errors.includes('usableAreaSqm')}><Input type="number" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
+      <Field label="Nutzfläche (m²)" invalid={errors.includes('usableAreaSqm')}><Input type="number" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
       {draft.propertyType === 'apartment' && (
         <Field label="Miteigentumsanteile" required hint="Nur bei Eigentumswohnungen" invalid={errors.includes('coOwnershipShares')}><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
       )}
@@ -4293,7 +4343,7 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
                 <option value="complete">vollständig</option>
               </Select>
             </Field>
-            <Field label="Jahr">
+            <Field label="Jahr" required={draft.modernization?.[key]?.scope && draft.modernization[key].scope !== 'none'} invalid={errors.includes(`modernizationYear${key.charAt(0).toUpperCase()}${key.slice(1)}`)}>
               <Input value={draft.modernization?.[key]?.year || ''} onChange={(event) => setModernization(key, { year: event.target.value })} placeholder="z.B. 2018" />
             </Field>
             <Field label="Hinweis">

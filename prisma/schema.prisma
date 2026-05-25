@@ -440,6 +440,7 @@ model Property {
   offerAcceptedAt              DateTime?         @map("offer_accepted_at")
   purchaseStartedAt            DateTime?         @map("purchase_started_at")
   notaryAppointmentAt          DateTime?         @map("notary_appointment_at")
+  notaryOffice                 String?           @map("notary_office")
   purchasedAt                  DateTime?         @map("purchased_at")
   portfolioEnteredAt           DateTime?         @map("portfolio_entered_at")
   lastActivityLabel            String?           @map("last_activity_label")

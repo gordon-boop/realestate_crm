@@ -35,9 +35,10 @@ const property: Property = {
   updatedAt: "2026-05-13T00:00:00.000Z"
 };
 
-test("partner can see and mutate own open property", () => {
+test("partner can see and mutate own draft property only", () => {
   assert.equal(canSeeProperty(partnerUser, property), true);
   assert.equal(canMutateProperty(partnerUser, property), true);
+  assert.equal(canMutateProperty(partnerUser, { ...property, status: "SUBMITTED" }), false);
 });
 
 test("partner cannot see foreign property", () => {

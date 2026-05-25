@@ -495,7 +495,7 @@ export function advanceAcquisitionWorkflow(
   propertyId: string,
   action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted" | "notary_appointment_ordered" | "contract_signed" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
   userId: string,
-  options: { expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; notaryAppointmentAt?: string } = {}
+  options: { expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; notaryAppointmentAt?: string; notaryOffice?: string } = {}
 ): Property {
   const property = properties.find((item) => item.id === propertyId);
   if (!property) {
@@ -507,6 +507,7 @@ export function advanceAcquisitionWorkflow(
   const expertReceivedAt = options.expertOpinionReceivedAt || now;
   const notaryAt = options.notaryAppointmentAt || now;
   const expertCompany = options.expertOpinionCompany?.trim();
+  const notaryOffice = options.notaryOffice?.trim();
   const config = {
     indicative_offer_sent: {
       status: "INDICATIVE_OFFER_SENT" as const,
@@ -546,9 +547,9 @@ export function advanceAcquisitionWorkflow(
     },
     notary_appointment_ordered: {
       status: "NOTARY_APPOINTMENT" as const,
-      data: { notaryAppointmentAt: notaryAt },
+      data: { notaryAppointmentAt: notaryAt, notaryOffice },
       type: "notary_appointment_ordered",
-      message: "Notartermin wurde vereinbart."
+      message: `Notartermin wurde vereinbart${notaryOffice ? `: ${notaryOffice}` : "."}`
     },
     contract_signed: {
       status: "IN_PORTFOLIO" as const,

@@ -19,6 +19,7 @@ type WorkflowPropertyLike = {
   bindingOfferSentAt?: string | Date | null;
   bindingOfferAcceptedAt?: string | Date | null;
   notaryAppointmentAt?: string | Date | null;
+  notaryOffice?: string | null;
   portfolioEnteredAt?: string | Date | null;
 };
 
@@ -28,6 +29,7 @@ type WorkflowOptions = {
   expertOpinionReceivedAt?: string;
   expertOpinionCompany?: string;
   notaryAppointmentAt?: string;
+  notaryOffice?: string;
 };
 
 const workflowSteps = [
@@ -111,7 +113,8 @@ export function validateAcquisitionTransition(
   if (action === "binding_offer_sent" && !options.hasBindingOffer) {
     throw new Error("Binding offer calculation required before sending binding offer");
   }
-  if (action === "notary_appointment_ordered" && !options.notaryAppointmentAt?.trim()) {
-    throw new Error("Notary appointment date required");
+  if (action === "notary_appointment_ordered") {
+    if (!options.notaryAppointmentAt?.trim()) throw new Error("Notary appointment date required");
+    if (!options.notaryOffice?.trim()) throw new Error("Notary office required");
   }
 }

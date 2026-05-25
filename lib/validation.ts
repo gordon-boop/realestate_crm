@@ -34,7 +34,7 @@ export const customerCreateSchema = z.object({
   consentDataProcessing: z.coerce.boolean()
 });
 
-export const propertyCreateSchema = z.object({
+const propertyBaseSchema = z.object({
   customerId: z.string().trim().min(1, "Kunde ist erforderlich"),
   caseNumber: optionalString,
   objectTitle: optionalString,
@@ -94,6 +94,29 @@ export const propertyCreateSchema = z.object({
   generalPropertyNotes: optionalString,
   notes: optionalString
 });
+
+function requireModernizationYears(
+  value: { modernization?: Record<string, unknown> },
+  ctx: z.RefinementCtx
+) {
+  if (!value.modernization) return;
+  for (const [key, raw] of Object.entries(value.modernization)) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as { scope?: unknown; year?: unknown };
+    const scope = typeof item.scope === "string" ? item.scope : undefined;
+    const year = item.year === undefined || item.year === null ? "" : String(item.year).trim();
+    if (scope && scope !== "none" && !year) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["modernization", key, "year"],
+        message: "Jahr ist erforderlich, wenn eine Modernisierung ausgewählt wurde"
+      });
+    }
+  }
+}
+
+export const propertyCreateSchema = propertyBaseSchema.superRefine(requireModernizationYears);
+export const propertyUpdateSchema = propertyBaseSchema.partial().superRefine(requireModernizationYears);
 
 export const documentCreateSchema = z.object({
   fileName: z.string().trim().min(1).default("upload-placeholder.pdf"),
@@ -209,7 +232,8 @@ export const acquisitionWorkflowSchema = z.object({
   expertOpinionOrderedAt: optionalString,
   expertOpinionReceivedAt: optionalString,
   expertOpinionCompany: optionalString,
-  notaryAppointmentAt: optionalString
+  notaryAppointmentAt: optionalString,
+  notaryOffice: optionalString
 });
 
 export const propertyRejectSchema = z.object({

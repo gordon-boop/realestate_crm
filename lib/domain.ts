@@ -216,6 +216,7 @@ export type Property = {
   offerAcceptedAt?: string;
   purchaseStartedAt?: string;
   notaryAppointmentAt?: string;
+  notaryOffice?: string;
   purchasedAt?: string;
   portfolioEnteredAt?: string;
   lastActivityLabel?: string;

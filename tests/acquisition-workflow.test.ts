@@ -13,13 +13,14 @@ test("acquisition workflow advances a case into portfolio", () => {
   advanceAcquisitionWorkflow("property_berlin_1", "expert_opinion_received", "user_admin");
   advanceAcquisitionWorkflow("property_berlin_1", "binding_offer_sent", "user_admin");
   advanceAcquisitionWorkflow("property_berlin_1", "binding_offer_accepted", "user_admin");
-  advanceAcquisitionWorkflow("property_berlin_1", "notary_appointment_ordered", "user_admin", { notaryAppointmentAt: "2026-06-15T10:00" });
+  advanceAcquisitionWorkflow("property_berlin_1", "notary_appointment_ordered", "user_admin", { notaryAppointmentAt: "2026-06-15T10:00", notaryOffice: "Notariat Stuttgart Mitte" });
   const property = advanceAcquisitionWorkflow("property_berlin_1", "contract_signed", "user_admin");
   const caseView = getCaseByPropertyId("property_berlin_1");
 
   assert.equal(property.status, "IN_PORTFOLIO");
   assert.ok(property.portfolioEnteredAt);
   assert.equal(property.notaryAppointmentAt, "2026-06-15T10:00");
+  assert.equal(property.notaryOffice, "Notariat Stuttgart Mitte");
   assert.equal(caseView?.activities.some((activity) => activity.type === "contract_signed"), true);
 });
 
@@ -67,5 +68,6 @@ test("acquisition workflow enforces the full process order", () => {
     bindingOfferAcceptedAt: "2026-05-30"
   };
   assert.throws(() => validateAcquisitionTransition(vaAccepted, "notary_appointment_ordered"), /Notary appointment date required/);
-  assert.doesNotThrow(() => validateAcquisitionTransition(vaAccepted, "notary_appointment_ordered", { notaryAppointmentAt: "2026-06-10T10:00" }));
+  assert.throws(() => validateAcquisitionTransition(vaAccepted, "notary_appointment_ordered", { notaryAppointmentAt: "2026-06-10T10:00" }), /Notary office required/);
+  assert.doesNotThrow(() => validateAcquisitionTransition(vaAccepted, "notary_appointment_ordered", { notaryAppointmentAt: "2026-06-10T10:00", notaryOffice: "Notariat Stuttgart Mitte" }));
 });

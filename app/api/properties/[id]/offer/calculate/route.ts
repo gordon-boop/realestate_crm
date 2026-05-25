@@ -110,45 +110,26 @@ export async function POST(request: Request, { params }: { params: { id: string 
         }
       : calculation.assumptions;
 
-    const existing = await prisma.offer.findFirst({ where: { propertyId: params.id, model: model as never, kind } });
-    const offerNumber = existing?.offerNumber ?? `ANG-2026-${String((await prisma.offer.count()) + 1).padStart(4, "0")}`;
-    const offer = existing
-      ? await prisma.offer.update({
-          where: { id: existing.id },
-          data: {
-            currentVersion: { increment: 1 },
-            valuationId: calculationValuation.id,
-            marketValue: calculation.marketValue,
-            adjustedMarketValue: calculation.adjustedMarketValue,
-            residentialRightValue: calculation.residentialRightValue,
-            riskDiscount: calculation.riskDiscount,
-            companyMargin: calculation.companyMargin,
-            payoutAmount: calculation.payoutAmount,
-            model: model as never,
-            residentialRightYears,
-            assumptionsJson: toPrismaJson(assumptions),
-            status: kind === "binding" ? "review" : "draft"
-          }
-        })
-      : await prisma.offer.create({
-          data: {
-            propertyId: params.id,
-            valuationId: calculationValuation.id,
-            offerNumber,
-            kind,
-            currentVersion: 1,
-            marketValue: calculation.marketValue,
-            adjustedMarketValue: calculation.adjustedMarketValue,
-            residentialRightValue: calculation.residentialRightValue,
-            riskDiscount: calculation.riskDiscount,
-            companyMargin: calculation.companyMargin,
-            payoutAmount: calculation.payoutAmount,
-            model: model as never,
-            residentialRightYears,
-            assumptionsJson: toPrismaJson(assumptions),
-            status: kind === "binding" ? "review" : "draft"
-          }
-        });
+    const offerNumber = `ANG-2026-${String((await prisma.offer.count()) + 1).padStart(4, "0")}`;
+    const offer = await prisma.offer.create({
+      data: {
+        propertyId: params.id,
+        valuationId: calculationValuation.id,
+        offerNumber,
+        kind,
+        currentVersion: 1,
+        marketValue: calculation.marketValue,
+        adjustedMarketValue: calculation.adjustedMarketValue,
+        residentialRightValue: calculation.residentialRightValue,
+        riskDiscount: calculation.riskDiscount,
+        companyMargin: calculation.companyMargin,
+        payoutAmount: calculation.payoutAmount,
+        model: model as never,
+        residentialRightYears,
+        assumptionsJson: toPrismaJson(assumptions),
+        status: kind === "binding" ? "review" : "draft"
+      }
+    });
 
     await prisma.offerVersion.create({
       data: {
@@ -172,7 +153,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${model === "sale_and_leaseback" ? "Rückmietmodell" : "Verrentungsmodell"} wurde berechnet.`,
       { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, kind, expertOpinionValue } }
     );
-    return json({ offer }, { status: existing ? 200 : 201 });
+    return json({ offer }, { status: 201 });
   } catch (err) {
     return handleApiError(err);
   }

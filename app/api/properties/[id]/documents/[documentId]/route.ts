@@ -67,6 +67,9 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
+    if (user.role === "partner" && caseView.property.status !== "DRAFT") {
+      throw new Error("Submitted cases cannot have documents deleted by partners");
+    }
 
     const document = await prisma.document.findFirst({ where: { id: params.documentId, propertyId: params.id } });
     if (!document) throw new Error("Document not found");

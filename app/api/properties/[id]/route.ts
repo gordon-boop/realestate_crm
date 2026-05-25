@@ -2,7 +2,7 @@ import { canMutateProperty, canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import { filterCaseViewForUser, getDbCaseByPropertyId, toOptionalPrismaJson } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
-import { propertyCreateSchema } from "@/lib/validation";
+import { propertyUpdateSchema } from "@/lib/validation";
 
 export async function GET(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
@@ -22,7 +22,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canMutateProperty(user, caseView.property)) throw new Error("Forbidden");
-    const body = propertyCreateSchema.partial().parse(await request.json());
+    const body = propertyUpdateSchema.parse(await request.json());
     if (body.leasehold !== undefined || body.monumentProtection !== undefined || body.leaseholdOrMonument !== undefined) {
       body.leaseholdOrMonument = Boolean(body.leaseholdOrMonument || body.leasehold || body.monumentProtection);
     }
