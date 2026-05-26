@@ -920,6 +920,33 @@ function updateScreenUrl(role, screen = 'dashboard', mode = 'replace') {
   window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
 }
 
+const portfolioBucketKeys = ['purchase-processing', 'contract-closing', 'inventory-management', 'exit-sale'];
+
+function normalizePortfolioBucket(bucket, fallback = '') {
+  if (!bucket) return fallback;
+  const normalized = String(bucket).trim().toLowerCase();
+  return portfolioBucketKeys.includes(normalized) ? normalized : fallback;
+}
+
+function parsePortfolioBucket(fallback = '') {
+  if (typeof window === 'undefined') return fallback;
+  const params = new URLSearchParams(window.location.search);
+  return normalizePortfolioBucket(params.get('bucket'), fallback);
+}
+
+function updatePortfolioBucketUrl(role, bucket = '', mode = 'replace') {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  params.set('screen', 'portfolio');
+  const nextBucket = normalizePortfolioBucket(bucket, '');
+  if (nextBucket) {
+    params.set('bucket', nextBucket);
+  } else {
+    params.delete('bucket');
+  }
+  window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', `${basePathForRole(role)}?${params.toString()}`);
+}
+
 function clearCaseUrl(role, mode = 'replace') {
   if (typeof window === 'undefined') return;
   window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', basePathForRole(role));
@@ -2088,6 +2115,16 @@ function exitProcessFormFromProperty(property = {}) {
 }
 
 const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
+  const [activeBucket, setActiveBucket] = useState(() => parsePortfolioBucket(''));
+  const [quickAction, setQuickAction] = useState('');
+
+  useEffect(() => {
+    const syncBucket = () => setActiveBucket(parsePortfolioBucket(''));
+    syncBucket();
+    window.addEventListener('popstate', syncBucket);
+    return () => window.removeEventListener('popstate', syncBucket);
+  }, []);
+
   if (role !== 'admin') {
     return (
       <div style={{ padding: '28px' }}>
@@ -2097,72 +2134,114 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
       </div>
     );
   }
-  const pipelineStatuses = ['OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'];
-  const portfolioStatuses = ['IN_PORTFOLIO', 'WON'];
-  const pipelineCases = cases.filter((item) => pipelineStatuses.includes(item.status));
-  const portfolioCases = cases.filter((item) => portfolioStatuses.includes(item.status));
-  const relevantCases = [...pipelineCases, ...portfolioCases];
-  const purchaseContractCases = cases.filter((item) => ['BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'].includes(item.status));
-  const contractExecutionCases = portfolioCases.filter((item) => {
-    const property = item.raw?.property || {};
-    return !property.purchasePricePaidAt || !property.residentialRightRegisteredAt || !property.propertyFileComplete;
-  });
-  const portfolioTakeoverCases = portfolioCases.filter((item) => portfolioCompletion(item.raw?.property || {}).percent < 100);
-  const repairAndBillingCases = portfolioCases.filter((item) => {
-    const property = item.raw?.property || {};
-    return !property.repairReportingChannelClarified || !property.serviceChargeStatus || property.portfolioTasks?.nextAppointmentDate;
-  });
 
+  const portfolioStatuses = ['IN_PORTFOLIO', 'WON'];
+  const purchaseProcessingCases = cases.filter((item) => ['BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'].includes(item.status));
+  const inventoryCases = cases.filter((item) => portfolioStatuses.includes(item.status));
+  const contractClosingCases = inventoryCases.filter((item) => {
+    const property = item.raw?.property || {};
+    return !property.purchasePricePaidAt || !property.residentialRightRegisteredAt || !property.propertyFileComplete || !property.portfolioTransferCompletedAt;
+  });
+  const exitSaleCases = inventoryCases.filter((item) => {
+    const exitProcess = item.raw?.property?.exitProcess || {};
+    return Boolean(exitProcess.usageRightEndedAt || exitProcess.salesStatus && exitProcess.salesStatus !== 'under_review');
+  });
   const uniqueCases = (items) => Array.from(new Map(items.map((item) => [item.propertyId || item.id, item])).values());
-  const phaseForCase = (item) => {
-    if (['BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'].includes(item.status)) return 'Kaufvertragsabwicklung';
-    if (contractExecutionCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Vertragsvollzug';
-    if (portfolioTakeoverCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Bestandsübernahme';
-    if (portfolioCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Bestandsverwaltung';
-    return 'Ankauf';
-  };
-  const actionCases = uniqueCases([
-    ...purchaseContractCases,
-    ...contractExecutionCases,
-    ...portfolioTakeoverCases,
-    ...repairAndBillingCases,
-    ...pipelineCases,
-    ...portfolioCases,
-  ]).slice(0, 8);
-  const priorityCards = [
+  const openCases = uniqueCases([...purchaseProcessingCases, ...contractClosingCases, ...inventoryCases, ...exitSaleCases]);
+
+  const bucketDefinitions = [
     {
-      label: 'Kaufvertragsabwicklung',
-      value: purchaseContractCases.length,
-      text: 'VA angenommen, Notar oder Kaufvertragsentwurf offen.',
-      action: 'Abwicklung prüfen',
-      cases: purchaseContractCases,
+      key: 'purchase-processing',
+      title: 'Kaufvertragsabwicklung',
+      description: 'VA angenommen, Notar oder Kaufvertragsentwurf offen.',
+      cases: purchaseProcessingCases,
       icon: Briefcase,
       tone: theme.aubergine,
+      tab: 'bestand',
     },
     {
-      label: 'Vertragsvollzug',
-      value: contractExecutionCases.length,
-      text: 'Zahlung, Grundbuch, Wohnrecht oder Objektakte offen.',
-      action: 'Vollzug prüfen',
-      cases: contractExecutionCases,
+      key: 'contract-closing',
+      title: 'Vertragsvollzug',
+      description: 'Zahlung, Grundbuch, Wohnrecht oder Objektakte offen.',
+      cases: contractClosingCases,
       icon: Calendar,
       tone: theme.oliv,
+      tab: 'bestand',
     },
     {
-      label: 'Bestandsthemen',
-      value: repairAndBillingCases.length,
-      text: 'Reparaturen, Abrechnungen oder Bewohneranfragen prüfen.',
-      action: 'Themen öffnen',
-      cases: repairAndBillingCases,
+      key: 'inventory-management',
+      title: 'Bestandsverwaltung',
+      description: 'Bewohner, Reparaturen, Abrechnungen und Objektverwaltung.',
+      cases: inventoryCases,
+      icon: Archive,
+      tone: '#5B8C2B',
+      tab: 'bestand',
+    },
+    {
+      key: 'exit-sale',
+      title: 'Verwertung nach Wohnrechtsende',
+      description: 'Objektzugang, Räumung, Verkaufsvorbereitung und Vermarktung.',
+      cases: exitSaleCases,
       icon: AlertCircle,
       tone: theme.gold,
+      tab: 'verwertung',
     },
   ];
-  const sideTopics = [
-    { label: 'Bestandsübernahmen offen', value: portfolioTakeoverCases.length },
-    { label: 'Offene Abrechnungen', value: portfolioCases.filter((item) => !item.raw?.property?.serviceChargeStatus).length },
-    { label: 'Bewohneranfragen', value: portfolioCases.filter((item) => item.raw?.property?.portfolioTasks?.nextAppointmentType?.toLowerCase?.().includes('bewohner')).length },
-  ];
+  const activeBucketDefinition = bucketDefinitions.find((item) => item.key === activeBucket);
+  const phaseForCase = (item) => {
+    if (exitSaleCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Verwertung nach Wohnrechtsende';
+    if (purchaseProcessingCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Kaufvertragsabwicklung';
+    if (contractClosingCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Vertragsvollzug';
+    if (inventoryCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Bestandsverwaltung';
+    return 'Ankauf';
+  };
+  const targetTabForCase = (item) => {
+    if (activeBucketDefinition?.tab) return activeBucketDefinition.tab;
+    if (phaseForCase(item) === 'Verwertung nach Wohnrechtsende') return 'verwertung';
+    return 'bestand';
+  };
+  const dueDateForCase = (item) => {
+    const property = item.raw?.property || {};
+    return property.nextPortfolioReviewAt
+      || property.followUpDueAt
+      || property.notaryAppointmentAt
+      || property.portfolioTasks?.nextAppointmentDate
+      || property.exitProcess?.followUpAt
+      || property.lastActivityAt;
+  };
+  const sortCases = (items) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const rank = (item) => {
+      const due = dueDateForCase(item);
+      if (!due) return 3;
+      const date = new Date(due);
+      date.setHours(0, 0, 0, 0);
+      if (date < today) return 0;
+      if (date.getTime() === today.getTime()) return 1;
+      return 2;
+    };
+    return [...items].sort((a, b) => {
+      const rankDiff = rank(a) - rank(b);
+      if (rankDiff) return rankDiff;
+      const aDate = new Date(dueDateForCase(a) || a.raw?.property?.lastActivityAt || a.raw?.property?.updatedAt || 0).getTime();
+      const bDate = new Date(dueDateForCase(b) || b.raw?.property?.lastActivityAt || b.raw?.property?.updatedAt || 0).getTime();
+      return aDate - bDate;
+    });
+  };
+  const visibleCases = sortCases(activeBucketDefinition ? activeBucketDefinition.cases : openCases);
+  const deadlineCases = sortCases(openCases.filter((item) => dueDateForCase(item))).slice(0, 5);
+  const tableTitle = activeBucketDefinition?.title || 'Alle offenen Vorgänge';
+
+  const selectBucket = (bucket) => {
+    const nextBucket = normalizePortfolioBucket(bucket, '');
+    setActiveBucket(nextBucket);
+    updatePortfolioBucketUrl(role, nextBucket, 'push');
+  };
+
+  const openCaseFromList = (item) => {
+    onOpenCase(item.propertyId || item.id, targetTabForCase(item));
+  };
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -2173,32 +2252,37 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankauf & Bestand</h1>
           <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>
-            Die wichtigsten Vorgänge nach Angebotsannahme, ohne operative Detailtiefe auf der Startansicht.
+            Arbeitskörbe filtern die Vorgangsliste. Der konkrete Fall wird erst aus der Liste geöffnet.
           </div>
         </div>
+        {activeBucket && (
+          <button onClick={() => selectBucket('')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+            Alle Vorgänge anzeigen
+          </button>
+        )}
       </div>
 
-      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
-        {priorityCards.map((item) => {
-          const firstCase = item.cases[0];
+      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
+        {bucketDefinitions.map((bucket) => {
+          const active = activeBucket === bucket.key;
           return (
-            <button key={item.label} onClick={() => firstCase && onOpenCase(firstCase.propertyId || firstCase.id, firstCase.status === 'IN_PORTFOLIO' ? 'bestand' : undefined)} style={{
-              background: 'white',
-              border: `1px solid ${theme.borderSoft}`,
-              borderLeft: `3px solid ${item.tone}`,
+            <button key={bucket.key} onClick={() => selectBucket(bucket.key)} style={{
+              background: active ? `${bucket.tone}12` : 'white',
+              border: `1px solid ${active ? `${bucket.tone}88` : theme.borderSoft}`,
+              borderLeft: `3px solid ${bucket.tone}`,
               borderRadius: 8,
               padding: '15px 16px',
               textAlign: 'left',
-              cursor: firstCase ? 'pointer' : 'default',
-              minHeight: 130,
+              cursor: 'pointer',
+              minHeight: 136,
+              boxShadow: active ? `0 0 0 2px ${bucket.tone}18` : 'none',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <item.icon size={16} style={{ color: item.tone }} />
-                <span style={{ fontSize: 24, lineHeight: 1, color: theme.aubergine, fontWeight: 800 }}>{item.value}</span>
+                <bucket.icon size={16} style={{ color: bucket.tone }} />
+                <span style={{ fontSize: 24, lineHeight: 1, color: theme.aubergine, fontWeight: 800 }}>{bucket.cases.length}</span>
               </div>
-              <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 800, marginBottom: 5 }}>{item.label}</div>
-              <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45, marginBottom: 10 }}>{item.text}</div>
-              <div style={{ fontSize: 12, color: item.tone, fontWeight: 800 }}>{item.action}</div>
+              <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 800, marginBottom: 6 }}>{bucket.title}</div>
+              <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>{bucket.description}</div>
             </button>
           );
         })}
@@ -2207,31 +2291,43 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
       <div className="portfolio-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1.55fr 0.75fr', gap: 16 }}>
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
           <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Aktuelle Vorgänge</span>
-            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{relevantCases.length} gesamt</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>{tableTitle}</span>
+            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{visibleCases.length} Vorgänge</span>
           </div>
-          {actionCases.length === 0 ? (
-            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Aktuell keine offenen Vorgänge in Ankauf oder Bestand.</div>
+          {visibleCases.length === 0 ? (
+            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>
+              {activeBucketDefinition ? 'Keine offenen Vorgänge in diesem Arbeitskorb.' : 'Aktuell keine offenen Vorgänge in Ankauf oder Bestand.'}
+            </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: theme.mintLight }}>
-                  {['Fall', 'Kunde', 'Phase', 'Nächster Schritt', 'Status', ''].map((h) => (
-                    <th key={h} style={{ textAlign: 'left', padding: '8px 14px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+                  {['Fallnummer', 'Kunde / Bewohner', 'Objekt', 'Phase', 'Nächster Schritt', 'Frist / Wiedervorlage', 'Zuständig', 'Status', 'Öffnen'].map((h) => (
+                    <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {actionCases.map((item, index) => (
-                  <tr key={item.propertyId || item.id} onClick={() => onOpenCase(item.propertyId || item.id, portfolioStatuses.includes(item.status) ? 'bestand' : undefined)} style={{ borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', cursor: 'pointer' }}>
-                    <td style={{ padding: '11px 14px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{item.id}</td>
-                    <td style={{ padding: '11px 14px', color: theme.ink, fontWeight: 650 }}>{item.kunde}</td>
-                    <td style={{ padding: '11px 14px', color: `${theme.ink}aa`, fontSize: 12.5 }}>{phaseForCase(item)}</td>
-                    <td style={{ padding: '11px 14px', color: theme.ink }}>{nextPortfolioAction[item.status] || 'Bestandsakte prüfen'}</td>
-                    <td style={{ padding: '11px 14px' }}><StatusBadge status={item.status} /></td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right' }}><ChevronRight size={15} style={{ color: `${theme.aubergine}88` }} /></td>
-                  </tr>
-                ))}
+                {visibleCases.map((item, index) => {
+                  const property = item.raw?.property || {};
+                  return (
+                    <tr key={item.propertyId || item.id} style={{ borderTop: index ? `1px solid ${theme.borderSoft}` : 'none' }}>
+                      <td style={{ padding: '11px 12px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{item.id}</td>
+                      <td style={{ padding: '11px 12px', color: theme.ink, fontWeight: 650 }}>{property.residentName || item.kunde}</td>
+                      <td style={{ padding: '11px 12px', color: `${theme.ink}cc` }}>{item.objekt}</td>
+                      <td style={{ padding: '11px 12px', color: `${theme.ink}aa`, fontSize: 12.5 }}>{phaseForCase(item)}</td>
+                      <td style={{ padding: '11px 12px', color: theme.ink }}>{nextPortfolioAction[item.status] || (targetTabForCase(item) === 'verwertung' ? 'Verwertung prüfen' : 'Bestandsakte prüfen')}</td>
+                      <td style={{ padding: '11px 12px', color: `${theme.ink}99`, fontSize: 12.5 }}>{formatDate(dueDateForCase(item))}</td>
+                      <td style={{ padding: '11px 12px', color: `${theme.ink}99`, fontSize: 12.5 }}>{property.assignedAdvisorName || item.partner || '-'}</td>
+                      <td style={{ padding: '11px 12px' }}><StatusBadge status={item.status} /></td>
+                      <td style={{ padding: '11px 12px', textAlign: 'right' }}>
+                        <button onClick={() => openCaseFromList(item)} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '5px 9px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
+                          Öffnen
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -2240,24 +2336,31 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
         <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
           <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
             <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Nächste Fristen</div>
-            {pipelineCases.length === 0 ? (
+            {deadlineCases.length === 0 ? (
               <div style={{ padding: 16, color: `${theme.ink}88`, fontSize: 12.5 }}>Keine offenen Fristen.</div>
-            ) : pipelineCases.slice(0, 4).map((item, index) => (
-              <button key={item.propertyId || item.id} onClick={() => onOpenCase(item.propertyId || item.id)} style={{ width: '100%', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 16px', textAlign: 'left', cursor: 'pointer' }}>
-                <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>{item.kunde}</div>
-                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{nextPortfolioAction[item.status] || 'Nächsten Schritt prüfen'}</div>
+            ) : deadlineCases.map((item, index) => (
+              <button key={item.propertyId || item.id} onClick={() => openCaseFromList(item)} style={{ width: '100%', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 16px', textAlign: 'left', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>{item.kunde}</span>
+                  <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>{formatDate(dueDateForCase(item))}</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{item.id} · {nextPortfolioAction[item.status] || 'Wiedervorlage prüfen'}</div>
               </button>
             ))}
           </div>
 
           <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-            <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Offene Themen</div>
-            {sideTopics.map((item, index) => (
-              <div key={item.label} style={{ padding: '11px 16px', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ fontSize: 12.5, color: theme.ink }}>{item.label}</span>
-                <span style={{ fontSize: 16, color: theme.aubergine, fontWeight: 800 }}>{item.value}</span>
-              </div>
+            <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Schnellaktionen</div>
+            {['Reparatur erfassen', 'Abrechnung erfassen', 'Bewohneranfrage erfassen', 'Wiedervorlage anlegen'].map((label, index) => (
+              <button key={label} onClick={() => setQuickAction(label)} style={{ width: '100%', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 16px', textAlign: 'left', color: theme.aubergine, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
+                {label}
+              </button>
             ))}
+            {quickAction && (
+              <div style={{ margin: '0 12px 12px', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', fontSize: 12, color: theme.ink, lineHeight: 1.45 }}>
+                {quickAction}: Erfassung wird in der Fallakte vorbereitet. Bitte zuerst einen Vorgang aus der Liste öffnen.
+              </div>
+            )}
           </div>
         </div>
       </div>
