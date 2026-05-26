@@ -22,6 +22,7 @@ const property: Property = {
   id: "property_a",
   customerId: "customer_a",
   partnerId: "partner_a",
+  caseSource: "PARTNER",
   propertyType: "house",
   street: "Teststrasse 1",
   postalCode: "10115",

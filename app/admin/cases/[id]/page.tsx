@@ -11,6 +11,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
 import { getDbCaseByPropertyId } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
+import { formatHeatingLabel, getCaseSourceLabel } from "@/lib/property-labels";
 
 export default async function AdminCasePage({ params }: { params: { id: string } }) {
   const user = getCurrentUser();
@@ -29,7 +30,7 @@ export default async function AdminCasePage({ params }: { params: { id: string }
       <div className="toolbar">
         <div>
           <h1 style={{ margin: 0 }}>Admin-Fallansicht</h1>
-          <p className="muted">{caseView.property.caseNumber ?? caseView.property.id} | {caseView.partner?.companyName ?? "Intern"} | {caseView.customer.firstName} {caseView.customer.lastName}</p>
+          <p className="muted">{caseView.property.caseNumber ?? caseView.property.id} | Herkunft: {getCaseSourceLabel(caseView.property.caseSource)} | {caseView.partner?.companyName ?? "Intern"} | {caseView.customer.firstName} {caseView.customer.lastName}</p>
         </div>
         <Link className="btn" href="/admin">Zurück</Link>
       </div>
@@ -76,7 +77,7 @@ export default async function AdminCasePage({ params }: { params: { id: string }
           <h2>Objekt</h2>
           <p>{caseView.property.objectTitle ?? caseView.property.propertyType} | {caseView.property.livingAreaSqm} qm Wfl | {caseView.property.plotAreaSqm ?? "-"} qm Grundstück</p>
           <p className="muted">Modell: {caseView.property.desiredModel === "sale_and_leaseback" ? "Rückmiete" : "Befristetes Wohnrecht"} | Grund: {caseView.property.modelReason ?? "-"}</p>
-          <p className="muted">Heizung: {caseView.property.heatingType ?? "-"} | Energieträger: {caseView.property.heatingEnergySource ?? "-"} | Restschuld: {caseView.property.remainingDebtKnown ? "ja" : "nein"}</p>
+          <p className="muted">Heizung: {formatHeatingLabel(caseView.property)} | Restschuld: {caseView.property.remainingDebtKnown ? "ja" : "nein"}</p>
           <p className="muted">Objektnummer {caseView.property.caseNumber ?? caseView.property.id} | Erbbaurecht: {caseView.property.leasehold ? "ja" : "nein"} | Denkmalschutz: {caseView.property.monumentProtection ? "ja" : "nein"}</p>
         </section>
         <section className="panel panel-pad">

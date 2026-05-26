@@ -18,7 +18,6 @@ test("property validation accepts frontend property types and split exclusion fl
     city: "Stuttgart",
     livingAreaSqm: 142,
     plotAreaSqm: 380,
-    condition: "good",
     desiredModel: "fixed_residential_right",
     residentialRightRecipients: "one_person",
     desiredResidentialRightYears: 10,
@@ -31,7 +30,6 @@ test("property validation accepts frontend property types and split exclusion fl
     additionalOfferModel: "sale_and_leaseback",
     additionalOfferReason: "Vergleich für den Kunden",
     rentalOptionDeselected: false,
-    occupancyStatus: "owner_occupied",
     usableAreaSqm: 55,
     coOwnershipShares: "124/1000",
     heatingType: "Gas-Brennwert",
@@ -51,16 +49,19 @@ test("property validation accepts frontend property types and split exclusion fl
     remainingDebtKnown: true,
     remainingDebtAmount: 50000,
     modernization: { roof: { scope: "partial", year: "2020" } },
-    buildingCondition: { roof: "good" },
+    caseSource: "INTERNAL",
+    buildingCondition: { roof: { rating: "good", description: "keine sichtbaren Schäden" } },
     generalPropertyNotes: "Kunde wünscht ruhigen Ablauf.",
     leasehold: false,
     monumentProtection: true
   });
 
   assert.equal(parsed.propertyType, "semi_detached");
+  assert.equal(parsed.caseSource, "INTERNAL");
+  assert.equal(parsed.condition, "average");
   assert.equal(parsed.monumentProtection, true);
   assert.equal(parsed.parkingType, "garage");
-  assert.equal(parsed.occupancyStatus, "owner_occupied");
+  assert.equal(parsed.occupancyStatus, undefined);
   assert.deepEqual(parsed.energyCarriers, ["photovoltaik"]);
   assert.equal(parsed.additionalOfferRequested, true);
   assert.equal(parsed.heatingEnergySource, "gas");
@@ -138,7 +139,7 @@ test("case intake dto covers modernization, document status and technical proper
       energyCarriers: ["photovoltaik"],
       remainingDebtKnown: false,
       modernization: { roof: { scope: "partial", year: "2020" } },
-      buildingCondition: { roof: "good" },
+      buildingCondition: { roof: { rating: "good", description: "keine sichtbaren Schäden" } },
       generalPropertyNotes: "Allgemeiner Hinweis"
     },
     document: {

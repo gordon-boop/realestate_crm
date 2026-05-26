@@ -15,10 +15,27 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!registration) return error("Der Bestätigungslink ist ungültig oder abgelaufen.", 404);
 
     if (registration.status === "approved") {
-      return NextResponse.json({ status: registration.status, message: "Der Maklerzugang ist bereits freigeschaltet." });
+      return NextResponse.json({
+        status: registration.status,
+        message: "Der Maklerzugang ist bereits freigeschaltet."
+      });
     }
 
-    if (registration.emailConfirmedAt && registration.partnerId && registration.userId) {
+    if (registration.partnerId && registration.userId) {
+      if (!registration.emailConfirmedAt || registration.status === "email_pending") {
+        const updated = await prisma.brokerRegistration.update({
+          where: { id: registration.id },
+          data: {
+            status: "pending_approval",
+            emailConfirmedAt: registration.emailConfirmedAt ?? new Date()
+          }
+        });
+        return NextResponse.json({
+          status: updated.status,
+          message: "E-Mail-Adresse bestätigt. Der Maklerzugang wartet jetzt auf interne Freischaltung."
+        });
+      }
+
       return NextResponse.json({
         status: registration.status,
         message: "Die E-Mail-Adresse wurde bereits bestätigt. Der Zugang wartet auf interne Freischaltung."
@@ -47,7 +64,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
       });
 
-      const updated = await tx.brokerRegistration.update({
+      return tx.brokerRegistration.update({
         where: { id: registration.id },
         data: {
           status: "pending_approval",
@@ -56,8 +73,6 @@ export async function POST(request: Request): Promise<NextResponse> {
           userId: user.id
         }
       });
-
-      return updated;
     });
 
     return NextResponse.json({

@@ -9,6 +9,14 @@ import {
   Save, Send, CheckCircle, AlertTriangle, Activity, X, ChevronDown
 } from 'lucide-react';
 import { getOptionalDocumentsForPropertyType, getRequiredDocumentsForPropertyType } from '@/lib/document-requirements';
+import {
+  buildingConditionComponentLabels,
+  conditionRatingLabels,
+  formatHeatingLabel,
+  getCaseSourceLabel,
+  modernizationComponentLabels,
+  modernizationScopeLabels,
+} from '@/lib/property-labels';
 
 // =====================================================================
 // THEME — WohnKapital Mint-Welt
@@ -820,12 +828,10 @@ function fileExtension(fileName = '') {
 const genderLabels = { female: 'weiblich', male: 'männlich', diverse: 'divers', not_specified: 'keine Angabe' };
 const maritalLabels = { single: 'ledig', married: 'verheiratet', divorced: 'geschieden', widowed: 'verwitwet', other: 'sonstiges' };
 const incomeLabels = { under_1000: 'unter 1.000 €', from_1000_to_2000: '1.000 - 2.000 €', from_2000_to_3000: '2.000 - 3.000 €', over_3000: 'über 3.000 €' };
-const conditionLabels = { very_good: 'sehr gut', good: 'gut', average: 'durchschnittlich', renovation_needed: 'renovierungsbedürftig' };
-const ratingLabels = { very_good: 'sehr gut', good: 'gut', medium: 'mittel', moderate: 'mäßig', bad: 'schlecht', very_bad: 'sehr schlecht' };
+const ratingLabels = conditionRatingLabels;
 const recipientLabels = { one_person: 'eine Person', both: 'beide Personen' };
 const basementLabels = { none: 'kein Keller', partial: 'teilunterkellert', full: 'vollunterkellert' };
 const parkingLabels = { garage: 'Garage', carport: 'Carport', outdoor_space: 'Stellplatz', duplex: 'Doppelparker' };
-const occupancyLabels = { owner_occupied: 'selbst bewohnt', rented: 'vermietet', vacant: 'leerstehend', partially_rented: 'teilweise vermietet' };
 const windowLabels = { wood: 'Holz', aluminium: 'Aluminium', plastic: 'Kunststoff' };
 const energyCertificateLabels = { demand: 'Bedarfsausweis', consumption: 'Verbrauchsausweis' };
 const energyCarrierLabels = { photovoltaik: 'Photovoltaik', solarthermie: 'Solarthermie', batteriespeicher: 'Batteriespeicher' };
@@ -858,7 +864,7 @@ const documentCategoryLabels = {
   repair_offer: 'Reparaturangebot',
   other: 'Sonstiges',
 };
-const modernizationLabels = { none: 'keine', partial: 'teilweise', complete: 'vollständig' };
+const modernizationLabels = modernizationScopeLabels;
 const productModelLabels = { fixed_residential_right: 'Verrentung mit befristetem Wohnrecht', sale_and_leaseback: 'Rückmietmodell', other: 'Sonstiges Modell' };
 const offerStatusLabels = {
   draft: 'Entwurf',
@@ -916,6 +922,7 @@ function mapCaseView(item) {
     kunde: `${customer.lastName}, ${customer.firstName}`,
     alter: customer.ageAtSubmission || '',
     partner: item.partner?.contactName || item.partner?.companyName || '-',
+    sourceLabel: getCaseSourceLabel(property.caseSource || (property.partnerId ? 'PARTNER' : 'INTERNAL')),
     objekt: property.objectTitle || `${propertyTypeLabel(property.propertyType)} ${property.city}`,
     adresse: `${property.street}, ${property.postalCode} ${property.city}`,
     flaeche: property.livingAreaSqm,
@@ -966,6 +973,17 @@ function calculateAgeFromBirthDate(dateString) {
     (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
   if (!hadBirthdayThisYear) age -= 1;
   return age >= 0 ? age : '';
+}
+
+function buildingConditionValue(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return { rating: value.rating || '', description: value.description || '' };
+  }
+  return { rating: value || '', description: '' };
+}
+
+function buildingConditionRating(value) {
+  return buildingConditionValue(value).rating;
 }
 
 const defaultDraft = {
@@ -1047,13 +1065,16 @@ const defaultDraft = {
     bathrooms: { scope: 'none', year: '', note: '' },
   },
   buildingCondition: {
-    roof: '',
-    facade: '',
-    masonry: '',
-    bathrooms: '',
-    windows: '',
-    electric: '',
-    outdoor: '',
+    roof: { rating: '', description: '' },
+    facade: { rating: '', description: '' },
+    masonry: { rating: '', description: '' },
+    windows: { rating: '', description: '' },
+    basement: { rating: '', description: '' },
+    electric: { rating: '', description: '' },
+    sanitary: { rating: '', description: '' },
+    interior: { rating: '', description: '' },
+    outdoor: { rating: '', description: '' },
+    other: { rating: '', description: '' },
   },
   leasehold: false,
   monumentProtection: false,
@@ -1236,13 +1257,16 @@ const validationFieldLabels = {
   parkingCount: 'Immobiliendaten: Anzahl Parkplätze',
   remainingDebtKnown: 'Immobiliendaten: Restschuld bekannt',
   remainingDebtAmount: 'Immobiliendaten: Restschuld-Betrag',
-  buildingConditionRoof: 'Modernisierungen: Bauteilzustand Dach',
-  buildingConditionFacade: 'Modernisierungen: Bauteilzustand Fassade',
-  buildingConditionMasonry: 'Modernisierungen: Bauteilzustand Mauerwerk',
-  buildingConditionBathrooms: 'Modernisierungen: Bauteilzustand Bäder',
-  buildingConditionWindows: 'Modernisierungen: Bauteilzustand Fenster',
-  buildingConditionElectric: 'Modernisierungen: Bauteilzustand Elektrik',
-  buildingConditionOutdoor: 'Modernisierungen: Bauteilzustand Außenanlage',
+  buildingConditionRoof: 'Zustand: Dach',
+  buildingConditionFacade: 'Zustand: Fassade',
+  buildingConditionMasonry: 'Zustand: Mauerwerk',
+  buildingConditionWindows: 'Zustand: Fenster',
+  buildingConditionBasement: 'Zustand: Keller',
+  buildingConditionElectric: 'Zustand: Elektrik',
+  buildingConditionSanitary: 'Zustand: Sanitär',
+  buildingConditionInterior: 'Zustand: Innenausbau',
+  buildingConditionOutdoor: 'Zustand: Außenanlagen',
+  buildingConditionOther: 'Zustand: Sonstiges',
   modernizationYearHeating: 'Modernisierungen: Jahr Heizung',
   modernizationYearRoof: 'Modernisierungen: Jahr Dach',
   modernizationYearFacade: 'Modernisierungen: Jahr Fassade',
@@ -1360,13 +1384,15 @@ function validateCaseStep(step, draft) {
         add(`modernizationYear${key.charAt(0).toUpperCase()}${key.slice(1)}`, hasValue(modernization.year));
       }
     });
-    add('buildingConditionRoof', hasValue(draft.buildingCondition?.roof));
-    add('buildingConditionFacade', hasValue(draft.buildingCondition?.facade));
-    add('buildingConditionMasonry', hasValue(draft.buildingCondition?.masonry));
-    add('buildingConditionBathrooms', hasValue(draft.buildingCondition?.bathrooms));
-    add('buildingConditionWindows', hasValue(draft.buildingCondition?.windows));
-    add('buildingConditionElectric', hasValue(draft.buildingCondition?.electric));
-    add('buildingConditionOutdoor', hasValue(draft.buildingCondition?.outdoor));
+    add('buildingConditionRoof', hasValue(buildingConditionRating(draft.buildingCondition?.roof)));
+    add('buildingConditionFacade', hasValue(buildingConditionRating(draft.buildingCondition?.facade)));
+    add('buildingConditionMasonry', hasValue(buildingConditionRating(draft.buildingCondition?.masonry)));
+    add('buildingConditionWindows', hasValue(buildingConditionRating(draft.buildingCondition?.windows)));
+    add('buildingConditionBasement', hasValue(buildingConditionRating(draft.buildingCondition?.basement)));
+    add('buildingConditionElectric', hasValue(buildingConditionRating(draft.buildingCondition?.electric)));
+    add('buildingConditionSanitary', hasValue(buildingConditionRating(draft.buildingCondition?.sanitary)));
+    add('buildingConditionInterior', hasValue(buildingConditionRating(draft.buildingCondition?.interior)));
+    add('buildingConditionOutdoor', hasValue(buildingConditionRating(draft.buildingCondition?.outdoor)));
   }
 
   if (step === 5) {
@@ -1507,10 +1533,10 @@ const DashboardSearch = ({ value, onChange }) => (
 const ActiveCasesTable = ({ items, onOpenCase, onOpenLeads }) => (
   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
     <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse', fontSize: 13 }}>
+      <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: theme.mintLight }}>
-            {['Fallnummer', 'Kunde', 'Objekt', 'Status', 'Nächster Schritt', 'Letzte Aktivität', ''].map((h, i) => (
+            {['Fallnummer', 'Herkunft', 'Kunde', 'Objekt', 'Status', 'Nächster Schritt', 'Letzte Aktivität', ''].map((h, i) => (
               <th key={i} style={{ textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
             ))}
           </tr>
@@ -1518,13 +1544,14 @@ const ActiveCasesTable = ({ items, onOpenCase, onOpenLeads }) => (
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan={7} style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine passenden aktiven Fälle gefunden.</td>
+              <td colSpan={8} style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine passenden aktiven Fälle gefunden.</td>
             </tr>
           ) : items.map((item, index) => {
             const open = () => item.kind === 'lead' ? onOpenLeads() : onOpenCase(item.propertyId || item.id);
             return (
               <tr key={`${item.kind || 'case'}-${item.propertyId || item.id}`} onClick={open} style={{ borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', cursor: 'pointer' }}>
                 <td style={{ padding: '12px 16px', fontFamily: 'ui-monospace, "SF Mono", monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{item.id}</td>
+                <td style={{ padding: '12px 16px', color: `${theme.ink}99`, fontSize: 12 }}>{item.sourceLabel || (item.kind === 'lead' ? 'Lead' : 'Partner')}</td>
                 <td style={{ padding: '12px 16px', color: theme.ink, fontWeight: 600 }}>{item.kunde}{item.alter ? <span style={{ color: `${theme.ink}77`, fontSize: 12, fontWeight: 500 }}> ({item.alter})</span> : null}</td>
                 <td style={{ padding: '12px 16px', color: `${theme.ink}cc` }}>{item.objekt}</td>
                 <td style={{ padding: '12px 16px' }}>{item.kind === 'lead' ? <LeadStatusBadge status={item.status} /> : <StatusBadge status={item.status} />}</td>
@@ -1557,6 +1584,7 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase,
     kind: 'lead',
     id: lead.leadNumber,
     kunde: leadDisplayName(lead),
+    sourceLabel: 'Lead',
     objekt: `${propertyTypeLabel(lead.propertyType)} ${lead.city || ''}`.trim(),
     status: lead.status,
     nextStep: 'Lead prüfen',
@@ -2005,7 +2033,7 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, sho
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: theme.mintLight }}>
-            {['Fall', 'Kunde', showPartner ? 'Partner' : null, 'Objekt', 'Status', showRejection ? 'Ablehnungsgrund' : null, 'Letzte Aktivität', ''].filter(Boolean).map((h, i) => (
+            {['Fall', 'Herkunft', 'Kunde', showPartner ? 'Partner' : null, 'Objekt', 'Status', showRejection ? 'Ablehnungsgrund' : null, 'Letzte Aktivität', ''].filter(Boolean).map((h, i) => (
               <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
             ))}
           </tr>
@@ -2014,6 +2042,7 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, sho
           {cases.map((row, i) => (
             <tr key={row.propertyId || row.id || i} onClick={() => onOpenCase(row.propertyId || row.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, cursor: 'pointer' }}>
               <td style={{ padding: '11px 16px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 600 }}>{row.id}</td>
+              <td style={{ padding: '11px 16px', color: `${theme.ink}99`, fontSize: 12 }}>{row.sourceLabel || 'Partner'}</td>
               <td style={{ padding: '11px 16px', color: theme.ink }}>{row.kunde} {row.alter ? <span style={{ color: `${theme.ink}77`, fontSize: 12 }}>({row.alter})</span> : null}</td>
               {showPartner && <td style={{ padding: '11px 16px', color: `${theme.ink}aa`, fontSize: 12 }}>{row.partner}</td>}
               <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>{row.objekt}</td>
@@ -2041,7 +2070,14 @@ const partnerInitial = (partner) => {
   return source ? source[0].toUpperCase() : '#';
 };
 
-const PartnerDirectory = ({ partners = [], leads = [], onSetPartnerStatus, onDeletePartner }) => {
+const registrationStatusLabels = {
+  email_pending: 'E-Mail offen',
+  pending_approval: 'Freigabe offen',
+  approved: 'freigegeben',
+  rejected: 'abgelehnt',
+};
+
+const PartnerDirectory = ({ partners = [], registrations = [], leads = [], onSetPartnerStatus, onDeletePartner }) => {
   const [selectedLetter, setSelectedLetter] = useState('ALL');
   const [search, setSearch] = useState('');
   const availableLetters = new Set(partners.map(partnerInitial));
@@ -2057,6 +2093,7 @@ const PartnerDirectory = ({ partners = [], leads = [], onSetPartnerStatus, onDel
 
   const activePartners = partners.filter((partner) => partner.status === 'active').length;
   const inactivePartners = partners.length - activePartners;
+  const openRegistrations = registrations.filter((registration) => registration.status !== 'approved');
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -2071,13 +2108,43 @@ const PartnerDirectory = ({ partners = [], leads = [], onSetPartnerStatus, onDel
           <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Partnerliste</div>
-              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{visiblePartners.length} von {partners.length} Partnern · {activePartners} aktiv · {inactivePartners} gesperrt/offen</div>
+              <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{visiblePartners.length} von {partners.length} Partnern · {activePartners} aktiv · {inactivePartners} gesperrt/offen · {openRegistrations.length} Registrierungen offen</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', background: theme.mintLighter, borderRadius: 6, padding: '7px 10px', border: `1px solid ${theme.border}`, width: 280, maxWidth: '100%' }}>
               <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Partner suchen" style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
             </div>
           </div>
+
+          {openRegistrations.length > 0 && (
+            <div style={{ padding: '12px 16px', background: theme.goldSoft, borderBottom: `1px solid ${theme.gold}55` }}>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Offene Maklerregistrierungen</div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {openRegistrations.slice(0, 6).map((registration) => (
+                  <div key={registration.id} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: theme.ink }}>{registration.companyName} · {registration.contactName}</div>
+                      <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>
+                        {registration.email} · {registrationStatusLabels[registration.status] || registration.status}
+                      </div>
+                      {registration.status === 'email_pending' && registration.confirmationUrl && (
+                        <a href={registration.confirmationUrl} style={{ display: 'inline-block', marginTop: 5, fontSize: 11.5, color: theme.aubergine, fontWeight: 800 }}>
+                          Bestätigungslink öffnen
+                        </a>
+                      )}
+                    </div>
+                    {registration.partnerId && registration.status === 'pending_approval' ? (
+                      <button onClick={() => onSetPartnerStatus?.(registration.partnerId, 'active')} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '7px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
+                        Freigeben
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 11, color: registration.status === 'email_pending' ? '#A87308' : `${theme.ink}88`, fontWeight: 800 }}>{registration.status === 'email_pending' ? 'wartet auf E-Mail' : 'offen'}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {visiblePartners.length === 0 ? (
             <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Partner für die aktuelle Auswahl gefunden.</div>
@@ -2094,6 +2161,8 @@ const PartnerDirectory = ({ partners = [], leads = [], onSetPartnerStatus, onDel
                 {visiblePartners.map((partner) => {
                   const assignedLeadCount = leads.filter((lead) => lead.assignedPartnerId === partner.id && lead.status !== 'CONVERTED').length;
                   const isActive = partner.status === 'active';
+                  const registration = partner.registration || registrations.find((item) => item.partnerId === partner.id);
+                  const emailPending = registration?.status === 'email_pending';
                   return (
                     <tr key={partner.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
                       <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 700 }}>{partner.companyName}</td>
@@ -2102,14 +2171,14 @@ const PartnerDirectory = ({ partners = [], leads = [], onSetPartnerStatus, onDel
                       <td style={{ padding: '12px 14px', color: theme.ink }}>{partner.phone || 'Telefon offen'}</td>
                       <td style={{ padding: '12px 14px' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#5B8C2B' : '#A87308', background: isActive ? '#5B8C2B1A' : `${theme.gold}1A`, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
-                          {isActive ? 'aktiv' : 'gesperrt / offen'}
+                          {isActive ? 'aktiv' : registrationStatusLabels[registration?.status] || 'gesperrt / offen'}
                         </span>
                       </td>
                       <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 800 }}>{assignedLeadCount}</td>
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                         {!isActive ? (
-                          <button onClick={() => onSetPartnerStatus?.(partner.id, 'active')} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          <button disabled={emailPending} onClick={() => onSetPartnerStatus?.(partner.id, 'active')} title={emailPending ? 'Bitte zuerst die E-Mail bestätigen.' : 'Partner freischalten'} style={{ background: emailPending ? theme.borderSoft : theme.aubergine, color: emailPending ? `${theme.ink}66` : 'white', border: 'none', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: emailPending ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
                             Freischalten
                           </button>
                         ) : (
@@ -2446,10 +2515,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ['Grundstück', property.plotAreaSqm ? `${property.plotAreaSqm} m²` : '-'],
     ['Nutzfläche', property.usableAreaSqm ? `${property.usableAreaSqm} m²` : '-'],
     ['Miteigentumsanteile', property.coOwnershipShares || '-'],
-    ['Nutzung', labelFrom(occupancyLabels, property.occupancyStatus)],
-    ['Zustand', labelFrom(conditionLabels, property.condition)],
     ['Optik', labelFrom(ratingLabels, property.visualConditionRating)],
-    ['Heizung', property.heatingType ? `${property.heatingType}${property.heatingYear ? ` (${property.heatingYear})` : ''}` : '-'],
+    ['Heizung', formatHeatingLabel(property)],
     ['Energieausweis', `${yesNo(property.energyCertificateAvailable)}${property.energyCertificateType ? `, ${labelFrom(energyCertificateLabels, property.energyCertificateType)}` : ''}`],
     ['Energieklasse', property.energyClass || '-'],
     ['Fenster', property.windowMaterial ? `${labelFrom(windowLabels, property.windowMaterial)}${property.windowInstallationYear ? ` (${property.windowInstallationYear})` : ''}` : '-'],
@@ -2474,14 +2541,24 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ['PV / Solar', 'PV seit 2020'],
     ['Erbbau/Denkmal', 'nein'],
   ];
-  const modernizationDetails = property?.modernization ? Object.entries(property.modernization).map(([key, value]) => [
-    labelFrom(Object.fromEntries(modernizationFields), key, key),
-    `${labelFrom(modernizationLabels, value?.scope)}${value?.year ? ` (${value.year})` : ''}`,
-  ]) : [];
-  const buildingConditionDetails = property?.buildingCondition ? Object.entries(property.buildingCondition).map(([key, value]) => [
-    labelFrom(Object.fromEntries(buildingConditionFields), key, key),
-    labelFrom(ratingLabels, value),
-  ]) : [];
+  const modernizationDetails = property?.modernization ? Object.entries(property.modernization)
+    .filter(([, value]) => value?.scope && value.scope !== 'none')
+    .map(([key, value]) => ({
+      label: labelFrom(modernizationComponentLabels, key, key),
+      year: value?.year || 'unbekannt',
+      scope: labelFrom(modernizationLabels, value?.scope, 'unbekannt'),
+      note: value?.note || '-',
+    })) : [];
+  const buildingConditionDetails = property?.buildingCondition ? Object.entries(property.buildingCondition)
+    .map(([key, value]) => {
+      const normalized = buildingConditionValue(value);
+      return {
+        label: labelFrom(buildingConditionComponentLabels, key, key),
+        rating: labelFrom(ratingLabels, normalized.rating, '-'),
+        description: normalized.description || '-',
+      };
+    })
+    .filter((item) => item.rating !== '-' || item.description !== '-') : [];
   const openReminders = caseView?.reminders?.filter((reminder) => reminder.status === 'open') || [];
   const missingDocuments = documents.filter((document) => ['missing', 'review_required', 'rejected'].includes(document.status));
   const taskRows = [
@@ -2940,15 +3017,53 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   </div>
                 ))}
               </div>
-              {(modernizationDetails.length > 0 || buildingConditionDetails.length > 0) && (
+              {modernizationDetails.length > 0 && (
                 <>
                   <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Modernisierungen und Bauteile</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px 32px' }}>
-                    {[...modernizationDetails, ...buildingConditionDetails].map(([k, v], i) => (
-                      <div key={i}>
-                        <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
-                        <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Modernisierung</div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {modernizationDetails.map((item, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 0.7fr 0.9fr 1.5fr', gap: 12, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '9px 11px', background: theme.mintLighter }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Maßnahme</div>
+                          <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: 650 }}>{item.label}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Jahr</div>
+                          <div style={{ fontSize: 13.5, color: theme.ink }}>{item.year}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Umfang</div>
+                          <div style={{ fontSize: 13.5, color: theme.ink }}>{item.scope}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Beschreibung</div>
+                          <div style={{ fontSize: 13.5, color: theme.ink }}>{item.note}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {buildingConditionDetails.length > 0 && (
+                <>
+                  <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Zustand</div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {buildingConditionDetails.map((item, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '9px 11px', background: 'white' }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Bauteil</div>
+                          <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: 650 }}>{item.label}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Zustandsbewertung</div>
+                          <div style={{ fontSize: 13.5, color: theme.ink }}>{item.rating}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Zustandsbeschreibung</div>
+                          <div style={{ fontSize: 13.5, color: theme.ink }}>{item.description}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -3827,6 +3942,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         : await postJson('/api/customers', customerPayload);
       const propertyPayload = {
         customerId: customerResult.customer.id,
+        caseSource: isInternalCase ? 'INTERNAL' : 'PARTNER',
         objectTitle: `${propertyTypeLabel(draft.propertyType)} ${draft.city}`,
         propertyType: draft.propertyType,
         street: draft.street,
@@ -3835,8 +3951,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         livingAreaSqm: Number(draft.livingAreaSqm),
         plotAreaSqm: Number(draft.plotAreaSqm),
         yearBuilt: Number(draft.yearBuilt) || undefined,
-        condition: draft.condition,
-        occupancyStatus: draft.occupancyStatus,
+        condition: draft.condition || 'average',
         desiredModel: draft.desiredModel,
         residentialRightRecipients: draft.desiredModel === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : undefined,
         residentialRightPerson: draft.desiredModel === 'fixed_residential_right' && draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
@@ -4599,10 +4714,13 @@ const buildingConditionFields = [
   ['roof', 'Dach'],
   ['facade', 'Fassade'],
   ['masonry', 'Mauerwerk'],
-  ['bathrooms', 'Bäder'],
   ['windows', 'Fenster'],
+  ['basement', 'Keller'],
   ['electric', 'Elektrik'],
-  ['outdoor', 'Außenanlage'],
+  ['sanitary', 'Sanitär'],
+  ['interior', 'Innenausbau'],
+  ['outdoor', 'Außenanlagen'],
+  ['other', 'Sonstiges'],
 ];
 
 const FormStep4 = ({ draft, setDraft, errors = [] }) => {
@@ -4613,16 +4731,19 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
       [key]: { ...(draft.modernization?.[key] || {}), ...patch },
     },
   });
-  const setBuildingCondition = (key, value) => setDraft({
+  const setBuildingCondition = (key, patch) => setDraft({
     ...draft,
-    buildingCondition: { ...draft.buildingCondition, [key]: value },
+    buildingCondition: {
+      ...draft.buildingCondition,
+      [key]: { ...buildingConditionValue(draft.buildingCondition?.[key]), ...patch },
+    },
   });
   return (
     <div>
       <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Modernisierungen</h2>
-      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte erfasse die wichtigsten Modernisierungen und den aktuellen Bauteilzustand.</div>
+      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte erfasse zuerst die durchgeführten Modernisierungen. Der aktuelle Zustand der Bauteile folgt separat darunter.</div>
 
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Maßnahmen</div>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Modernisierung</div>
       <div style={{ display: 'grid', gap: 10, marginBottom: 22 }}>
         {modernizationFields.map(([key, label]) => (
           <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 0.85fr 0.9fr 1.6fr', gap: 10, alignItems: 'end', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>
@@ -4644,21 +4765,32 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
         ))}
       </div>
 
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Bauteilzustand</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
-        {buildingConditionFields.map(([key, label]) => (
-          <Field key={key} label={label} required invalid={errors.includes(`buildingCondition${key.charAt(0).toUpperCase()}${key.slice(1)}`)}>
-            <Select value={draft.buildingCondition?.[key] || ''} onChange={(event) => setBuildingCondition(key, event.target.value)}>
-              <option value="">Bitte wählen</option>
-              <option value="very_good">sehr gut</option>
-              <option value="good">gut</option>
-              <option value="medium">mittel</option>
-              <option value="moderate">mäßig</option>
-              <option value="bad">schlecht</option>
-              <option value="very_bad">sehr schlecht</option>
-            </Select>
-          </Field>
-        ))}
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Zustand</div>
+      <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
+        {buildingConditionFields.map(([key, label]) => {
+          const value = buildingConditionValue(draft.buildingCondition?.[key]);
+          const errorKey = `buildingCondition${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+          return (
+            <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 10, alignItems: 'end', background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>
+              <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, paddingBottom: 9 }}>{label}</div>
+              <Field label="Zustandsbewertung" required={key !== 'other'} invalid={errors.includes(errorKey)}>
+                <Select value={value.rating} onChange={(event) => setBuildingCondition(key, { rating: event.target.value })}>
+                  <option value="">Bitte wählen</option>
+                  <option value="very_good">sehr gut</option>
+                  <option value="good">gut</option>
+                  <option value="medium">mittel</option>
+                  <option value="moderate">mäßig</option>
+                  <option value="bad">schlecht</option>
+                  <option value="very_bad">sehr schlecht</option>
+                  <option value="unknown">unbekannt</option>
+                </Select>
+              </Field>
+              <Field label="Zustandsbeschreibung">
+                <Input value={value.description} onChange={(event) => setBuildingCondition(key, { description: event.target.value })} placeholder="z.B. keine sichtbaren Schäden" />
+              </Field>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -5066,6 +5198,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
   const [cases, setCases] = useState(mockCases);
   const [leads, setLeads] = useState([]);
   const [partners, setPartners] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
   const [staff, setStaff] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [notice, setNotice] = useState('');
@@ -5113,6 +5246,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
         const partnerPayload = await partnerResponse.json();
         if (partnerResponse.ok) {
           setPartners(partnerPayload.partners || []);
+          setRegistrations(partnerPayload.registrations || []);
         }
       }
     } catch (err) {
@@ -5393,7 +5527,7 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['admin', 'super_admin'].includes(currentInternalRole)} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
-          {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
+          {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} registrations={registrations} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
           {screen === 'staff' && canViewStaff && <StaffDirectory staff={staff} canManageStaff={canManageStaff} onCreateStaff={handleCreateStaff} onUpdateStaffRole={handleUpdateStaffRole} onDeleteStaff={handleDeleteStaff} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}

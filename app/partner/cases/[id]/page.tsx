@@ -10,6 +10,7 @@ import { canSeeProperty } from "@/lib/access-control";
 import { getCurrentUser } from "@/lib/auth";
 import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
 import { getDbCaseByPropertyId } from "@/lib/persistence";
+import { formatHeatingLabel } from "@/lib/property-labels";
 
 export default async function PartnerCasePage({ params }: { params: { id: string } }) {
   const user = getCurrentUser();
@@ -64,7 +65,7 @@ export default async function PartnerCasePage({ params }: { params: { id: string
           <h2>Objektdaten</h2>
           <p>{caseView.property.propertyType} | Optik {caseView.property.visualConditionRating ?? "-"} | {caseView.property.livingAreaSqm} qm Wfl | {caseView.property.plotAreaSqm ?? "-"} qm Grundstück</p>
           <p className="muted">Modell: {caseView.property.desiredModel === "sale_and_leaseback" ? "Rückmiete" : "Befristetes Wohnrecht"} | Wohnrecht: {caseView.property.desiredResidentialRightYears ?? "-"} Jahre</p>
-          <p className="muted">Heizung: {caseView.property.heatingType ?? "-"} | Energieträger: {caseView.property.heatingEnergySource ?? "-"}</p>
+          <p className="muted">Heizung: {formatHeatingLabel(caseView.property)}</p>
           <p className="muted">{caseView.property.generalPropertyNotes ?? caseView.property.notes ?? "Keine Notizen"}</p>
         </section>
       </div>

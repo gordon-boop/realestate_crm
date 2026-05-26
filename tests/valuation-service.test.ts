@@ -7,6 +7,7 @@ const property: Property = {
   id: "property_test",
   customerId: "customer_test",
   partnerId: "partner_test",
+  caseSource: "PARTNER",
   propertyType: "house",
   street: "Musterstrasse 1",
   postalCode: "70173",

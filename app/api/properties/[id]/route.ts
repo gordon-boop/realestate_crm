@@ -31,6 +31,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       where: { id: params.id },
       data: {
         ...propertyData,
+        caseSource: body.caseSource as never,
         propertyType: body.propertyType as never,
         condition: body.condition as never,
         desiredModel: body.desiredModel as never,

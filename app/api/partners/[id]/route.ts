@@ -19,6 +19,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (!partner) throw new Error("Partner not found");
     const body = await request.json();
     const nextStatus = body.status === "active" || body.status === "inactive" ? body.status : partner.status;
+    if (nextStatus === "active") {
+      const registration = await prisma.brokerRegistration.findFirst({ where: { partnerId: params.id } });
+      if (registration && registration.status === "email_pending") {
+        return error("Der Partner kann erst freigeschaltet werden, wenn die E-Mail-Adresse bestÃ¤tigt wurde.", 409);
+      }
+    }
     const updated = await prisma.partner.update({
       where: { id: params.id },
       data: {

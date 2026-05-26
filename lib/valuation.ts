@@ -15,6 +15,7 @@ export async function getMockValuation(input: ValuationInput) {
     id: "valuation_preview",
     customerId: "preview",
     partnerId: "preview",
+    caseSource: "PARTNER",
     propertyType: input.propertyType as PropertyType,
     street: "",
     postalCode: input.postalCode,

@@ -1,4 +1,5 @@
 import type {
+  CaseSource,
   ActivityEntityType,
   ActivitySource,
   ChatAttachment,
@@ -148,12 +149,15 @@ export type CaseIntakeDraftDto = {
     rentalOptionDeselected?: boolean;
   };
   property: {
+    caseSource?: CaseSource;
     propertyType?: PropertyType;
+    /** @deprecated Die allgemeine Zustandsauswahl wird im Formular nicht mehr erhoben. */
     condition?: PropertyCondition;
     objectTitle?: string;
     street?: string;
     postalCode?: string;
     city?: string;
+    /** @deprecated Nutzung wird im Objektbereich nicht mehr erhoben. */
     occupancyStatus?: string;
     livingAreaSqm?: number;
     plotAreaSqm?: number;

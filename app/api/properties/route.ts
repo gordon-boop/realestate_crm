@@ -24,6 +24,15 @@ export async function POST(request: Request): Promise<Response> {
     if (user.role === "partner" && customer.partnerId !== user.partnerId) throw new Error("Forbidden");
     if (user.role === "admin" && !isInternalAdmin(user) && customer.assignedAdvisorUserId !== user.id) throw new Error("Forbidden");
 
+    const caseSource = user.role === "partner"
+      ? "PARTNER"
+      : body.caseSource === "INTERNAL" || !customer.partnerId
+        ? "INTERNAL"
+        : "PARTNER";
+    if (caseSource === "PARTNER" && !customer.partnerId) throw new Error("Partner case requires a partner");
+    const assignedAdvisorUserId = caseSource === "INTERNAL"
+      ? customer.assignedAdvisorUserId ?? user.id
+      : customer.assignedAdvisorUserId ?? (user.role === "admin" ? user.id : undefined);
     const caseNumber = body.caseNumber || await nextPropertyCaseNumber();
 
     const property = await prisma.property.create({
@@ -31,8 +40,9 @@ export async function POST(request: Request): Promise<Response> {
         caseNumber,
         objectTitle: body.objectTitle,
         customerId: customer.id,
-        partnerId: customer.partnerId,
-        assignedAdvisorUserId: customer.assignedAdvisorUserId ?? (user.role === "admin" ? user.id : undefined),
+        partnerId: caseSource === "PARTNER" ? customer.partnerId : undefined,
+        assignedAdvisorUserId,
+        caseSource,
         propertyType: body.propertyType as never,
         street: body.street,
         postalCode: body.postalCode,

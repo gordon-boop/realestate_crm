@@ -4,6 +4,7 @@ export type UserRole = "admin" | "partner";
 export type InternalUserRole = "employee" | "advisor" | "admin" | "super_admin";
 export type PropertyType = "house" | "single_family" | "semi_detached" | "row_house" | "apartment" | "multi_family" | "other";
 export type PropertyCondition = "very_good" | "good" | "average" | "renovation_needed";
+export type CaseSource = "PARTNER" | "INTERNAL";
 export type DesiredModel = "fixed_residential_right" | "sale_and_leaseback" | "other";
 export type Gender = "male" | "female" | "diverse" | "not_specified";
 export type MaritalStatus = "single" | "married" | "divorced" | "widowed" | "other";
@@ -144,6 +145,7 @@ export type Property = {
   customerId: string;
   partnerId?: string;
   assignedAdvisorUserId?: string;
+  caseSource: CaseSource;
   propertyType: PropertyType;
   street: string;
   postalCode: string;
@@ -196,7 +198,7 @@ export type Property = {
   remainingDebtKnown?: boolean;
   remainingDebtAmount?: number;
   modernization?: Record<string, unknown>;
-  buildingCondition?: Record<string, RatingSix>;
+  buildingCondition?: Record<string, unknown>;
   generalPropertyNotes?: string;
   followUpRequired?: boolean;
   followUpReason?: string;

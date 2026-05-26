@@ -139,11 +139,9 @@ export function HeroSection() {
         <div className={styles.heroGrid}>
           <div className={styles.heroText}>
             <h1 className={styles.heroTitle}>
-              Immobilie verkaufen.
+              Im Haus bleiben.
               <br />
-              Zuhause bleiben.
-              <br />
-              <em className={styles.italic}>Finanzielle Freiheit gewinnen.</em>
+              <em className={styles.italic}>Im Leben gewinnen.</em>
             </h1>
             <p className={styles.heroLead}>
               WohnKapital ermöglicht Eigentümern, Kapital aus der eigenen Immobilie freizusetzen

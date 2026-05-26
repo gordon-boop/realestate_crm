@@ -157,13 +157,16 @@ export function NewCaseForm() {
         ])
       ),
       buildingCondition: {
-        roof: form.get("conditionRoof"),
-        facade: form.get("conditionFacade"),
-        masonry: form.get("conditionMasonry"),
-        bathrooms: form.get("conditionBathrooms"),
-        windows: form.get("conditionWindows"),
-        electric: form.get("conditionElectric"),
-        outdoor: form.get("conditionOutdoor")
+        roof: { rating: form.get("conditionRoof"), description: stringValue(form.get("conditionRoofNote")) },
+        facade: { rating: form.get("conditionFacade"), description: stringValue(form.get("conditionFacadeNote")) },
+        masonry: { rating: form.get("conditionMasonry"), description: stringValue(form.get("conditionMasonryNote")) },
+        windows: { rating: form.get("conditionWindows"), description: stringValue(form.get("conditionWindowsNote")) },
+        basement: { rating: form.get("conditionBasement"), description: stringValue(form.get("conditionBasementNote")) },
+        electric: { rating: form.get("conditionElectric"), description: stringValue(form.get("conditionElectricNote")) },
+        sanitary: { rating: form.get("conditionSanitary"), description: stringValue(form.get("conditionSanitaryNote")) },
+        interior: { rating: form.get("conditionInterior"), description: stringValue(form.get("conditionInteriorNote")) },
+        outdoor: { rating: form.get("conditionOutdoor"), description: stringValue(form.get("conditionOutdoorNote")) },
+        other: { rating: stringValue(form.get("conditionOther")), description: stringValue(form.get("conditionOtherNote")) }
       },
       generalPropertyNotes: form.get("generalPropertyNotes"),
       notes: form.get("notes")
@@ -306,7 +309,7 @@ export function NewCaseForm() {
       </section>
 
       <section className="panel panel-pad grid">
-        <h2 style={{ margin: 0 }}>4. Schritt - Modernisierungen und Bauteile</h2>
+        <h2 style={{ margin: 0 }}>4. Schritt - Modernisierung</h2>
         <div className="grid" style={{ gap: 10 }}>
           {modernizationFields.map(([key, label]) => (
             <div key={key} className="grid" style={{ gridTemplateColumns: "1.1fr 0.7fr 1fr", gap: 12 }}>
@@ -316,9 +319,24 @@ export function NewCaseForm() {
             </div>
           ))}
         </div>
-        <div className="grid two">
-          {["Roof", "Facade", "Masonry", "Bathrooms", "Windows", "Electric", "Outdoor"].map((item) => (
-            <label className="field" key={item}><span>Zustand {item}</span><select name={`condition${item}`}><option value="medium">Mittel</option><option value="very_bad">Marode</option><option value="bad">Schlecht</option><option value="moderate">Mäßig</option><option value="good">Gut</option><option value="very_good">Sehr gut</option></select></label>
+        <h3 style={{ margin: "12px 0 0" }}>Zustand</h3>
+        <div className="grid">
+          {[
+            ["Roof", "Dach"],
+            ["Facade", "Fassade"],
+            ["Masonry", "Mauerwerk"],
+            ["Windows", "Fenster"],
+            ["Basement", "Keller"],
+            ["Electric", "Elektrik"],
+            ["Sanitary", "Sanitär"],
+            ["Interior", "Innenausbau"],
+            ["Outdoor", "Außenanlagen"],
+            ["Other", "Sonstiges"]
+          ].map(([item, label]) => (
+            <div className="grid two" key={item}>
+              <label className="field"><span>Zustandsbewertung {label}</span><select name={`condition${item}`}><option value="">Bitte wählen</option><option value="medium">Mittel</option><option value="very_bad">Marode</option><option value="bad">Schlecht</option><option value="moderate">Mäßig</option><option value="good">Gut</option><option value="very_good">Sehr gut</option><option value="unknown">Unbekannt</option></select></label>
+              <label className="field"><span>Zustandsbeschreibung {label}</span><input name={`condition${item}Note`} placeholder="z.B. keine sichtbaren Schäden" /></label>
+            </div>
           ))}
         </div>
       </section>

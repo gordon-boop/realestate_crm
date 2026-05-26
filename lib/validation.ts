@@ -38,6 +38,7 @@ const propertyBaseSchema = z.object({
   customerId: z.string().trim().min(1, "Kunde ist erforderlich"),
   caseNumber: optionalString,
   objectTitle: optionalString,
+  caseSource: z.enum(["PARTNER", "INTERNAL"]).default("PARTNER"),
   propertyType: z.enum(["house", "single_family", "semi_detached", "row_house", "apartment"]).default("house"),
   street: z.string().trim().min(1, "Straße ist erforderlich"),
   postalCode: z.string().trim().min(1, "PLZ ist erforderlich"),

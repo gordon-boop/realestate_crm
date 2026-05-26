@@ -48,6 +48,11 @@ enum PropertyCondition {
   renovation_needed
 }
 
+enum CaseSource {
+  PARTNER
+  INTERNAL
+}
+
 enum DesiredModel {
   fixed_residential_right
   sale_and_leaseback
@@ -371,6 +376,7 @@ model Property {
   partner                      Partner?          @relation(fields: [partnerId], references: [id])
   assignedAdvisorUserId        String?           @map("assigned_advisor_user_id")
   assignedAdvisor              User?             @relation("PropertyAssignedAdvisor", fields: [assignedAdvisorUserId], references: [id])
+  caseSource                   CaseSource        @default(PARTNER) @map("case_source")
   propertyType                 PropertyType      @map("property_type")
   street                       String
   postalCode                   String            @map("postal_code")
@@ -478,6 +484,7 @@ model Property {
 
   @@index([partnerId])
   @@index([assignedAdvisorUserId])
+  @@index([caseSource])
   @@index([status])
   @@map("properties")
 }
