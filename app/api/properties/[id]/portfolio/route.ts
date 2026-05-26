@@ -46,13 +46,41 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         residentialRightStartAt: dateOrNull(body.residentialRightStartAt),
         residentialRightEndAt: dateOrNull(body.residentialRightEndAt),
         residentialRightNotes: body.residentialRightNotes ?? null,
+        notaryAppointmentRequestedAt: dateOrNull(body.notaryAppointmentRequestedAt),
+        purchaseContractDraftReceivedAt: dateOrNull(body.purchaseContractDraftReceivedAt),
+        purchaseContractDraftReviewedAt: dateOrNull(body.purchaseContractDraftReviewedAt),
+        priorityNoticeRegisteredAt: dateOrNull(body.priorityNoticeRegisteredAt),
+        purchasePriceDueAt: dateOrNull(body.purchasePriceDueAt),
+        purchasePricePaidAt: dateOrNull(body.purchasePricePaidAt),
+        residentialRightRegisteredAt: dateOrNull(body.residentialRightRegisteredAt),
+        benefitsAndBurdensTransferAt: dateOrNull(body.benefitsAndBurdensTransferAt),
+        buildingInsuranceClarified: body.buildingInsuranceClarified ?? false,
+        propertyManagerInformed: body.propertyManagerInformed ?? false,
+        serviceChargeInfoRequested: body.serviceChargeInfoRequested ?? false,
+        propertyTaxInfoAvailable: body.propertyTaxInfoAvailable ?? false,
+        propertyFileComplete: body.propertyFileComplete ?? false,
+        portfolioTransferCompletedAt: dateOrNull(body.portfolioTransferCompletedAt),
+        residentStaysInProperty: body.residentStaysInProperty ?? true,
+        residentName: body.residentName ?? null,
+        usageModel: body.usageModel ?? null,
+        usageRightStartsAt: dateOrNull(body.usageRightStartsAt),
+        usageRightEndsAt: dateOrNull(body.usageRightEndsAt),
+        monthlyUsageFee: body.monthlyUsageFee ?? null,
+        residentContactName: body.residentContactName ?? null,
+        residentEmergencyContact: body.residentEmergencyContact ?? null,
+        propertyManagerName: body.propertyManagerName ?? null,
+        buildingInsurance: body.buildingInsurance ?? null,
+        serviceChargeStatus: body.serviceChargeStatus ?? null,
+        repairReportingChannelClarified: body.repairReportingChannelClarified ?? false,
+        conditionDocumentationAvailable: body.conditionDocumentationAvailable ?? false,
+        nextPortfolioReviewAt: dateOrNull(body.nextPortfolioReviewAt),
         maintenancePlanJson: toOptionalPrismaJson(body.maintenancePlan),
         portfolioTasksJson: toOptionalPrismaJson(body.portfolioTasks),
         portfolioNotes: body.portfolioNotes ?? null
       }
     });
 
-    await addDbActivity(params.id, user.id, "portfolio_file_updated", "Bestandsakte wurde aktualisiert.", {
+    await addDbActivity(params.id, user.id, "portfolio_file_updated", "Bestandsakte und Bewohnerverwaltung wurden aktualisiert.", {
       source: "admin",
       entityType: "property",
       entityId: params.id

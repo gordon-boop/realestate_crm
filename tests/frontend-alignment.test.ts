@@ -207,7 +207,7 @@ test("portfolio file validation stores contract, rent and maintenance data", () 
     rentStartAt: "2026-06-01",
     maintenancePlan: { nextReviewDate: "2026-11-15", responsible: "Asset Management" },
     portfolioTasks: { nextAppointmentDate: "2026-11-15", nextAppointmentType: "Objektprüfung" },
-    portfolioNotes: "Bestandsübergabe dokumentiert."
+    portfolioNotes: "Bestandsübernahme dokumentiert."
   });
 
   assert.equal(parsed.purchasePrice, 425000);

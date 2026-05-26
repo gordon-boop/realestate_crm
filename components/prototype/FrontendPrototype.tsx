@@ -110,7 +110,7 @@ const Logo = ({ size = 28 }) => (
 // =====================================================================
 // SHARED — Header & Sidebar
 // =====================================================================
-const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notifications = [], chatNotifications = [], onOpenCase, onOpenNotification, onOpenChatNotification }) => {
+const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notifications = [], chatNotifications = [], currentCaseContext, onOpenCase, onOpenNotification, onOpenChatNotification, onOpenCurrentCaseChat }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const visibleNotifications = notifications.slice(0, 8);
@@ -197,6 +197,12 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
           <button
             type="button"
             onClick={() => {
+              if (currentCaseContext?.caseId) {
+                onOpenCurrentCaseChat?.(currentCaseContext);
+                setChatOpen(false);
+                setNotificationsOpen(false);
+                return;
+              }
               setChatOpen(!chatOpen);
               setNotificationsOpen(false);
             }}
@@ -269,7 +275,6 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, l
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
     { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts', badge: draftCount || undefined },
     { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: inProgressCount || undefined },
-    { icon: Archive, label: 'Bestand', screen: 'portfolio', badge: portfolioCount || undefined },
     { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined },
     { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
@@ -812,6 +817,114 @@ function labelFrom(map, value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : (map[value] || value);
 }
 
+const caseTabKeys = ['kunde', 'objekt', 'indag', 'verbag', 'bestand', 'verwertung', 'doks', 'chat', 'aufgaben'];
+const caseTabAliases = {
+  customer: 'kunde',
+  kunde: 'kunde',
+  object: 'objekt',
+  objekt: 'objekt',
+  property: 'objekt',
+  modernization: 'objekt',
+  modernisierung: 'objekt',
+  condition: 'objekt',
+  zustand: 'objekt',
+  offer: 'indag',
+  indicative_offer: 'indag',
+  unverbindliches_angebot: 'indag',
+  binding_offer: 'verbag',
+  verbindliches_angebot: 'verbag',
+  portfolio: 'bestand',
+  bestand: 'bestand',
+  exit: 'verwertung',
+  verwertung: 'verwertung',
+  verwertung_nach_wohnrechtsende: 'verwertung',
+  documents: 'doks',
+  document: 'doks',
+  doks: 'doks',
+  objektunterlagen: 'doks',
+  chat: 'chat',
+  activity: 'aufgaben',
+  activities: 'aufgaben',
+  aufgaben: 'aufgaben',
+};
+
+function normalizeCaseTab(tab, fallback = 'kunde') {
+  if (!tab) return fallback;
+  const normalized = String(tab).trim().toLowerCase();
+  const mapped = caseTabAliases[normalized] || normalized;
+  return caseTabKeys.includes(mapped) ? mapped : fallback;
+}
+
+function basePathForRole(role) {
+  return role === 'admin' ? '/admin' : '/partner';
+}
+
+const appScreenKeys = [
+  'dashboard',
+  'leads',
+  'drafts',
+  'in_progress',
+  'portfolio',
+  'sold',
+  'rejected',
+  'partners',
+  'staff',
+  'other',
+  'knowledge_brochure',
+  'knowledge_atlas',
+  'knowledge_guide',
+  'knowledge_faq',
+  'erfassung',
+];
+
+function normalizeAppScreen(screen, fallback = 'dashboard') {
+  if (!screen) return fallback;
+  const normalized = String(screen).trim().toLowerCase();
+  return appScreenKeys.includes(normalized) ? normalized : fallback;
+}
+
+function parseAppLocation(fallbackScreen = 'dashboard') {
+  if (typeof window === 'undefined') return normalizeAppScreen(fallbackScreen);
+  const params = new URLSearchParams(window.location.search);
+  return normalizeAppScreen(params.get('screen') || params.get('view'), fallbackScreen);
+}
+
+function parseCaseLocation(fallbackTab = 'kunde') {
+  if (typeof window === 'undefined') return { caseId: null, tab: fallbackTab, returnTab: '' };
+  const params = new URLSearchParams(window.location.search);
+  return {
+    caseId: params.get('case') || params.get('caseId'),
+    tab: normalizeCaseTab(params.get('tab'), fallbackTab),
+    returnTab: normalizeCaseTab(params.get('returnTab'), ''),
+  };
+}
+
+function updateCaseUrl(role, caseId, tab = 'kunde', returnTab = '', mode = 'replace') {
+  if (typeof window === 'undefined' || !caseId) return;
+  const params = new URLSearchParams();
+  params.set('case', String(caseId));
+  params.set('tab', normalizeCaseTab(tab));
+  if (returnTab && normalizeCaseTab(returnTab) !== normalizeCaseTab(tab)) {
+    params.set('returnTab', normalizeCaseTab(returnTab));
+  }
+  const url = `${basePathForRole(role)}?${params.toString()}`;
+  window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
+}
+
+function updateScreenUrl(role, screen = 'dashboard', mode = 'replace') {
+  if (typeof window === 'undefined') return;
+  const nextScreen = normalizeAppScreen(screen);
+  const url = nextScreen === 'dashboard'
+    ? basePathForRole(role)
+    : `${basePathForRole(role)}?screen=${encodeURIComponent(nextScreen)}`;
+  window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
+}
+
+function clearCaseUrl(role, mode = 'replace') {
+  if (typeof window === 'undefined') return;
+  window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', basePathForRole(role));
+}
+
 function leadDisplayName(lead) {
   return lead?.name || [lead?.firstName, lead?.lastName].filter(Boolean).join(' ') || 'Kontakt offen';
 }
@@ -823,6 +936,11 @@ function isPreviewImage(document) {
 function fileExtension(fileName = '') {
   const extension = fileName.split('.').pop();
   return extension && extension !== fileName ? extension.toUpperCase().slice(0, 5) : 'DATEI';
+}
+
+function isDateBefore(acceptedAt, submittedAt) {
+  if (!acceptedAt || !submittedAt) return false;
+  return new Date(acceptedAt) < new Date(submittedAt);
 }
 
 const genderLabels = { female: 'weiblich', male: 'männlich', diverse: 'divers', not_specified: 'keine Angabe' };
@@ -849,6 +967,14 @@ const rejectionReasons = [
   { value: 'other', label: 'Sonstiger Grund' },
 ];
 const rejectionReasonLabels = Object.fromEntries(rejectionReasons.map((item) => [item.value, item.label]));
+const workflowResetReasons = [
+  'Gutachtertermin wurde geändert',
+  'Bewertung muss angepasst werden',
+  'Angebot muss neu kalkuliert werden',
+  'Unterlagen fehlen',
+  'Kunde hat Änderungswunsch',
+  'Interne Prüfung erforderlich',
+];
 const documentCategoryLabels = {
   energy_certificate: 'Energieausweis',
   land_register: 'Grundbuchauszug',
@@ -866,6 +992,31 @@ const documentCategoryLabels = {
 };
 const modernizationLabels = modernizationScopeLabels;
 const productModelLabels = { fixed_residential_right: 'Verrentung mit befristetem Wohnrecht', sale_and_leaseback: 'Rückmietmodell', other: 'Sonstiges Modell' };
+const usageModelLabels = {
+  fixed_residential_right: 'befristetes Wohnrecht',
+  lifelong_residential_right: 'lebenslanges Wohnrecht',
+  usufruct: 'Nießbrauch',
+  sale_and_leaseback: 'Rückmietung',
+  other: 'sonstiges Nutzungsmodell',
+};
+const exitTerminationReasonLabels = {
+  move_out: 'Auszug',
+  resident_death: 'Tod des Bewohners',
+  fixed_term_expired: 'Ablauf befristetes Wohnrecht',
+  waiver_agreement: 'Verzicht / Aufhebungsvereinbarung',
+  other: 'sonstiger Grund',
+};
+const exitSalesStatusLabels = {
+  under_review: 'in Prüfung',
+  access_pending: 'Objektzugang offen',
+  inspection_scheduled: 'Begehung geplant',
+  clearance_pending: 'Räumung offen',
+  repairs_pending: 'Sanierung / Reparatur offen',
+  sales_preparation: 'Verkaufsvorbereitung',
+  marketing: 'in Vermarktung',
+  sold: 'verkauft',
+  completed: 'abgeschlossen',
+};
 const offerStatusLabels = {
   draft: 'Entwurf',
   review: 'In Prüfung',
@@ -1861,6 +2012,35 @@ function portfolioFormFromProperty(property = {}) {
     residentialRightStartAt: dateInputValue(property.residentialRightStartAt),
     residentialRightEndAt: dateInputValue(property.residentialRightEndAt),
     residentialRightNotes: property.residentialRightNotes || '',
+    notaryAppointmentRequestedAt: dateInputValue(property.notaryAppointmentRequestedAt),
+    notaryAppointmentAt: dateInputValue(property.notaryAppointmentAt),
+    purchaseContractDraftReceivedAt: dateInputValue(property.purchaseContractDraftReceivedAt),
+    purchaseContractDraftReviewedAt: dateInputValue(property.purchaseContractDraftReviewedAt),
+    priorityNoticeRegisteredAt: dateInputValue(property.priorityNoticeRegisteredAt),
+    purchasePriceDueAt: dateInputValue(property.purchasePriceDueAt),
+    purchasePricePaidAt: dateInputValue(property.purchasePricePaidAt || property.payoutPaidAt),
+    residentialRightRegisteredAt: dateInputValue(property.residentialRightRegisteredAt || property.landRegisterEntryAt),
+    benefitsAndBurdensTransferAt: dateInputValue(property.benefitsAndBurdensTransferAt || property.ownershipTransferAt),
+    buildingInsuranceClarified: Boolean(property.buildingInsuranceClarified),
+    propertyManagerInformed: Boolean(property.propertyManagerInformed),
+    serviceChargeInfoRequested: Boolean(property.serviceChargeInfoRequested),
+    propertyTaxInfoAvailable: Boolean(property.propertyTaxInfoAvailable),
+    propertyFileComplete: Boolean(property.propertyFileComplete),
+    portfolioTransferCompletedAt: dateInputValue(property.portfolioTransferCompletedAt || property.portfolioEnteredAt),
+    residentStaysInProperty: property.residentStaysInProperty !== false,
+    residentName: property.residentName || '',
+    usageModel: property.usageModel || (property.desiredModel === 'sale_and_leaseback' ? 'sale_and_leaseback' : 'fixed_residential_right'),
+    usageRightStartsAt: dateInputValue(property.usageRightStartsAt || property.residentialRightStartAt || property.rentStartAt),
+    usageRightEndsAt: dateInputValue(property.usageRightEndsAt || property.residentialRightEndAt),
+    monthlyUsageFee: property.monthlyUsageFee || property.monthlyRent || '',
+    residentContactName: property.residentContactName || '',
+    residentEmergencyContact: property.residentEmergencyContact || '',
+    propertyManagerName: property.propertyManagerName || '',
+    buildingInsurance: property.buildingInsurance || '',
+    serviceChargeStatus: property.serviceChargeStatus || '',
+    repairReportingChannelClarified: Boolean(property.repairReportingChannelClarified),
+    conditionDocumentationAvailable: Boolean(property.conditionDocumentationAvailable),
+    nextPortfolioReviewAt: dateInputValue(property.nextPortfolioReviewAt),
     maintenanceNextReviewDate: property.maintenancePlan?.nextReviewDate || '',
     maintenanceResponsible: property.maintenancePlan?.responsible || '',
     maintenanceBudget: property.maintenancePlan?.annualBudget || '',
@@ -1872,151 +2052,215 @@ function portfolioFormFromProperty(property = {}) {
   };
 }
 
+function exitProcessFormFromProperty(property = {}) {
+  const exitProcess = property.exitProcess || {};
+  return {
+    usageRightEndedAt: dateInputValue(exitProcess.usageRightEndedAt),
+    terminationReason: exitProcess.terminationReason || 'move_out',
+    terminationProofAvailable: Boolean(exitProcess.terminationProofAvailable),
+    relativesOrEstateContact: exitProcess.relativesOrEstateContact || '',
+    relativesContactedAt: dateInputValue(exitProcess.relativesContactedAt),
+    propertyAccessClarified: Boolean(exitProcess.propertyAccessClarified),
+    keyHandoverPlannedAt: dateInputValue(exitProcess.keyHandoverPlannedAt),
+    keysReceivedAt: dateInputValue(exitProcess.keysReceivedAt),
+    inspectionPlannedAt: dateInputValue(exitProcess.inspectionPlannedAt),
+    inspectionCompletedAt: dateInputValue(exitProcess.inspectionCompletedAt),
+    postMoveOutConditionReportAvailable: Boolean(exitProcess.postMoveOutConditionReportAvailable),
+    clearanceRequired: Boolean(exitProcess.clearanceRequired),
+    clearanceOrderedAt: dateInputValue(exitProcess.clearanceOrderedAt),
+    clearanceCompletedAt: dateInputValue(exitProcess.clearanceCompletedAt),
+    safetyInspectionCompleted: Boolean(exitProcess.safetyInspectionCompleted),
+    insuranceCoverageChecked: Boolean(exitProcess.insuranceCoverageChecked),
+    repairNeedCaptured: Boolean(exitProcess.repairNeedCaptured),
+    salesPreparationStartedAt: dateInputValue(exitProcess.salesPreparationStartedAt),
+    brokerMandatedAt: dateInputValue(exitProcess.brokerMandatedAt),
+    marketingStartedAt: dateInputValue(exitProcess.marketingStartedAt),
+    salePriceIndication: exitProcess.salePriceIndication || '',
+    salePriceFinal: exitProcess.salePriceFinal || '',
+    salesStatus: exitProcess.salesStatus || 'under_review',
+    saleNotarizedAt: dateInputValue(exitProcess.saleNotarizedAt),
+    salePriceReceivedAt: dateInputValue(exitProcess.salePriceReceivedAt),
+    exitCompletedAt: dateInputValue(exitProcess.exitCompletedAt),
+    internalNote: exitProcess.internalNote || '',
+    responsibleUserId: exitProcess.responsibleUserId || '',
+    followUpAt: dateInputValue(exitProcess.followUpAt),
+  };
+}
+
 const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
+  if (role !== 'admin') {
+    return (
+      <div style={{ padding: '28px' }}>
+        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '20px 22px', color: theme.ink }}>
+          Die interne Bestandsverwaltung ist nur für WohnKapital-Mitarbeiter sichtbar.
+        </div>
+      </div>
+    );
+  }
   const pipelineStatuses = ['OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'];
   const portfolioStatuses = ['IN_PORTFOLIO', 'WON'];
   const pipelineCases = cases.filter((item) => pipelineStatuses.includes(item.status));
   const portfolioCases = cases.filter((item) => portfolioStatuses.includes(item.status));
   const relevantCases = [...pipelineCases, ...portfolioCases];
-  const notaryCases = cases.filter((item) => item.status === 'NOTARY_APPOINTMENT');
-  const transitionCases = cases.filter((item) => item.status === 'PURCHASED');
+  const purchaseContractCases = cases.filter((item) => ['BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'].includes(item.status));
+  const contractExecutionCases = portfolioCases.filter((item) => {
+    const property = item.raw?.property || {};
+    return !property.purchasePricePaidAt || !property.residentialRightRegisteredAt || !property.propertyFileComplete;
+  });
+  const portfolioTakeoverCases = portfolioCases.filter((item) => portfolioCompletion(item.raw?.property || {}).percent < 100);
+  const repairAndBillingCases = portfolioCases.filter((item) => {
+    const property = item.raw?.property || {};
+    return !property.repairReportingChannelClarified || !property.serviceChargeStatus || property.portfolioTasks?.nextAppointmentDate;
+  });
 
-  const kpis = [
-    { label: 'Ankaufspipeline', value: pipelineCases.length, sub: 'angenommen bis angekauft', icon: Briefcase },
-    { label: 'Notartermine', value: notaryCases.length, sub: 'zu koordinieren', icon: Calendar },
-    { label: 'Übergabe offen', value: transitionCases.length, sub: 'noch nicht im Bestand', icon: AlertCircle },
-    { label: 'Im Bestand', value: portfolioCases.length, sub: 'aktive Bestandsobjekte', icon: Archive },
+  const uniqueCases = (items) => Array.from(new Map(items.map((item) => [item.propertyId || item.id, item])).values());
+  const phaseForCase = (item) => {
+    if (['BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'].includes(item.status)) return 'Kaufvertragsabwicklung';
+    if (contractExecutionCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Vertragsvollzug';
+    if (portfolioTakeoverCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Bestandsübernahme';
+    if (portfolioCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Bestandsverwaltung';
+    return 'Ankauf';
+  };
+  const actionCases = uniqueCases([
+    ...purchaseContractCases,
+    ...contractExecutionCases,
+    ...portfolioTakeoverCases,
+    ...repairAndBillingCases,
+    ...pipelineCases,
+    ...portfolioCases,
+  ]).slice(0, 8);
+  const priorityCards = [
+    {
+      label: 'Kaufvertragsabwicklung',
+      value: purchaseContractCases.length,
+      text: 'VA angenommen, Notar oder Kaufvertragsentwurf offen.',
+      action: 'Abwicklung prüfen',
+      cases: purchaseContractCases,
+      icon: Briefcase,
+      tone: theme.aubergine,
+    },
+    {
+      label: 'Vertragsvollzug',
+      value: contractExecutionCases.length,
+      text: 'Zahlung, Grundbuch, Wohnrecht oder Objektakte offen.',
+      action: 'Vollzug prüfen',
+      cases: contractExecutionCases,
+      icon: Calendar,
+      tone: theme.oliv,
+    },
+    {
+      label: 'Bestandsthemen',
+      value: repairAndBillingCases.length,
+      text: 'Reparaturen, Abrechnungen oder Bewohneranfragen prüfen.',
+      action: 'Themen öffnen',
+      cases: repairAndBillingCases,
+      icon: AlertCircle,
+      tone: theme.gold,
+    },
   ];
-  const incompletePortfolioCases = portfolioCases.filter((item) => portfolioCompletion(item.raw?.property || {}).percent < 100);
+  const sideTopics = [
+    { label: 'Bestandsübernahmen offen', value: portfolioTakeoverCases.length },
+    { label: 'Offene Abrechnungen', value: portfolioCases.filter((item) => !item.raw?.property?.serviceChargeStatus).length },
+    { label: 'Bewohneranfragen', value: portfolioCases.filter((item) => item.raw?.property?.portfolioTasks?.nextAppointmentType?.toLowerCase?.().includes('bewohner')).length },
+  ];
 
   return (
     <div style={{ padding: '20px 28px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18, gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
         <div>
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
-            {role === 'admin' ? 'Intern · Ankauf' : 'Partnerportal · Bestand'}
+            Intern · Ankauf und Bestand
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankauf & Bestand</h1>
           <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>
-            Vom angenommenen Angebot über Notar und Ankauf bis zur Übergabe in den Bestand.
+            Die wichtigsten Vorgänge nach Angebotsannahme, ohne operative Detailtiefe auf der Startansicht.
           </div>
-        </div>
-        <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 14px', minWidth: 124, textAlign: 'right' }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: theme.aubergine, lineHeight: 1 }}>{relevantCases.length}</div>
-          <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>Vorgänge</div>
         </div>
       </div>
 
-      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
-        {kpis.map((item) => (
-          <div key={item.label} style={{ background: 'white', borderRadius: 8, padding: '14px 16px', border: `1px solid ${theme.borderSoft}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-              <span style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{item.label}</span>
-              <item.icon size={15} style={{ color: `${theme.aubergine}66` }} />
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: theme.aubergine, lineHeight: 1, marginBottom: 4 }}>{item.value}</div>
-            <div style={{ fontSize: 11.5, color: `${theme.ink}99` }}>{item.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="portfolio-stage-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 18 }}>
-        {acquisitionStages.map((stage) => {
-          const stageCases = cases.filter((item) => stage.statuses.includes(item.status));
-          const firstCase = stageCases[0];
+      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
+        {priorityCards.map((item) => {
+          const firstCase = item.cases[0];
           return (
-            <button key={stage.title} onClick={() => firstCase && onOpenCase(firstCase.propertyId || firstCase.id)} style={{
+            <button key={item.label} onClick={() => firstCase && onOpenCase(firstCase.propertyId || firstCase.id, firstCase.status === 'IN_PORTFOLIO' ? 'bestand' : undefined)} style={{
               background: 'white',
-              border: `1px solid ${stageCases.length ? `${stage.tone}55` : theme.borderSoft}`,
-              borderTop: `3px solid ${stage.tone}`,
+              border: `1px solid ${theme.borderSoft}`,
+              borderLeft: `3px solid ${item.tone}`,
               borderRadius: 8,
-              padding: '13px 14px',
+              padding: '15px 16px',
               textAlign: 'left',
               cursor: firstCase ? 'pointer' : 'default',
-              minHeight: 134,
+              minHeight: 130,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <stage.icon size={16} style={{ color: stage.tone }} />
-                <span style={{ background: `${stage.tone}1A`, color: stage.tone, borderRadius: 12, padding: '2px 9px', fontSize: 11, fontWeight: 800 }}>{stageCases.length}</span>
+                <item.icon size={16} style={{ color: item.tone }} />
+                <span style={{ fontSize: 24, lineHeight: 1, color: theme.aubergine, fontWeight: 800 }}>{item.value}</span>
               </div>
-              <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 700, marginBottom: 6 }}>{stage.title}</div>
-              <div style={{ fontSize: 11.5, color: `${theme.ink}99`, lineHeight: 1.45 }}>{stage.text}</div>
+              <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 800, marginBottom: 5 }}>{item.label}</div>
+              <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45, marginBottom: 10 }}>{item.text}</div>
+              <div style={{ fontSize: 12, color: item.tone, fontWeight: 800 }}>{item.action}</div>
             </button>
           );
         })}
       </div>
 
-      <div className="portfolio-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1.45fr 0.9fr', gap: 16, marginBottom: 18 }}>
-        <CaseTableCard
-          title="Ankaufspipeline"
-          emptyText="Keine Fälle in der Ankaufspipeline."
-          cases={pipelineCases}
-          onOpenCase={onOpenCase}
-          showPartner={role === 'admin'}
-        />
+      <div className="portfolio-layout-grid" style={{ display: 'grid', gridTemplateColumns: '1.55fr 0.75fr', gap: 16 }}>
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Nächste Schritte</span>
-            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{pipelineCases.length} offen</span>
+          <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Aktuelle Vorgänge</span>
+            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{relevantCases.length} gesamt</span>
           </div>
-          {pipelineCases.length === 0 ? (
-            <div style={{ padding: 20, color: `${theme.ink}88`, fontSize: 13 }}>Aktuell keine offenen Ankaufsschritte.</div>
-          ) : pipelineCases.slice(0, 5).map((item, index) => (
-            <div key={item.propertyId || item.id} style={{ padding: '12px 16px', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{ width: 24, height: 24, borderRadius: 12, background: theme.mintLight, color: theme.aubergine, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Clock size={13} />
+          {actionCases.length === 0 ? (
+            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Aktuell keine offenen Vorgänge in Ankauf oder Bestand.</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: theme.mintLight }}>
+                  {['Fall', 'Kunde', 'Phase', 'Nächster Schritt', 'Status', ''].map((h) => (
+                    <th key={h} style={{ textAlign: 'left', padding: '8px 14px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {actionCases.map((item, index) => (
+                  <tr key={item.propertyId || item.id} onClick={() => onOpenCase(item.propertyId || item.id, portfolioStatuses.includes(item.status) ? 'bestand' : undefined)} style={{ borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', cursor: 'pointer' }}>
+                    <td style={{ padding: '11px 14px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{item.id}</td>
+                    <td style={{ padding: '11px 14px', color: theme.ink, fontWeight: 650 }}>{item.kunde}</td>
+                    <td style={{ padding: '11px 14px', color: `${theme.ink}aa`, fontSize: 12.5 }}>{phaseForCase(item)}</td>
+                    <td style={{ padding: '11px 14px', color: theme.ink }}>{nextPortfolioAction[item.status] || 'Bestandsakte prüfen'}</td>
+                    <td style={{ padding: '11px 14px' }}><StatusBadge status={item.status} /></td>
+                    <td style={{ padding: '11px 14px', textAlign: 'right' }}><ChevronRight size={15} style={{ color: `${theme.aubergine}88` }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
+          <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Nächste Fristen</div>
+            {pipelineCases.length === 0 ? (
+              <div style={{ padding: 16, color: `${theme.ink}88`, fontSize: 12.5 }}>Keine offenen Fristen.</div>
+            ) : pipelineCases.slice(0, 4).map((item, index) => (
+              <button key={item.propertyId || item.id} onClick={() => onOpenCase(item.propertyId || item.id)} style={{ width: '100%', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 16px', textAlign: 'left', cursor: 'pointer' }}>
+                <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>{item.kunde}</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{nextPortfolioAction[item.status] || 'Nächsten Schritt prüfen'}</div>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+            <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Offene Themen</div>
+            {sideTopics.map((item, index) => (
+              <div key={item.label} style={{ padding: '11px 16px', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 12.5, color: theme.ink }}>{item.label}</span>
+                <span style={{ fontSize: 16, color: theme.aubergine, fontWeight: 800 }}>{item.value}</span>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, marginBottom: 3 }}>{item.kunde}</div>
-                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.4 }}>{item.id} · {item.objekt}</div>
-                <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <StatusBadge status={item.status} />
-                  <button onClick={() => onOpenCase(item.propertyId || item.id)} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 11.5, fontWeight: 700, padding: '4px 8px', borderRadius: 5, cursor: 'pointer' }}>
-                    {nextPortfolioAction[item.status] || 'Öffnen'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
-
-      <CaseTableCard
-        title="Bestandsobjekte"
-        emptyText="Noch keine Objekte im Bestand."
-        cases={portfolioCases}
-        onOpenCase={onOpenCase}
-        showPartner={role === 'admin'}
-      />
-      {portfolioCases.length > 0 && (
-        <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden', marginTop: 18 }}>
-          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Bestandsakte prüfen</span>
-            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{incompletePortfolioCases.length} unvollständig</span>
-          </div>
-          {portfolioCases.slice(0, 8).map((item, index) => {
-            const completion = portfolioCompletion(item.raw?.property || {});
-            return (
-              <button key={item.propertyId || item.id} onClick={() => onOpenCase(item.propertyId || item.id, 'bestand')} style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '12px 16px', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr 120px 18px', gap: 12, alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: theme.ink }}>{item.kunde} · {item.id}</div>
-                  <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{item.objekt} · {nextPortfolioAction[item.status] || 'Bestandsakte öffnen'}</div>
-                </div>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: `${theme.ink}88`, marginBottom: 4 }}>
-                    <span>{completion.done}/{completion.total}</span>
-                    <span>{completion.percent}%</span>
-                  </div>
-                  <div style={{ height: 6, background: theme.borderSoft, borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${completion.percent}%`, background: completion.percent === 100 ? '#5B8C2B' : theme.gold }} />
-                  </div>
-                </div>
-                <ChevronRight size={15} style={{ color: theme.aubergine }} />
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };
@@ -2353,8 +2597,8 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
 // =====================================================================
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
-const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde' }) => {
-  const [activeTab, setActiveTab] = useState(initialTab || 'kunde');
+const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde', returnTab = '', onTabChange, onReturnToTab }) => {
+  const [activeTab, setActiveTab] = useState(normalizeCaseTab(initialTab));
   const [busyAction, setBusyAction] = useState('');
   const [openCalculation, setOpenCalculation] = useState('');
   const [calculationParams, setCalculationParams] = useState({});
@@ -2366,29 +2610,40 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectionReasonCode, setRejectionReasonCode] = useState('location');
   const [rejectionNote, setRejectionNote] = useState('');
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetTargetStatus, setResetTargetStatus] = useState('SUBMITTED');
+  const [resetReason, setResetReason] = useState(workflowResetReasons[0]);
+  const [resetNote, setResetNote] = useState('');
   const [expertOpinionOrderedDate, setExpertOpinionOrderedDate] = useState('');
   const [expertOpinionReceivedDate, setExpertOpinionReceivedDate] = useState('');
   const [expertOpinionCompany, setExpertOpinionCompany] = useState('');
   const [notaryAppointmentDate, setNotaryAppointmentDate] = useState('');
   const [notaryOffice, setNotaryOffice] = useState('');
+  const [indicativeOfferSentDate, setIndicativeOfferSentDate] = useState('');
+  const [indicativeOfferAcceptedDate, setIndicativeOfferAcceptedDate] = useState('');
+  const [bindingOfferSentDate, setBindingOfferSentDate] = useState('');
+  const [bindingOfferAcceptedDate, setBindingOfferAcceptedDate] = useState('');
   const [expertOpinionValue, setExpertOpinionValue] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatVisibility, setChatVisibility] = useState('shared');
   const [chatAttachmentFiles, setChatAttachmentFiles] = useState([]);
   const [portfolioForm, setPortfolioForm] = useState(() => portfolioFormFromProperty({}));
+  const [exitProcessForm, setExitProcessForm] = useState(() => exitProcessFormFromProperty({}));
   const c = cases.find(x => x.propertyId === caseId || x.id === caseId) || mockCases[0];
   const caseView = c.raw;
   const customer = caseView?.customer;
   const property = caseView?.property;
   const canRejectCase = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
   const canManageOffers = role === 'admin' && ['advisor', 'admin', 'super_admin'].includes(internalRole);
+  const canManageWorkflow = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
+  const canEditOfferDates = canManageWorkflow;
   const canManagePortfolio = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
   const canReviewDocuments = canManageOffers;
   const canEditCaseData = role === 'admin' || property?.status === 'DRAFT';
   const canDeleteDocuments = role === 'admin' || property?.status === 'DRAFT';
 
   useEffect(() => {
-    setActiveTab(initialTab || 'kunde');
+    setActiveTab(normalizeCaseTab(initialTab));
   }, [caseId, initialTab]);
 
   useEffect(() => {
@@ -2396,11 +2651,28 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   }, [property?.id, property?.updatedAt, property?.portfolioEnteredAt]);
 
   useEffect(() => {
+    setExitProcessForm(exitProcessFormFromProperty(property || {}));
+  }, [property?.id, property?.updatedAt, property?.exitProcess?.updatedAt]);
+
+  useEffect(() => {
+    setIndicativeOfferSentDate(dateInputValue(property?.indicativeOfferSentAt));
+    setIndicativeOfferAcceptedDate(dateInputValue(property?.offerAcceptedAt));
+    setBindingOfferSentDate(dateInputValue(property?.bindingOfferSentAt));
+    setBindingOfferAcceptedDate(dateInputValue(property?.bindingOfferAcceptedAt));
+  }, [property?.id, property?.updatedAt, property?.indicativeOfferSentAt, property?.offerAcceptedAt, property?.bindingOfferSentAt, property?.bindingOfferAcceptedAt]);
+
+  useEffect(() => {
     if (activeTab !== 'chat' || !c.propertyId) return;
     postJson(`/api/properties/${c.propertyId}/chat/read`, {})
       .then(() => onNotificationsRefresh?.())
       .catch(() => undefined);
   }, [activeTab, c.propertyId]);
+  const changeTab = (tab) => {
+    const nextTab = normalizeCaseTab(tab);
+    setActiveTab(nextTab);
+    onTabChange?.(nextTab);
+  };
+  const chatReturnTab = activeTab === 'chat' ? normalizeCaseTab(returnTab, '') : '';
   const latestOffer = caseView?.offer;
   const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
   const indicativeOffers = productOffers.filter((offer) => offer.kind !== 'binding');
@@ -2672,8 +2944,39 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     step.date ? Math.max(highestIndex, index) : highestIndex
   ), -1);
   const acquisitionStatusIndex = Math.max(acquisitionStatusIndexFromStatus, acquisitionStatusIndexFromDates);
+  const resetTargetOptions = acquisitionSteps
+    .filter((_, index) => index < acquisitionStatusIndex)
+    .map((step) => ({ value: step.status, label: step.label }));
+  const finalWorkflowStatus = ['PURCHASED', 'IN_PORTFOLIO', 'WON', 'SOLD'].includes(property?.status);
+  const canOpenResetWorkflow = canManageWorkflow
+    && resetTargetOptions.length > 0
+    && !['REJECTED', 'LOST'].includes(property?.status)
+    && (!finalWorkflowStatus || ['admin', 'super_admin'].includes(internalRole));
+  const openResetWorkflowModal = () => {
+    const fallbackTarget = resetTargetOptions[resetTargetOptions.length - 1]?.value || 'SUBMITTED';
+    setResetTargetStatus(resetTargetOptions.some((item) => item.value === resetTargetStatus) ? resetTargetStatus : fallbackTarget);
+    setResetReason(workflowResetReasons[0]);
+    setResetNote('');
+    setResetModalOpen(true);
+  };
   const handleAcquisitionAction = (step) => runCaseAction(step.label, async () => {
     if (!step.action) return;
+    if (step.action === 'offer_accepted') {
+      const submittedDate = indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt);
+      const acceptedDate = indicativeOfferAcceptedDate || dateInputValue(property?.offerAcceptedAt);
+      if (!submittedDate) throw new Error('Bitte zuerst „Unverbindliches Angebot abgegeben am“ eintragen.');
+      if (acceptedDate && isDateBefore(acceptedDate, submittedDate)) {
+        throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
+      }
+    }
+    if (step.action === 'binding_offer_accepted') {
+      const submittedDate = bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt);
+      const acceptedDate = bindingOfferAcceptedDate || dateInputValue(property?.bindingOfferAcceptedAt);
+      if (!submittedDate) throw new Error('Bitte zuerst „Verbindliches Angebot abgegeben am“ eintragen.');
+      if (acceptedDate && isDateBefore(acceptedDate, submittedDate)) {
+        throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
+      }
+    }
     if (step.action === 'expert_opinion_ordered') {
       if (!expertOpinionOrderedDate && !property?.expertOpinionOrderedAt) {
         throw new Error('Bitte Datum der Gutachterbeauftragung eintragen.');
@@ -2693,12 +2996,60 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     }
     await postJson(`/api/properties/${c.propertyId}/workflow`, {
       action: step.action,
+      indicativeOfferSentAt: step.action === 'indicative_offer_sent' ? (indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt)) : undefined,
+      offerAcceptedAt: step.action === 'offer_accepted' ? (indicativeOfferAcceptedDate || dateInputValue(property?.offerAcceptedAt)) : undefined,
       expertOpinionOrderedAt: step.action === 'expert_opinion_ordered' ? (expertOpinionOrderedDate || property?.expertOpinionOrderedAt) : undefined,
       expertOpinionReceivedAt: step.action === 'expert_opinion_received' ? (expertOpinionReceivedDate || property?.expertOpinionReceivedAt) : undefined,
       expertOpinionCompany: step.action === 'expert_opinion_ordered' ? (expertOpinionCompany.trim() || property?.expertOpinionCompany) : undefined,
+      bindingOfferSentAt: step.action === 'binding_offer_sent' ? (bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt)) : undefined,
+      bindingOfferAcceptedAt: step.action === 'binding_offer_accepted' ? (bindingOfferAcceptedDate || dateInputValue(property?.bindingOfferAcceptedAt)) : undefined,
       notaryAppointmentAt: step.needsDate ? (notaryAppointmentDate || property?.notaryAppointmentAt) : undefined,
       notaryOffice: step.needsDate ? (notaryOffice.trim() || property?.notaryOffice) : undefined
     });
+  });
+  const saveOfferDateFields = (kind) => runCaseAction(kind === 'binding' ? 'Datumsfelder verbindliches Angebot' : 'Datumsfelder unverbindliches Angebot', async () => {
+    if (kind === 'binding') {
+      if (bindingOfferAcceptedDate && !bindingOfferSentDate) {
+        throw new Error('acceptedAt darf nicht gesetzt werden, wenn submittedAt fehlt.');
+      }
+      if (isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate)) {
+        throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
+      }
+      if (bindingOfferSentDate) {
+        await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'binding_offer_sent', bindingOfferSentAt: bindingOfferSentDate });
+      }
+      if (bindingOfferAcceptedDate) {
+        await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'binding_offer_accepted', bindingOfferAcceptedAt: bindingOfferAcceptedDate, bindingOfferSentAt: bindingOfferSentDate });
+      }
+      return;
+    }
+    if (indicativeOfferAcceptedDate && !indicativeOfferSentDate) {
+      throw new Error('acceptedAt darf nicht gesetzt werden, wenn submittedAt fehlt.');
+    }
+    if (isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate)) {
+      throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
+    }
+    if (indicativeOfferSentDate) {
+      await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'indicative_offer_sent', indicativeOfferSentAt: indicativeOfferSentDate });
+    }
+    if (indicativeOfferAcceptedDate) {
+      await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'offer_accepted', offerAcceptedAt: indicativeOfferAcceptedDate, indicativeOfferSentAt: indicativeOfferSentDate });
+    }
+  });
+  const resetWorkflowStep = () => runCaseAction('Prozessschritt zurücksetzen', async () => {
+    if (!resetTargetStatus) {
+      throw new Error('Bitte einen neuen Prozessschritt auswählen.');
+    }
+    if (!resetReason.trim()) {
+      throw new Error('Grund der Rücksetzung ist erforderlich.');
+    }
+    await postJson(`/api/properties/${c.propertyId}/workflow/reset`, {
+      targetStatus: resetTargetStatus,
+      reason: resetReason.trim(),
+      note: resetNote.trim() || undefined,
+    });
+    setResetModalOpen(false);
+    setResetNote('');
   });
   const workflowAction = (action) => acquisitionSteps.find((step) => step.action === action);
   const runWorkflowAction = (action) => {
@@ -2803,6 +3154,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     await onNotificationsRefresh?.();
   });
   const updatePortfolioForm = (patch) => setPortfolioForm((current) => ({ ...current, ...patch }));
+  const updateExitProcessForm = (patch) => setExitProcessForm((current) => ({ ...current, ...patch }));
   const savePortfolioFile = () => runCaseAction('Bestandsakte speichern', async () => {
     const payload = {
       purchaseContractNumber: portfolioForm.purchaseContractNumber,
@@ -2817,6 +3169,34 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       residentialRightStartAt: portfolioForm.residentialRightStartAt,
       residentialRightEndAt: portfolioForm.residentialRightEndAt,
       residentialRightNotes: portfolioForm.residentialRightNotes,
+      notaryAppointmentRequestedAt: portfolioForm.notaryAppointmentRequestedAt,
+      purchaseContractDraftReceivedAt: portfolioForm.purchaseContractDraftReceivedAt,
+      purchaseContractDraftReviewedAt: portfolioForm.purchaseContractDraftReviewedAt,
+      priorityNoticeRegisteredAt: portfolioForm.priorityNoticeRegisteredAt,
+      purchasePriceDueAt: portfolioForm.purchasePriceDueAt,
+      purchasePricePaidAt: portfolioForm.purchasePricePaidAt,
+      residentialRightRegisteredAt: portfolioForm.residentialRightRegisteredAt,
+      benefitsAndBurdensTransferAt: portfolioForm.benefitsAndBurdensTransferAt,
+      buildingInsuranceClarified: portfolioForm.buildingInsuranceClarified,
+      propertyManagerInformed: portfolioForm.propertyManagerInformed,
+      serviceChargeInfoRequested: portfolioForm.serviceChargeInfoRequested,
+      propertyTaxInfoAvailable: portfolioForm.propertyTaxInfoAvailable,
+      propertyFileComplete: portfolioForm.propertyFileComplete,
+      portfolioTransferCompletedAt: portfolioForm.portfolioTransferCompletedAt,
+      residentStaysInProperty: portfolioForm.residentStaysInProperty,
+      residentName: portfolioForm.residentName,
+      usageModel: portfolioForm.usageModel,
+      usageRightStartsAt: portfolioForm.usageRightStartsAt,
+      usageRightEndsAt: portfolioForm.usageRightEndsAt,
+      monthlyUsageFee: portfolioForm.monthlyUsageFee,
+      residentContactName: portfolioForm.residentContactName,
+      residentEmergencyContact: portfolioForm.residentEmergencyContact,
+      propertyManagerName: portfolioForm.propertyManagerName,
+      buildingInsurance: portfolioForm.buildingInsurance,
+      serviceChargeStatus: portfolioForm.serviceChargeStatus,
+      repairReportingChannelClarified: portfolioForm.repairReportingChannelClarified,
+      conditionDocumentationAvailable: portfolioForm.conditionDocumentationAvailable,
+      nextPortfolioReviewAt: portfolioForm.nextPortfolioReviewAt,
       maintenancePlan: {
         nextReviewDate: portfolioForm.maintenanceNextReviewDate,
         responsible: portfolioForm.maintenanceResponsible,
@@ -2832,12 +3212,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     };
     await patchJson(`/api/properties/${c.propertyId}/portfolio`, payload);
   });
+  const saveExitProcess = () => runCaseAction('Verwertung speichern', async () => {
+    await patchJson(`/api/properties/${c.propertyId}/exit`, exitProcessForm);
+  });
   const tabs = [
     { id: 'kunde', label: 'Kunde' },
     { id: 'objekt', label: 'Objekt' },
     { id: 'indag', label: 'Unverbindliches Angebot' },
     { id: 'verbag', label: 'Verbindliches Angebot' },
-    { id: 'bestand', label: 'Bestand' },
+    ...(role === 'admin' ? [{ id: 'bestand', label: 'Bestand' }, { id: 'verwertung', label: 'Verwertung' }] : []),
     { id: 'doks', label: 'Objektunterlagen' },
     { id: 'chat', label: 'Chatverlauf' },
     ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben' }] : []),
@@ -2900,6 +3283,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             )}
           </>
         )}
+        {canOpenResetWorkflow && (
+          <button onClick={openResetWorkflowModal} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
+            Schritt zurücksetzen
+          </button>
+        )}
       </div>
 
       {rejectModalOpen && (
@@ -2937,6 +3325,46 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         </div>
       )}
 
+      {resetModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: 'min(560px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>Prozessschritt zurücksetzen</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>Der Fall springt auf einen früheren Schritt. Angebote und Bewertungen bleiben als Historie erhalten.</div>
+              </div>
+              <button onClick={() => setResetModalOpen(false)} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'grid', gap: 14 }}>
+              <Field label="Neuer Prozessschritt" required>
+                <Select value={resetTargetStatus} onChange={(event) => setResetTargetStatus(event.target.value)}>
+                  {resetTargetOptions.map((step) => <option key={step.value} value={step.value}>{step.label}</option>)}
+                </Select>
+              </Field>
+              <Field label="Grund der Rücksetzung" required>
+                <Select value={resetReason} onChange={(event) => setResetReason(event.target.value)}>
+                  {workflowResetReasons.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+                </Select>
+              </Field>
+              <Field label="Interne Notiz">
+                <textarea value={resetNote} onChange={(event) => setResetNote(event.target.value)} placeholder="Optionale interne Erläuterung..." style={{ width: '100%', minHeight: 92, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+              </Field>
+              <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5 }}>
+                Die Rücksetzung wird mit altem Schritt, neuem Schritt, Nutzer, Uhrzeit und Grund im Aktivitätslog gespeichert.
+              </div>
+            </div>
+            <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setResetModalOpen(false)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
+              <button onClick={resetWorkflowStep} disabled={Boolean(busyAction) || !resetReason.trim() || !resetTargetStatus} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : !resetReason.trim() || !resetTargetStatus ? 'not-allowed' : 'pointer', opacity: busyAction || !resetReason.trim() || !resetTargetStatus ? 0.55 : 1 }}>
+                {busyAction === 'Prozessschritt zurücksetzen' ? 'Wird zurückgesetzt...' : 'Zurücksetzen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {property?.status === 'REJECTED' && (
         <div style={{ background: '#9B2C2C0F', borderBottom: '1px solid #9B2C2C33', padding: '12px 28px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <AlertTriangle size={17} style={{ color: '#9B2C2C', marginTop: 1 }} />
@@ -2967,7 +3395,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       {/* Tabs */}
       <div style={{ background: 'white', borderBottom: `1px solid ${theme.border}`, padding: '0 28px', display: 'flex', gap: 4 }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+          <button key={t.id} onClick={() => changeTab(t.id)} style={{
             background: 'transparent', border: 'none',
             padding: '12px 18px',
             fontSize: 13, fontWeight: 600,
@@ -3076,8 +3504,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Bestandsakte</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Kaufvertrag, Wohn-/Mietregelung und Objektverwaltung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Bestandsübernahme</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Vertragsvollzug, Bewohnerverwaltung und laufende Bestandsverwaltung</div>
                 </div>
                 <StatusBadge status={property?.status || 'DRAFT'} />
               </div>
@@ -3090,9 +3518,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   {[
-                    ['Bestand seit', formatDate(property?.portfolioEnteredAt)],
+                    ['Bestandsübernahme', formatDate(property?.portfolioTransferCompletedAt || property?.portfolioEnteredAt)],
                     ['Kaufpreis', property?.purchasePrice ? formatEuro(property.purchasePrice) : '-'],
-                    ['Auszahlung erfolgt', formatDate(property?.payoutPaidAt)],
+                    ['Kaufpreis gezahlt', formatDate(property?.purchasePricePaidAt || property?.payoutPaidAt)],
                   ].map(([label, value]) => (
                     <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '11px 13px' }}>
                       <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
@@ -3102,38 +3530,82 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Kaufvertrag & Grundbuch</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Kaufvertragsabwicklung</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                     <Field label="Kaufvertragsnummer"><Input value={portfolioForm.purchaseContractNumber} onChange={(event) => updatePortfolioForm({ purchaseContractNumber: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Kaufvertrag abgeschlossen"><Input type="date" value={portfolioForm.purchaseContractSignedAt} onChange={(event) => updatePortfolioForm({ purchaseContractSignedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verbindliches Angebot abgegeben am"><Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
+                    <Field label="Verbindliches Angebot angenommen am"><Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
+                    <Field label="Notartermin angefragt am"><Input type="date" value={portfolioForm.notaryAppointmentRequestedAt} onChange={(event) => updatePortfolioForm({ notaryAppointmentRequestedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Notartermin bestätigt für"><Input type="date" value={notaryAppointmentDate || portfolioForm.notaryAppointmentAt} onChange={(event) => setNotaryAppointmentDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
+                    <Field label="Kaufvertragsentwurf erhalten am"><Input type="date" value={portfolioForm.purchaseContractDraftReceivedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufvertragsentwurf geprüft am"><Input type="date" value={portfolioForm.purchaseContractDraftReviewedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReviewedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufvertrag unterschrieben am"><Input type="date" value={portfolioForm.purchaseContractSignedAt} onChange={(event) => updatePortfolioForm({ purchaseContractSignedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Kaufpreis (€)"><Input type="number" value={portfolioForm.purchasePrice} onChange={(event) => updatePortfolioForm({ purchasePrice: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Auszahlung erfolgt am"><Input type="date" value={portfolioForm.payoutPaidAt} onChange={(event) => updatePortfolioForm({ payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Eigentumsübergang"><Input type="date" value={portfolioForm.ownershipTransferAt} onChange={(event) => updatePortfolioForm({ ownershipTransferAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Grundbucheintragung"><Input type="date" value={portfolioForm.landRegisterEntryAt} onChange={(event) => updatePortfolioForm({ landRegisterEntryAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Frist / Wiedervorlage"><Input type="date" value={portfolioForm.nextPortfolioReviewAt} onChange={(event) => updatePortfolioForm({ nextPortfolioReviewAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{property?.desiredModel === 'sale_and_leaseback' ? 'Rückmietdaten' : 'Wohnrechtsdaten'}</div>
-                  {property?.desiredModel === 'sale_and_leaseback' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                      <Field label="Monatliche Miete (€)"><Input type="number" value={portfolioForm.monthlyRent} onChange={(event) => updatePortfolioForm({ monthlyRent: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                      <Field label="Mietbeginn"><Input type="date" value={portfolioForm.rentStartAt} onChange={(event) => updatePortfolioForm({ rentStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                      <Field label="Kaution / Sicherheit (€)"><Input type="number" value={portfolioForm.rentDeposit} onChange={(event) => updatePortfolioForm({ rentDeposit: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <Field label="Wohnrecht Beginn"><Input type="date" value={portfolioForm.residentialRightStartAt} onChange={(event) => updatePortfolioForm({ residentialRightStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                      <Field label="Wohnrecht Ende"><Input type="date" value={portfolioForm.residentialRightEndAt} onChange={(event) => updatePortfolioForm({ residentialRightEndAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    </div>
-                  )}
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Vertragsvollzug</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Auflassungsvormerkung eingetragen am"><Input type="date" value={portfolioForm.priorityNoticeRegisteredAt} onChange={(event) => updatePortfolioForm({ priorityNoticeRegisteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufpreisfälligkeit eingetreten am"><Input type="date" value={portfolioForm.purchasePriceDueAt} onChange={(event) => updatePortfolioForm({ purchasePriceDueAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufpreis gezahlt am"><Input type="date" value={portfolioForm.purchasePricePaidAt} onChange={(event) => updatePortfolioForm({ purchasePricePaidAt: event.target.value, payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Wohnrecht / Nießbrauch eingetragen am"><Input type="date" value={portfolioForm.residentialRightRegisteredAt} onChange={(event) => updatePortfolioForm({ residentialRightRegisteredAt: event.target.value, landRegisterEntryAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Besitz-/Nutzen-/Lastenwechsel am"><Input type="date" value={portfolioForm.benefitsAndBurdensTransferAt} onChange={(event) => updatePortfolioForm({ benefitsAndBurdensTransferAt: event.target.value, ownershipTransferAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Objektakte vollständig">
+                      <input type="checkbox" checked={portfolioForm.propertyFileComplete} onChange={(event) => updatePortfolioForm({ propertyFileComplete: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Gebäudeversicherung geklärt">
+                      <input type="checkbox" checked={portfolioForm.buildingInsuranceClarified} onChange={(event) => updatePortfolioForm({ buildingInsuranceClarified: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Verwalter informiert">
+                      <input type="checkbox" checked={portfolioForm.propertyManagerInformed} onChange={(event) => updatePortfolioForm({ propertyManagerInformed: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Hausgeldinformationen angefordert">
+                      <input type="checkbox" checked={portfolioForm.serviceChargeInfoRequested} onChange={(event) => updatePortfolioForm({ serviceChargeInfoRequested: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Grundsteuerinformationen vorhanden">
+                      <input type="checkbox" checked={portfolioForm.propertyTaxInfoAvailable} onChange={(event) => updatePortfolioForm({ propertyTaxInfoAvailable: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                  </div>
+                </div>
+
+                <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Bestandsübernahme & Bewohnerverwaltung</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Objekt in Bestand übernommen am"><Input type="date" value={portfolioForm.portfolioTransferCompletedAt} onChange={(event) => updatePortfolioForm({ portfolioTransferCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Bewohner bleibt im Objekt">
+                      <input type="checkbox" checked={portfolioForm.residentStaysInProperty} onChange={(event) => updatePortfolioForm({ residentStaysInProperty: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Bewohnername"><Input value={portfolioForm.residentName} onChange={(event) => updatePortfolioForm({ residentName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Nutzungsmodell">
+                      <Select value={portfolioForm.usageModel} onChange={(event) => updatePortfolioForm({ usageModel: event.target.value })}>
+                        {Object.entries(usageModelLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Wohnrecht / Nutzungsrecht aktiv ab"><Input type="date" value={portfolioForm.usageRightStartsAt} onChange={(event) => updatePortfolioForm({ usageRightStartsAt: event.target.value, residentialRightStartAt: event.target.value, rentStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Wohnrecht / Nutzungsrecht befristet bis"><Input type="date" value={portfolioForm.usageRightEndsAt} onChange={(event) => updatePortfolioForm({ usageRightEndsAt: event.target.value, residentialRightEndAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Monatliches Nutzungsentgelt / Miete (€)"><Input type="number" value={portfolioForm.monthlyUsageFee} onChange={(event) => updatePortfolioForm({ monthlyUsageFee: event.target.value, monthlyRent: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Ansprechpartner Bewohner"><Input value={portfolioForm.residentContactName} onChange={(event) => updatePortfolioForm({ residentContactName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Notfallkontakt / Angehöriger"><Input value={portfolioForm.residentEmergencyContact} onChange={(event) => updatePortfolioForm({ residentEmergencyContact: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verwalter / WEG-Verwaltung"><Input value={portfolioForm.propertyManagerName} onChange={(event) => updatePortfolioForm({ propertyManagerName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Gebäudeversicherung"><Input value={portfolioForm.buildingInsurance} onChange={(event) => updatePortfolioForm({ buildingInsurance: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Hausgeld / Nebenkostenstatus"><Input value={portfolioForm.serviceChargeStatus} onChange={(event) => updatePortfolioForm({ serviceChargeStatus: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Reparaturmeldeweg geklärt">
+                      <input type="checkbox" checked={portfolioForm.repairReportingChannelClarified} onChange={(event) => updatePortfolioForm({ repairReportingChannelClarified: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Zustandsdokumentation vorhanden">
+                      <input type="checkbox" checked={portfolioForm.conditionDocumentationAvailable} onChange={(event) => updatePortfolioForm({ conditionDocumentationAvailable: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                  </div>
                   <Field label="Hinweise zur Nutzung">
-                    <textarea value={portfolioForm.residentialRightNotes} onChange={(event) => updatePortfolioForm({ residentialRightNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} placeholder="z.B. besondere Vereinbarungen, Ansprechpartner, Übergaberegelungen" style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
+                    <textarea value={portfolioForm.residentialRightNotes} onChange={(event) => updatePortfolioForm({ residentialRightNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} placeholder="z.B. besondere Vereinbarungen, Ansprechpartner, Bewohnerkommunikation" style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
                   </Field>
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Instandhaltung, Termine & Objektverwaltung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Bestandsverwaltung</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                     <Field label="Nächste Objektprüfung"><Input type="date" value={portfolioForm.maintenanceNextReviewDate} onChange={(event) => updatePortfolioForm({ maintenanceNextReviewDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Zuständig"><Input value={portfolioForm.maintenanceResponsible} onChange={(event) => updatePortfolioForm({ maintenanceResponsible: event.target.value })} readOnly={!canManagePortfolio} /></Field>
@@ -3156,6 +3628,103 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={savePortfolioFile} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                       <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'Bestandsakte speichern'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'verwertung' && role === 'admin' && (
+            <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Verwertung nach Wohnrechtsende</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Exitphase nach Auszug, Tod, Ablauf oder Aufgabe des Nutzungsrechts</div>
+                </div>
+                <span style={{ background: `${theme.aubergine}12`, color: theme.aubergine, borderRadius: 10, padding: '4px 10px', fontSize: 11, fontWeight: 800 }}>
+                  {labelFrom(exitSalesStatusLabels, exitProcessForm.salesStatus)}
+                </span>
+              </div>
+              <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
+                <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '11px 13px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
+                  Dieser Bereich beginnt erst, wenn das Wohnrecht oder Nutzungsrecht endet. Erst hier sind Objektzugang, Schlüssel, Begehung und Räumung fachlich korrekt.
+                </div>
+
+                <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Beendigung Nutzungsrecht</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Wohnrecht / Nutzungsrecht beendet am"><Input type="date" value={exitProcessForm.usageRightEndedAt} onChange={(event) => updateExitProcessForm({ usageRightEndedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Grund der Beendigung">
+                      <Select value={exitProcessForm.terminationReason} onChange={(event) => updateExitProcessForm({ terminationReason: event.target.value })}>
+                        {Object.entries(exitTerminationReasonLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Beendigungsnachweis vorhanden">
+                      <input type="checkbox" checked={exitProcessForm.terminationProofAvailable} onChange={(event) => updateExitProcessForm({ terminationProofAvailable: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Ansprechpartner Angehörige / Nachlass / Betreuer"><Input value={exitProcessForm.relativesOrEstateContact} onChange={(event) => updateExitProcessForm({ relativesOrEstateContact: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Rücksprache mit Angehörigen erfolgt am"><Input type="date" value={exitProcessForm.relativesContactedAt} onChange={(event) => updateExitProcessForm({ relativesContactedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Wiedervorlage / Frist"><Input type="date" value={exitProcessForm.followUpAt} onChange={(event) => updateExitProcessForm({ followUpAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                  </div>
+                </div>
+
+                <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Objektzugang & Vorbereitung</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Objektzugang geklärt">
+                      <input type="checkbox" checked={exitProcessForm.propertyAccessClarified} onChange={(event) => updateExitProcessForm({ propertyAccessClarified: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Schlüsselübergabe geplant am"><Input type="date" value={exitProcessForm.keyHandoverPlannedAt} onChange={(event) => updateExitProcessForm({ keyHandoverPlannedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Schlüssel erhalten am"><Input type="date" value={exitProcessForm.keysReceivedAt} onChange={(event) => updateExitProcessForm({ keysReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Objektbegehung geplant am"><Input type="date" value={exitProcessForm.inspectionPlannedAt} onChange={(event) => updateExitProcessForm({ inspectionPlannedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Objektbegehung erfolgt am"><Input type="date" value={exitProcessForm.inspectionCompletedAt} onChange={(event) => updateExitProcessForm({ inspectionCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Zustandsprotokoll nach Auszug vorhanden">
+                      <input type="checkbox" checked={exitProcessForm.postMoveOutConditionReportAvailable} onChange={(event) => updateExitProcessForm({ postMoveOutConditionReportAvailable: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Räumung erforderlich">
+                      <input type="checkbox" checked={exitProcessForm.clearanceRequired} onChange={(event) => updateExitProcessForm({ clearanceRequired: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Räumung beauftragt am"><Input type="date" value={exitProcessForm.clearanceOrderedAt} onChange={(event) => updateExitProcessForm({ clearanceOrderedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Räumung erledigt am"><Input type="date" value={exitProcessForm.clearanceCompletedAt} onChange={(event) => updateExitProcessForm({ clearanceCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verkehrssicherung geprüft">
+                      <input type="checkbox" checked={exitProcessForm.safetyInspectionCompleted} onChange={(event) => updateExitProcessForm({ safetyInspectionCompleted: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Versicherungsschutz geprüft">
+                      <input type="checkbox" checked={exitProcessForm.insuranceCoverageChecked} onChange={(event) => updateExitProcessForm({ insuranceCoverageChecked: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                    <Field label="Reparatur-/Sanierungsbedarf erfasst">
+                      <input type="checkbox" checked={exitProcessForm.repairNeedCaptured} onChange={(event) => updateExitProcessForm({ repairNeedCaptured: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
+                    </Field>
+                  </div>
+                </div>
+
+                <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Vermarktung & Abschluss</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Verkaufsvorbereitung gestartet am"><Input type="date" value={exitProcessForm.salesPreparationStartedAt} onChange={(event) => updateExitProcessForm({ salesPreparationStartedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Makler beauftragt am"><Input type="date" value={exitProcessForm.brokerMandatedAt} onChange={(event) => updateExitProcessForm({ brokerMandatedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Vermarktungsstart am"><Input type="date" value={exitProcessForm.marketingStartedAt} onChange={(event) => updateExitProcessForm({ marketingStartedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verkaufspreisindikation (€)"><Input type="number" value={exitProcessForm.salePriceIndication} onChange={(event) => updateExitProcessForm({ salePriceIndication: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verkaufspreis festgelegt (€)"><Input type="number" value={exitProcessForm.salePriceFinal} onChange={(event) => updateExitProcessForm({ salePriceFinal: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verkaufsstatus">
+                      <Select value={exitProcessForm.salesStatus} onChange={(event) => updateExitProcessForm({ salesStatus: event.target.value })}>
+                        {Object.entries(exitSalesStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Verkauf beurkundet am"><Input type="date" value={exitProcessForm.saleNotarizedAt} onChange={(event) => updateExitProcessForm({ saleNotarizedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufpreis erhalten am"><Input type="date" value={exitProcessForm.salePriceReceivedAt} onChange={(event) => updateExitProcessForm({ salePriceReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verwertung abgeschlossen am"><Input type="date" value={exitProcessForm.exitCompletedAt} onChange={(event) => updateExitProcessForm({ exitCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                  </div>
+                  <Field label="Interne Notiz">
+                    <textarea value={exitProcessForm.internalNote} onChange={(event) => updateExitProcessForm({ internalNote: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
+                  </Field>
+                </div>
+
+                {canManagePortfolio ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={saveExitProcess} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                      <Save size={14} /> {busyAction === 'Verwertung speichern' ? 'Speichert...' : 'Verwertung speichern'}
                     </button>
                   </div>
                 ) : null}
@@ -3320,7 +3889,14 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   <MessageSquare size={15} style={{ color: theme.aubergine }} />
                   <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Chatverlauf</span>
                 </div>
-                <span style={{ fontSize: 11, color: `${theme.ink}88` }}>fallbezogene Kommunikation</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {chatReturnTab && (
+                    <button onClick={() => onReturnToTab?.(chatReturnTab)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '6px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
+                      Zurück zu {tabs.find((tab) => tab.id === chatReturnTab)?.label || 'vorherigem Reiter'}
+                    </button>
+                  )}
+                  <span style={{ fontSize: 11, color: `${theme.ink}88` }}>fallbezogene Kommunikation</span>
+                </div>
               </div>
               <div style={{ padding: '16px 18px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}` }}>
                 <div style={{ display: 'grid', gap: 10 }}>
@@ -3425,6 +4001,21 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   Lesende Ansicht: WohnKapital berechnet und gibt Angebote intern frei. Als Makler siehst du hier die vorhandenen Angebotsdaten.
                 </div>
               )}
+              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
+                  <Field label="Unverbindliches Angebot abgegeben am">
+                    <Input type="date" value={indicativeOfferSentDate} onChange={(event) => setIndicativeOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
+                  </Field>
+                  <Field label="Unverbindliches Angebot angenommen am" invalid={Boolean(indicativeOfferAcceptedDate && indicativeOfferSentDate && isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate))}>
+                    <Input type="date" value={indicativeOfferAcceptedDate} onChange={(event) => setIndicativeOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
+                  </Field>
+                  {canEditOfferDates && (
+                    <button onClick={() => saveOfferDateFields('indicative')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
+                      Daten speichern
+                    </button>
+                  )}
+                </div>
+              </div>
               <div style={{ display: 'grid', gap: 12 }}>
                 {requestedOfferModels.map((modelRequest, index) => {
                   const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
@@ -3599,6 +4190,21 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5, marginBottom: 14 }}>
                 Nach Eingang des Gutachtens wird das verbindliche Angebot auf Basis des Gutachtenwerts neu berechnet. Die UVA bleibt als eigene Version bestehen.
               </div>
+              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
+                  <Field label="Verbindliches Angebot abgegeben am">
+                    <Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
+                  </Field>
+                  <Field label="Verbindliches Angebot angenommen am" invalid={Boolean(bindingOfferAcceptedDate && bindingOfferSentDate && isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate))}>
+                    <Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
+                  </Field>
+                  {canEditOfferDates && (
+                    <button onClick={() => saveOfferDateFields('binding')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
+                      Daten speichern
+                    </button>
+                  )}
+                </div>
+              </div>
               {!canPrepareBindingOffer && (
                 <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, marginBottom: 14 }}>
                   Das verbindliche Angebot wird freigeschaltet, sobald im Bereich „Unverbindliches Angebot“ das Gutachten als eingegangen markiert wurde.
@@ -3767,12 +4373,24 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
         {/* Right column: Workflow & Activity Log */}
         <div style={{ display: 'grid', gap: 12, height: 'fit-content' }}>
-        {canManageOffers && (
+        {canManageWorkflow && (
           <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <Briefcase size={14} style={{ color: theme.aubergine }} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: theme.aubergine }}>Ankaufsprozess</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Briefcase size={14} style={{ color: theme.aubergine }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: theme.aubergine }}>Ankaufsprozess</span>
+              </div>
+              {canOpenResetWorkflow && (
+                <button onClick={openResetWorkflowModal} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '6px 9px', fontSize: 11.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
+                  Schritt zurücksetzen
+                </button>
+              )}
             </div>
+            {!canManageOffers && (
+              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '8px 10px', fontSize: 11.8, color: `${theme.ink}99`, lineHeight: 1.45, marginBottom: 10 }}>
+                Prozessschritte können hier zurückgesetzt werden. Neue Angebots- oder Gutachtenschritte werden von Kundenberatern, Admins oder Super-Admins gespeichert.
+              </div>
+            )}
             <div style={{ display: 'grid', gap: 8 }}>
               {acquisitionSteps.map((step, index) => {
                 const reached = acquisitionStatusIndex >= index || Boolean(step.date);
@@ -3780,7 +4398,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 const needsDateBeforeAction = step.needsDate && nextAllowed && ((!notaryAppointmentDate && !property?.notaryAppointmentAt) || (!notaryOffice.trim() && !property?.notaryOffice));
                 const missingBindingOffer = step.action === 'binding_offer_sent' && !hasBindingOffer;
                 const waitingForVaAcceptance = step.action === 'notary_appointment_ordered' && workflowStatus !== 'BINDING_OFFER_ACCEPTED' && !reached;
-                const disabled = Boolean(busyAction) || reached || !nextAllowed || !step.action || needsDateBeforeAction || missingBindingOffer;
+                const disabled = Boolean(busyAction) || !canManageOffers || reached || !nextAllowed || !step.action || needsDateBeforeAction || missingBindingOffer;
                 return (
                   <div key={step.status} style={{ display: 'grid', gap: 6 }}>
                     <button onClick={() => handleAcquisitionAction(step)} disabled={disabled} style={{
@@ -5189,11 +5807,19 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 // =====================================================================
 // MAIN APP
 // =====================================================================
-export default function App({ initialRole = 'partner', initialUser } = {}) {
+export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialScreen } = {}) {
+  const urlCaseLocation = parseCaseLocation('kunde');
+  const initialCaseLocation = {
+    caseId: initialCaseId || urlCaseLocation.caseId,
+    tab: normalizeCaseTab(initialTab || urlCaseLocation.tab),
+    returnTab: normalizeCaseTab(initialReturnTab || urlCaseLocation.returnTab, ''),
+  };
+  const initialAppScreen = normalizeAppScreen(initialScreen || parseAppLocation('dashboard'));
   const [role, setRole] = useState(initialRole);
-  const [screen, setScreen] = useState('dashboard');
-  const [caseId, setCaseId] = useState(null);
-  const [caseInitialTab, setCaseInitialTab] = useState('kunde');
+  const [screen, setScreen] = useState(initialCaseLocation.caseId ? 'case' : initialAppScreen);
+  const [caseId, setCaseId] = useState(initialCaseLocation.caseId);
+  const [caseInitialTab, setCaseInitialTab] = useState(initialCaseLocation.tab);
+  const [caseReturnTab, setCaseReturnTab] = useState(initialCaseLocation.returnTab);
   const [editingCaseId, setEditingCaseId] = useState(null);
   const [cases, setCases] = useState(mockCases);
   const [leads, setLeads] = useState([]);
@@ -5292,6 +5918,27 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
   }, [initialRole]);
 
   useEffect(() => {
+    const syncFromUrl = () => {
+      const locationState = parseCaseLocation('kunde');
+      if (locationState.caseId) {
+        setCaseId(locationState.caseId);
+        setCaseInitialTab(locationState.tab);
+        setCaseReturnTab(locationState.returnTab);
+        setEditingCaseId(null);
+        setScreen('case');
+      } else {
+        setCaseId(null);
+        setCaseInitialTab('kunde');
+        setCaseReturnTab('');
+        setScreen(parseAppLocation('dashboard'));
+      }
+    };
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, []);
+
+  useEffect(() => {
     try {
       const storedProfiles = window.localStorage.getItem('wohnkapital_profiles');
       if (storedProfiles) {
@@ -5310,20 +5957,44 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     if (s === 'staff' && !canViewStaff) {
       setNotice('Der Mitarbeiterbereich ist nur für Admins und Super-Admins sichtbar.');
       setScreen('dashboard');
+      updateScreenUrl(role, 'dashboard');
       return;
     }
-    setScreen(s);
+    const nextScreen = normalizeAppScreen(s);
+    setScreen(nextScreen);
     setCaseId(null);
     setCaseInitialTab('kunde');
+    setCaseReturnTab('');
     setEditingCaseId(null);
-    if (s === 'leads' || s === 'partners') loadLeads(role);
-    if (s === 'staff') loadStaff(role);
+    updateScreenUrl(role, nextScreen, 'push');
+    if (nextScreen === 'leads' || nextScreen === 'partners') loadLeads(role);
+    if (nextScreen === 'staff') loadStaff(role);
   };
-  const handleOpenCase = (id, tab = 'kunde') => {
+  const handleOpenCase = (id, tab = 'kunde', options = {}) => {
+    const nextTab = normalizeCaseTab(tab);
+    const nextReturnTab = options.returnTab ? normalizeCaseTab(options.returnTab, '') : '';
     setCaseId(id);
-    setCaseInitialTab(tab);
+    setCaseInitialTab(nextTab);
+    setCaseReturnTab(nextReturnTab);
     setEditingCaseId(null);
     setScreen('case');
+    updateCaseUrl(role, id, nextTab, nextReturnTab, options.replace ? 'replace' : 'push');
+  };
+  const handleCaseTabChange = (tab) => {
+    const nextTab = normalizeCaseTab(tab);
+    setCaseInitialTab(nextTab);
+    setCaseReturnTab('');
+    if (caseId) updateCaseUrl(role, caseId, nextTab, '', 'replace');
+  };
+  const handleReturnToCaseTab = (tab) => {
+    const nextTab = normalizeCaseTab(tab);
+    setCaseInitialTab(nextTab);
+    setCaseReturnTab('');
+    if (caseId) updateCaseUrl(role, caseId, nextTab, '', 'push');
+  };
+  const handleOpenCurrentCaseChat = ({ caseId: currentCaseId, tab }) => {
+    const sourceTab = normalizeCaseTab(tab || caseInitialTab);
+    handleOpenCase(currentCaseId, 'chat', { returnTab: sourceTab === 'chat' ? '' : sourceTab });
   };
   const handleOpenNotification = async (item) => {
     handleOpenCase(item.propertyId || item.caseNumber, 'kunde');
@@ -5335,7 +6006,9 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     }
   };
   const handleOpenChatNotification = async (item) => {
-    handleOpenCase(item.propertyId || item.caseNumber, 'chat');
+    handleOpenCase(item.propertyId || item.caseNumber, 'chat', {
+      returnTab: screen === 'case' && caseId === (item.propertyId || item.caseNumber) ? caseInitialTab : '',
+    });
     try {
       await postJson('/api/notifications/read', { notificationId: item.id, kind: 'chat' });
       if (item.propertyId) await postJson(`/api/properties/${item.propertyId}/chat/read`, {});
@@ -5348,23 +6021,30 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
   const handleNewCase = () => {
     setEditingCaseId(null);
     setScreen('erfassung');
+    updateScreenUrl(role, 'erfassung', 'push');
   };
   const handleEditCase = (id) => {
     setEditingCaseId(id);
     setCaseInitialTab('kunde');
+    setCaseReturnTab('');
     setScreen('erfassung');
+    updateScreenUrl(role, 'erfassung', 'push');
   };
   const handleBack = () => {
     setCaseInitialTab('kunde');
+    setCaseReturnTab('');
     setEditingCaseId(null);
     setScreen('dashboard');
+    updateScreenUrl(role, 'dashboard', 'push');
   };
   const handleSavedCase = async (id) => {
     await loadCases(role);
     setCaseId(id);
     setCaseInitialTab('kunde');
+    setCaseReturnTab('');
     setEditingCaseId(null);
     setScreen('case');
+    updateCaseUrl(role, id, 'kunde', '', 'push');
   };
   const toggleRole = () => {
     const nextRole = role === 'admin' ? 'partner' : 'admin';
@@ -5372,8 +6052,10 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
     setScreen('dashboard');
     setCaseId(null);
     setCaseInitialTab('kunde');
+    setCaseReturnTab('');
     setEditingCaseId(null);
     setProfileOpen(false);
+    updateScreenUrl(nextRole, 'dashboard');
     loadCases(nextRole);
     loadLeads(nextRole);
     loadStaff(nextRole);
@@ -5424,7 +6106,10 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
       await loadCases(role);
       await loadLeads(role);
       setCaseId(payload.case?.property?.caseNumber || payload.case?.property?.id || null);
+      setCaseInitialTab('kunde');
+      setCaseReturnTab('');
       setScreen('case');
+      updateCaseUrl(role, payload.case?.property?.caseNumber || payload.case?.property?.id || null, 'kunde', '', 'push');
       setNotice('Lead wurde in einen Kundenfall umgewandelt.');
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Lead konnte nicht umgewandelt werden');
@@ -5502,7 +6187,20 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
 
   return (
     <div style={{ background: theme.mint, fontFamily: '"Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header role={role} user={user} onRoleToggle={toggleRole} onLogout={handleLogout} onProfileOpen={() => setProfileOpen(true)} notifications={processNotifications} chatNotifications={chatNotifications} onOpenCase={handleOpenCase} onOpenNotification={handleOpenNotification} onOpenChatNotification={handleOpenChatNotification} />
+      <Header
+        role={role}
+        user={user}
+        onRoleToggle={toggleRole}
+        onLogout={handleLogout}
+        onProfileOpen={() => setProfileOpen(true)}
+        notifications={processNotifications}
+        chatNotifications={chatNotifications}
+        currentCaseContext={screen === 'case' && caseId ? { caseId, tab: caseInitialTab } : null}
+        onOpenCase={handleOpenCase}
+        onOpenNotification={handleOpenNotification}
+        onOpenChatNotification={handleOpenChatNotification}
+        onOpenCurrentCaseChat={handleOpenCurrentCaseChat}
+      />
       {profileOpen && <ProfileModal user={user} role={role} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar
@@ -5532,9 +6230,9 @@ export default function App({ initialRole = 'partner', initialUser } = {}) {
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}
           {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}
-          {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und Übergabe an WohnKapital." />}
+          {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und strukturierte Einreichung an WohnKapital." />}
           {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
-          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
+          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} returnTab={caseReturnTab} onTabChange={handleCaseTabChange} onReturnToTab={handleReturnToCaseTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
           {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} role={role} user={user} />}
         </div>
       </div>

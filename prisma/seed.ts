@@ -370,7 +370,7 @@ async function main() {
         nextAppointmentType: "Objektprüfung",
         nextAppointmentNote: "Vor-Ort-Termin mit Bewohnerin abstimmen."
       },
-      portfolioNotes: "Mietvertrag und Bestandsübergabe im MVP dokumentiert.",
+      portfolioNotes: "Mietvertrag und Bestandsübernahme im MVP dokumentiert.",
       offerCalculationSource: "application",
       lastActivityLabel: "Vor 12 Tagen",
       lastActivityAt: new Date("2026-05-15T10:00:00.000Z"),

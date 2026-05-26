@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canCalculateOffer, canMutateProperty, canSeeProperty } from "../lib/access-control.ts";
+import { canCalculateOffer, canEditAcquisitionDates, canMutateProperty, canResetAcquisition, canSeeProperty } from "../lib/access-control.ts";
 import type { Property, User } from "../lib/domain.ts";
 
 const partnerUser: User = {
@@ -57,4 +57,15 @@ test("internal advisor can calculate own assigned cases only", () => {
   assert.equal(canCalculateOffer(advisorUser, assignedProperty), true);
   assert.equal(canSeeProperty(advisorUser, { ...assignedProperty, assignedAdvisorUserId: "other_user" }), false);
   assert.equal(canCalculateOffer(employeeUser, { ...assignedProperty, assignedAdvisorUserId: employeeUser.id }), false);
+});
+
+test("internal employees and admins can reset assigned acquisition workflow, partners cannot", () => {
+  const assignedProperty = { ...property, status: "BINDING_OFFER_SENT" as const, assignedAdvisorUserId: employeeUser.id };
+
+  assert.equal(canResetAcquisition(employeeUser, assignedProperty), true);
+  assert.equal(canEditAcquisitionDates(employeeUser, assignedProperty), true);
+  assert.equal(canResetAcquisition(adminUser, { ...assignedProperty, assignedAdvisorUserId: "other_user" }), true);
+  assert.equal(canResetAcquisition(partnerUser, assignedProperty), false);
+  assert.equal(canEditAcquisitionDates(partnerUser, assignedProperty), false);
+  assert.equal(canResetAcquisition(employeeUser, { ...assignedProperty, assignedAdvisorUserId: "other_user" }), false);
 });

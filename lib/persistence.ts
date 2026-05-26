@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { nextPropertyCaseNumber } from "./case-number.ts";
 import { canSeeProperty, isInternalAdmin } from "./access-control.ts";
+import { acquisitionStatusLabel } from "./acquisition-workflow.ts";
 import type { CaseNotification, CaseView, DesiredModel, Lead, OfferAssumptions, PropertyStatus, User } from "./domain.ts";
 import { sendCaseNotificationEmailStub } from "./email.ts";
 import { prisma } from "./prisma.ts";
@@ -26,7 +27,8 @@ const caseInclude = {
       reads: true
     }
   },
-  reminders: { orderBy: { createdAt: "desc" as const } }
+  reminders: { orderBy: { createdAt: "desc" as const } },
+  exitProcess: true
 };
 
 type PrismaCase = Awaited<ReturnType<typeof prisma.property.findFirst<{ include: typeof caseInclude }>>>;
@@ -113,9 +115,59 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     residentialRightStartAt: iso(property.residentialRightStartAt),
     residentialRightEndAt: iso(property.residentialRightEndAt),
     residentialRightNotes: property.residentialRightNotes ?? undefined,
+    notaryAppointmentRequestedAt: iso(property.notaryAppointmentRequestedAt),
+    purchaseContractDraftReceivedAt: iso(property.purchaseContractDraftReceivedAt),
+    purchaseContractDraftReviewedAt: iso(property.purchaseContractDraftReviewedAt),
+    priorityNoticeRegisteredAt: iso(property.priorityNoticeRegisteredAt),
+    purchasePriceDueAt: iso(property.purchasePriceDueAt),
+    purchasePricePaidAt: iso(property.purchasePricePaidAt),
+    residentialRightRegisteredAt: iso(property.residentialRightRegisteredAt),
+    benefitsAndBurdensTransferAt: iso(property.benefitsAndBurdensTransferAt),
+    buildingInsuranceClarified: property.buildingInsuranceClarified,
+    propertyManagerInformed: property.propertyManagerInformed,
+    serviceChargeInfoRequested: property.serviceChargeInfoRequested,
+    propertyTaxInfoAvailable: property.propertyTaxInfoAvailable,
+    propertyFileComplete: property.propertyFileComplete,
+    portfolioTransferCompletedAt: iso(property.portfolioTransferCompletedAt),
+    residentStaysInProperty: property.residentStaysInProperty,
+    residentName: property.residentName ?? undefined,
+    usageModel: property.usageModel ?? undefined,
+    usageRightStartsAt: iso(property.usageRightStartsAt),
+    usageRightEndsAt: iso(property.usageRightEndsAt),
+    monthlyUsageFee: number(property.monthlyUsageFee),
+    residentContactName: property.residentContactName ?? undefined,
+    residentEmergencyContact: property.residentEmergencyContact ?? undefined,
+    propertyManagerName: property.propertyManagerName ?? undefined,
+    buildingInsurance: property.buildingInsurance ?? undefined,
+    serviceChargeStatus: property.serviceChargeStatus ?? undefined,
+    repairReportingChannelClarified: property.repairReportingChannelClarified,
+    conditionDocumentationAvailable: property.conditionDocumentationAvailable,
+    nextPortfolioReviewAt: iso(property.nextPortfolioReviewAt),
     maintenancePlan: property.maintenancePlanJson as Record<string, unknown> | undefined,
     portfolioTasks: property.portfolioTasksJson as Record<string, unknown> | undefined,
     portfolioNotes: property.portfolioNotes ?? undefined,
+    exitProcess: property.exitProcess ? {
+      ...property.exitProcess,
+      usageRightEndedAt: iso(property.exitProcess.usageRightEndedAt),
+      relativesContactedAt: iso(property.exitProcess.relativesContactedAt),
+      keyHandoverPlannedAt: iso(property.exitProcess.keyHandoverPlannedAt),
+      keysReceivedAt: iso(property.exitProcess.keysReceivedAt),
+      inspectionPlannedAt: iso(property.exitProcess.inspectionPlannedAt),
+      inspectionCompletedAt: iso(property.exitProcess.inspectionCompletedAt),
+      clearanceOrderedAt: iso(property.exitProcess.clearanceOrderedAt),
+      clearanceCompletedAt: iso(property.exitProcess.clearanceCompletedAt),
+      salesPreparationStartedAt: iso(property.exitProcess.salesPreparationStartedAt),
+      brokerMandatedAt: iso(property.exitProcess.brokerMandatedAt),
+      marketingStartedAt: iso(property.exitProcess.marketingStartedAt),
+      salePriceIndication: number(property.exitProcess.salePriceIndication),
+      salePriceFinal: number(property.exitProcess.salePriceFinal),
+      saleNotarizedAt: iso(property.exitProcess.saleNotarizedAt),
+      salePriceReceivedAt: iso(property.exitProcess.salePriceReceivedAt),
+      exitCompletedAt: iso(property.exitProcess.exitCompletedAt),
+      followUpAt: iso(property.exitProcess.followUpAt),
+      createdAt: iso(property.exitProcess.createdAt)!,
+      updatedAt: iso(property.exitProcess.updatedAt)!
+    } : undefined,
     lastActivityAt: iso(property.lastActivityAt),
     createdAt: iso(property.createdAt)!,
     updatedAt: iso(property.updatedAt)!
@@ -493,6 +545,7 @@ function shouldCreateNotification(type: string): boolean {
     "binding_offer_accepted",
     "notary_appointment_ordered",
     "contract_signed",
+    "workflow_reset",
     "property_rejected",
     "feedback_received"
   ].includes(type);
@@ -509,6 +562,7 @@ function notificationTitle(type: string): string {
     binding_offer_accepted: "VA angenommen",
     notary_appointment_ordered: "Notartermin vereinbart",
     contract_signed: "Kaufvertrag abgeschlossen",
+    workflow_reset: "Prozessschritt zurückgesetzt",
     property_rejected: "Fall abgelehnt",
     feedback_received: "Kundenrückmeldung eingegangen"
   };
@@ -738,20 +792,28 @@ export async function advanceDbAcquisitionWorkflow(
   propertyId: string,
   action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted" | "notary_appointment_ordered" | "contract_signed" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
   userId: string,
-  options: { expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; notaryAppointmentAt?: string; notaryOffice?: string; source?: "admin" | "partner" | "system" | "user" } = {}
+  options: { indicativeOfferSentAt?: string; offerAcceptedAt?: string; expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; bindingOfferSentAt?: string; bindingOfferAcceptedAt?: string; notaryAppointmentAt?: string; notaryOffice?: string; source?: "admin" | "partner" | "system" | "user" } = {}
 ) {
   const now = new Date();
+  const parsedIndicativeSentDate = options.indicativeOfferSentAt ? new Date(options.indicativeOfferSentAt) : now;
+  const indicativeSentDate = Number.isNaN(parsedIndicativeSentDate.getTime()) ? now : parsedIndicativeSentDate;
+  const parsedOfferAcceptedDate = options.offerAcceptedAt ? new Date(options.offerAcceptedAt) : now;
+  const offerAcceptedDate = Number.isNaN(parsedOfferAcceptedDate.getTime()) ? now : parsedOfferAcceptedDate;
   const parsedExpertOrderedDate = options.expertOpinionOrderedAt ? new Date(options.expertOpinionOrderedAt) : now;
   const expertOrderedDate = Number.isNaN(parsedExpertOrderedDate.getTime()) ? now : parsedExpertOrderedDate;
   const parsedExpertReceivedDate = options.expertOpinionReceivedAt ? new Date(options.expertOpinionReceivedAt) : now;
   const expertReceivedDate = Number.isNaN(parsedExpertReceivedDate.getTime()) ? now : parsedExpertReceivedDate;
+  const parsedBindingSentDate = options.bindingOfferSentAt ? new Date(options.bindingOfferSentAt) : now;
+  const bindingSentDate = Number.isNaN(parsedBindingSentDate.getTime()) ? now : parsedBindingSentDate;
+  const parsedBindingAcceptedDate = options.bindingOfferAcceptedAt ? new Date(options.bindingOfferAcceptedAt) : now;
+  const bindingAcceptedDate = Number.isNaN(parsedBindingAcceptedDate.getTime()) ? now : parsedBindingAcceptedDate;
   const parsedNotaryDate = options.notaryAppointmentAt ? new Date(options.notaryAppointmentAt) : now;
   const notaryDate = Number.isNaN(parsedNotaryDate.getTime()) ? now : parsedNotaryDate;
   const expertCompany = options.expertOpinionCompany?.trim();
   const notaryOffice = options.notaryOffice?.trim();
   const config = {
-    indicative_offer_sent: { status: "INDICATIVE_OFFER_SENT", data: { indicativeOfferSentAt: now }, type: "indicative_offer_sent", message: "Unverbindliches Angebot (UVA) wurde abgegeben." },
-    offer_accepted: { status: "OFFER_ACCEPTED", data: { offerAcceptedAt: now }, type: "offer_accepted", message: "Unverbindliches Angebot (UVA) wurde angenommen." },
+    indicative_offer_sent: { status: "INDICATIVE_OFFER_SENT", data: { indicativeOfferSentAt: indicativeSentDate }, type: "indicative_offer_sent", message: `Unverbindliches Angebot abgegeben am ${formatActivityDate(indicativeSentDate)} erfasst.` },
+    offer_accepted: { status: "OFFER_ACCEPTED", data: { offerAcceptedAt: offerAcceptedDate }, type: "offer_accepted", message: `Kunde hat das unverbindliche Angebot am ${formatActivityDate(offerAcceptedDate)} angenommen.` },
     expert_opinion_ordered: {
       status: "EXPERT_OPINION_ORDERED",
       data: { expertOpinionOrderedAt: expertOrderedDate, expertOpinionCompany: expertCompany },
@@ -759,22 +821,153 @@ export async function advanceDbAcquisitionWorkflow(
       message: `Gutachten wurde beauftragt${expertCompany ? `: ${expertCompany}` : "."}`
     },
     expert_opinion_received: { status: "EXPERT_OPINION_RECEIVED", data: { expertOpinionReceivedAt: expertReceivedDate }, type: "expert_opinion_received", message: "Gutachten ist eingegangen." },
-    binding_offer_sent: { status: "BINDING_OFFER_SENT", data: { bindingOfferSentAt: now }, type: "binding_offer_sent", message: "Verbindliches Angebot (VA) wurde abgegeben." },
-    binding_offer_accepted: { status: "BINDING_OFFER_ACCEPTED", data: { bindingOfferAcceptedAt: now }, type: "binding_offer_accepted", message: "Verbindliches Angebot (VA) wurde angenommen." },
+    binding_offer_sent: { status: "BINDING_OFFER_SENT", data: { bindingOfferSentAt: bindingSentDate }, type: "binding_offer_sent", message: `Verbindliches Angebot abgegeben am ${formatActivityDate(bindingSentDate)} erfasst.` },
+    binding_offer_accepted: { status: "BINDING_OFFER_ACCEPTED", data: { bindingOfferAcceptedAt: bindingAcceptedDate }, type: "binding_offer_accepted", message: `Kunde hat das verbindliche Angebot am ${formatActivityDate(bindingAcceptedDate)} angenommen.` },
     notary_appointment_ordered: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: notaryDate, notaryOffice }, type: "notary_appointment_ordered", message: `Notartermin wurde vereinbart${notaryOffice ? `: ${notaryOffice}` : "."}` },
-    contract_signed: { status: "IN_PORTFOLIO", data: { purchasedAt: now, portfolioEnteredAt: now }, type: "contract_signed", message: "Kaufvertrag wurde abgeschlossen. Der Fall ist in den Bestand gewechselt." },
+    contract_signed: { status: "IN_PORTFOLIO", data: { purchasedAt: now, portfolioEnteredAt: now, portfolioTransferCompletedAt: now }, type: "contract_signed", message: "Kaufvertrag wurde unterschrieben. Die interne Bestandsübernahme wurde vorbereitet." },
     purchase_started: { status: "PURCHASE_STARTED", data: { purchaseStartedAt: now }, type: "purchase_started", message: "Ankaufsprozess wurde gestartet." },
     notary_appointment: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: now }, type: "notary_appointment", message: "Notartermin wurde vereinbart." },
     purchased: { status: "PURCHASED", data: { purchasedAt: now }, type: "property_purchased", message: "Immobilie wurde angekauft." },
-    enter_portfolio: { status: "IN_PORTFOLIO", field: "portfolioEnteredAt", type: "portfolio_entered", message: "Immobilie wurde in den Bestand übernommen." }
+    enter_portfolio: { status: "IN_PORTFOLIO", data: { portfolioEnteredAt: now, portfolioTransferCompletedAt: now }, type: "portfolio_entered", message: "Objekt wurde in die Bestandsverwaltung übernommen." }
   }[action];
 
   const property = await prisma.property.update({
     where: { id: propertyId },
-    data: { status: config.status as PropertyStatus, ...(config.data || { [config.field]: now }) }
+    data: { status: config.status as PropertyStatus, ...config.data }
   });
   await addDbActivity(propertyId, userId, config.type, config.message, { source: options.source ?? "admin", entityType: "property", entityId: propertyId });
   return property;
+}
+
+export async function resetDbAcquisitionWorkflow(
+  propertyId: string,
+  targetStatus: PropertyStatus,
+  userId: string,
+  input: { reason: string; note?: string; source?: "admin" | "partner" | "system" | "user" }
+) {
+  const now = new Date();
+  const current = await prisma.property.findUnique({ where: { id: propertyId } });
+  if (!current) throw new Error("Property not found");
+
+  const workflowDateKeys = [
+    { status: "INDICATIVE_OFFER_SENT", keys: ["indicativeOfferSentAt"] },
+    { status: "OFFER_ACCEPTED", keys: ["offerAcceptedAt"] },
+    { status: "EXPERT_OPINION_ORDERED", keys: ["expertOpinionOrderedAt", "expertOpinionCompany"] },
+    { status: "EXPERT_OPINION_RECEIVED", keys: ["expertOpinionReceivedAt"] },
+    { status: "BINDING_OFFER_SENT", keys: ["bindingOfferSentAt"] },
+    { status: "BINDING_OFFER_ACCEPTED", keys: ["bindingOfferAcceptedAt"] },
+    { status: "PURCHASE_STARTED", keys: ["purchaseStartedAt"] },
+    { status: "NOTARY_APPOINTMENT", keys: ["notaryAppointmentAt", "notaryOffice"] },
+    { status: "IN_PORTFOLIO", keys: ["purchasedAt", "portfolioEnteredAt", "portfolioTransferCompletedAt"] }
+  ] as const;
+
+  const targetIndex = workflowDateKeys.findIndex((item) => item.status === targetStatus);
+  const clearData = workflowDateKeys.reduce<Record<string, null>>((data, item, index) => {
+    if (targetIndex >= 0 && index <= targetIndex) return data;
+    for (const key of item.keys) data[key] = null;
+    return data;
+  }, {});
+
+  const previousSnapshot = {
+    status: current.status,
+    indicativeOfferSentAt: current.indicativeOfferSentAt,
+    offerAcceptedAt: current.offerAcceptedAt,
+    expertOpinionOrderedAt: current.expertOpinionOrderedAt,
+    expertOpinionCompany: current.expertOpinionCompany,
+    expertOpinionReceivedAt: current.expertOpinionReceivedAt,
+    bindingOfferSentAt: current.bindingOfferSentAt,
+    bindingOfferAcceptedAt: current.bindingOfferAcceptedAt,
+    purchaseStartedAt: current.purchaseStartedAt,
+    notaryAppointmentAt: current.notaryAppointmentAt,
+    notaryOffice: current.notaryOffice,
+    purchasedAt: current.purchasedAt,
+    portfolioEnteredAt: current.portfolioEnteredAt,
+    portfolioTransferCompletedAt: current.portfolioTransferCompletedAt
+  };
+
+  const property = await prisma.property.update({
+    where: { id: propertyId },
+    data: {
+      status: targetStatus,
+      ...clearData,
+      lastActivityAt: now,
+      lastActivityLabel: "Gerade eben"
+    }
+  });
+
+  await addDbActivity(
+    propertyId,
+    userId,
+    "workflow_reset",
+    `${acquisitionStatusLabel(current.status)} wurde auf ${acquisitionStatusLabel(targetStatus)} zurückgesetzt. Grund: ${input.reason}.`,
+    {
+      source: input.source ?? "admin",
+      entityType: "property",
+      entityId: propertyId,
+      metadata: {
+        previousStatus: current.status,
+        targetStatus,
+        reason: input.reason,
+        note: input.note,
+        previousSnapshot,
+        resetAt: now.toISOString(),
+        visibility: "internal"
+      }
+    }
+  );
+
+  return property;
+}
+
+export async function updateDbAcquisitionWorkflowDate(
+  propertyId: string,
+  action: "indicative_offer_sent" | "offer_accepted" | "binding_offer_sent" | "binding_offer_accepted",
+  userId: string,
+  options: { indicativeOfferSentAt?: string; offerAcceptedAt?: string; bindingOfferSentAt?: string; bindingOfferAcceptedAt?: string; source?: "admin" | "partner" | "system" | "user" } = {}
+) {
+  const now = new Date();
+  const dateFrom = (value?: string) => {
+    const parsed = value ? new Date(value) : now;
+    return Number.isNaN(parsed.getTime()) ? now : parsed;
+  };
+  const config = {
+    indicative_offer_sent: {
+      data: { indicativeOfferSentAt: dateFrom(options.indicativeOfferSentAt) },
+      type: "indicative_offer_sent",
+      message: (date: Date) => `Unverbindliches Angebot abgegeben am ${formatActivityDate(date)} erfasst.`
+    },
+    offer_accepted: {
+      data: { offerAcceptedAt: dateFrom(options.offerAcceptedAt) },
+      type: "offer_accepted",
+      message: (date: Date) => `Kunde hat das unverbindliche Angebot am ${formatActivityDate(date)} angenommen.`
+    },
+    binding_offer_sent: {
+      data: { bindingOfferSentAt: dateFrom(options.bindingOfferSentAt) },
+      type: "binding_offer_sent",
+      message: (date: Date) => `Verbindliches Angebot abgegeben am ${formatActivityDate(date)} erfasst.`
+    },
+    binding_offer_accepted: {
+      data: { bindingOfferAcceptedAt: dateFrom(options.bindingOfferAcceptedAt) },
+      type: "binding_offer_accepted",
+      message: (date: Date) => `Kunde hat das verbindliche Angebot am ${formatActivityDate(date)} angenommen.`
+    }
+  }[action];
+  const date = Object.values(config.data)[0] as Date;
+  const property = await prisma.property.update({
+    where: { id: propertyId },
+    data: config.data
+  });
+  await addDbActivity(propertyId, userId, config.type, config.message(date), {
+    source: options.source ?? "admin",
+    entityType: "property",
+    entityId: propertyId,
+    metadata: { action, date: date.toISOString() }
+  });
+  return property;
+}
+
+function formatActivityDate(value: Date): string {
+  return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(value);
 }
 
 function mapLead(lead: Awaited<ReturnType<typeof prisma.lead.findFirst>>): Lead {

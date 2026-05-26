@@ -555,9 +555,9 @@ export function advanceAcquisitionWorkflow(
     },
     contract_signed: {
       status: "IN_PORTFOLIO" as const,
-      data: { purchasedAt: now, portfolioEnteredAt: now },
+      data: { purchasedAt: now, portfolioEnteredAt: now, portfolioTransferCompletedAt: now },
       type: "contract_signed",
-      message: "Kaufvertrag wurde abgeschlossen. Der Fall ist in den Bestand gewechselt."
+      message: "Kaufvertrag wurde unterschrieben. Die interne Bestandsübernahme wurde vorbereitet."
     },
     purchase_started: {
       status: "PURCHASE_STARTED" as const,
@@ -579,9 +579,9 @@ export function advanceAcquisitionWorkflow(
     },
     enter_portfolio: {
       status: "IN_PORTFOLIO" as const,
-      data: { portfolioEnteredAt: now },
+      data: { portfolioEnteredAt: now, portfolioTransferCompletedAt: now },
       type: "portfolio_entered",
-      message: "Immobilie wurde in den Bestand übernommen."
+      message: "Objekt wurde in die Bestandsverwaltung übernommen."
     }
   }[action];
 

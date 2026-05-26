@@ -38,6 +38,18 @@ export function canAdvanceAcquisition(user: User, property: Property): boolean {
   return canCalculateOffer(user, property);
 }
 
+export function canEditAcquisitionDates(user: User, property: Property): boolean {
+  if (user.role !== "admin") return false;
+  if (!["employee", "advisor", "admin", "super_admin"].includes(user.internalRole ?? "employee")) return false;
+  return canSeeProperty(user, property);
+}
+
+export function canResetAcquisition(user: User, property: Property): boolean {
+  if (user.role !== "admin") return false;
+  if (!["employee", "advisor", "admin", "super_admin"].includes(user.internalRole ?? "employee")) return false;
+  return canSeeProperty(user, property);
+}
+
 export function canAcceptCustomerOffer(user: User, property: Property): boolean {
   return Boolean(user.role === "partner" && property.partnerId && property.partnerId === user.partnerId);
 }

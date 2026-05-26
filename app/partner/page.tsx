@@ -19,10 +19,22 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
+function searchParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default function Page({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const user = getCurrentUser();
   if (!user) return <PublicPartnerPage />;
   if (user.role === "admin") redirect("/admin");
 
-  return <FrontendPrototypeClient initialUser={user} />;
+  return (
+    <FrontendPrototypeClient
+      initialUser={user}
+      initialCaseId={searchParam(searchParams?.case) ?? searchParam(searchParams?.caseId)}
+      initialTab={searchParam(searchParams?.tab)}
+      initialReturnTab={searchParam(searchParams?.returnTab)}
+      initialScreen={searchParam(searchParams?.screen) ?? searchParam(searchParams?.view)}
+    />
+  );
 }

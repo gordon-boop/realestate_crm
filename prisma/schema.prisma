@@ -59,6 +59,34 @@ enum DesiredModel {
   other
 }
 
+enum UsageModel {
+  fixed_residential_right
+  lifelong_residential_right
+  usufruct
+  sale_and_leaseback
+  other
+}
+
+enum ExitTerminationReason {
+  move_out
+  resident_death
+  fixed_term_expired
+  waiver_agreement
+  other
+}
+
+enum ExitSalesStatus {
+  under_review
+  access_pending
+  inspection_scheduled
+  clearance_pending
+  repairs_pending
+  sales_preparation
+  marketing
+  sold
+  completed
+}
+
 enum PropertyOwnership {
   customer_1
   customer_2
@@ -300,6 +328,7 @@ model User {
   remindersCreated Reminder[] @relation("ReminderCreatedBy")
   remindersCompleted Reminder[] @relation("ReminderCompletedBy")
   activityVersionsCreated ActivityVersion[] @relation("ActivityVersionCreatedBy")
+  exitProcessesResponsible PropertyExitProcess[]
   deletedAt    DateTime? @map("deleted_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -465,6 +494,34 @@ model Property {
   residentialRightStartAt      DateTime?         @map("residential_right_start_at")
   residentialRightEndAt        DateTime?         @map("residential_right_end_at")
   residentialRightNotes        String?           @map("residential_right_notes")
+  notaryAppointmentRequestedAt DateTime?         @map("notary_appointment_requested_at")
+  purchaseContractDraftReceivedAt DateTime?      @map("purchase_contract_draft_received_at")
+  purchaseContractDraftReviewedAt DateTime?      @map("purchase_contract_draft_reviewed_at")
+  priorityNoticeRegisteredAt   DateTime?         @map("priority_notice_registered_at")
+  purchasePriceDueAt           DateTime?         @map("purchase_price_due_at")
+  purchasePricePaidAt          DateTime?         @map("purchase_price_paid_at")
+  residentialRightRegisteredAt DateTime?         @map("residential_right_registered_at")
+  benefitsAndBurdensTransferAt DateTime?         @map("benefits_and_burdens_transfer_at")
+  buildingInsuranceClarified   Boolean           @default(false) @map("building_insurance_clarified")
+  propertyManagerInformed      Boolean           @default(false) @map("property_manager_informed")
+  serviceChargeInfoRequested   Boolean           @default(false) @map("service_charge_info_requested")
+  propertyTaxInfoAvailable     Boolean           @default(false) @map("property_tax_info_available")
+  propertyFileComplete         Boolean           @default(false) @map("property_file_complete")
+  portfolioTransferCompletedAt DateTime?         @map("portfolio_transfer_completed_at")
+  residentStaysInProperty      Boolean           @default(true) @map("resident_stays_in_property")
+  residentName                 String?           @map("resident_name")
+  usageModel                   UsageModel?       @map("usage_model")
+  usageRightStartsAt           DateTime?         @map("usage_right_starts_at")
+  usageRightEndsAt             DateTime?         @map("usage_right_ends_at")
+  monthlyUsageFee              Decimal?          @map("monthly_usage_fee") @db.Decimal(14, 2)
+  residentContactName          String?           @map("resident_contact_name")
+  residentEmergencyContact     String?           @map("resident_emergency_contact")
+  propertyManagerName          String?           @map("property_manager_name")
+  buildingInsurance            String?           @map("building_insurance")
+  serviceChargeStatus          String?           @map("service_charge_status")
+  repairReportingChannelClarified Boolean        @default(false) @map("repair_reporting_channel_clarified")
+  conditionDocumentationAvailable Boolean        @default(false) @map("condition_documentation_available")
+  nextPortfolioReviewAt        DateTime?         @map("next_portfolio_review_at")
   maintenancePlanJson          Json?             @map("maintenance_plan_json")
   portfolioTasksJson           Json?             @map("portfolio_tasks_json")
   portfolioNotes               String?           @map("portfolio_notes")
@@ -479,6 +536,7 @@ model Property {
   chatMessages                 ChatMessage[]
   caseNotifications            CaseNotification[]
   reminders                    Reminder[]
+  exitProcess                  PropertyExitProcess?
   createdAt                    DateTime          @default(now()) @map("created_at")
   updatedAt                    DateTime          @updatedAt @map("updated_at")
 
@@ -487,6 +545,48 @@ model Property {
   @@index([caseSource])
   @@index([status])
   @@map("properties")
+}
+
+model PropertyExitProcess {
+  id                                      String                 @id @default(cuid())
+  propertyId                              String                 @unique @map("property_id")
+  property                                Property               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  usageRightEndedAt                       DateTime?              @map("usage_right_ended_at")
+  terminationReason                       ExitTerminationReason?  @map("termination_reason")
+  terminationProofAvailable               Boolean                @default(false) @map("termination_proof_available")
+  relativesOrEstateContact                String?                @map("relatives_or_estate_contact")
+  relativesContactedAt                    DateTime?              @map("relatives_contacted_at")
+  propertyAccessClarified                 Boolean                @default(false) @map("property_access_clarified")
+  keyHandoverPlannedAt                    DateTime?              @map("key_handover_planned_at")
+  keysReceivedAt                          DateTime?              @map("keys_received_at")
+  inspectionPlannedAt                     DateTime?              @map("inspection_planned_at")
+  inspectionCompletedAt                   DateTime?              @map("inspection_completed_at")
+  postMoveOutConditionReportAvailable     Boolean                @default(false) @map("post_move_out_condition_report_available")
+  clearanceRequired                       Boolean                @default(false) @map("clearance_required")
+  clearanceOrderedAt                      DateTime?              @map("clearance_ordered_at")
+  clearanceCompletedAt                    DateTime?              @map("clearance_completed_at")
+  safetyInspectionCompleted               Boolean                @default(false) @map("safety_inspection_completed")
+  insuranceCoverageChecked                Boolean                @default(false) @map("insurance_coverage_checked")
+  repairNeedCaptured                      Boolean                @default(false) @map("repair_need_captured")
+  salesPreparationStartedAt               DateTime?              @map("sales_preparation_started_at")
+  brokerMandatedAt                        DateTime?              @map("broker_mandated_at")
+  marketingStartedAt                      DateTime?              @map("marketing_started_at")
+  salePriceIndication                     Decimal?               @map("sale_price_indication") @db.Decimal(14, 2)
+  salePriceFinal                          Decimal?               @map("sale_price_final") @db.Decimal(14, 2)
+  salesStatus                             ExitSalesStatus        @default(under_review) @map("sales_status")
+  saleNotarizedAt                         DateTime?              @map("sale_notarized_at")
+  salePriceReceivedAt                     DateTime?              @map("sale_price_received_at")
+  exitCompletedAt                         DateTime?              @map("exit_completed_at")
+  internalNote                            String?                @map("internal_note")
+  responsibleUserId                       String?                @map("responsible_user_id")
+  responsibleUser                         User?                  @relation(fields: [responsibleUserId], references: [id])
+  followUpAt                              DateTime?              @map("follow_up_at")
+  createdAt                               DateTime               @default(now()) @map("created_at")
+  updatedAt                               DateTime               @updatedAt @map("updated_at")
+
+  @@index([salesStatus])
+  @@index([responsibleUserId])
+  @@map("property_exit_processes")
 }
 
 model Document {

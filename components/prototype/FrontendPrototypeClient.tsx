@@ -7,6 +7,10 @@ import type { User } from "@/lib/domain";
 type FrontendPrototypeProps = {
   initialRole?: "partner" | "admin";
   initialUser?: User;
+  initialCaseId?: string | null;
+  initialTab?: string;
+  initialReturnTab?: string;
+  initialScreen?: string;
 };
 
 const FrontendPrototype = dynamic(
@@ -20,6 +24,22 @@ const FrontendPrototype = dynamic(
   )
 });
 
-export function FrontendPrototypeClient({ initialRole = "partner", initialUser }: { initialRole?: "partner" | "admin"; initialUser?: User }) {
-  return <FrontendPrototype initialRole={initialRole} initialUser={initialUser} />;
+export function FrontendPrototypeClient({
+  initialRole = "partner",
+  initialUser,
+  initialCaseId,
+  initialTab,
+  initialReturnTab,
+  initialScreen
+}: FrontendPrototypeProps) {
+  return (
+    <FrontendPrototype
+      initialRole={initialRole}
+      initialUser={initialUser}
+      initialCaseId={initialCaseId}
+      initialTab={initialTab}
+      initialReturnTab={initialReturnTab}
+      initialScreen={initialScreen}
+    />
+  );
 }

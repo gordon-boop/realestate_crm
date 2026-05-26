@@ -153,7 +153,7 @@ export function HeroSection() {
               </Link>
               <Link href="/so-funktioniert-es" className={styles.btnSecondary}>So funktioniert es</Link>
             </div>
-            <p className={styles.heroTrustHint}>Unverbindlich. Persönlich. Transparent.</p>
+            <p className={styles.heroTrustHint}>Zuhause. Fair. Unabhängig.</p>
           </div>
           <div className={styles.heroImage}>
             <Image

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateAcquisitionTransition } from "../lib/acquisition-workflow.ts";
+import { validateAcquisitionOfferDates, validateAcquisitionReset, validateAcquisitionTransition } from "../lib/acquisition-workflow.ts";
 import { advanceAcquisitionWorkflow, getCaseByPropertyId } from "../lib/store.ts";
 import { acquisitionWorkflowSchema, propertyRejectSchema } from "../lib/validation.ts";
 
@@ -70,4 +70,34 @@ test("acquisition workflow enforces the full process order", () => {
   assert.throws(() => validateAcquisitionTransition(vaAccepted, "notary_appointment_ordered"), /Notary appointment date required/);
   assert.throws(() => validateAcquisitionTransition(vaAccepted, "notary_appointment_ordered", { notaryAppointmentAt: "2026-06-10T10:00" }), /Notary office required/);
   assert.doesNotThrow(() => validateAcquisitionTransition(vaAccepted, "notary_appointment_ordered", { notaryAppointmentAt: "2026-06-10T10:00", notaryOffice: "Notariat Stuttgart Mitte" }));
+});
+
+test("acquisition workflow reset requires earlier step and reason", () => {
+  const bindingOfferSent = {
+    status: "BINDING_OFFER_SENT" as const,
+    indicativeOfferSentAt: "2026-05-25T10:00:00.000Z",
+    offerAcceptedAt: "2026-05-25T11:00:00.000Z",
+    expertOpinionOrderedAt: "2026-05-26T10:00:00.000Z",
+    expertOpinionReceivedAt: "2026-05-27T10:00:00.000Z",
+    bindingOfferSentAt: "2026-05-28T10:00:00.000Z"
+  };
+
+  assert.doesNotThrow(() => validateAcquisitionReset(bindingOfferSent, "EXPERT_OPINION_RECEIVED", "Bewertung muss angepasst werden"));
+  assert.throws(() => validateAcquisitionReset(bindingOfferSent, "BINDING_OFFER_SENT", "Bewertung muss angepasst werden"), /earlier process step/);
+  assert.throws(() => validateAcquisitionReset(bindingOfferSent, "EXPERT_OPINION_RECEIVED", ""), /Reset reason required/);
+});
+
+test("final acquisition workflow reset is protected for non-admin reset users", () => {
+  const finalCase = { status: "IN_PORTFOLIO" as const, portfolioEnteredAt: "2026-06-01T10:00:00.000Z" };
+
+  assert.throws(() => validateAcquisitionReset(finalCase, "BINDING_OFFER_ACCEPTED", "Notartermin muss neu geplant werden"), /Final acquisition cases/);
+  assert.doesNotThrow(() => validateAcquisitionReset(finalCase, "BINDING_OFFER_ACCEPTED", "Notartermin muss neu geplant werden", { allowFinalReset: true }));
+});
+
+test("offer date validation blocks acceptance before submission", () => {
+  const property = { status: "INDICATIVE_OFFER_SENT" as const, indicativeOfferSentAt: "2026-05-24" };
+
+  assert.doesNotThrow(() => validateAcquisitionOfferDates(property, { offerAcceptedAt: "2026-05-25" }));
+  assert.throws(() => validateAcquisitionOfferDates(property, { offerAcceptedAt: "2026-05-23" }), /nicht vor Abgabedatum/);
+  assert.throws(() => validateAcquisitionOfferDates({ status: "SUBMITTED" as const }, { offerAcceptedAt: "2026-05-25" }), /required before acceptance date/);
 });

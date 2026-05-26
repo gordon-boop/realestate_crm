@@ -242,11 +242,30 @@ export const acquisitionWorkflowSchema = z.object({
     "purchased",
     "enter_portfolio"
   ]),
+  indicativeOfferSentAt: optionalString,
+  offerAcceptedAt: optionalString,
   expertOpinionOrderedAt: optionalString,
   expertOpinionReceivedAt: optionalString,
   expertOpinionCompany: optionalString,
+  bindingOfferSentAt: optionalString,
+  bindingOfferAcceptedAt: optionalString,
   notaryAppointmentAt: optionalString,
   notaryOffice: optionalString
+});
+
+export const acquisitionWorkflowResetSchema = z.object({
+  targetStatus: z.enum([
+    "SUBMITTED",
+    "INDICATIVE_OFFER_SENT",
+    "OFFER_ACCEPTED",
+    "EXPERT_OPINION_ORDERED",
+    "EXPERT_OPINION_RECEIVED",
+    "BINDING_OFFER_SENT",
+    "BINDING_OFFER_ACCEPTED",
+    "NOTARY_APPOINTMENT"
+  ]),
+  reason: z.string().trim().min(1, "Grund der Rücksetzung ist erforderlich"),
+  note: optionalString
 });
 
 export const propertyRejectSchema = z.object({
@@ -268,7 +287,67 @@ export const portfolioUpdateSchema = z.object({
   residentialRightStartAt: optionalString,
   residentialRightEndAt: optionalString,
   residentialRightNotes: optionalString,
+  notaryAppointmentRequestedAt: optionalString,
+  purchaseContractDraftReceivedAt: optionalString,
+  purchaseContractDraftReviewedAt: optionalString,
+  priorityNoticeRegisteredAt: optionalString,
+  purchasePriceDueAt: optionalString,
+  purchasePricePaidAt: optionalString,
+  residentialRightRegisteredAt: optionalString,
+  benefitsAndBurdensTransferAt: optionalString,
+  buildingInsuranceClarified: z.boolean().optional(),
+  propertyManagerInformed: z.boolean().optional(),
+  serviceChargeInfoRequested: z.boolean().optional(),
+  propertyTaxInfoAvailable: z.boolean().optional(),
+  propertyFileComplete: z.boolean().optional(),
+  portfolioTransferCompletedAt: optionalString,
+  residentStaysInProperty: z.boolean().optional(),
+  residentName: optionalString,
+  usageModel: z.enum(["fixed_residential_right", "lifelong_residential_right", "usufruct", "sale_and_leaseback", "other"]).optional(),
+  usageRightStartsAt: optionalString,
+  usageRightEndsAt: optionalString,
+  monthlyUsageFee: optionalNumber,
+  residentContactName: optionalString,
+  residentEmergencyContact: optionalString,
+  propertyManagerName: optionalString,
+  buildingInsurance: optionalString,
+  serviceChargeStatus: optionalString,
+  repairReportingChannelClarified: z.boolean().optional(),
+  conditionDocumentationAvailable: z.boolean().optional(),
+  nextPortfolioReviewAt: optionalString,
   maintenancePlan: z.record(z.unknown()).optional(),
   portfolioTasks: z.record(z.unknown()).optional(),
   portfolioNotes: optionalString
+});
+
+export const propertyExitProcessUpdateSchema = z.object({
+  usageRightEndedAt: optionalString,
+  terminationReason: z.enum(["move_out", "resident_death", "fixed_term_expired", "waiver_agreement", "other"]).optional(),
+  terminationProofAvailable: z.boolean().optional(),
+  relativesOrEstateContact: optionalString,
+  relativesContactedAt: optionalString,
+  propertyAccessClarified: z.boolean().optional(),
+  keyHandoverPlannedAt: optionalString,
+  keysReceivedAt: optionalString,
+  inspectionPlannedAt: optionalString,
+  inspectionCompletedAt: optionalString,
+  postMoveOutConditionReportAvailable: z.boolean().optional(),
+  clearanceRequired: z.boolean().optional(),
+  clearanceOrderedAt: optionalString,
+  clearanceCompletedAt: optionalString,
+  safetyInspectionCompleted: z.boolean().optional(),
+  insuranceCoverageChecked: z.boolean().optional(),
+  repairNeedCaptured: z.boolean().optional(),
+  salesPreparationStartedAt: optionalString,
+  brokerMandatedAt: optionalString,
+  marketingStartedAt: optionalString,
+  salePriceIndication: optionalNumber,
+  salePriceFinal: optionalNumber,
+  salesStatus: z.enum(["under_review", "access_pending", "inspection_scheduled", "clearance_pending", "repairs_pending", "sales_preparation", "marketing", "sold", "completed"]).optional(),
+  saleNotarizedAt: optionalString,
+  salePriceReceivedAt: optionalString,
+  exitCompletedAt: optionalString,
+  internalNote: optionalString,
+  responsibleUserId: optionalString,
+  followUpAt: optionalString
 });
