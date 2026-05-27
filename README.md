@@ -33,6 +33,24 @@ Demo-Logins:
 - Admin: `admin@demo.local` / `demo1234`
 - Partner: `makler@demo.local` / `demo1234`
 
+Die Demo-User sind nur für lokale Entwicklung und Tests gedacht. In produktionsnahen Umgebungen sollten Demo-Passwörter nicht verwendet werden.
+
+## Echten Admin-Zugang anlegen
+
+Für Server- oder Testumgebungen sollte ein echter Admin-Zugang angelegt werden:
+
+```bash
+ADMIN_EMAIL="meine-email@example.com" ADMIN_NAME="Gordon Sauer" ADMIN_PASSWORD="SicheresPasswort123!" npm run admin:create
+```
+
+Wenn Docker verwendet wird:
+
+```bash
+docker compose exec app sh -c 'ADMIN_EMAIL="meine-email@example.com" ADMIN_NAME="Gordon Sauer" ADMIN_PASSWORD="SicheresPasswort123!" npm run admin:create'
+```
+
+Der Befehl legt den Admin an oder aktualisiert ihn. Das Passwort wird mit bcrypt gehasht; Klartext-Passwörter werden nicht gespeichert. Der User erhält `role=admin` und `internalRole=super_admin`.
+
 ## Passwort-Migration
 
 Die Migration `20260601_password_migration` invalidiert einmalig bestehende Klartext-Passwörter und setzt sie auf `NEEDS_RESET`. Bestehende Nutzer müssen danach einen Passwort-Reset durchlaufen oder ein neues gehashtes Passwort erhalten. Das Seed-Script vergibt für die Demo-User neue bcrypt-Hashes für `demo1234`.

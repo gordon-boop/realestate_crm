@@ -17,6 +17,7 @@ import {
   modernizationComponentLabels,
   modernizationScopeLabels,
 } from '@/lib/property-labels';
+import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 
 // =====================================================================
 // THEME — WohnKapital Mint-Welt
@@ -1823,112 +1824,375 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase,
 // =====================================================================
 // SCREEN 2 — ADMIN-DASHBOARD
 // =====================================================================
-const AdminDashboard = ({ cases = mockCases, onOpenCase, onNewCase, canCreateCase = false }) => (
-  <div style={{ padding: '20px 28px' }}>
-    <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-      <div>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
-        <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Pipeline-Übersicht</h1>
-      </div>
-      {canCreateCase && (
-        <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 6, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-          <Plus size={15} /> Internen Fall anlegen
-        </button>
-      )}
-    </div>
+const adminBucketKeys = ['new-leads', 'new-submissions', 'acquisition-process', 'other'];
+const adminNewSubmissionStatuses = ['SUBMITTED', 'DATA_INCOMPLETE', 'INTERNAL_REVIEW'];
+const adminAcquisitionStatuses = [
+  'VALUATION_PENDING',
+  'VALUATED',
+  'OFFER_CALCULATED',
+  'OFFER_DRAFTED',
+  'APPROVED',
+  'SENT',
+  'INDICATIVE_OFFER_SENT',
+  'OFFER_ACCEPTED',
+  'EXPERT_OPINION_ORDERED',
+  'EXPERT_OPINION_RECEIVED',
+  'BINDING_OFFER_SENT',
+  'BINDING_OFFER_ACCEPTED',
+  'PURCHASE_STARTED',
+  'NOTARY_APPOINTMENT',
+  'PURCHASED',
+];
+const adminOtherStatuses = ['IN_PORTFOLIO', 'APPOINTMENT_SCHEDULED', 'WON', 'SOLD'];
+const adminLeadStatuses = ['NEW', 'QUALIFIED', 'ASSIGNED', 'CONTACTED'];
 
-    {/* Pipeline-Kennzahlen */}
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 22 }}>
-      {[
-        { label: 'Eingereicht', value: '7', sub: '+2 heute', color: theme.aubergineSoft },
-        { label: 'In Bewertung', value: '4', sub: 'Ø 1.4 Tage offen', color: '#7B61C7' },
-        { label: 'Interne Prüfung', value: '3', sub: '1 überfällig', color: theme.oliv },
-        { label: 'Versendet', value: '12', sub: 'wartet auf Kunde', color: '#5B8C2B' },
-        { label: 'Im Bestand', value: '47', sub: 'aktive Objekte', color: '#3D6B1F' },
-      ].map((s, i) => (
-        <div key={i} style={{ background: 'white', borderRadius: 8, padding: '14px 16px', border: `1px solid ${theme.borderSoft}`, borderTop: `3px solid ${s.color}` }}>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: theme.aubergine, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
-          <div style={{ fontSize: 11.5, color: `${theme.ink}99` }}>{s.sub}</div>
-        </div>
+function readAdminBucketFromUrl() {
+  if (typeof window === 'undefined') return '';
+  const bucket = new URLSearchParams(window.location.search).get('bucket');
+  return adminBucketKeys.includes(bucket) ? bucket : '';
+}
+
+function writeAdminBucketToUrl(bucket) {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  params.delete('case');
+  params.delete('caseId');
+  params.delete('tab');
+  params.delete('returnTab');
+  if (bucket) params.set('bucket', bucket);
+  else params.delete('bucket');
+  const query = params.toString();
+  window.history.pushState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+}
+
+function dateRank(value) {
+  if (!value) return 5;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 5;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  if (date < today) return 0;
+  if (date.getTime() === today.getTime()) return 1;
+  return 4;
+}
+
+function adminCaseDueDate(item) {
+  const property = item.raw?.property || {};
+  return property.followUpDueAt
+    || property.notaryAppointmentAt
+    || property.nextPortfolioReviewAt
+    || property.portfolioTasks?.nextAppointmentDate
+    || property.exitProcess?.followUpAt
+    || property.lastActivityAt;
+}
+
+function adminCaseNextStep(item) {
+  const property = item.raw?.property || {};
+  if (item.followUp || item.status === 'DATA_INCOMPLETE') return 'Rückfrage klären';
+  if (item.status === 'SUBMITTED') return 'Einreichung prüfen';
+  if (item.status === 'INTERNAL_REVIEW') return 'Interne Entscheidung treffen';
+  if (['VALUATION_PENDING', 'VALUATED'].includes(item.status)) return 'Bewertung prüfen';
+  if (['OFFER_CALCULATED', 'OFFER_DRAFTED', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT'].includes(item.status)) return 'Unverbindliches Angebot bearbeiten';
+  if (item.status === 'OFFER_ACCEPTED') return 'Gutachten beauftragen';
+  if (item.status === 'EXPERT_OPINION_ORDERED') return 'Gutachteneingang erfassen';
+  if (item.status === 'EXPERT_OPINION_RECEIVED') return 'Verbindliches Angebot kalkulieren';
+  if (item.status === 'BINDING_OFFER_SENT') return 'VA nachfassen';
+  if (item.status === 'BINDING_OFFER_ACCEPTED') return 'Notartermin vereinbaren';
+  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'Kaufvertrag / Vollzug bearbeiten';
+  if (item.status === 'IN_PORTFOLIO') return 'Bestandsverwaltung prüfen';
+  if (property.exitProcess) return 'Verwertung nach Wohnrechtsende prüfen';
+  return 'Vorgang öffnen';
+}
+
+function adminCaseTab(item) {
+  if (['SUBMITTED', 'DATA_INCOMPLETE', 'INTERNAL_REVIEW'].includes(item.status)) return 'kunde';
+  if (['VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED'].includes(item.status)) return 'indag';
+  if (['BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED'].includes(item.status)) return 'verbag';
+  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT'].includes(item.status)) return 'vertragsabwicklung';
+  if (item.status === 'PURCHASED') return 'vertragsvollzug';
+  if (item.raw?.property?.exitProcess) return 'verwertung';
+  if (['IN_PORTFOLIO', 'WON', 'SOLD'].includes(item.status)) return 'bestand';
+  return 'kunde';
+}
+
+function adminWarningBadges(item) {
+  const badges = [];
+  const dueRank = dateRank(adminCaseDueDate(item));
+  if (item.followUp) badges.push('Rückfrage offen');
+  if (item.status === 'DATA_INCOMPLETE') badges.push('Unterlagen fehlen');
+  if (dueRank === 0) badges.push('überfällig');
+  if (dueRank === 1) badges.push('Wiedervorlage heute');
+  return badges;
+}
+
+function leadNextStep(lead) {
+  if (lead.status === 'NEW') return 'Lead qualifizieren';
+  if (lead.status === 'QUALIFIED') return 'Verantwortlichen zuweisen';
+  if (lead.status === 'ASSIGNED') return 'Kontakt aufnehmen';
+  if (lead.status === 'CONTACTED') return 'In Kundenfall umwandeln';
+  return 'Lead prüfen';
+}
+
+function leadAssigneeLabel(lead) {
+  if (lead.assignedAdvisorName) return lead.assignedAdvisorName;
+  if (lead.assignedPartnerName) return lead.assignedPartnerName;
+  if (lead.assignedPartnerId) return 'Partner zugewiesen';
+  if (lead.assignedAdvisorUserId) return 'Intern zugewiesen';
+  return 'nicht zugewiesen';
+}
+
+function adminWorkRows({ cases, leads, bucket }) {
+  const activeBucket = bucket || 'new-submissions';
+  const leadRows = leads
+    .filter((lead) => activeBucket === 'new-leads' && adminLeadStatuses.includes(lead.status))
+    .map((lead) => ({
+      kind: 'lead',
+      id: lead.id,
+      displayId: lead.leadNumber || lead.id,
+      customer: leadDisplayName(lead),
+      origin: lead.source === 'homepage' ? 'Homepage' : lead.source || 'Lead',
+      responsible: leadAssigneeLabel(lead),
+      object: `${propertyTypeLabel(lead.propertyType)} ${lead.city || ''}`.trim() || '-',
+      nextStep: leadNextStep(lead),
+      status: lead.status,
+      lastActivity: formatDate(lead.updatedAt || lead.createdAt),
+      sortRank: lead.status === 'NEW' ? 2 : 4,
+    }));
+
+  const caseRows = cases
+    .filter((item) => {
+      if (activeBucket === 'new-submissions') return adminNewSubmissionStatuses.includes(item.status);
+      if (activeBucket === 'acquisition-process') return adminAcquisitionStatuses.includes(item.status);
+      if (activeBucket === 'other') return adminOtherStatuses.includes(item.status) || item.raw?.property?.exitProcess;
+      return false;
+    })
+    .map((item) => {
+      const due = adminCaseDueDate(item);
+      return {
+        kind: 'case',
+        id: item.propertyId || item.id,
+        displayId: item.id,
+        customer: `${item.kunde}${item.alter ? ` (${item.alter})` : ''}`,
+        origin: item.sourceLabel || getCaseSourceLabel(item.raw?.property?.caseSource) || 'Partner',
+        responsible: item.partner || item.raw?.property?.assignedAdvisor?.name || 'intern',
+        object: item.objekt,
+        nextStep: adminCaseNextStep(item),
+        status: item.status,
+        lastActivity: item.vor || formatDate(item.raw?.property?.lastActivityAt || item.raw?.property?.updatedAt),
+        tab: adminCaseTab(item),
+        warnings: adminWarningBadges(item),
+        sortRank: Math.min(dateRank(due), item.status === 'SUBMITTED' ? 2 : item.followUp ? 3 : 4),
+        lastActivityValue: item.raw?.property?.lastActivityAt || item.raw?.property?.updatedAt,
+      };
+    });
+
+  return [...leadRows, ...caseRows].sort((a, b) => {
+    if (a.sortRank !== b.sortRank) return a.sortRank - b.sortRank;
+    return new Date(b.lastActivityValue || 0).getTime() - new Date(a.lastActivityValue || 0).getTime();
+  });
+}
+
+const AdminWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
+    {buckets.map((bucket) => {
+      const active = activeBucket === bucket.key;
+      return (
+        <button
+          key={bucket.key}
+          onClick={() => onSelect(bucket.key)}
+          style={{
+            textAlign: 'left',
+            background: active ? theme.aubergine : 'white',
+            color: active ? 'white' : theme.ink,
+            border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
+            borderRadius: 8,
+            padding: '15px 16px',
+            cursor: 'pointer',
+            boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+            <span style={{ fontSize: 11, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</span>
+            <bucket.icon size={16} style={{ color: active ? theme.gold : `${theme.aubergine}77` }} />
+          </div>
+          <div style={{ fontSize: 29, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine, marginBottom: 7 }}>{bucket.count}</div>
+          <div style={{ fontSize: 12, lineHeight: 1.35, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, minHeight: 34 }}>{bucket.description}</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 12 }}>{bucket.action}</div>
+        </button>
+      );
+    })}
+  </div>
+);
+
+const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads }) => (
+  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+    <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div>
+        <span style={{ fontSize: 15, fontWeight: 700, color: theme.aubergine }}>{title}</span>
+        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>Arbeitsliste nach Handlungsbedarf sortiert. Erst hier öffnest du konkrete Vorgänge.</div>
+      </div>
+      <span style={{ fontSize: 12, color: `${theme.ink}88`, fontWeight: 700 }}>{rows.length} Vorgänge</span>
+    </div>
+    {rows.length === 0 ? (
+      <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Vorgänge in diesem Arbeitskorb.</div>
+    ) : (
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: 1040, borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: theme.mintLight }}>
+              {['Fall / Lead', 'Kunde', 'Herkunft', 'Partner / Verantwortlich', 'Objekt', 'Nächster Schritt', 'Status', 'Letzte Aktivität', 'Öffnen'].map((h) => (
+                <th key={h} style={{ textAlign: 'left', padding: '8px 14px', fontSize: 10.5, fontWeight: 800, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={`${row.kind}-${row.id}`} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+                <td style={{ padding: '11px 14px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 800 }}>{row.displayId}</td>
+                <td style={{ padding: '11px 14px', color: theme.ink, fontWeight: 600 }}>{row.customer}</td>
+                <td style={{ padding: '11px 14px', color: `${theme.ink}99`, fontSize: 12 }}>{row.origin}</td>
+                <td style={{ padding: '11px 14px', color: `${theme.ink}aa`, fontSize: 12 }}>{row.responsible}</td>
+                <td style={{ padding: '11px 14px', color: `${theme.ink}cc` }}>{row.object}</td>
+                <td style={{ padding: '11px 14px', color: theme.ink }}>
+                  <div style={{ fontWeight: 650 }}>{row.nextStep}</div>
+                  {!!row.warnings?.length && (
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 5 }}>
+                      {row.warnings.map((badge) => (
+                        <span key={badge} style={{ background: badge === 'überfällig' ? '#9B2C2C14' : theme.goldSoft, color: badge === 'überfällig' ? '#9B2C2C' : '#A87308', borderRadius: 12, padding: '2px 7px', fontSize: 10.5, fontWeight: 800 }}>{badge}</span>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td style={{ padding: '11px 14px' }}>{row.kind === 'lead' ? <LeadStatusBadge status={row.status} /> : <StatusBadge status={row.status} />}</td>
+                <td style={{ padding: '11px 14px', color: `${theme.ink}88`, fontSize: 12 }}>{row.lastActivity}</td>
+                <td style={{ padding: '11px 14px' }}>
+                  <button
+                    onClick={() => row.kind === 'lead' ? onOpenLeads?.() : onOpenCase(row.id, row.tab || 'kunde')}
+                    style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '6px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  >
+                    Öffnen <ChevronRight size={13} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+);
+
+const UrgentTasksPanel = ({ cases, onOpenCase }) => {
+  const tasks = cases
+    .filter((item) => item.followUp || item.status === 'DATA_INCOMPLETE' || dateRank(adminCaseDueDate(item)) <= 1)
+    .slice(0, 5);
+  return (
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 14px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.goldSoft, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <AlertCircle size={15} style={{ color: theme.gold }} />
+        <span style={{ fontSize: 14, fontWeight: 800, color: theme.aubergine }}>Dringende Aufgaben</span>
+      </div>
+      {tasks.length === 0 ? (
+        <div style={{ padding: 14, fontSize: 12.5, color: `${theme.ink}88` }}>Keine dringenden Aufgaben.</div>
+      ) : tasks.map((item) => (
+        <button key={item.propertyId || item.id} onClick={() => onOpenCase(item.propertyId || item.id, adminCaseTab(item))} style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: `1px solid ${theme.borderSoft}`, padding: '11px 14px', cursor: 'pointer' }}>
+          <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 750 }}>{item.kunde}</div>
+          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{adminCaseNextStep(item)}</div>
+        </button>
       ))}
     </div>
+  );
+};
 
-    {/* Zwei Spalten: Offene Rückfragen + Karte */}
-    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16, marginBottom: 22 }}>
-      <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: theme.goldSoft }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <AlertCircle size={15} style={{ color: theme.gold }} />
-            <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Offene Rückfragen</span>
-          </div>
-          <span style={{ fontSize: 12, color: `${theme.ink}88` }}>5 gesamt · 2 überfällig</span>
-        </div>
-        {(cases.filter((item) => item.followUp).length ? cases.filter((item) => item.followUp) : mockCases.filter((item) => item.followUp)).slice(0, 3).map((r, i) => (
-          <div key={r.propertyId || r.id || i} onClick={() => onOpenCase(r.propertyId || r.id)} style={{ padding: '12px 16px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 500 }}>
-                <span style={{ fontFamily: 'ui-monospace, monospace', color: theme.aubergine, fontWeight: 600, marginRight: 8 }}>{r.id}</span>
-                {r.kunde}
-              </div>
-              <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>{r.followUpReason || 'Rückfrage offen'}</div>
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10, background: r.overdue ? '#9B2C2C1A' : `${theme.gold}1A`, color: r.overdue ? '#9B2C2C' : '#A87308' }}>
-              Heute
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Kartenansicht */}
-      <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Objekte in Bearbeitung</span>
-          <div style={{ display: 'flex', gap: 4, background: theme.mintLight, borderRadius: 5, padding: 2 }}>
-            <button style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 11, padding: '3px 10px', borderRadius: 4, fontWeight: 600, cursor: 'pointer' }}>In Bearbeitung</button>
-            <button style={{ background: 'transparent', color: theme.aubergine, border: 'none', fontSize: 11, padding: '3px 10px', borderRadius: 4, fontWeight: 600, cursor: 'pointer' }}>Bestand</button>
-          </div>
-        </div>
-        <GooglePropertyMap points={buildMapPoints(cases)} onOpenCase={onOpenCase} />
-      </div>
-    </div>
-
-    {/* Alle Fälle */}
-    <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-      <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Alle aktiven Fälle</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Filter:</span>
-          {['Alle', 'Eingereicht', 'In Bewertung', 'Prüfung'].map((f, i) => (
-            <button key={i} style={{ background: i === 0 ? theme.aubergine : 'transparent', color: i === 0 ? 'white' : theme.aubergine, border: i === 0 ? 'none' : `1px solid ${theme.border}`, fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 4, cursor: 'pointer' }}>{f}</button>
-          ))}
-        </div>
-      </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ background: theme.mintLight }}>
-            {['Fall', 'Kunde', 'Partner', 'Objekt', 'Status', 'Letzte Aktivität', ''].map((h, i) => (
-              <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {cases.filter((item) => item.status !== 'REJECTED' && item.status !== 'LOST').map((r, i) => (
-            <tr key={r.propertyId || r.id || i} onClick={() => onOpenCase(r.propertyId || r.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, cursor: 'pointer' }}>
-              <td style={{ padding: '11px 16px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 600 }}>{r.id}</td>
-              <td style={{ padding: '11px 16px', color: theme.ink }}>{r.kunde}{r.alter ? ` (${r.alter})` : ''}</td>
-              <td style={{ padding: '11px 16px', color: `${theme.ink}aa`, fontSize: 12 }}>{r.partner}</td>
-              <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>{r.objekt}</td>
-              <td style={{ padding: '11px 16px' }}><StatusBadge status={r.status} /></td>
-              <td style={{ padding: '11px 16px', color: `${theme.ink}88`, fontSize: 12 }}>{r.vor}</td>
-              <td style={{ padding: '11px 16px', textAlign: 'right' }}><ChevronRight size={15} style={{ color: `${theme.aubergine}88` }} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+const AdminQuickActions = ({ onNewCase, onOpenLeads, onOpenOther }) => (
+  <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px' }}>
+    <div style={{ fontSize: 14, fontWeight: 800, color: theme.aubergine, marginBottom: 10 }}>Schnellaktionen</div>
+    <div style={{ display: 'grid', gap: 8 }}>
+      <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Neukunde anlegen</button>
+      <button onClick={onOpenLeads} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '9px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Lead erfassen</button>
+      <button onClick={onOpenOther} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '9px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Reparatur erfassen</button>
+      <button onClick={onOpenOther} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '9px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Abrechnung erfassen</button>
     </div>
   </div>
 );
+
+const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onOpenLeads, canCreateCase = false }) => {
+  const [activeBucket, setActiveBucket] = useState(readAdminBucketFromUrl);
+  const setBucket = (bucket) => {
+    setActiveBucket(bucket);
+    writeAdminBucketToUrl(bucket);
+  };
+  const buckets = [
+    {
+      key: 'new-leads',
+      title: 'Neue Leads',
+      count: leads.filter((lead) => adminLeadStatuses.includes(lead.status)).length,
+      description: 'Homepage-Leads, Kontaktanfragen und unqualifizierte Interessenten.',
+      action: 'Leads prüfen',
+      icon: TrendingUp,
+    },
+    {
+      key: 'new-submissions',
+      title: 'Neue Einreichungen',
+      count: cases.filter((item) => adminNewSubmissionStatuses.includes(item.status)).length,
+      description: 'Eingereichte Partner- und interne Fälle für die Erstprüfung.',
+      action: 'Einreichungen prüfen',
+      icon: FolderOpen,
+    },
+    {
+      key: 'acquisition-process',
+      title: 'Im Ankaufsprozess',
+      count: cases.filter((item) => adminAcquisitionStatuses.includes(item.status)).length,
+      description: 'Bewertung, Gutachten, Angebote, Notar und Vertragsvollzug.',
+      action: 'Ankäufe bearbeiten',
+      icon: Briefcase,
+    },
+    {
+      key: 'other',
+      title: 'Sonstiges',
+      count: cases.filter((item) => adminOtherStatuses.includes(item.status) || item.raw?.property?.exitProcess).length,
+      description: 'Bestand, Bewohneranfragen, Reparaturen, Abrechnungen und Verwertung.',
+      action: 'Themen öffnen',
+      icon: Archive,
+    },
+  ];
+  const activeBucketDefinition = buckets.find((bucket) => bucket.key === activeBucket);
+  const tableTitle = activeBucketDefinition?.title || 'Neueste Einreichungen';
+  const rows = adminWorkRows({ cases, leads, bucket: activeBucket });
+  const openOther = () => setBucket('other');
+
+  return (
+    <div style={{ padding: '20px 28px' }}>
+      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankaufsübersicht</h1>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Leads, Einreichungen und laufende Ankäufe nach Handlungsbedarf.</div>
+        </div>
+        {canCreateCase && (
+          <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 6, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <Plus size={15} /> Neukunde anlegen
+          </button>
+        )}
+      </div>
+
+      <AdminWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={setBucket} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
+        <AdminWorklist title={tableTitle} rows={rows} activeBucket={activeBucket} onOpenCase={onOpenCase} onOpenLeads={onOpenLeads} />
+        <div style={{ display: 'grid', gap: 14 }}>
+          <UrgentTasksPanel cases={cases} onOpenCase={onOpenCase} />
+          <AdminQuickActions onNewCase={onNewCase} onOpenLeads={onOpenLeads} onOpenOther={openOther} />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <PropertyMapWidget />
+      </div>
+    </div>
+  );
+};
 
 const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
   const filteredCases = filterCasesForScreen(cases, screen);
@@ -6407,7 +6671,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
             </div>
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} />}
-          {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} onOpenCase={handleOpenCase} onNewCase={handleNewCase} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
+          {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['admin', 'super_admin'].includes(currentInternalRole)} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}

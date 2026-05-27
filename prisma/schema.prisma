@@ -535,6 +535,9 @@ model Property {
   lastActivityLabel            String?           @map("last_activity_label")
   lastActivityAt               DateTime?         @map("last_activity_at")
   notes                        String?
+  latitude                     Decimal?          @db.Decimal(9, 6)
+  longitude                    Decimal?          @db.Decimal(9, 6)
+  geocodingSource              String?           @map("geocoding_source")
   status                       PropertyStatus    @default(DRAFT)
   documents                    Document[]
   valuations                   Valuation[]

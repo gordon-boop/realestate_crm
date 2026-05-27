@@ -2,6 +2,7 @@ import { canSeeProperty, isInternalAdmin } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import { nextPropertyCaseNumber } from "@/lib/case-number";
 import { addDbActivity, getDbCases, toOptionalPrismaJson } from "@/lib/persistence";
+import { geocodePostalCode } from "@/lib/postal-code-geocoding";
 import { prisma } from "@/lib/prisma";
 import { propertyCreateSchema } from "@/lib/validation";
 
@@ -101,6 +102,15 @@ export async function POST(request: Request): Promise<Response> {
         offerCalculationSource: "application",
         notes: body.notes,
         status: "DRAFT"
+      }
+    });
+    const coords = geocodePostalCode(property.postalCode, property.id);
+    await prisma.property.update({
+      where: { id: property.id },
+      data: {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        geocodingSource: coords.source
       }
     });
     await addDbActivity(property.id, user.id, "case_created", "Fall wurde angelegt.");
