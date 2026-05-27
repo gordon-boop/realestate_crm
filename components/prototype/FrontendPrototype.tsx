@@ -1923,7 +1923,7 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], user = {}, onOpenCase,
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Was steht heute an?</h1>
         </div>
         <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-          <Plus size={15} /> Neuer Fall
+          <Plus size={15} /> Neukunde anlegen
         </button>
       </div>
 
