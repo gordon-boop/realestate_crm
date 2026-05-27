@@ -43,7 +43,7 @@ const STATUS_GROUPS: { label: string; statuses: string[] }[] = [
     ],
   },
   {
-    label: "Angebot draußen",
+    label: "Angebote und Gutachten",
     statuses: [
       "SENT",
       "INDICATIVE_OFFER_SENT",
@@ -90,6 +90,34 @@ const STATUS_COLORS: Record<string, string> = {
   REJECTED: "#EF4444",
   DRAFT: "#9CA3AF",
   APPOINTMENT_SCHEDULED: "#3B82F6",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Entwurf",
+  SUBMITTED: "Eingereicht",
+  DATA_INCOMPLETE: "Daten unvollständig",
+  VALUATION_PENDING: "Bewertung läuft",
+  VALUATED: "Bewertung fertig",
+  OFFER_CALCULATED: "Angebot berechnet",
+  OFFER_DRAFTED: "Angebotsentwurf",
+  INTERNAL_REVIEW: "Interne Prüfung",
+  APPROVED: "Freigegeben",
+  SENT: "Versendet",
+  INDICATIVE_OFFER_SENT: "Unverbindliches Angebot abgegeben",
+  OFFER_ACCEPTED: "Unverbindliches Angebot angenommen",
+  EXPERT_OPINION_ORDERED: "Gutachten beauftragt",
+  EXPERT_OPINION_RECEIVED: "Gutachten eingegangen",
+  BINDING_OFFER_SENT: "Verbindliches Angebot abgegeben",
+  BINDING_OFFER_ACCEPTED: "Verbindliches Angebot angenommen",
+  PURCHASE_STARTED: "Ankauf gestartet",
+  NOTARY_APPOINTMENT: "Notartermin vereinbart",
+  PURCHASED: "Kaufvertrag abgeschlossen",
+  IN_PORTFOLIO: "Im Bestand",
+  APPOINTMENT_SCHEDULED: "Termin vereinbart",
+  REJECTED: "Abgelehnt",
+  WON: "Gewonnen",
+  SOLD: "Verkauft",
+  LOST: "Verloren",
 };
 
 // Default-Filter spiegelt das Backend wider (alles außer DRAFT, REJECTED, LOST).
@@ -317,7 +345,7 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
                           background: STATUS_COLORS[status] ?? "#6B7280",
                         }}
                       />
-                      <span style={{ color: "#374151" }}>{status}</span>
+                      <span style={{ color: "#374151" }}>{labelForStatus(status)}</span>
                       <span style={{ marginLeft: "auto", color: "#9CA3AF" }}>
                         {grouped[status] ?? 0}
                       </span>
@@ -342,7 +370,7 @@ function buildPopupHtml(m: Marker): string {
   if (m.objectTitle) {
     lines.push(`<div style="color:#6B7280;margin-bottom:4px">${escapeHtml(m.objectTitle)}</div>`);
   }
-  lines.push(`<div><strong>Status:</strong> ${escapeHtml(m.status)}</div>`);
+  lines.push(`<div><strong>Status:</strong> ${escapeHtml(labelForStatus(m.status))}</div>`);
   lines.push(`<div><strong>Modell:</strong> ${labelForModel(m.desiredModel)}</div>`);
   if (m.customerName) {
     lines.push(`<div><strong>Kunde:</strong> ${escapeHtml(m.customerName)}</div>`);
@@ -371,6 +399,10 @@ function groupMarkersByStatus(markers: Marker[]): Record<string, number> {
     acc[m.status] = (acc[m.status] ?? 0) + 1;
     return acc;
   }, {});
+}
+
+function labelForStatus(status: string): string {
+  return STATUS_LABELS[status] ?? status;
 }
 
 function labelForModel(model: string): string {
