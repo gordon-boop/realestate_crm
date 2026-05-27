@@ -112,7 +112,7 @@ const Logo = ({ size = 28 }) => (
 // =====================================================================
 // SHARED — Header & Sidebar
 // =====================================================================
-const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notifications = [], chatNotifications = [], currentCaseContext, onOpenCase, onOpenNotification, onOpenChatNotification, onOpenCurrentCaseChat }) => {
+const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onProfileOpen, notifications = [], chatNotifications = [], currentCaseContext, onOpenCase, onOpenNotification, onOpenChatNotification, onOpenCurrentCaseChat }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const visibleNotifications = notifications.slice(0, 8);
@@ -132,13 +132,15 @@ const Header = ({ role, user, onRoleToggle, onLogout, onProfileOpen, notificatio
         </span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <button onClick={onRoleToggle} style={{
-          background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine,
-          fontSize: 11.5, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: 'pointer',
-          letterSpacing: '0.04em', textTransform: 'uppercase'
-        }}>
-          {role === 'admin' ? 'Zur Makleransicht' : 'Zur Admin-Ansicht'}
-        </button>
+        {canToggleRole && (
+          <button onClick={onRoleToggle} style={{
+            background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine,
+            fontSize: 11.5, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: 'pointer',
+            letterSpacing: '0.04em', textTransform: 'uppercase'
+          }}>
+            {role === 'admin' ? 'Zur Makleransicht' : 'Zur Admin-Ansicht'}
+          </button>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 6, padding: '6px 12px', border: `1px solid ${theme.border}`, width: 240 }}>
           <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
           <input placeholder="Suchen…" style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
@@ -6509,6 +6511,8 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
 
   const rawUser = profiles[role] || defaultProfiles[role];
   const user = { ...rawUser, name: profileDisplayName(rawUser), initials: initialsFromName(profileDisplayName(rawUser)).toUpperCase() };
+  const authenticatedRole = initialUser?.role || initialRole;
+  const canUseAdminData = authenticatedRole === 'admin';
   const currentInternalRole = role === 'admin' ? (user.internalRole || 'employee') : undefined;
   const canViewStaff = role === 'admin' && ['admin', 'super_admin'].includes(currentInternalRole);
   const canManageStaff = role === 'admin' && currentInternalRole === 'super_admin';
@@ -6537,7 +6541,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       if (!response.ok) throw new Error(payload.error || 'Leads konnten nicht geladen werden');
       setLeads(payload.leads || []);
 
-      if (nextRole === 'admin') {
+      if (nextRole === 'admin' && canUseAdminData) {
         const partnerResponse = await fetch('/api/partners');
         const partnerPayload = await partnerResponse.json();
         if (partnerResponse.ok) {
@@ -6553,7 +6557,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   }
 
   async function loadStaff(nextRole = role) {
-    if (nextRole !== 'admin') return;
+    if (nextRole !== 'admin' || !canUseAdminData) return;
     setLoadingStaff(true);
     try {
       await ensureDemoSession(nextRole);
@@ -6717,6 +6721,10 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     updateCaseUrl(role, id, 'kunde', '', 'push');
   };
   const toggleRole = () => {
+    if (!canUseAdminData) {
+      setNotice('Für die Admin-Ansicht sind interne Rechte erforderlich.');
+      return;
+    }
     const nextRole = role === 'admin' ? 'partner' : 'admin';
     setRole(nextRole);
     setScreen('dashboard');
@@ -6861,6 +6869,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         role={role}
         user={user}
         onRoleToggle={toggleRole}
+        canToggleRole={canUseAdminData}
         onLogout={handleLogout}
         onProfileOpen={() => setProfileOpen(true)}
         notifications={processNotifications}
