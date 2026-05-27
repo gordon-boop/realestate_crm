@@ -77,7 +77,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       user: { id: user.id, name: user.name, email: user.email, role: user.role, internalRole: user.internalRole, partnerId: user.partnerId },
       redirectTo: user.role === "admin" ? "/admin" : "/partner"
     });
-    await createSession(user.id);
+    await createSession(user.id, user);
     return response;
   } catch (err) {
     return handleApiError(err);

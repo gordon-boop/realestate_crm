@@ -1,12 +1,16 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import type { User } from "./domain.ts";
 
 export const sessionCookieName = process.env.AUTH_COOKIE_NAME || "mvp_session_user";
 
 type SessionData = {
   userId: string;
+  user?: User;
 };
+
+type SessionUser = Omit<User, "passwordHash">;
 
 const maxAgeSeconds = 60 * 60 * 8;
 
@@ -22,18 +26,28 @@ function getSessionKey(): Uint8Array {
   return new TextEncoder().encode(getSessionSecret());
 }
 
+function toSessionUser(user: User): SessionUser {
+  const { passwordHash: _passwordHash, ...sessionUser } = user;
+  return sessionUser;
+}
+
+function toUser(sessionUser: SessionUser): User {
+  return { ...sessionUser, passwordHash: "" };
+}
+
 function cookieOptions() {
+  const secureOverride = process.env.SESSION_COOKIE_SECURE;
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV !== "development",
+    secure: secureOverride ? secureOverride === "true" : process.env.NODE_ENV !== "development",
     path: "/",
     maxAge: maxAgeSeconds
   };
 }
 
-export async function createSession(userId: string): Promise<void> {
-  const token = await new SignJWT({ userId })
+export async function createSession(userId: string, user?: User): Promise<void> {
+  const token = await new SignJWT({ userId, user: user ? toSessionUser(user) : undefined })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${maxAgeSeconds}s`)
@@ -49,7 +63,12 @@ export async function readSession(): Promise<SessionData | null> {
 
   try {
     const result = await jwtVerify(token, sessionKey);
-    return typeof result.payload.userId === "string" ? { userId: result.payload.userId } : null;
+    if (typeof result.payload.userId !== "string") return null;
+    const user =
+      result.payload.user && typeof result.payload.user === "object"
+        ? toUser(result.payload.user as SessionUser)
+        : undefined;
+    return { userId: result.payload.userId, user };
   } catch {
     return null;
   }
@@ -80,9 +99,12 @@ export function readSessionSync(): SessionData | null {
     const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as {
       exp?: unknown;
       userId?: unknown;
+      user?: unknown;
     };
     if (typeof payload.exp === "number" && payload.exp * 1000 < Date.now()) return null;
-    return typeof payload.userId === "string" ? { userId: payload.userId } : null;
+    if (typeof payload.userId !== "string") return null;
+    const user = payload.user && typeof payload.user === "object" ? toUser(payload.user as SessionUser) : undefined;
+    return { userId: payload.userId, user };
   } catch {
     return null;
   }

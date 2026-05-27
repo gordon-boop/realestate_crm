@@ -8,6 +8,11 @@ services:
       HOSTNAME: "0.0.0.0"
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/wohnkapital_crm"
       NODE_ENV: "production"
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-change-before-production-32chars}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-mvp_session_user}
+      WK_ENABLE_RUNTIME_STORE: ${WK_ENABLE_RUNTIME_STORE:-false}
+      WK_ENABLE_MOCK_STORAGE: ${WK_ENABLE_MOCK_STORAGE:-false}
       NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
     ports:
       - "3000:3000"

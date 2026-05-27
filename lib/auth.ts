@@ -6,7 +6,7 @@ import { findUserById } from "./store.ts";
 
 export function getCurrentUser(): User | undefined {
   const session = readSessionSync();
-  return session ? findUserById(session.userId) : undefined;
+  return session?.user ?? (session ? findUserById(session.userId) : undefined);
 }
 
 export function requireCurrentUser(): User {
