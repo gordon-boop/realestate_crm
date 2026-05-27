@@ -152,7 +152,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       params.id,
       user.id,
       kind === "binding" ? "binding_offer_calculated" : "offer_calculated",
-      `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${model === "sale_and_leaseback" ? "Rückmietmodell" : "Verrentungsmodell"} wurde berechnet.`,
+      `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${model === "sale_and_leaseback" ? "Rückmietverkauf" : "Wohnrecht"} wurde berechnet.`,
       { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, kind, expertOpinionValue } }
     );
     return json({ offer }, { status: 201 });

@@ -369,6 +369,7 @@ export type OfferAssumptions = {
   formula: string;
   note: string;
   productModel?: DesiredModel;
+  calculationMode?: string;
   sourceWorkbook?: string;
   sourceCells?: Record<string, string>;
   inputs?: Record<string, unknown>;

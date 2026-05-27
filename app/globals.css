@@ -705,6 +705,9 @@ textarea {
 
 @media (max-width: 1180px) {
   .lead-workspace-grid,
+  .admin-dashboard-workspace-grid,
+  .admin-dashboard-main-grid,
+  .admin-dashboard-secondary-grid,
   .portfolio-layout-grid {
     grid-template-columns: 1fr !important;
   }

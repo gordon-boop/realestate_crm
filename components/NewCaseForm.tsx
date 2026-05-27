@@ -234,7 +234,7 @@ export function NewCaseForm() {
 
       <section className="panel panel-pad grid two">
         <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>2. Schritt - Wunschmodell</h2>
-        <label className="field"><span>Modell</span><select name="desiredModel" value={desiredModel} onChange={(event) => setDesiredModel(event.target.value)}><option value="fixed_residential_right">Befristetes Wohnrecht</option><option value="sale_and_leaseback">Rückmiete</option></select></label>
+        <label className="field"><span>Modell</span><select name="desiredModel" value={desiredModel} onChange={(event) => setDesiredModel(event.target.value)}><option value="fixed_residential_right">Wohnrecht</option><option value="sale_and_leaseback">Rückmietverkauf</option></select></label>
         <label className="field"><span>Wer soll das Wohnrecht bekommen?</span><select name="residentialRightRecipients"><option value="one_person">Eine Person</option><option value="both">Beide Personen</option></select></label>
 
         {desiredModel === "fixed_residential_right" ? (
@@ -245,7 +245,7 @@ export function NewCaseForm() {
           </>
         ) : (
           <div className="panel panel-pad" style={{ gridColumn: "1 / -1", borderColor: "var(--accent)" }}>
-            <p style={{ marginTop: 0 }}><strong>Hinweis Rückmiete:</strong> Dem Kunden muss klar sein, dass ab Tag 1 eine Miete zu zahlen ist.</p>
+            <p style={{ marginTop: 0 }}><strong>Hinweis Rückmietverkauf:</strong> Dem Kunden muss klar sein, dass ab Tag 1 nach Verkauf eine Miete zu zahlen ist.</p>
             <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="rentalModelDisclosureAccepted" type="checkbox" required /> Belehrung wurde mit dem Kunden besprochen</label>
           </div>
         )}
@@ -255,7 +255,7 @@ export function NewCaseForm() {
         {additionalOfferRequested ? (
           <div className="panel panel-pad grid two" style={{ gridColumn: "1 / -1" }}>
             <h3 style={{ margin: 0, gridColumn: "1 / -1" }}>Zweites Angebotsmodell</h3>
-            <label className="field"><span>Modell</span><select name="additionalOfferModel" value={additionalOfferModel} onChange={(event) => setAdditionalOfferModel(event.target.value)}><option value="fixed_residential_right">Befristetes Wohnrecht</option><option value="sale_and_leaseback">Rückmiete</option></select></label>
+            <label className="field"><span>Modell</span><select name="additionalOfferModel" value={additionalOfferModel} onChange={(event) => setAdditionalOfferModel(event.target.value)}><option value="fixed_residential_right">Wohnrecht</option><option value="sale_and_leaseback">Rückmietverkauf</option></select></label>
             {additionalOfferModel === "fixed_residential_right" ? (
               <label className="field"><span>Dauer Wohnrecht</span><select name="additionalOfferResidentialRightYears" defaultValue="10">{residentialRightYears.map((year) => <option key={year} value={year}>{year} Jahre</option>)}</select></label>
             ) : null}

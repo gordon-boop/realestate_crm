@@ -27,7 +27,7 @@ test("calculates fixed residential right payout from the Excel core formula", ()
   assert.equal(result.assumptions.sourceCells?.payoutAmount, "Auszahlungstool_Master!T10");
 });
 
-test("calculates sale and leaseback payout from the Excel waterfall assumptions", () => {
+test("calculates Rückmietverkauf demo payout and rent for 500000 market value", () => {
   const result = calculateOffer({
     valuation: { marketValue: 500000 },
     condition: "good",
@@ -35,24 +35,33 @@ test("calculates sale and leaseback payout from the Excel waterfall assumptions"
   });
 
   assert.equal(result.marketValue, 500000);
-  assert.equal(result.payoutAmount, 230000);
-  assert.equal(result.riskDiscount, 270000);
+  assert.equal(result.payoutRate, 0.7);
+  assert.equal(result.payoutAmount, 350000);
+  assert.equal(result.annualRentRate, 0.05);
+  assert.equal(result.annualRent, 17500);
+  assert.equal(result.monthlyRent, 1458.33);
+  assert.equal(result.riskDiscount, 150000);
+  assert.equal(result.calculationMode, "DEMO_FIXED_RATE");
   assert.equal(result.assumptions.productModel, "sale_and_leaseback");
-  assert.equal(result.assumptions.components?.maintenancePledge, 12320);
-  assert.equal(result.assumptions.components?.brokerageFee, 12500);
+  assert.equal(result.assumptions.calculationMode, "DEMO_FIXED_RATE");
+  assert.equal(result.assumptions.components?.payoutRate, 0.7);
+  assert.equal(result.assumptions.components?.annualRentRate, 0.05);
+  assert.equal(result.assumptions.components?.annualRent, 17500);
+  assert.equal(result.assumptions.components?.monthlyRent, 1458.33);
 });
 
-test("normalizes percentage inputs in sale and leaseback calculation", () => {
+test("calculates Rückmietverkauf demo payout and rent for 800000 market value", () => {
   const result = calculateOffer({
-    valuation: { marketValue: 500000 },
+    valuation: { marketValue: 800000 },
     condition: "good",
-    model: "sale_and_leaseback",
-    saleAndLeasebackPayoutRate: 70
+    model: "sale_and_leaseback"
   });
 
-  assert.equal(result.payoutAmount, 350000);
-  assert.equal(result.riskDiscount, 150000);
-  assert.equal(result.assumptions.components?.payoutRate, 0.7);
+  assert.equal(result.marketValue, 800000);
+  assert.equal(result.payoutAmount, 560000);
+  assert.equal(result.annualRent, 28000);
+  assert.equal(result.monthlyRent, 2333.33);
+  assert.equal(result.assumptions.components?.monthlyRent, 2333.33);
 });
 
 test("falls back to 10 year residential right rate for unsupported MVP duration", () => {

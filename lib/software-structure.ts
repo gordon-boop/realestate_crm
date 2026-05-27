@@ -2,7 +2,7 @@
   brand: "WohnKapital",
   mainNavigation: [
     "Home",
-    "Verrentung",
+    "Wohnrecht",
     "Leads",
     "Zwischengespeichert",
     "In Bearbeitung",

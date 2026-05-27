@@ -33,11 +33,11 @@ const faqs = [
 export const metadata: Metadata = {
   title: "Wohnrecht auf Zeit einfach erklärt | WohnKapital",
   description:
-    "Was ist ein befristetes Wohnrecht? WohnKapital erklärt Absicherung, Unterschiede zur Miete, Vorteile, Risiken und Ablauf verständlich.",
+    "Was ist ein Wohnrecht? WohnKapital erklärt Absicherung, Unterschiede zur Miete, Vorteile, Risiken und Ablauf verständlich.",
   alternates: { canonical: absoluteUrl("/wohnrecht-auf-zeit") },
   openGraph: {
     title: "Wohnrecht auf Zeit | WohnKapital",
-    description: "Befristetes Wohnrecht transparent erklärt: Grundbuch, Laufzeit, Vorteile und Risiken.",
+    description: "Wohnrecht transparent erklärt: Grundbuch, Laufzeit, Vorteile und Risiken.",
     url: absoluteUrl("/wohnrecht-auf-zeit"),
     type: "article",
   },
@@ -57,7 +57,7 @@ export default function WohnrechtAufZeitPage() {
         <div className={styles.container}>
           <div className={styles.contentGrid}>
             <div className={styles.contentBlock}>
-              <h2>Befristetes Wohnrecht verständlich erklärt</h2>
+              <h2>Wohnrecht verständlich erklärt</h2>
               <p>
                 Beim Wohnrecht auf Zeit wird vorab geregelt, wie lange Sie in der Immobilie
                 wohnen bleiben. Diese Struktur macht die Planung für beide Seiten nachvollziehbarer

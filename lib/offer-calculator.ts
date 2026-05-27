@@ -34,6 +34,11 @@ export type OfferCalculationResult = {
   riskDiscount: number;
   companyMargin: number;
   payoutAmount: number;
+  payoutRate?: number;
+  annualRentRate?: number;
+  annualRent?: number;
+  monthlyRent?: number;
+  calculationMode?: "DEMO_FIXED_RATE";
   assumptions: OfferAssumptions;
 };
 
@@ -168,7 +173,7 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
       productModel: "fixed_residential_right",
       formula: "payout = market_value - residential_right_value - maintenance_cost - interest_discount",
       note:
-        "Verrentungsmodell mit befristetem Wohnrecht. MVP-Implementierung nach den Kernzellen aus dem Excel-Auszahlungstool.",
+        "Wohnrecht. MVP-Implementierung nach den Kernzellen aus dem Excel-Auszahlungstool.",
       sourceWorkbook: "Kalkulationstool_befristetes WR_Master - Sterbetafel 2022-2024.xlsx",
       sourceCells: {
         marketValue: "Auszahlungstool_Master!P10/C29",
@@ -204,25 +209,19 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
 
 function calculateSaleAndLeasebackOffer(input: OfferCalculationInput): OfferCalculationResult {
   const marketValue = money(input.valuation.marketValue);
-  const payoutRate = rate(input.saleAndLeasebackPayoutRate, 0.46);
-  const maintenancePledge = money(input.maintenancePledge ?? 12320);
-  const bankDisbursementRate = rate(input.bankDisbursementRate, 0.9);
-  const brokerageFeeRate = rate(input.brokerageFeeRate, 0.025);
-  const transferTaxNotaryRate = rate(input.transferTaxNotaryRate, 0.05);
-  const sellingCostRate = rate(input.sellingCostRate, 0.015);
-  const serviceChargeMonthly = input.serviceChargeMonthly ?? 380;
-  const insuranceAnnual = input.insuranceAnnual ?? 800;
-  const propertyTaxAnnual = input.propertyTaxAnnual ?? 380;
-  const landChargeCost = input.landChargeCost ?? 1600;
-  const annualRentIncome = input.annualRentIncome ?? 30475;
+  if (marketValue <= 0) {
+    throw new Error("marketValue must be greater than 0 for Rückmietverkauf calculation");
+  }
+
+  const payoutRate = 0.7;
+  const annualRentRate = 0.05;
   const payoutAmount = money(marketValue * payoutRate);
-  const bankDisbursement = money(payoutAmount * bankDisbursementRate);
-  const brokerageFee = money(marketValue * brokerageFeeRate);
-  const transferTaxNotary = money(marketValue * transferTaxNotaryRate);
-  const sellingCosts = money(marketValue * sellingCostRate);
-  const annualServiceCharges = money(serviceChargeMonthly * 12);
-  const annualOwnerCosts = money(annualServiceCharges + insuranceAnnual + propertyTaxAnnual);
-  const liquidityNeed = money(payoutAmount + maintenancePledge + brokerageFee + transferTaxNotary + landChargeCost);
+  const annualRent = money(payoutAmount * annualRentRate);
+  const monthlyRent = money(annualRent / 12);
+
+  if (payoutAmount <= 0 || annualRent <= 0 || monthlyRent <= 0) {
+    throw new Error("Rückmietverkauf calculation produced invalid non-positive values");
+  }
 
   return {
     marketValue,
@@ -231,51 +230,26 @@ function calculateSaleAndLeasebackOffer(input: OfferCalculationInput): OfferCalc
     riskDiscount: money(marketValue - payoutAmount),
     companyMargin: 0,
     payoutAmount,
+    payoutRate,
+    annualRentRate,
+    annualRent,
+    monthlyRent,
+    calculationMode: "DEMO_FIXED_RATE",
     assumptions: {
       productModel: "sale_and_leaseback",
-      formula: "payout = market_value * payout_rate",
+      formula: "payout = market_value * payout_rate; annual_rent = payout * annual_rent_rate; monthly_rent = annual_rent / 12",
       note:
-        "Rückmietmodell. MVP-Implementierung nach den Kernzellen aus Overall/SPVs/Business Plan des Excel-Waterfall-Modells.",
-      sourceWorkbook: "20250526_Wohnkapital_BP Waterfall_V7.5_SEND_v6.xlsb",
-      sourceCells: {
-        marketValue: "Overall!F2 / SPVs!F2",
-        payoutAmount: "Overall!F3 / SPVs!F3",
-        payoutRate: "Overall!F5 / SPVs!F5",
-        maintenancePledge: "Overall!F4 / SPVs!F4",
-        bankDisbursementRate: "Overall!F6 / SPVs!F6",
-        brokerageFeeRate: "Overall!I2",
-        transferTaxNotaryRate: "Overall!I3",
-        sellingCostRate: "Overall!I4",
-        serviceChargeMonthly: "Overall!L2",
-        annualRentIncome: "Business Plan!Q5/R5"
-      },
+        "Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Die spätere Produktivversion soll ein Rating-Tool zur Bestimmung der Auszahlungsquote verwenden.",
+      calculationMode: "DEMO_FIXED_RATE",
       inputs: {
-        payoutRate,
-        maintenancePledge,
-        bankDisbursementRate,
-        brokerageFeeRate,
-        transferTaxNotaryRate,
-        sellingCostRate,
-        serviceChargeMonthly,
-        insuranceAnnual,
-        propertyTaxAnnual,
-        landChargeCost,
-        annualRentIncome
+        marketValue
       },
       components: {
         payoutRate,
-        maintenancePledge,
-        bankDisbursement,
-        brokerageFee,
-        transferTaxNotary,
-        sellingCosts,
-        annualServiceCharges,
-        insuranceAnnual,
-        propertyTaxAnnual,
-        annualOwnerCosts,
-        landChargeCost,
-        annualRentIncome,
-        liquidityNeed
+        payoutAmount,
+        annualRentRate,
+        annualRent,
+        monthlyRent
       }
     }
   };

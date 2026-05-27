@@ -64,6 +64,7 @@ const statusConfig = {
   APPOINTMENT_SCHEDULED:{ label: 'Termin vereinbart',   color: '#5B8C2B' },
   WON:                 { label: 'Gewonnen',             color: '#3D6B1F' },
   SOLD:                { label: 'Verkauft',             color: '#3D6B1F' },
+  EXIT_COMPLETED:      { label: 'Abgeschlossen',        color: '#3D6B1F' },
   REJECTED:            { label: 'Abgelehnt',            color: '#9B2C2C' },
   LOST:                { label: 'Verloren',             color: '#9B2C2C' },
 };
@@ -550,6 +551,37 @@ function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(value));
 }
 
+function formatEuroCents(value) {
+  if (!Number.isFinite(Number(value))) return '-';
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));
+}
+
+function formatPercent(value) {
+  if (!Number.isFinite(Number(value))) return '-';
+  return new Intl.NumberFormat('de-DE', { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value));
+}
+
+function rentBackMetricRows(offer) {
+  const components = offer?.assumptions?.components || {};
+  const payoutRate = Number.isFinite(Number(components.payoutRate))
+    ? Number(components.payoutRate)
+    : offer?.marketValue
+      ? offer.payoutAmount / offer.marketValue
+      : 0.7;
+  const annualRentRate = Number.isFinite(Number(components.annualRentRate)) ? Number(components.annualRentRate) : 0.05;
+  const annualRent = Number.isFinite(Number(components.annualRent)) ? Number(components.annualRent) : offer?.payoutAmount ? offer.payoutAmount * annualRentRate : undefined;
+  const monthlyRent = Number.isFinite(Number(components.monthlyRent)) ? Number(components.monthlyRent) : annualRent ? annualRent / 12 : undefined;
+
+  return [
+    ['Verkehrswert', formatEuro(offer.marketValue)],
+    ['Auszahlungsquote', formatPercent(payoutRate)],
+    ['Auszahlungsbetrag', formatEuro(offer.payoutAmount)],
+    ['Mietfaktor p.a.', formatPercent(annualRentRate)],
+    ['Jahresmiete', formatEuro(annualRent)],
+    ['Monatliche Miete', formatEuroCents(monthlyRent)],
+  ];
+}
+
 function dateLabel(value) {
   if (!value) return 'Gerade eben';
   try {
@@ -928,11 +960,21 @@ function updateScreenUrl(role, screen = 'dashboard', mode = 'replace') {
   window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
 }
 
-const portfolioBucketKeys = ['purchase-processing', 'contract-closing', 'inventory-management', 'exit-sale'];
+const portfolioBucketKeys = ['purchase-processing', 'inventory-management', 'sale-objects'];
+const legacyPortfolioBucketMap = {
+  'contract-closing': 'purchase-processing',
+  contract_closing: 'purchase-processing',
+  vertragsvollzug: 'purchase-processing',
+  'exit-sale': 'sale-objects',
+  exit_sale: 'sale-objects',
+  verwertung: 'sale-objects',
+  verwertung_nach_wohnrechtsende: 'sale-objects',
+};
 
 function normalizePortfolioBucket(bucket, fallback = '') {
   if (!bucket) return fallback;
   const normalized = String(bucket).trim().toLowerCase();
+  if (legacyPortfolioBucketMap[normalized]) return legacyPortfolioBucketMap[normalized];
   return portfolioBucketKeys.includes(normalized) ? normalized : fallback;
 }
 
@@ -1026,18 +1068,18 @@ const documentCategoryLabels = {
   other: 'Sonstiges',
 };
 const modernizationLabels = modernizationScopeLabels;
-const productModelLabels = { fixed_residential_right: 'Verrentung mit befristetem Wohnrecht', sale_and_leaseback: 'Rückmietmodell', other: 'Sonstiges Modell' };
+const productModelLabels = { fixed_residential_right: 'Wohnrecht', sale_and_leaseback: 'Rückmietverkauf', other: 'Sonstiges Nutzungsmodell' };
 const usageModelLabels = {
-  fixed_residential_right: 'befristetes Wohnrecht',
-  lifelong_residential_right: 'lebenslanges Wohnrecht',
-  usufruct: 'Nießbrauch',
-  sale_and_leaseback: 'Rückmietung',
+  fixed_residential_right: 'Wohnrecht',
+  lifelong_residential_right: 'Wohnrecht',
+  usufruct: 'Wohnrecht',
+  sale_and_leaseback: 'Rückmietverkauf',
   other: 'sonstiges Nutzungsmodell',
 };
 const exitTerminationReasonLabels = {
   move_out: 'Auszug',
   resident_death: 'Tod des Bewohners',
-  fixed_term_expired: 'Ablauf befristetes Wohnrecht',
+  fixed_term_expired: 'Ende des Wohnrechts',
   waiver_agreement: 'Verzicht / Aufhebungsvereinbarung',
   other: 'sonstiger Grund',
 };
@@ -1126,15 +1168,29 @@ function mapCaseView(item) {
 }
 
 function filterCasesForScreen(cases, screen) {
+  if (screen === 'sold') {
+    return cases.filter((item) => isSoldOrFinalizedCase(item));
+  }
+
   const statusGroups = {
     drafts: ['DRAFT'],
     in_progress: ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED', 'APPOINTMENT_SCHEDULED'],
     portfolio: ['IN_PORTFOLIO', 'WON'],
-    sold: ['SOLD', 'PURCHASED', 'IN_PORTFOLIO', 'WON'],
     rejected: ['REJECTED', 'LOST'],
   };
   const statuses = statusGroups[screen] || [];
   return cases.filter((item) => statuses.includes(item.status));
+}
+
+function isSoldOrFinalizedCase(item) {
+  const exitSalesStatus = item.raw?.property?.exitProcess?.salesStatus;
+  return item.status === 'SOLD' || exitSalesStatus === 'sold' || exitSalesStatus === 'completed';
+}
+
+function soldScreenStatus(item) {
+  return item.status === 'SOLD' || item.raw?.property?.exitProcess?.salesStatus === 'sold'
+    ? 'SOLD'
+    : 'EXIT_COMPLETED';
 }
 
 function menuScreenTitle(screen) {
@@ -1414,13 +1470,13 @@ const validationFieldLabels = {
   residentialRightPerson: 'Wunschmodell: Person mit Wohnrecht',
   desiredResidentialRightYears: 'Wunschmodell: Dauer Wohnrecht',
   fixedTermReason: 'Wunschmodell: Grund der Befristung',
-  rentalModelDisclosureAccepted: 'Wunschmodell: Belehrung Rückmiete',
+  rentalModelDisclosureAccepted: 'Wunschmodell: Belehrung Rückmietverkauf',
   additionalOfferModel: 'Zweites Angebot: Modell',
   additionalOfferResidentialRightRecipients: 'Zweites Angebot: Wohnrechtsberechtigte',
   additionalOfferResidentialRightPerson: 'Zweites Angebot: Person mit Wohnrecht',
   additionalOfferResidentialRightYears: 'Zweites Angebot: Laufzeit',
   additionalOfferReason: 'Zweites Angebot: Grund / Hinweis',
-  additionalOfferRentalModelDisclosureAccepted: 'Zweites Angebot: Belehrung Rückmiete',
+  additionalOfferRentalModelDisclosureAccepted: 'Zweites Angebot: Belehrung Rückmietverkauf',
   propertyType: 'Immobiliendaten: Immobilientyp',
   yearBuilt: 'Immobiliendaten: Baujahr',
   livingAreaSqm: 'Immobiliendaten: Wohnfläche',
@@ -1619,81 +1675,91 @@ const getBrokerNextStep = (item) => {
   return 'Fall öffnen';
 };
 
-const PriorityActionCards = ({ assignedLeads, followUpCases, offerCases, onOpenLeads, onOpenCase }) => {
-  const actions = [
-    {
-      title: 'Neue Leads',
-      count: assignedLeads.length,
-      description: 'Neue Anfragen prüfen und bei Interesse als Kundenfall übernehmen.',
-      actionLabel: 'Leads prüfen',
-      icon: TrendingUp,
-      tone: 'lead',
-      onClick: onOpenLeads,
-    },
-    {
-      title: 'Rückfragen / fehlende Unterlagen',
-      count: followUpCases.length,
-      description: 'Offene Rückfragen, fehlende Pflichtunterlagen oder Wiedervorlagen bearbeiten.',
-      actionLabel: 'Unterlagen anfordern',
-      icon: AlertCircle,
-      tone: 'urgent',
-      onClick: () => followUpCases[0] && onOpenCase(followUpCases[0].propertyId || followUpCases[0].id),
-    },
-    {
-      title: 'Angebote nachfassen',
-      count: offerCases.length,
-      description: 'Freigegebene oder versendete Angebote beim Kunden nachhalten.',
-      actionLabel: 'Angebote nachfassen',
-      icon: Send,
-      tone: 'normal',
-      onClick: () => offerCases[0] && onOpenCase(offerCases[0].propertyId || offerCases[0].id),
-    },
-  ];
+const brokerBucketKeys = ['new-leads', 'missing-documents', 'follow-up-offers'];
+const brokerLeadStatuses = ['NEW', 'QUALIFIED', 'ASSIGNED', 'CONTACTED'];
+const brokerMissingDocumentStatuses = ['DATA_INCOMPLETE'];
+const brokerOfferFollowUpStatuses = ['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'BINDING_OFFER_SENT'];
+const brokerDashboardStatuses = [
+  'SUBMITTED',
+  'DATA_INCOMPLETE',
+  'VALUATION_PENDING',
+  'VALUATED',
+  'OFFER_CALCULATED',
+  'OFFER_DRAFTED',
+  'INTERNAL_REVIEW',
+  'APPROVED',
+  'SENT',
+  'INDICATIVE_OFFER_SENT',
+  'OFFER_ACCEPTED',
+  'EXPERT_OPINION_ORDERED',
+  'EXPERT_OPINION_RECEIVED',
+  'BINDING_OFFER_SENT',
+  'BINDING_OFFER_ACCEPTED',
+  'PURCHASE_STARTED',
+  'NOTARY_APPOINTMENT',
+];
 
-  const toneStyles = {
-    urgent: { border: `${theme.gold}88`, bar: theme.gold, background: theme.goldSoft, icon: '#A87308' },
-    lead: { border: `${theme.oliv}66`, bar: theme.oliv, background: 'white', icon: theme.oliv },
-    normal: { border: theme.borderSoft, bar: theme.aubergineSoft, background: 'white', icon: theme.aubergineSoft },
-  };
+function readBrokerBucketFromUrl() {
+  if (typeof window === 'undefined') return '';
+  const bucket = new URLSearchParams(window.location.search).get('bucket');
+  return brokerBucketKeys.includes(bucket) ? bucket : '';
+}
 
-  return (
-    <div className="priority-action-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
-      {actions.map((action) => {
-        const style = toneStyles[action.tone];
-        const disabled = action.count === 0;
-        return (
-          <button
-            key={action.title}
-            onClick={disabled ? undefined : action.onClick}
-            style={{
-              background: style.background,
-              border: `1px solid ${style.border}`,
-              borderLeft: `4px solid ${style.bar}`,
-              borderRadius: 8,
-              padding: '18px 18px 16px',
-              textAlign: 'left',
-              minHeight: 154,
-              cursor: disabled ? 'default' : 'pointer',
-              opacity: disabled ? 0.68 : 1,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-              <action.icon size={18} style={{ color: style.icon, marginTop: 2 }} />
-              <span style={{ fontSize: 30, fontWeight: 750, lineHeight: 1, color: theme.aubergine }}>{action.count}</span>
-            </div>
-            <div style={{ fontSize: 15, color: theme.ink, fontWeight: 700, marginBottom: 6 }}>{action.title}</div>
-            <div style={{ fontSize: 12.5, color: `${theme.ink}99`, lineHeight: 1.45, minHeight: 36 }}>{action.description}</div>
-            <div style={{ marginTop: 14, color: disabled ? `${theme.ink}66` : theme.aubergine, fontSize: 12.5, fontWeight: 750, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {action.actionLabel} <ChevronRight size={13} />
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-};
+function writeBrokerBucketToUrl(bucket) {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  params.delete('case');
+  params.delete('caseId');
+  params.delete('tab');
+  params.delete('returnTab');
+  if (bucket) params.set('bucket', bucket);
+  else params.delete('bucket');
+  const query = params.toString();
+  window.history.pushState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+}
 
-const DashboardSearch = ({ value, onChange }) => (
+function brokerGreeting(user = {}) {
+  const firstName = splitProfileName(user).firstName;
+  return firstName ? `Hallo ${firstName}` : 'Hallo';
+}
+
+const BrokerWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
+  <div className="priority-action-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
+    {buckets.map((bucket) => {
+      const active = activeBucket === bucket.key;
+      return (
+        <button
+          key={bucket.key}
+          onClick={() => onSelect(active ? '' : bucket.key)}
+          style={{
+            background: active ? theme.aubergine : 'white',
+            border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
+            borderRadius: 8,
+            padding: '18px 18px 16px',
+            textAlign: 'left',
+            minHeight: 154,
+            cursor: 'pointer',
+            boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</div>
+            <bucket.icon size={17} style={{ color: active ? theme.gold : `${theme.aubergine}77`, marginTop: 1 }} />
+          </div>
+          <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, color: active ? 'white' : theme.aubergine, marginBottom: 9 }}>{bucket.count}</div>
+          <div style={{ fontSize: 12.5, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, lineHeight: 1.45, flex: 1 }}>{bucket.description}</div>
+          <div style={{ marginTop: 14, color: active ? theme.gold : theme.aubergine, fontSize: 12.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            {bucket.action} <ChevronRight size={13} />
+          </div>
+        </button>
+      );
+    })}
+  </div>
+);
+
+const BrokerDashboardSearch = ({ value, onChange }) => (
   <div style={{ position: 'relative', width: 'min(100%, 320px)' }}>
     <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: `${theme.aubergine}88` }} />
     <input
@@ -1716,7 +1782,7 @@ const DashboardSearch = ({ value, onChange }) => (
   </div>
 );
 
-const ActiveCasesTable = ({ items, onOpenCase, onOpenLeads }) => (
+const BrokerWorklist = ({ items, activeBucket, totalCount, onOpenCase, onOpenLeads, onShowAllCases }) => (
   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
     <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
@@ -1730,10 +1796,10 @@ const ActiveCasesTable = ({ items, onOpenCase, onOpenLeads }) => (
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan={8} style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine passenden aktiven Fälle gefunden.</td>
+              <td colSpan={8} style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{activeBucket ? 'Keine Vorgänge in diesem Arbeitskorb.' : 'Keine passenden aktiven Fälle gefunden.'}</td>
             </tr>
           ) : items.map((item, index) => {
-            const open = () => item.kind === 'lead' ? onOpenLeads() : onOpenCase(item.propertyId || item.id);
+            const open = () => item.kind === 'lead' ? onOpenLeads() : onOpenCase(item.propertyId || item.id, item.tab || 'kunde');
             return (
               <tr key={`${item.kind || 'case'}-${item.propertyId || item.id}`} onClick={open} style={{ borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', cursor: 'pointer' }}>
                 <td style={{ padding: '12px 16px', fontFamily: 'ui-monospace, "SF Mono", monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{item.id}</td>
@@ -1754,18 +1820,31 @@ const ActiveCasesTable = ({ items, onOpenCase, onOpenLeads }) => (
         </tbody>
       </table>
     </div>
+    {totalCount > items.length && (
+      <div style={{ padding: '12px 16px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{totalCount - items.length} weitere Vorgänge vorhanden.</span>
+        <button onClick={onShowAllCases} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 800, padding: '7px 11px', borderRadius: 5, cursor: 'pointer' }}>
+          Alle Fälle anzeigen
+        </button>
+      </div>
+    )}
   </div>
 );
 
-const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onOpenLeads }) => {
+const BrokerDashboard = ({ cases = mockCases, leads = [], user = {}, onOpenCase, onNewCase, onOpenLeads, onShowAllCases }) => {
   const [search, setSearch] = useState('');
-  const dashboardStatuses = ['SUBMITTED', 'DATA_INCOMPLETE', 'VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'INTERNAL_REVIEW', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'PURCHASE_STARTED', 'NOTARY_APPOINTMENT'];
+  const [activeBucket, setActiveBucket] = useState(() => readBrokerBucketFromUrl());
+  const dashboardStatuses = brokerDashboardStatuses;
   const hasDashboardCases = cases.some((item) => item.followUp || dashboardStatuses.includes(item.status));
   const dashboardCases = hasDashboardCases ? cases : mockCases;
-  const assignedLeads = leads.filter((lead) => !['CONVERTED', 'REJECTED'].includes(lead.status));
-  const followUpCases = dashboardCases.filter((item) => item.followUp || item.status === 'DATA_INCOMPLETE');
+  const assignedLeads = leads.filter((lead) => brokerLeadStatuses.includes(lead.status));
+  const followUpCases = dashboardCases.filter((item) => item.followUp || brokerMissingDocumentStatuses.includes(item.status));
   const activeCases = dashboardCases.filter((item) => dashboardStatuses.includes(item.status));
-  const offerCases = dashboardCases.filter((item) => ['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED'].includes(item.status));
+  const offerCases = dashboardCases.filter((item) => brokerOfferFollowUpStatuses.includes(item.status));
+  const changeBucket = (bucket) => {
+    setActiveBucket(bucket);
+    writeBrokerBucketToUrl(bucket);
+  };
   const activeLeadRows = assignedLeads.map((lead) => ({
     kind: 'lead',
     id: lead.leadNumber,
@@ -1775,29 +1854,72 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase,
     status: lead.status,
     nextStep: 'Lead prüfen',
     vor: dateLabel(lead.updatedAt || lead.createdAt),
-    priority: 2,
+    priority: 4,
   }));
   const activeCaseRows = activeCases.map((item) => ({
     ...item,
     kind: 'case',
+    tab: item.followUp || item.status === 'DATA_INCOMPLETE'
+      ? 'doks'
+      : ['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'BINDING_OFFER_SENT'].includes(item.status)
+        ? 'indag'
+        : 'kunde',
     nextStep: getBrokerNextStep(item),
     priority: item.followUp || item.status === 'DATA_INCOMPLETE'
       ? 1
-      : ['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED'].includes(item.status)
+      : brokerOfferFollowUpStatuses.includes(item.status)
         ? 3
         : 4,
   }));
+  const buckets = [
+    {
+      key: 'new-leads',
+      title: 'Neue Leads',
+      count: activeLeadRows.length,
+      description: 'Neue Anfragen prüfen und bei Interesse als Kundenfall übernehmen.',
+      action: 'Leads prüfen',
+      icon: TrendingUp,
+    },
+    {
+      key: 'missing-documents',
+      title: 'Rückfragen / fehlende Unterlagen',
+      count: followUpCases.length,
+      description: 'Offene Rückfragen, fehlende Pflichtunterlagen oder Wiedervorlagen bearbeiten.',
+      action: 'Unterlagen anfordern',
+      icon: AlertCircle,
+    },
+    {
+      key: 'follow-up-offers',
+      title: 'Angebote nachfassen',
+      count: offerCases.length,
+      description: 'Freigegebene oder versendete Angebote beim Kunden nachhalten.',
+      action: 'Angebote nachfassen',
+      icon: Send,
+    },
+  ];
+  const bucketTitles = {
+    'new-leads': 'Neue Leads',
+    'missing-documents': 'Rückfragen / fehlende Unterlagen',
+    'follow-up-offers': 'Angebote nachfassen',
+  };
+  const rowsByBucket = {
+    'new-leads': activeLeadRows,
+    'missing-documents': activeCaseRows.filter((item) => item.followUp || brokerMissingDocumentStatuses.includes(item.status)),
+    'follow-up-offers': activeCaseRows.filter((item) => brokerOfferFollowUpStatuses.includes(item.status)),
+  };
   const normalizedSearch = search.trim().toLowerCase();
-  const tableItems = [...activeCaseRows, ...activeLeadRows]
+  const baseRows = activeBucket ? (rowsByBucket[activeBucket] || []) : [...activeCaseRows, ...activeLeadRows];
+  const filteredRows = baseRows
     .filter((item) => !normalizedSearch || [item.id, item.kunde, item.objekt, item.status, item.nextStep].some((value) => String(value || '').toLowerCase().includes(normalizedSearch)))
-    .sort((a, b) => a.priority - b.priority)
-    .slice(0, 7);
+    .sort((a, b) => a.priority - b.priority || String(b.vor || '').localeCompare(String(a.vor || ''), 'de'));
+  const tableItems = filteredRows.slice(0, 7);
+  const tableTitle = activeBucket ? bucketTitles[activeBucket] : 'Aktive Fälle';
 
   return (
     <div style={{ padding: '22px 28px 28px' }}>
       <div className="broker-dashboard-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
         <div>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Guten Morgen, Markus</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>{brokerGreeting(user)}</div>
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Was steht heute an?</h1>
         </div>
         <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -1805,17 +1927,24 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase,
         </button>
       </div>
 
-      <PriorityActionCards assignedLeads={assignedLeads} followUpCases={followUpCases} offerCases={offerCases} onOpenLeads={onOpenLeads} onOpenCase={onOpenCase} />
+      <BrokerWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={changeBucket} />
 
       <div style={{ marginTop: 2 }}>
         <div className="active-cases-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <div>
-            <h2 style={{ fontSize: 17, fontWeight: 700, color: theme.aubergine, margin: 0 }}>Aktive Fälle</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: theme.aubergine, margin: 0 }}>{tableTitle}</h2>
             <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 3 }}>Handlungsbedarf zuerst, maximal sieben Vorgänge.</div>
           </div>
-          <DashboardSearch value={search} onChange={setSearch} />
+          <BrokerDashboardSearch value={search} onChange={setSearch} />
         </div>
-        <ActiveCasesTable items={tableItems} onOpenCase={onOpenCase} onOpenLeads={onOpenLeads} />
+        <BrokerWorklist
+          items={tableItems}
+          activeBucket={activeBucket}
+          totalCount={filteredRows.length}
+          onOpenCase={onOpenCase}
+          onOpenLeads={onOpenLeads}
+          onShowAllCases={onShowAllCases}
+        />
       </div>
     </div>
   );
@@ -1901,7 +2030,8 @@ function adminCaseNextStep(item) {
   if (item.status === 'BINDING_OFFER_ACCEPTED') return 'Notartermin vereinbaren';
   if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'Kaufvertrag / Vollzug bearbeiten';
   if (item.status === 'IN_PORTFOLIO') return 'Bestandsverwaltung prüfen';
-  if (property.exitProcess) return 'Verwertung nach Wohnrechtsende prüfen';
+  if (item.status === 'SOLD') return 'Verkauf prüfen';
+  if (property.exitProcess) return 'Objekte im Verkauf prüfen';
   return 'Vorgang öffnen';
 }
 
@@ -1911,8 +2041,9 @@ function adminCaseTab(item) {
   if (['BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED'].includes(item.status)) return 'verbag';
   if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT'].includes(item.status)) return 'vertragsabwicklung';
   if (item.status === 'PURCHASED') return 'vertragsvollzug';
+  if (item.status === 'SOLD') return 'verwertung';
   if (item.raw?.property?.exitProcess) return 'verwertung';
-  if (['IN_PORTFOLIO', 'WON', 'SOLD'].includes(item.status)) return 'bestand';
+  if (['IN_PORTFOLIO', 'WON'].includes(item.status)) return 'bestand';
   return 'kunde';
 }
 
@@ -1994,7 +2125,7 @@ function adminWorkRows({ cases, leads, bucket }) {
 }
 
 const AdminWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
+  <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(190px, 1fr))', gap: 12, marginBottom: 18 }}>
     {buckets.map((bucket) => {
       const active = activeBucket === bucket.key;
       return (
@@ -2009,7 +2140,10 @@ const AdminWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
             borderRadius: 8,
             padding: '15px 16px',
             cursor: 'pointer',
+            minHeight: 154,
             boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
@@ -2017,7 +2151,7 @@ const AdminWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
             <bucket.icon size={16} style={{ color: active ? theme.gold : `${theme.aubergine}77` }} />
           </div>
           <div style={{ fontSize: 29, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine, marginBottom: 7 }}>{bucket.count}</div>
-          <div style={{ fontSize: 12, lineHeight: 1.35, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, minHeight: 34 }}>{bucket.description}</div>
+          <div style={{ fontSize: 12, lineHeight: 1.35, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, minHeight: 34, flex: 1 }}>{bucket.description}</div>
           <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 12 }}>{bucket.action}</div>
         </button>
       );
@@ -2025,8 +2159,8 @@ const AdminWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
   </div>
 );
 
-const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads }) => (
-  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads, style = {} }) => (
+  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden', ...style }}>
     <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div>
         <span style={{ fontSize: 15, fontWeight: 700, color: theme.aubergine }}>{title}</span>
@@ -2037,25 +2171,37 @@ const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads }) =
     {rows.length === 0 ? (
       <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Vorgänge in diesem Arbeitskorb.</div>
     ) : (
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', minWidth: 1040, borderCollapse: 'collapse', fontSize: 13 }}>
+      <div style={{ overflowX: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '13%' }} />
+            <col style={{ width: '17%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '18%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '7%' }} />
+          </colgroup>
           <thead>
             <tr style={{ background: theme.mintLight }}>
-              {['Fall / Lead', 'Kunde', 'Herkunft', 'Partner / Verantwortlich', 'Objekt', 'Nächster Schritt', 'Status', 'Letzte Aktivität', 'Öffnen'].map((h) => (
-                <th key={h} style={{ textAlign: 'left', padding: '8px 14px', fontSize: 10.5, fontWeight: 800, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+              {['Fall / Lead', 'Kunde', 'Herkunft', 'Objekt', 'Nächster Schritt', 'Status', 'Öffnen'].map((h) => (
+                <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, fontWeight: 800, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={`${row.kind}-${row.id}`} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
-                <td style={{ padding: '11px 14px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 800 }}>{row.displayId}</td>
-                <td style={{ padding: '11px 14px', color: theme.ink, fontWeight: 600 }}>{row.customer}</td>
-                <td style={{ padding: '11px 14px', color: `${theme.ink}99`, fontSize: 12 }}>{row.origin}</td>
-                <td style={{ padding: '11px 14px', color: `${theme.ink}aa`, fontSize: 12 }}>{row.responsible}</td>
-                <td style={{ padding: '11px 14px', color: `${theme.ink}cc` }}>{row.object}</td>
-                <td style={{ padding: '11px 14px', color: theme.ink }}>
-                  <div style={{ fontWeight: 650 }}>{row.nextStep}</div>
+                <td style={{ padding: '11px 10px', fontFamily: 'ui-monospace, monospace', fontSize: 11.5, color: theme.aubergine, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.displayId}</td>
+                <td style={{ padding: '11px 10px', color: theme.ink, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.customer}</td>
+                <td style={{ padding: '11px 10px', color: `${theme.ink}99`, fontSize: 12, overflow: 'hidden' }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.origin}</div>
+                  <div style={{ color: `${theme.ink}77`, fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.responsible}</div>
+                </td>
+                <td style={{ padding: '11px 10px', color: `${theme.ink}cc`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.object}</td>
+                <td style={{ padding: '11px 10px', color: theme.ink, overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.nextStep}</div>
+                  <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 2 }}>{row.lastActivity}</div>
                   {!!row.warnings?.length && (
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 5 }}>
                       {row.warnings.map((badge) => (
@@ -2064,14 +2210,13 @@ const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads }) =
                     </div>
                   )}
                 </td>
-                <td style={{ padding: '11px 14px' }}>{row.kind === 'lead' ? <LeadStatusBadge status={row.status} /> : <StatusBadge status={row.status} />}</td>
-                <td style={{ padding: '11px 14px', color: `${theme.ink}88`, fontSize: 12 }}>{row.lastActivity}</td>
-                <td style={{ padding: '11px 14px' }}>
+                <td style={{ padding: '11px 10px' }}>{row.kind === 'lead' ? <LeadStatusBadge status={row.status} /> : <StatusBadge status={row.status} />}</td>
+                <td style={{ padding: '11px 10px', textAlign: 'right' }}>
                   <button
                     onClick={() => row.kind === 'lead' ? onOpenLeads?.() : onOpenCase(row.id, row.tab || 'kunde')}
-                    style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '6px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                    style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '6px 8px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    Öffnen <ChevronRight size={13} />
+                    <ChevronRight size={13} />
                   </button>
                 </td>
               </tr>
@@ -2152,7 +2297,7 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
       key: 'other',
       title: 'Sonstiges',
       count: cases.filter((item) => adminOtherStatuses.includes(item.status) || item.raw?.property?.exitProcess).length,
-      description: 'Bestand, Bewohneranfragen, Reparaturen, Abrechnungen und Verwertung.',
+      description: 'Bestand, Bewohneranfragen, Reparaturen, Abrechnungen und laufende Objektverwaltung.',
       action: 'Themen öffnen',
       icon: Archive,
     },
@@ -2179,16 +2324,21 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
 
       <AdminWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={setBucket} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
-        <AdminWorklist title={tableTitle} rows={rows} activeBucket={activeBucket} onOpenCase={onOpenCase} onOpenLeads={onOpenLeads} />
-        <div style={{ display: 'grid', gap: 14 }}>
-          <UrgentTasksPanel cases={cases} onOpenCase={onOpenCase} />
-          <AdminQuickActions onNewCase={onNewCase} onOpenLeads={onOpenLeads} onOpenOther={openOther} />
-        </div>
+      <div className="admin-dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 620px', gap: 16, alignItems: 'stretch' }}>
+        <AdminWorklist
+          title={tableTitle}
+          rows={rows}
+          activeBucket={activeBucket}
+          onOpenCase={onOpenCase}
+          onOpenLeads={onOpenLeads}
+          style={{ height: '100%' }}
+        />
+        <PropertyMapWidget fillHeight height={288} />
       </div>
 
-      <div style={{ marginTop: 18 }}>
-        <PropertyMapWidget />
+      <div className="admin-dashboard-secondary-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 620px', gap: 16, alignItems: 'start', marginTop: 16 }}>
+        <UrgentTasksPanel cases={cases} onOpenCase={onOpenCase} />
+        <AdminQuickActions onNewCase={onNewCase} onOpenLeads={onOpenLeads} onOpenOther={openOther} />
       </div>
     </div>
   );
@@ -2201,7 +2351,7 @@ const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
     drafts: 'Entwürfe, die noch nicht eingereicht wurden.',
     in_progress: 'Alle aktiven Vorgänge von Einreichung bis Freigabe.',
     portfolio: 'Fälle im Bestand oder in der Kundenphase nach Versand.',
-    sold: 'Erfolgreich abgeschlossene und verkaufte Vorgänge.',
+    sold: 'Weiterverkaufte oder final abgeschlossene Objekte.',
     rejected: 'Abgelehnte Vorgänge mit dokumentiertem Grund für den Makler.',
   }[screen] || 'Gefilterte Fallliste.';
 
@@ -2228,6 +2378,7 @@ const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
         onOpenCase={onOpenCase}
         showPartner={role === 'admin'}
         showRejection={screen === 'rejected'}
+        statusForCase={screen === 'sold' ? soldScreenStatus : undefined}
       />
     </div>
   );
@@ -2413,46 +2564,41 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
     const property = item.raw?.property || {};
     return !property.purchasePricePaidAt || !property.residentialRightRegisteredAt || !property.propertyFileComplete || !property.portfolioEnteredAt;
   });
-  const exitSaleCases = inventoryCases.filter((item) => {
+  const saleObjectCases = inventoryCases.filter((item) => {
     const exitProcess = item.raw?.property?.exitProcess || {};
     return Boolean(exitProcess.usageRightEndedAt || exitProcess.salesStatus && exitProcess.salesStatus !== 'under_review');
   });
   const uniqueCases = (items) => Array.from(new Map(items.map((item) => [item.propertyId || item.id, item])).values());
-  const openCases = uniqueCases([...purchaseProcessingCases, ...contractClosingCases, ...inventoryCases, ...exitSaleCases]);
+  const purchaseHandlingCases = uniqueCases([...purchaseProcessingCases, ...contractClosingCases]);
+  const openCases = uniqueCases([...purchaseHandlingCases, ...inventoryCases, ...saleObjectCases]);
 
   const bucketDefinitions = [
     {
       key: 'purchase-processing',
       title: 'Kaufvertragsabwicklung',
-      description: 'VA angenommen, Notar oder Kaufvertragsentwurf offen.',
-      cases: purchaseProcessingCases,
+      description: 'Vom Kaufvertragsabschluss bis zur Kaufpreiszahlung und Grundbucheintragung.',
+      action: 'Abwicklung prüfen',
+      cases: purchaseHandlingCases,
       icon: Briefcase,
       tone: theme.aubergine,
       tab: 'vertragsabwicklung',
     },
     {
-      key: 'contract-closing',
-      title: 'Vertragsvollzug',
-      description: 'Zahlung, Grundbuch, Wohnrecht oder Objektakte offen.',
-      cases: contractClosingCases,
-      icon: Calendar,
-      tone: theme.oliv,
-      tab: 'vertragsvollzug',
-    },
-    {
       key: 'inventory-management',
       title: 'Bestandsverwaltung',
-      description: 'Bewohner, Reparaturen, Abrechnungen und Objektverwaltung.',
+      description: 'Bewohner, Reparaturen, Abrechnungen und laufende Verwaltung.',
+      action: 'Bestand prüfen',
       cases: inventoryCases,
       icon: Archive,
       tone: '#5B8C2B',
       tab: 'bestand',
     },
     {
-      key: 'exit-sale',
-      title: 'Verwertung nach Wohnrechtsende',
-      description: 'Objektzugang, Räumung, Verkaufsvorbereitung und Vermarktung.',
-      cases: exitSaleCases,
+      key: 'sale-objects',
+      title: 'Objekte im Verkauf',
+      description: 'Nach Wohnrechtsende oder Ende des Rückmietverkaufs: Zugang, Vorbereitung, Vermarktung und Verkauf.',
+      action: 'Verkauf prüfen',
+      cases: saleObjectCases,
       icon: AlertCircle,
       tone: theme.gold,
       tab: 'verwertung',
@@ -2460,18 +2606,16 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   ];
   const activeBucketDefinition = bucketDefinitions.find((item) => item.key === activeBucket);
   const phaseForCase = (item) => {
-    if (exitSaleCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Verwertung nach Wohnrechtsende';
-    if (purchaseProcessingCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Kaufvertragsabwicklung';
-    if (contractClosingCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Vertragsvollzug';
+    if (saleObjectCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Objekte im Verkauf';
+    if (purchaseHandlingCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Kaufvertragsabwicklung';
     if (inventoryCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Bestandsverwaltung';
     return 'Ankauf';
   };
-  const targetTabForCase = (item) => {
-    if (activeBucketDefinition?.tab) return activeBucketDefinition.tab;
+  const targetTabForCase = (item, preferActiveBucket = true) => {
+    if (preferActiveBucket && activeBucketDefinition?.tab) return activeBucketDefinition.tab;
     const phase = phaseForCase(item);
     if (phase === 'Kaufvertragsabwicklung') return 'vertragsabwicklung';
-    if (phase === 'Vertragsvollzug') return 'vertragsvollzug';
-    if (phase === 'Verwertung nach Wohnrechtsende') return 'verwertung';
+    if (phase === 'Objekte im Verkauf') return 'verwertung';
     return 'bestand';
   };
   const dueDateForCase = (item) => {
@@ -2513,8 +2657,8 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
     updatePortfolioBucketUrl(role, nextBucket, 'push');
   };
 
-  const openCaseFromList = (item) => {
-    onOpenCase(item.propertyId || item.id, targetTabForCase(item));
+  const openCaseFromList = (item, preferActiveBucket = true) => {
+    onOpenCase(item.propertyId || item.id, targetTabForCase(item, preferActiveBucket));
   };
 
   return (
@@ -2524,7 +2668,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
             Intern · Ankauf und Bestand
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankauf & Bestand</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankaufs- und Bestandsabwicklung</h1>
           <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>
             Arbeitskörbe filtern die Vorgangsliste. Der konkrete Fall wird erst aus der Liste geöffnet.
           </div>
@@ -2536,27 +2680,30 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
         )}
       </div>
 
-      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
+      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(220px, 1fr))', gap: 12, marginBottom: 18 }}>
         {bucketDefinitions.map((bucket) => {
           const active = activeBucket === bucket.key;
           return (
             <button key={bucket.key} onClick={() => selectBucket(bucket.key)} style={{
-              background: active ? `${bucket.tone}12` : 'white',
-              border: `1px solid ${active ? `${bucket.tone}88` : theme.borderSoft}`,
-              borderLeft: `3px solid ${bucket.tone}`,
+              background: active ? theme.aubergine : 'white',
+              color: active ? 'white' : theme.ink,
+              border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
               borderRadius: 8,
               padding: '15px 16px',
               textAlign: 'left',
               cursor: 'pointer',
               minHeight: 136,
-              boxShadow: active ? `0 0 0 2px ${bucket.tone}18` : 'none',
+              boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+              display: 'flex',
+              flexDirection: 'column',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <bucket.icon size={16} style={{ color: bucket.tone }} />
-                <span style={{ fontSize: 24, lineHeight: 1, color: theme.aubergine, fontWeight: 800 }}>{bucket.cases.length}</span>
+                <bucket.icon size={16} style={{ color: active ? theme.gold : `${theme.aubergine}77` }} />
+                <span style={{ fontSize: 24, lineHeight: 1, color: active ? 'white' : theme.aubergine, fontWeight: 800 }}>{bucket.cases.length}</span>
               </div>
-              <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 800, marginBottom: 6 }}>{bucket.title}</div>
-              <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>{bucket.description}</div>
+              <div style={{ fontSize: 13.5, color: active ? theme.gold : theme.aubergine, fontWeight: 800, marginBottom: 6 }}>{bucket.title}</div>
+              <div style={{ fontSize: 12, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, lineHeight: 1.45, flex: 1 }}>{bucket.description}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 12 }}>{bucket.action}</div>
             </button>
           );
         })}
@@ -2576,7 +2723,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: theme.mintLight }}>
-                  {['Fallnummer', 'Kunde / Bewohner', 'Objekt', 'Phase', 'Nächster Schritt', 'Frist / Wiedervorlage', 'Zuständig', 'Status', 'Öffnen'].map((h) => (
+                  {['Fall', 'Kunde / Bewohner', 'Objekt', ...(!activeBucketDefinition ? ['Phase'] : []), 'Nächster Schritt', 'Frist / Wiedervorlage', 'Status', 'Öffnen'].map((h) => (
                     <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -2589,10 +2736,9 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
                       <td style={{ padding: '11px 12px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{item.id}</td>
                       <td style={{ padding: '11px 12px', color: theme.ink, fontWeight: 650 }}>{property.residentName || item.kunde}</td>
                       <td style={{ padding: '11px 12px', color: `${theme.ink}cc` }}>{item.objekt}</td>
-                      <td style={{ padding: '11px 12px', color: `${theme.ink}aa`, fontSize: 12.5 }}>{phaseForCase(item)}</td>
-                      <td style={{ padding: '11px 12px', color: theme.ink }}>{nextPortfolioAction[item.status] || (targetTabForCase(item) === 'verwertung' ? 'Verwertung prüfen' : 'Bestandsakte prüfen')}</td>
+                      {!activeBucketDefinition && <td style={{ padding: '11px 12px', color: `${theme.ink}aa`, fontSize: 12.5 }}>{phaseForCase(item)}</td>}
+                      <td style={{ padding: '11px 12px', color: theme.ink }}>{nextPortfolioAction[item.status] || (targetTabForCase(item) === 'verwertung' ? 'Verkauf prüfen' : 'Bestandsakte prüfen')}</td>
                       <td style={{ padding: '11px 12px', color: `${theme.ink}99`, fontSize: 12.5 }}>{formatDate(dueDateForCase(item))}</td>
-                      <td style={{ padding: '11px 12px', color: `${theme.ink}99`, fontSize: 12.5 }}>{property.assignedAdvisorName || item.partner || '-'}</td>
                       <td style={{ padding: '11px 12px' }}><StatusBadge status={item.status} /></td>
                       <td style={{ padding: '11px 12px', textAlign: 'right' }}>
                         <button onClick={() => openCaseFromList(item)} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '5px 9px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
@@ -2613,7 +2759,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
             {deadlineCases.length === 0 ? (
               <div style={{ padding: 16, color: `${theme.ink}88`, fontSize: 12.5 }}>Keine offenen Fristen.</div>
             ) : deadlineCases.map((item, index) => (
-              <button key={item.propertyId || item.id} onClick={() => openCaseFromList(item)} style={{ width: '100%', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 16px', textAlign: 'left', cursor: 'pointer' }}>
+              <button key={item.propertyId || item.id} onClick={() => openCaseFromList(item, false)} style={{ width: '100%', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 16px', textAlign: 'left', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <span style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>{item.kunde}</span>
                   <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>{formatDate(dueDateForCase(item))}</span>
@@ -2642,7 +2788,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   );
 };
 
-const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, showRejection = false, emptyText = 'Keine Fälle vorhanden.' }) => (
+const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, showRejection = false, emptyText = 'Keine Fälle vorhanden.', statusForCase = (row) => row.status }) => (
   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
     <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>{title}</span>
@@ -2667,7 +2813,7 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, sho
               <td style={{ padding: '11px 16px', color: theme.ink }}>{row.kunde} {row.alter ? <span style={{ color: `${theme.ink}77`, fontSize: 12 }}>({row.alter})</span> : null}</td>
               {showPartner && <td style={{ padding: '11px 16px', color: `${theme.ink}aa`, fontSize: 12 }}>{row.partner}</td>}
               <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>{row.objekt}</td>
-              <td style={{ padding: '11px 16px' }}><StatusBadge status={row.status} /></td>
+              <td style={{ padding: '11px 16px' }}><StatusBadge status={statusForCase(row)} /></td>
               {showRejection && (
                 <td style={{ padding: '11px 16px', color: '#9B2C2C', fontSize: 12.5, fontWeight: 650, maxWidth: 280 }}>
                   <div>{row.rejectionReasonLabel || labelFrom(rejectionReasonLabels, row.rejectionReasonCode, '-')}</div>
@@ -3239,7 +3385,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       setBusyAction('');
     }
   }
-  const startValuationAndOffer = (model) => runCaseAction(model === 'sale_and_leaseback' ? 'Rückmietmodell-Kalkulation' : 'Verrentungs-Kalkulation', async () => {
+  const startValuationAndOffer = (model) => runCaseAction(model === 'sale_and_leaseback' ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation', async () => {
     await postJson(`/api/properties/${c.propertyId}/valuation`, { provider: 'sprengnetter' });
     await postJson(`/api/properties/${c.propertyId}/offer/calculate`, { model });
     await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
@@ -3601,7 +3747,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       { id: 'vertragsabwicklung', label: 'Kaufvertragsabwicklung' },
       { id: 'vertragsvollzug', label: 'Vertragsvollzug' },
       { id: 'bestand', label: 'Bestand' },
-      { id: 'verwertung', label: 'Verwertung' },
+    { id: 'verwertung', label: 'Objekte im Verkauf' },
     ] : []),
     { id: 'doks', label: 'Objektunterlagen' },
     { id: 'chat', label: 'Chatverlauf' },
@@ -3636,7 +3782,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <>
             {topCalculationModels.map((modelRequest, index) => {
               const isPrimary = index === 0;
-              const label = modelRequest.model === 'sale_and_leaseback' ? 'Rückmiete kalkulieren' : 'Verrentung kalkulieren';
+              const label = modelRequest.model === 'sale_and_leaseback' ? 'Rückmietverkauf kalkulieren' : 'Wohnrecht kalkulieren';
               return (
                 <button
                   key={modelRequest.key}
@@ -3961,7 +4107,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <Field label="Auflassungsvormerkung eingetragen am"><Input type="date" value={portfolioForm.priorityNoticeRegisteredAt} onChange={(event) => updatePortfolioForm({ priorityNoticeRegisteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Kaufpreisfälligkeit eingetreten am"><Input type="date" value={portfolioForm.purchasePriceDueAt} onChange={(event) => updatePortfolioForm({ purchasePriceDueAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Kaufpreis gezahlt am"><Input type="date" value={portfolioForm.purchasePricePaidAt} onChange={(event) => updatePortfolioForm({ purchasePricePaidAt: event.target.value, payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Wohnrecht / Nießbrauch eingetragen am"><Input type="date" value={portfolioForm.residentialRightRegisteredAt} onChange={(event) => updatePortfolioForm({ residentialRightRegisteredAt: event.target.value, landRegisterEntryAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Wohnrecht eingetragen am"><Input type="date" value={portfolioForm.residentialRightRegisteredAt} onChange={(event) => updatePortfolioForm({ residentialRightRegisteredAt: event.target.value, landRegisterEntryAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Besitz-/Nutzen-/Lastenwechsel am"><Input type="date" value={portfolioForm.benefitsAndBurdensTransferAt} onChange={(event) => updatePortfolioForm({ benefitsAndBurdensTransferAt: event.target.value, ownershipTransferAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Objektakte vollständig">
                       <input type="checkbox" checked={portfolioForm.propertyFileComplete} onChange={(event) => updatePortfolioForm({ propertyFileComplete: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
@@ -4089,7 +4235,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Verwertung nach Wohnrechtsende</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Objekte im Verkauf</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Exitphase nach Auszug, Tod, Ablauf oder Aufgabe des Nutzungsrechts</div>
                 </div>
                 <span style={{ background: `${theme.aubergine}12`, color: theme.aubergine, borderRadius: 10, padding: '4px 10px', fontSize: 11, fontWeight: 800 }}>
@@ -4473,7 +4619,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   const params = calculationParams[key] || {};
                   const quote = offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
                   const maintenanceValue = offer ? (params.maintenance || offer.companyMargin || offer.assumptions?.components?.maintenancePledge) : null;
-                  const indicativeMetricRows = offer ? (role === 'admin' ? [
+                  const indicativeMetricRows = offer ? (modelRequest.model === 'sale_and_leaseback' ? rentBackMetricRows(offer) : role === 'admin' ? [
                     ['Verkehrswert', formatEuro(offer.marketValue)],
                     ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
                     ['Instandhaltung', maintenanceValue ? formatEuro(Number(maintenanceValue)) : '-'],
@@ -4494,7 +4640,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>
                             {modelRequest.model === 'fixed_residential_right'
                               ? `Laufzeit ${modelRequest.residentialRightYears || '-'} Jahre · ${labelFrom(recipientLabels, modelRequest.recipient)}${modelRequest.recipientPerson ? ` (${labelFrom({ customer_1: 'Kunde 1', customer_2: 'Kunde 2' }, modelRequest.recipientPerson)})` : ''} · ${modelRequest.reason || 'kein Grund angegeben'}`
-                              : 'Rückmiete · Miete fällt ab Tag 1 nach Verkauf an'}
+                              : 'Rückmietverkauf · Miete fällt ab Tag 1 nach Verkauf an'}
                           </div>
                         </div>
                         {offer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{labelFrom(offerStatusLabels, offer.status, offer.status)}</span> : null}
@@ -4537,6 +4683,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               </div>
                             ))}
                           </div>
+                          {modelRequest.model === 'sale_and_leaseback' && (
+                            <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${theme.borderSoft}`, fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
+                              Demo-Kalkulation, Rating-Tool folgt.
+                            </div>
+                          )}
                           {canManageOffers && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
                               {['indicative_offer_sent', 'offer_accepted'].map((action) => {
@@ -4669,7 +4820,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   const key = `binding-${modelRequest.key}-${index}`;
                   const params = calculationParams[key] || {};
                   const quote = bindingOffer?.payoutAmount && bindingOffer?.marketValue ? Math.round((bindingOffer.payoutAmount / bindingOffer.marketValue) * 100) : undefined;
-                  const bindingMetricRows = bindingOffer ? (role === 'admin' ? [
+                  const bindingMetricRows = bindingOffer ? (modelRequest.model === 'sale_and_leaseback' ? rentBackMetricRows(bindingOffer) : role === 'admin' ? [
                     ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
                     ['Wohnrechtswert', bindingOffer.residentialRightValue ? formatEuro(bindingOffer.residentialRightValue) : '-'],
                     ['Risikoabschlag', bindingOffer.riskDiscount ? formatEuro(bindingOffer.riskDiscount) : '-'],
@@ -4744,6 +4895,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               </div>
                             ))}
                           </div>
+                          {modelRequest.model === 'sale_and_leaseback' && (
+                            <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${theme.borderSoft}`, fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
+                              Demo-Kalkulation, Rating-Tool folgt.
+                            </div>
+                          )}
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}`, fontSize: 12.5, color: `${theme.ink}88`, whiteSpace: 'pre-line' }}>
                             {bindingOffer.aiCustomerText || bindingOffer.bindingOfferText || 'VA-Kalkulation erstellt. Textentwurf noch nicht vorhanden.'}
                           </div>
@@ -5397,8 +5553,8 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
     <Field label="Hauptmodell" required invalid={errors.includes('desiredModel')}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
         {[
-          { value: 'fixed_residential_right', title: 'Befristetes Wohnrecht', text: 'Kunde verkauft und behält ein zeitlich befristetes Wohnrecht.' },
-          { value: 'sale_and_leaseback', title: 'Rückmiete', text: 'Kunde verkauft und mietet die Immobilie ab Tag 1 zurück.' },
+          { value: 'fixed_residential_right', title: 'Wohnrecht', text: 'Kunde verkauft und behält ein vertraglich geregeltes Wohnrecht.' },
+          { value: 'sale_and_leaseback', title: 'Rückmietverkauf', text: 'Kunde verkauft und bleibt anschließend als Mieter/Bewohner im Objekt.' },
         ].map((option) => {
           const active = draft.desiredModel === option.value;
           return (
@@ -5437,14 +5593,14 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
       <div style={{ background: theme.goldSoft, border: `1px solid ${errors.includes('rentalModelDisclosureAccepted') ? '#9B2C2C66' : `${theme.gold}66`}`, borderLeft: `4px solid ${errors.includes('rentalModelDisclosureAccepted') ? '#9B2C2C' : theme.gold}`, borderRadius: 8, padding: '13px 15px', marginBottom: 18 }}>
         <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
           <input type="checkbox" checked={draft.rentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, rentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
-          <span><strong>Belehrung Rückmiete:</strong> Beim Rückmietmodell fällt ab Tag 1 nach Verkauf eine laufende Miete an. Diese Information muss vor Einreichung mit dem Kunden besprochen werden.</span>
+          <span><strong>Belehrung Rückmietverkauf:</strong> Beim Rückmietverkauf fällt ab Tag 1 nach Verkauf eine laufende Miete an. Diese Information muss vor Einreichung mit dem Kunden besprochen werden.</span>
         </label>
       </div>
     )}
 
     {draft.desiredModel === 'fixed_residential_right' && (
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 18px', marginBottom: 18 }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Befristetes Wohnrecht</div>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Wohnrecht</div>
     <div style={{ marginBottom: 18 }}>
       <Field label="Wer soll das Wohnrecht bekommen?" required invalid={errors.includes('residentialRightRecipients')}>
         <RadioGroup name="recipient" value={draft.residentialRightRecipients} onChange={(value) => setDraft({ ...draft, residentialRightRecipients: value, residentialRightPerson: value === 'one_person' ? draft.residentialRightPerson : '' })} options={[
@@ -5497,8 +5653,8 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
               additionalOfferRentalModelDisclosureAccepted: event.target.value === 'sale_and_leaseback' ? draft.additionalOfferRentalModelDisclosureAccepted : false,
             })}>
               <option value="">Bitte wählen</option>
-              <option value="fixed_residential_right">Befristetes Wohnrecht</option>
-              <option value="sale_and_leaseback">Rückmiete</option>
+              <option value="fixed_residential_right">Wohnrecht</option>
+              <option value="sale_and_leaseback">Rückmietverkauf</option>
             </Select>
           </Field>
           {draft.additionalOfferModel === 'fixed_residential_right' && (
@@ -5531,7 +5687,7 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
             <div style={{ gridColumn: '1 / -1', background: theme.goldSoft, border: `1px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? '#9B2C2C66' : `${theme.gold}66`}`, borderLeft: `4px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? '#9B2C2C' : theme.gold}`, borderRadius: 8, padding: '12px 14px' }}>
               <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
                 <input type="checkbox" checked={draft.additionalOfferRentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, additionalOfferRentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
-                <span><strong>Belehrung Rückmiete:</strong> Beim Rückmietmodell fällt ab Tag 1 nach Verkauf eine laufende Miete an.</span>
+                <span><strong>Belehrung Rückmietverkauf:</strong> Beim Rückmietverkauf fällt ab Tag 1 nach Verkauf eine laufende Miete an.</span>
               </label>
             </div>
           )}
@@ -5734,7 +5890,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
     <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderLeft: `4px solid ${theme.oliv}`, borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
       <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.ink, marginBottom: 4 }}>Allgemeiner Hinweis</div>
       <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>
-        Bitte Besonderheiten früh dokumentieren, zum Beispiel Nießbrauch, Wohnungsbindung, größere Schäden, laufende Teilungserklärungsänderungen oder absehbare Instandhaltungen.
+        Bitte Besonderheiten früh dokumentieren, zum Beispiel Wohnungsbindung, größere Schäden, laufende Teilungserklärungsänderungen oder absehbare Instandhaltungen.
       </div>
     </div>
 
@@ -5966,43 +6122,91 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
 // =====================================================================
 // SCREEN — LEADS
 // =====================================================================
+const adminLeadBucketKeys = ['new-leads', 'qualification', 'assignment', 'follow-up', 'completed'];
+const partnerLeadBucketKeys = ['assigned', 'contacted', 'converted'];
+
+function readLeadBucketFromUrl(role) {
+  if (typeof window === 'undefined') return '';
+  const bucket = new URLSearchParams(window.location.search).get('leadBucket') || new URLSearchParams(window.location.search).get('bucket');
+  const allowed = role === 'admin' ? adminLeadBucketKeys : partnerLeadBucketKeys;
+  return allowed.includes(bucket) ? bucket : '';
+}
+
+function writeLeadBucketToUrl(bucket) {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  params.set('screen', 'leads');
+  params.delete('case');
+  params.delete('caseId');
+  params.delete('tab');
+  params.delete('returnTab');
+  if (bucket) params.set('leadBucket', bucket);
+  else params.delete('leadBucket');
+  const query = params.toString();
+  window.history.pushState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+}
+
+function leadPriority(lead) {
+  const rank = { NEW: 1, QUALIFIED: 2, ASSIGNED: 3, CONTACTED: 4, CONVERTED: 5, REJECTED: 6 };
+  return rank[lead.status] || 9;
+}
+
+const LeadWorkBuckets = ({ buckets, activeBucket, onSelect, columns = 4 }) => (
+  <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 12, marginBottom: 16 }}>
+    {buckets.map((bucket) => {
+      const active = activeBucket === bucket.key;
+      return (
+        <button
+          key={bucket.key}
+          onClick={() => onSelect(active ? '' : bucket.key)}
+          style={{
+            background: active ? theme.aubergine : 'white',
+            border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
+            borderRadius: 8,
+            padding: '14px 16px',
+            minHeight: 132,
+            textAlign: 'left',
+            cursor: 'pointer',
+            boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
+            <div style={{ fontSize: 10.5, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.label}</div>
+            <bucket.icon size={14} style={{ color: active ? theme.gold : `${theme.aubergine}66` }} />
+          </div>
+          <div style={{ fontSize: 27, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine, marginBottom: 7 }}>{bucket.value}</div>
+          <div style={{ fontSize: 11.5, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}88`, lineHeight: 1.4, flex: 1 }}>{bucket.sub}</div>
+          <div style={{ fontSize: 12, color: active ? theme.gold : theme.aubergine, fontWeight: 800, marginTop: 10 }}>{bucket.action}</div>
+        </button>
+      );
+    })}
+  </div>
+);
+
 const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
   const [partnerSelection, setPartnerSelection] = useState({});
-  const [statusFilter, setStatusFilter] = useState('ALL');
   const [partnerFilter, setPartnerFilter] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [activeBucket, setActiveBucket] = useState(() => readLeadBucketFromUrl(role));
   const [selectedLeadId, setSelectedLeadId] = useState(null);
+  useEffect(() => {
+    const allowed = role === 'admin' ? adminLeadBucketKeys : partnerLeadBucketKeys;
+    if (activeBucket && !allowed.includes(activeBucket)) {
+      setActiveBucket('');
+    }
+  }, [role, activeBucket]);
   const visibleLeads = role === 'admin'
     ? leads
     : leads.filter((lead) => lead.status !== 'CONVERTED' && lead.status !== 'REJECTED');
-  const searchNeedle = search.trim().toLowerCase();
-  const filteredLeads = visibleLeads.filter((lead) => {
-    const haystack = [
-      lead.leadNumber,
-      lead.name,
-      lead.firstName,
-      lead.lastName,
-      lead.email,
-      lead.phone,
-      lead.postalCode,
-      lead.city,
-      lead.message,
-      lead.estimatedPropertyValueRange,
-      propertyTypeLabel(lead.propertyType)
-    ].filter(Boolean).join(' ').toLowerCase();
-    const matchesSearch = !searchNeedle || haystack.includes(searchNeedle);
-    const matchesStatus = statusFilter === 'ALL' || lead.status === statusFilter;
-    const matchesPartner = role !== 'admin' || !canAssignLeads
-      || partnerFilter === 'ALL'
-      || (partnerFilter === 'UNASSIGNED' ? !lead.assignedPartnerId && !lead.assignedAdvisorUserId : partnerFilter.startsWith('advisor:') ? lead.assignedAdvisorUserId === partnerFilter.replace('advisor:', '') : lead.assignedPartnerId === partnerFilter);
-    return matchesSearch && matchesStatus && matchesPartner;
-  });
-  const selectedLead = filteredLeads.find((lead) => lead.id === selectedLeadId) || filteredLeads[0];
   const leadStats = {
     new: visibleLeads.filter((lead) => lead.status === 'NEW').length,
+    qualified: visibleLeads.filter((lead) => lead.status === 'QUALIFIED').length,
     assigned: visibleLeads.filter((lead) => lead.status === 'ASSIGNED').length,
     contacted: visibleLeads.filter((lead) => lead.status === 'CONTACTED').length,
-    converted: visibleLeads.filter((lead) => lead.status === 'CONVERTED').length
+    converted: leads.filter((lead) => lead.status === 'CONVERTED').length,
+    rejected: leads.filter((lead) => lead.status === 'REJECTED').length
   };
   const activePartnerCount = partners.filter((partner) => partner.status === 'active').length;
   const advisorOptions = staff.filter((member) => ['advisor', 'admin', 'super_admin'].includes(member.internalRole));
@@ -6010,9 +6214,63 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
     ...partners.map((partner) => ({ value: `partner:${partner.id}`, label: `Partner · ${partner.contactName || partner.companyName}` })),
     ...advisorOptions.map((member) => ({ value: `advisor:${member.id}`, label: `Intern · ${member.name}` })),
   ];
-  const activeStatusFilters = role === 'admin'
-    ? ['ALL', 'NEW', 'QUALIFIED', 'ASSIGNED', 'CONTACTED', 'CONVERTED', 'REJECTED']
-    : ['ALL', 'ASSIGNED', 'CONTACTED'];
+  const adminBuckets = [
+    { key: 'new-leads', label: 'Neue Leads', value: leadStats.new, sub: 'Neue Homepage-Leads und Kontaktanfragen.', action: 'Leads prüfen', icon: TrendingUp },
+    { key: 'qualification', label: 'Qualifizieren', value: leadStats.qualified, sub: 'Geprüfte Leads für die nächste Entscheidung.', action: 'Qualifizierung prüfen', icon: CheckCircle2 },
+    { key: 'assignment', label: 'Zuweisen', value: leadStats.assigned, sub: `${activePartnerCount} aktive Partner und interne Berater.`, action: 'Zuweisungen prüfen', icon: Users },
+    { key: 'follow-up', label: 'Nachfassen', value: leadStats.contacted, sub: 'Kontaktierte Leads mit offenem nächsten Schritt.', action: 'Nachfassen', icon: Phone },
+    { key: 'completed', label: 'Erledigt', value: leadStats.converted + leadStats.rejected, sub: 'Umgewandelte oder abgelehnte Leads.', action: 'Erledigte ansehen', icon: Archive },
+  ];
+  const partnerBuckets = [
+    { key: 'assigned', label: 'Neue Leads', value: leadStats.assigned, sub: 'Zugewiesene Leads prüfen und kontaktieren.', action: 'Leads prüfen', icon: TrendingUp },
+    { key: 'contacted', label: 'Nachfassen', value: leadStats.contacted, sub: 'Kontaktierte Leads als Kundenfall übernehmen.', action: 'Nachfassen', icon: Phone },
+    { key: 'converted', label: 'Umgewandelt', value: leadStats.converted, sub: 'Bereits als Kundenfall angelegte Leads.', action: 'Umgewandelte ansehen', icon: CheckCircle2 },
+  ];
+  const buckets = role === 'admin' ? adminBuckets : partnerBuckets;
+  const rowsByBucket = role === 'admin'
+    ? {
+        'new-leads': visibleLeads.filter((lead) => lead.status === 'NEW'),
+        qualification: visibleLeads.filter((lead) => lead.status === 'QUALIFIED'),
+        assignment: visibleLeads.filter((lead) => lead.status === 'ASSIGNED'),
+        'follow-up': visibleLeads.filter((lead) => lead.status === 'CONTACTED'),
+        completed: visibleLeads.filter((lead) => ['CONVERTED', 'REJECTED'].includes(lead.status)),
+      }
+    : {
+        assigned: visibleLeads.filter((lead) => lead.status === 'ASSIGNED'),
+        contacted: visibleLeads.filter((lead) => lead.status === 'CONTACTED'),
+        converted: leads.filter((lead) => lead.status === 'CONVERTED'),
+      };
+  const activeBucketLabel = buckets.find((bucket) => bucket.key === activeBucket)?.label;
+  const changeBucket = (bucket) => {
+    setActiveBucket(bucket);
+    setSelectedLeadId(null);
+    writeLeadBucketToUrl(bucket);
+  };
+  const searchNeedle = search.trim().toLowerCase();
+  const baseLeads = activeBucket ? (rowsByBucket[activeBucket] || []) : visibleLeads;
+  const filteredLeads = baseLeads
+    .filter((lead) => {
+      const haystack = [
+        lead.leadNumber,
+        lead.name,
+        lead.firstName,
+        lead.lastName,
+        lead.email,
+        lead.phone,
+        lead.postalCode,
+        lead.city,
+        lead.message,
+        lead.estimatedPropertyValueRange,
+        propertyTypeLabel(lead.propertyType)
+      ].filter(Boolean).join(' ').toLowerCase();
+      const matchesSearch = !searchNeedle || haystack.includes(searchNeedle);
+      const matchesPartner = role !== 'admin' || !canAssignLeads
+        || partnerFilter === 'ALL'
+        || (partnerFilter === 'UNASSIGNED' ? !lead.assignedPartnerId && !lead.assignedAdvisorUserId : partnerFilter.startsWith('advisor:') ? lead.assignedAdvisorUserId === partnerFilter.replace('advisor:', '') : lead.assignedPartnerId === partnerFilter);
+      return matchesSearch && matchesPartner;
+    })
+    .sort((left, right) => leadPriority(left) - leadPriority(right) || String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || ''), 'de'));
+  const selectedLead = filteredLeads.find((lead) => lead.id === selectedLeadId) || filteredLeads[0];
 
   const leadName = leadDisplayName;
   const partnerName = (partnerId) => {
@@ -6039,34 +6297,17 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
         </div>
       </div>
 
-      <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: role === 'admin' ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-        {[
-          { label: 'Neue Leads', value: leadStats.new, sub: 'noch nicht verteilt', icon: TrendingUp },
-          { label: 'Zugewiesen', value: leadStats.assigned, sub: role === 'admin' ? `${activePartnerCount} aktive Partner` : 'zur Bearbeitung', icon: Users },
-          { label: 'Kontaktiert', value: leadStats.contacted, sub: 'Nachfassen', icon: Phone },
-          { label: 'Umgewandelt', value: leadStats.converted, sub: 'Kundenfall erstellt', icon: CheckCircle2 },
-          ...(role === 'admin' ? [{ label: 'Offen gesamt', value: visibleLeads.filter((lead) => !['CONVERTED', 'REJECTED'].includes(lead.status)).length, sub: 'aktive Pipeline', icon: Briefcase }] : [])
-        ].map((stat) => (
-          <div key={stat.label} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '13px 15px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{stat.label}</span>
-              <stat.icon size={14} style={{ color: `${theme.aubergine}66` }} />
-            </div>
-            <div style={{ fontSize: 25, lineHeight: 1, fontWeight: 750, color: theme.aubergine }}>{stat.value}</div>
-            <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 5 }}>{stat.sub}</div>
-          </div>
-        ))}
-      </div>
+      <LeadWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={changeBucket} columns={role === 'admin' ? 5 : 3} />
 
       <div className="lead-workspace-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 16, alignItems: 'start' }}>
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div>
               <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>
-                {role === 'admin' ? 'Leadverteilung' : 'Zur Bearbeitung'}
+                {activeBucketLabel || (role === 'admin' ? 'Leadverteilung' : 'Zur Bearbeitung')}
               </span>
               <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>
-                {role === 'admin' ? 'Homepage-Leads qualifizieren, Partner auswählen und übergeben.' : 'Lead kontaktieren und als Kundenfall übernehmen.'}
+                {activeBucket ? 'Gefilterte Lead-Arbeitsliste.' : role === 'admin' ? 'Homepage-Leads qualifizieren, Partner auswählen und übergeben.' : 'Lead kontaktieren und als Kundenfall übernehmen.'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -6085,29 +6326,8 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
             </div>
           </div>
 
-          <div style={{ padding: '10px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', gap: 6, flexWrap: 'wrap', background: theme.mintLighter }}>
-            {activeStatusFilters.map((status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                style={{
-                  background: statusFilter === status ? theme.aubergine : 'white',
-                  color: statusFilter === status ? 'white' : theme.aubergine,
-                  border: statusFilter === status ? 'none' : `1px solid ${theme.border}`,
-                  borderRadius: 5,
-                  padding: '5px 10px',
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                {status === 'ALL' ? 'Alle' : leadStatusLabels[status]}
-              </button>
-            ))}
-          </div>
-
           {filteredLeads.length === 0 ? (
-            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Leads für diesen Filter.</div>
+            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{activeBucket ? 'Keine Vorgänge in diesem Arbeitskorb.' : 'Keine Leads für diesen Filter.'}</div>
           ) : (
             <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 13 }}>
@@ -6670,7 +6890,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
               {loadingCases ? 'Fälle werden geladen...' : loadingLeads ? 'Leads werden geladen...' : loadingStaff ? 'Mitarbeiter werden geladen...' : notice}
             </div>
           )}
-          {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} />}
+          {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} user={user} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} onShowAllCases={() => handleNavigate('in_progress')} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['admin', 'super_admin'].includes(currentInternalRole)} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}

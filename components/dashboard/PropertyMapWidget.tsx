@@ -23,6 +23,11 @@ type ApiResponse = {
   statusFilter: string[];
 };
 
+type PropertyMapWidgetProps = {
+  fillHeight?: boolean;
+  height?: number;
+};
+
 const STATUS_GROUPS: { label: string; statuses: string[] }[] = [
   {
     label: "In Bearbeitung",
@@ -92,7 +97,7 @@ const DEFAULT_ENABLED = STATUS_GROUPS.flatMap((g) => g.statuses).filter(
   (s) => !["DRAFT", "REJECTED", "LOST"].includes(s)
 );
 
-export function PropertyMapWidget() {
+export function PropertyMapWidget({ fillHeight = false, height = 288 }: PropertyMapWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const clusterRef = useRef<any>(null);
@@ -216,7 +221,16 @@ export function PropertyMapWidget() {
   };
 
   return (
-    <div className="panel panel-pad" style={{ padding: 0, overflow: "hidden" }}>
+    <div
+      className="panel panel-pad"
+      style={{
+        padding: 0,
+        overflow: "hidden",
+        height: fillHeight ? "100%" : undefined,
+        display: fillHeight ? "flex" : undefined,
+        flexDirection: fillHeight ? "column" : undefined,
+      }}
+    >
       <div
         style={{
           padding: "14px 18px",
@@ -236,10 +250,17 @@ export function PropertyMapWidget() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 240px" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 220px",
+          flex: fillHeight ? 1 : undefined,
+          minHeight: fillHeight ? 0 : undefined,
+        }}
+      >
         <div
           ref={containerRef}
-          style={{ height: 480, width: "100%", background: "#F3F4F6" }}
+          style={{ height: fillHeight ? "100%" : height, minHeight: height, width: "100%", background: "#F3F4F6" }}
           aria-label="Deutschlandkarte der eingereichten Objekte"
         />
         <aside
@@ -247,7 +268,7 @@ export function PropertyMapWidget() {
             borderLeft: "1px solid var(--border, #E5E7EB)",
             padding: "12px 14px",
             overflowY: "auto",
-            maxHeight: 480,
+            maxHeight: fillHeight ? "none" : height,
             fontSize: 12,
           }}
         >
@@ -353,8 +374,8 @@ function groupMarkersByStatus(markers: Marker[]): Record<string, number> {
 }
 
 function labelForModel(model: string): string {
-  if (model === "sale_and_leaseback") return "Rückmiete";
-  if (model === "fixed_residential_right") return "Befristetes Wohnrecht";
+  if (model === "sale_and_leaseback") return "Rückmietverkauf";
+  if (model === "fixed_residential_right") return "Wohnrecht";
   return model;
 }
 
