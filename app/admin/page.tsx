@@ -2,6 +2,8 @@ import { FrontendPrototypeClient } from "@/components/prototype/FrontendPrototyp
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 function searchParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }

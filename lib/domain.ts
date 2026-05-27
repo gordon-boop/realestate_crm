@@ -250,7 +250,6 @@ export type Property = {
   serviceChargeInfoRequested?: boolean;
   propertyTaxInfoAvailable?: boolean;
   propertyFileComplete?: boolean;
-  portfolioTransferCompletedAt?: string;
   residentStaysInProperty?: boolean;
   residentName?: string;
   usageModel?: UsageModel;

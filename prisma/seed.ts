@@ -18,10 +18,13 @@ import {
   ValuationProvider,
   ValuationStatus
 } from "@prisma/client";
+import { hashPassword } from "../lib/password.ts";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const demoPasswordHash = await hashPassword("demo1234");
+
   await prisma.$executeRawUnsafe(`
     UPDATE "partners"
     SET "id" = 'partner_heimwert'
@@ -85,12 +88,12 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@demo.local" },
-    update: { name: "Admin Demo", role: UserRole.admin, internalRole: InternalUserRole.super_admin },
+    update: { name: "Admin Demo", passwordHash: demoPasswordHash, role: UserRole.admin, internalRole: InternalUserRole.super_admin },
     create: {
       id: "user_admin",
       name: "Admin Demo",
       email: "admin@demo.local",
-      passwordHash: "demo1234",
+      passwordHash: demoPasswordHash,
       role: UserRole.admin,
       internalRole: InternalUserRole.super_admin
     }
@@ -98,12 +101,12 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: "mitarbeiter@demo.local" },
-    update: { name: "Mitarbeiter Demo", role: UserRole.admin, internalRole: InternalUserRole.employee },
+    update: { name: "Mitarbeiter Demo", passwordHash: demoPasswordHash, role: UserRole.admin, internalRole: InternalUserRole.employee },
     create: {
       id: "user_employee",
       name: "Mitarbeiter Demo",
       email: "mitarbeiter@demo.local",
-      passwordHash: "demo1234",
+      passwordHash: demoPasswordHash,
       role: UserRole.admin,
       internalRole: InternalUserRole.employee
     }
@@ -111,12 +114,12 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: "berater@demo.local" },
-    update: { name: "Kundenberater Demo", role: UserRole.admin, internalRole: InternalUserRole.advisor },
+    update: { name: "Kundenberater Demo", passwordHash: demoPasswordHash, role: UserRole.admin, internalRole: InternalUserRole.advisor },
     create: {
       id: "user_advisor",
       name: "Kundenberater Demo",
       email: "berater@demo.local",
-      passwordHash: "demo1234",
+      passwordHash: demoPasswordHash,
       role: UserRole.admin,
       internalRole: InternalUserRole.advisor
     }
@@ -124,13 +127,13 @@ async function main() {
 
   const partnerUser = await prisma.user.upsert({
     where: { email: "makler@demo.local" },
-    update: { partnerId: partner.id, name: "Mara Seidel", role: UserRole.partner },
+    update: { partnerId: partner.id, name: "Mara Seidel", passwordHash: demoPasswordHash, role: UserRole.partner },
     create: {
       id: "user_partner",
       partnerId: partner.id,
       name: "Mara Seidel",
       email: "makler@demo.local",
-      passwordHash: "demo1234",
+      passwordHash: demoPasswordHash,
       role: UserRole.partner
     }
   });

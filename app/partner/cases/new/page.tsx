@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
+import { AppShell } from "@/components/layout/AppShell";
 import { NewCaseForm } from "@/components/NewCaseForm";
 import { getCurrentUser } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 
 export default function NewPartnerCasePage() {
   const user = getCurrentUser();

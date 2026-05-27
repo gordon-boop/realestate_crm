@@ -4,6 +4,7 @@ import type { DesiredModel } from "@/lib/domain";
 import { calculateOffer } from "@/lib/offer-calculator";
 import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, toPrismaJson, updateDbPropertyStatus } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
+import { nextSequenceValue } from "@/lib/sequence";
 
 type CalculateOfferBody = {
   model?: DesiredModel;
@@ -110,7 +111,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
         }
       : calculation.assumptions;
 
-    const offerNumber = `ANG-2026-${String((await prisma.offer.count()) + 1).padStart(4, "0")}`;
+    const year = new Date().getFullYear();
+    const offerNumber = `ANG-${year}-${String(await nextSequenceValue(`offer:${year}`)).padStart(4, "0")}`;
     const offer = await prisma.offer.create({
       data: {
         propertyId: params.id,

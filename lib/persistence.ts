@@ -128,7 +128,6 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     serviceChargeInfoRequested: property.serviceChargeInfoRequested,
     propertyTaxInfoAvailable: property.propertyTaxInfoAvailable,
     propertyFileComplete: property.propertyFileComplete,
-    portfolioTransferCompletedAt: iso(property.portfolioTransferCompletedAt),
     residentStaysInProperty: property.residentStaysInProperty,
     residentName: property.residentName ?? undefined,
     usageModel: property.usageModel ?? undefined,
@@ -824,11 +823,11 @@ export async function advanceDbAcquisitionWorkflow(
     binding_offer_sent: { status: "BINDING_OFFER_SENT", data: { bindingOfferSentAt: bindingSentDate }, type: "binding_offer_sent", message: `Verbindliches Angebot abgegeben am ${formatActivityDate(bindingSentDate)} erfasst.` },
     binding_offer_accepted: { status: "BINDING_OFFER_ACCEPTED", data: { bindingOfferAcceptedAt: bindingAcceptedDate }, type: "binding_offer_accepted", message: `Kunde hat das verbindliche Angebot am ${formatActivityDate(bindingAcceptedDate)} angenommen.` },
     notary_appointment_ordered: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: notaryDate, notaryOffice }, type: "notary_appointment_ordered", message: `Notartermin wurde vereinbart${notaryOffice ? `: ${notaryOffice}` : "."}` },
-    contract_signed: { status: "IN_PORTFOLIO", data: { purchasedAt: now, portfolioEnteredAt: now, portfolioTransferCompletedAt: now }, type: "contract_signed", message: "Kaufvertrag wurde unterschrieben. Die interne Bestandsübernahme wurde vorbereitet." },
+    contract_signed: { status: "IN_PORTFOLIO", data: { purchasedAt: now, portfolioEnteredAt: now }, type: "contract_signed", message: "Kaufvertrag wurde unterschrieben. Die interne Bestandsübernahme wurde vorbereitet." },
     purchase_started: { status: "PURCHASE_STARTED", data: { purchaseStartedAt: now }, type: "purchase_started", message: "Ankaufsprozess wurde gestartet." },
     notary_appointment: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: now }, type: "notary_appointment", message: "Notartermin wurde vereinbart." },
     purchased: { status: "PURCHASED", data: { purchasedAt: now }, type: "property_purchased", message: "Immobilie wurde angekauft." },
-    enter_portfolio: { status: "IN_PORTFOLIO", data: { portfolioEnteredAt: now, portfolioTransferCompletedAt: now }, type: "portfolio_entered", message: "Objekt wurde in die Bestandsverwaltung übernommen." }
+    enter_portfolio: { status: "IN_PORTFOLIO", data: { portfolioEnteredAt: now }, type: "portfolio_entered", message: "Objekt wurde in die Bestandsverwaltung übernommen." }
   }[action];
 
   const property = await prisma.property.update({
@@ -858,7 +857,7 @@ export async function resetDbAcquisitionWorkflow(
     { status: "BINDING_OFFER_ACCEPTED", keys: ["bindingOfferAcceptedAt"] },
     { status: "PURCHASE_STARTED", keys: ["purchaseStartedAt"] },
     { status: "NOTARY_APPOINTMENT", keys: ["notaryAppointmentAt", "notaryOffice"] },
-    { status: "IN_PORTFOLIO", keys: ["purchasedAt", "portfolioEnteredAt", "portfolioTransferCompletedAt"] }
+    { status: "IN_PORTFOLIO", keys: ["purchasedAt", "portfolioEnteredAt"] }
   ] as const;
 
   const targetIndex = workflowDateKeys.findIndex((item) => item.status === targetStatus);
@@ -881,8 +880,7 @@ export async function resetDbAcquisitionWorkflow(
     notaryAppointmentAt: current.notaryAppointmentAt,
     notaryOffice: current.notaryOffice,
     purchasedAt: current.purchasedAt,
-    portfolioEnteredAt: current.portfolioEnteredAt,
-    portfolioTransferCompletedAt: current.portfolioTransferCompletedAt
+    portfolioEnteredAt: current.portfolioEnteredAt
   };
 
   const property = await prisma.property.update({

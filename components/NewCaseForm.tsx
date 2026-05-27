@@ -195,7 +195,7 @@ export function NewCaseForm() {
       });
     }
 
-    window.location.href = `/partner/cases/${propertyResult.property.id}`;
+    window.location.href = `/partner?case=${encodeURIComponent(propertyResult.property.id)}&tab=kunde`;
   }
 
   return (

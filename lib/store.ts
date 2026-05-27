@@ -17,6 +17,15 @@
 } from "./domain.ts";
 import { makeId, nowIso } from "./id.ts";
 
+const runtimeStoreEnabled = process.env.WK_ENABLE_RUNTIME_STORE === "true";
+const runtimeStoreDisabledMessage = "Runtime store disabled in production. Set WK_ENABLE_RUNTIME_STORE=true to enable.";
+
+function assertRuntimeStoreEnabled(): void {
+  if (!runtimeStoreEnabled) {
+    throw new Error(runtimeStoreDisabledMessage);
+  }
+}
+
 const stamp = nowIso();
 
 const partners: Partner[] = [
@@ -386,30 +395,33 @@ const chatMessages: ChatMessage[] = [
 ];
 
 export const store = {
-  partners,
-  users,
-  customers,
-  properties,
-  documents,
-  leads,
-  valuations,
-  offers,
-  offerVersions,
-  reminders,
-  activities,
-  activityVersions,
-  chatMessages
+  partners: runtimeStoreEnabled ? partners : [],
+  users: runtimeStoreEnabled ? users : [],
+  customers: runtimeStoreEnabled ? customers : [],
+  properties: runtimeStoreEnabled ? properties : [],
+  documents: runtimeStoreEnabled ? documents : [],
+  leads: runtimeStoreEnabled ? leads : [],
+  valuations: runtimeStoreEnabled ? valuations : [],
+  offers: runtimeStoreEnabled ? offers : [],
+  offerVersions: runtimeStoreEnabled ? offerVersions : [],
+  reminders: runtimeStoreEnabled ? reminders : [],
+  activities: runtimeStoreEnabled ? activities : [],
+  activityVersions: runtimeStoreEnabled ? activityVersions : [],
+  chatMessages: runtimeStoreEnabled ? chatMessages : []
 };
 
 export function findUserByEmail(email: string): User | undefined {
+  if (!runtimeStoreEnabled) return undefined;
   return users.find((user) => user.email.toLowerCase() === email.toLowerCase());
 }
 
 export function findUserById(id: string): User | undefined {
+  if (!runtimeStoreEnabled) return undefined;
   return users.find((user) => user.id === id);
 }
 
 export function upsertRuntimeUser(user: User): User {
+  assertRuntimeStoreEnabled();
   const existingIndex = users.findIndex((item) => item.id === user.id);
   if (existingIndex >= 0) {
     users[existingIndex] = user;
@@ -420,6 +432,7 @@ export function upsertRuntimeUser(user: User): User {
 }
 
 export function getCases(): CaseView[] {
+  if (!runtimeStoreEnabled) return [];
   return properties.map((property) => {
     const customer = customers.find((item) => item.id === property.customerId);
     const partner = partners.find((item) => item.id === property.partnerId);
@@ -458,6 +471,7 @@ export function addActivity(
   message: string,
   options: Partial<Pick<Activity, "source" | "entityType" | "entityId" | "metadata" | "previousActivityId">> = {}
 ): Activity {
+  assertRuntimeStoreEnabled();
   const activity: Activity = {
     id: makeId("act"),
     propertyId,
@@ -483,6 +497,7 @@ export function addActivity(
 }
 
 export function updatePropertyStatus(propertyId: string, status: PropertyStatus): Property {
+  assertRuntimeStoreEnabled();
   const property = properties.find((item) => item.id === propertyId);
   if (!property) {
     throw new Error("Property not found");
@@ -499,6 +514,7 @@ export function advanceAcquisitionWorkflow(
   userId: string,
   options: { expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; notaryAppointmentAt?: string; notaryOffice?: string } = {}
 ): Property {
+  assertRuntimeStoreEnabled();
   const property = properties.find((item) => item.id === propertyId);
   if (!property) {
     throw new Error("Property not found");
@@ -555,7 +571,7 @@ export function advanceAcquisitionWorkflow(
     },
     contract_signed: {
       status: "IN_PORTFOLIO" as const,
-      data: { purchasedAt: now, portfolioEnteredAt: now, portfolioTransferCompletedAt: now },
+      data: { purchasedAt: now, portfolioEnteredAt: now },
       type: "contract_signed",
       message: "Kaufvertrag wurde unterschrieben. Die interne Bestandsübernahme wurde vorbereitet."
     },
@@ -579,7 +595,7 @@ export function advanceAcquisitionWorkflow(
     },
     enter_portfolio: {
       status: "IN_PORTFOLIO" as const,
-      data: { portfolioEnteredAt: now, portfolioTransferCompletedAt: now },
+      data: { portfolioEnteredAt: now },
       type: "portfolio_entered",
       message: "Objekt wurde in die Bestandsverwaltung übernommen."
     }
@@ -597,14 +613,17 @@ export function advanceAcquisitionWorkflow(
 }
 
 export function nextOfferNumber(): string {
+  assertRuntimeStoreEnabled();
   return `ANG-2026-${String(offers.length + 1).padStart(4, "0")}`;
 }
 
 export function nextLeadNumber(): string {
+  assertRuntimeStoreEnabled();
   return `LD-2026-${String(leads.length + 1).padStart(3, "0")}`;
 }
 
 export function nextCaseNumber(): string {
+  assertRuntimeStoreEnabled();
   return `WK-2026-${String(properties.length + 15).padStart(3, "0")}`;
 }
 
@@ -627,6 +646,7 @@ function splitLeadName(lead: Lead): { firstName: string; lastName: string; displ
 }
 
 export function convertLeadToCase(leadId: string, partnerId: string, userId: string): CaseView {
+  assertRuntimeStoreEnabled();
   const lead = leads.find((item) => item.id === leadId);
   if (!lead) throw new Error("Lead not found");
   if (lead.status === "CONVERTED") throw new Error("Lead already converted");
@@ -711,6 +731,7 @@ function propertyTypeToTitle(type?: Lead["propertyType"]): string {
 }
 
 export function saveOfferVersion(offer: Offer, createdByUserId?: string): OfferVersion {
+  assertRuntimeStoreEnabled();
   const version: OfferVersion = {
     id: makeId("ofv"),
     offerId: offer.id,
@@ -724,6 +745,7 @@ export function saveOfferVersion(offer: Offer, createdByUserId?: string): OfferV
 }
 
 export function saveActivityVersion(activity: Activity, createdByUserId?: string): ActivityVersion {
+  assertRuntimeStoreEnabled();
   const version: ActivityVersion = {
     id: makeId("acv"),
     activityId: activity.id,
@@ -743,6 +765,7 @@ export function createReminder(input: {
   reason: string;
   dueAt: string;
 }): Reminder {
+  assertRuntimeStoreEnabled();
   const now = nowIso();
   const reminder: Reminder = {
     id: makeId("rem"),
@@ -766,6 +789,7 @@ export function createReminder(input: {
 }
 
 export function completeOpenReminders(propertyId: string, completedByUserId: string): Reminder[] {
+  assertRuntimeStoreEnabled();
   const now = nowIso();
   const completed = reminders.filter((item) => item.propertyId === propertyId && item.status === "open");
   completed.forEach((reminder) => {

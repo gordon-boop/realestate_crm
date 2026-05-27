@@ -277,6 +277,7 @@ export const propertyRejectSchema = z.object({
 export const portfolioUpdateSchema = z.object({
   purchaseContractNumber: optionalString,
   purchaseContractSignedAt: optionalString,
+  portfolioEnteredAt: optionalString,
   purchasePrice: optionalNumber,
   payoutPaidAt: optionalString,
   ownershipTransferAt: optionalString,
@@ -300,7 +301,6 @@ export const portfolioUpdateSchema = z.object({
   serviceChargeInfoRequested: z.boolean().optional(),
   propertyTaxInfoAvailable: z.boolean().optional(),
   propertyFileComplete: z.boolean().optional(),
-  portfolioTransferCompletedAt: optionalString,
   residentStaysInProperty: z.boolean().optional(),
   residentName: optionalString,
   usageModel: z.enum(["fixed_residential_right", "lifelong_residential_right", "usufruct", "sale_and_leaseback", "other"]).optional(),

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { error, handleApiError } from "@/lib/api";
 import { sendRegistrationConfirmationEmailStub } from "@/lib/email";
+import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { buildRegistrationConfirmationUrl, validatePartnerRegistrationInput } from "@/lib/registration";
 
@@ -32,6 +33,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const token = randomBytes(32).toString("hex");
+    const passwordHash = await hashPassword(input.password);
     const registration = await prisma.$transaction(async (tx) => {
       const partner = existingRegistration?.partnerId
         ? await tx.partner.update({
@@ -61,7 +63,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             data: {
               partnerId: partner.id,
               name: input.contactName,
-              passwordHash: input.password
+              passwordHash
             }
           })
         : await tx.user.create({
@@ -69,7 +71,7 @@ export async function POST(request: Request): Promise<NextResponse> {
               partnerId: partner.id,
               name: input.contactName,
               email: input.email,
-              passwordHash: input.password,
+              passwordHash,
               role: "partner"
             }
           });
@@ -82,7 +84,7 @@ export async function POST(request: Request): Promise<NextResponse> {
               contactName: input.contactName,
               phone: input.phone,
               address: input.address,
-              passwordHash: input.password,
+              passwordHash,
               emailConfirmationToken: token,
               status: "email_pending",
               partnerId: partner.id,
@@ -96,7 +98,7 @@ export async function POST(request: Request): Promise<NextResponse> {
               email: input.email,
               phone: input.phone,
               address: input.address,
-              passwordHash: input.password,
+              passwordHash,
               emailConfirmationToken: token,
               partnerId: partner.id,
               userId: user.id

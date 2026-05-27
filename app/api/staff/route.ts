@@ -1,4 +1,5 @@
 import { handleApiError, json, requireInternalRole, requireRole } from "@/lib/api";
+import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { staffCreateSchema } from "@/lib/validation";
 
@@ -40,11 +41,12 @@ export async function POST(request: Request): Promise<Response> {
   try {
     requireInternalRole("super_admin");
     const body = staffCreateSchema.parse(await request.json());
+    const passwordHash = await hashPassword(body.password);
     const staff = await prisma.user.create({
       data: {
         name: body.name,
         email: body.email,
-        passwordHash: body.password,
+        passwordHash,
         role: "admin",
         internalRole: body.internalRole
       }

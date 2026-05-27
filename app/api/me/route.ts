@@ -1,6 +1,8 @@
 import { getCurrentUser } from "@/lib/auth";
 import { json } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 export function GET(): Response {
   const user = getCurrentUser();
 

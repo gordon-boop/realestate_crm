@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/AppShell";
+import { AppShell } from "@/components/layout/AppShell";
 import { ConfirmRegistration } from "@/components/ConfirmRegistration";
 
 export default function ConfirmRegistrationPage({ searchParams }: { searchParams: { token?: string } }) {

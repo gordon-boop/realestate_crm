@@ -3,6 +3,8 @@ import { handleApiError, json, requireRole } from "@/lib/api";
 import { createDbLead, getDbLeads } from "@/lib/persistence";
 import { leadCreateSchema } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(): Promise<Response> {
   try {
     const user = requireRole("admin", "partner");

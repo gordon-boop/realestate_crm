@@ -33,6 +33,10 @@ Demo-Logins:
 - Admin: `admin@demo.local` / `demo1234`
 - Partner: `makler@demo.local` / `demo1234`
 
+## Passwort-Migration
+
+Die Migration `20260601_password_migration` invalidiert einmalig bestehende Klartext-Passwörter und setzt sie auf `NEEDS_RESET`. Bestehende Nutzer müssen danach einen Passwort-Reset durchlaufen oder ein neues gehashtes Passwort erhalten. Das Seed-Script vergibt für die Demo-User neue bcrypt-Hashes für `demo1234`.
+
 ## Wichtige Pfade
 
 - Prisma Schema: `prisma/schema.prisma`

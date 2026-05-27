@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/AppShell";
+import { AppShell } from "@/components/layout/AppShell";
 import { LoginForm } from "@/components/LoginForm";
 import Link from "next/link";
 

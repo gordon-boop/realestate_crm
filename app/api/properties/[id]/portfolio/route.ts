@@ -59,7 +59,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         serviceChargeInfoRequested: body.serviceChargeInfoRequested ?? false,
         propertyTaxInfoAvailable: body.propertyTaxInfoAvailable ?? false,
         propertyFileComplete: body.propertyFileComplete ?? false,
-        portfolioTransferCompletedAt: dateOrNull(body.portfolioTransferCompletedAt),
+        portfolioEnteredAt: dateOrNull(body.portfolioEnteredAt),
         residentStaysInProperty: body.residentStaysInProperty ?? true,
         residentName: body.residentName ?? null,
         usageModel: body.usageModel ?? null,

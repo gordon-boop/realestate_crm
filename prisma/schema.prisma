@@ -356,6 +356,14 @@ model BrokerRegistration {
   @@map("broker_registrations")
 }
 
+model NumberSequence {
+  key       String   @id
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("number_sequences")
+}
+
 model Customer {
   id                    String    @id @default(cuid())
   partnerId             String?   @map("partner_id")
@@ -507,7 +515,6 @@ model Property {
   serviceChargeInfoRequested   Boolean           @default(false) @map("service_charge_info_requested")
   propertyTaxInfoAvailable     Boolean           @default(false) @map("property_tax_info_available")
   propertyFileComplete         Boolean           @default(false) @map("property_file_complete")
-  portfolioTransferCompletedAt DateTime?         @map("portfolio_transfer_completed_at")
   residentStaysInProperty      Boolean           @default(true) @map("resident_stays_in_property")
   residentName                 String?           @map("resident_name")
   usageModel                   UsageModel?       @map("usage_model")

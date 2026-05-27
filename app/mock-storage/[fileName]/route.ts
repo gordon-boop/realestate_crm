@@ -14,6 +14,10 @@ const contentTypes: Record<string, string> = {
 };
 
 export async function GET(_request: Request, { params }: { params: { fileName: string } }) {
+  if (process.env.WK_ENABLE_MOCK_STORAGE !== "true") {
+    return new Response("Not found", { status: 404 });
+  }
+
   const safeName = basename(params.fileName);
   if (!safeName || safeName !== params.fileName) {
     return new Response("Invalid file name", { status: 400 });

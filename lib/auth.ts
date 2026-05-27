@@ -1,17 +1,12 @@
-import { cookies } from "next/headers";
 import type { User } from "./domain.ts";
+export { verifyPassword } from "./password.ts";
+export { sessionCookieName } from "./session.ts";
+import { readSessionSync } from "./session.ts";
 import { findUserById } from "./store.ts";
 
-export const sessionCookieName = "mvp_session_user";
-
-export function verifyPassword(plainText: string, passwordHash: string): boolean {
-  return plainText === passwordHash;
-}
-
 export function getCurrentUser(): User | undefined {
-  const cookieStore = cookies();
-  const userId = cookieStore.get(sessionCookieName)?.value;
-  return userId ? findUserById(userId) : undefined;
+  const session = readSessionSync();
+  return session ? findUserById(session.userId) : undefined;
 }
 
 export function requireCurrentUser(): User {

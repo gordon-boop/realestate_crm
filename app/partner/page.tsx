@@ -5,6 +5,8 @@ import { absoluteUrl } from "@/lib/site-content";
 import { redirect } from "next/navigation";
 import { PublicPartnerPage } from "./PublicPartnerPage";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Partner werden | WohnKapital",
   description:

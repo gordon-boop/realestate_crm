@@ -817,7 +817,7 @@ function labelFrom(map, value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : (map[value] || value);
 }
 
-const caseTabKeys = ['kunde', 'objekt', 'indag', 'verbag', 'bestand', 'verwertung', 'doks', 'chat', 'aufgaben'];
+const caseTabKeys = ['kunde', 'objekt', 'indag', 'verbag', 'vertragsabwicklung', 'vertragsvollzug', 'bestand', 'verwertung', 'doks', 'chat', 'aufgaben'];
 const caseTabAliases = {
   customer: 'kunde',
   kunde: 'kunde',
@@ -833,6 +833,13 @@ const caseTabAliases = {
   unverbindliches_angebot: 'indag',
   binding_offer: 'verbag',
   verbindliches_angebot: 'verbag',
+  purchase_processing: 'vertragsabwicklung',
+  'purchase-processing': 'vertragsabwicklung',
+  kaufvertragsabwicklung: 'vertragsabwicklung',
+  vertragsabwicklung: 'vertragsabwicklung',
+  contract_closing: 'vertragsvollzug',
+  'contract-closing': 'vertragsvollzug',
+  vertragsvollzug: 'vertragsvollzug',
   portfolio: 'bestand',
   bestand: 'bestand',
   exit: 'verwertung',
@@ -2053,7 +2060,7 @@ function portfolioFormFromProperty(property = {}) {
     serviceChargeInfoRequested: Boolean(property.serviceChargeInfoRequested),
     propertyTaxInfoAvailable: Boolean(property.propertyTaxInfoAvailable),
     propertyFileComplete: Boolean(property.propertyFileComplete),
-    portfolioTransferCompletedAt: dateInputValue(property.portfolioTransferCompletedAt || property.portfolioEnteredAt),
+    portfolioEnteredAt: dateInputValue(property.portfolioEnteredAt),
     residentStaysInProperty: property.residentStaysInProperty !== false,
     residentName: property.residentName || '',
     usageModel: property.usageModel || (property.desiredModel === 'sale_and_leaseback' ? 'sale_and_leaseback' : 'fixed_residential_right'),
@@ -2140,7 +2147,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   const inventoryCases = cases.filter((item) => portfolioStatuses.includes(item.status));
   const contractClosingCases = inventoryCases.filter((item) => {
     const property = item.raw?.property || {};
-    return !property.purchasePricePaidAt || !property.residentialRightRegisteredAt || !property.propertyFileComplete || !property.portfolioTransferCompletedAt;
+    return !property.purchasePricePaidAt || !property.residentialRightRegisteredAt || !property.propertyFileComplete || !property.portfolioEnteredAt;
   });
   const exitSaleCases = inventoryCases.filter((item) => {
     const exitProcess = item.raw?.property?.exitProcess || {};
@@ -2157,7 +2164,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
       cases: purchaseProcessingCases,
       icon: Briefcase,
       tone: theme.aubergine,
-      tab: 'bestand',
+      tab: 'vertragsabwicklung',
     },
     {
       key: 'contract-closing',
@@ -2166,7 +2173,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
       cases: contractClosingCases,
       icon: Calendar,
       tone: theme.oliv,
-      tab: 'bestand',
+      tab: 'vertragsvollzug',
     },
     {
       key: 'inventory-management',
@@ -2197,7 +2204,10 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   };
   const targetTabForCase = (item) => {
     if (activeBucketDefinition?.tab) return activeBucketDefinition.tab;
-    if (phaseForCase(item) === 'Verwertung nach Wohnrechtsende') return 'verwertung';
+    const phase = phaseForCase(item);
+    if (phase === 'Kaufvertragsabwicklung') return 'vertragsabwicklung';
+    if (phase === 'Vertragsvollzug') return 'vertragsvollzug';
+    if (phase === 'Verwertung nach Wohnrechtsende') return 'verwertung';
     return 'bestand';
   };
   const dueDateForCase = (item) => {
@@ -3285,7 +3295,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       serviceChargeInfoRequested: portfolioForm.serviceChargeInfoRequested,
       propertyTaxInfoAvailable: portfolioForm.propertyTaxInfoAvailable,
       propertyFileComplete: portfolioForm.propertyFileComplete,
-      portfolioTransferCompletedAt: portfolioForm.portfolioTransferCompletedAt,
+      portfolioEnteredAt: portfolioForm.portfolioEnteredAt,
       residentStaysInProperty: portfolioForm.residentStaysInProperty,
       residentName: portfolioForm.residentName,
       usageModel: portfolioForm.usageModel,
@@ -3323,7 +3333,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     { id: 'objekt', label: 'Objekt' },
     { id: 'indag', label: 'Unverbindliches Angebot' },
     { id: 'verbag', label: 'Verbindliches Angebot' },
-    ...(role === 'admin' ? [{ id: 'bestand', label: 'Bestand' }, { id: 'verwertung', label: 'Verwertung' }] : []),
+    ...(role === 'admin' ? [
+      { id: 'vertragsabwicklung', label: 'Kaufvertragsabwicklung' },
+      { id: 'vertragsvollzug', label: 'Vertragsvollzug' },
+      { id: 'bestand', label: 'Bestand' },
+      { id: 'verwertung', label: 'Verwertung' },
+    ] : []),
     { id: 'doks', label: 'Objektunterlagen' },
     { id: 'chat', label: 'Chatverlauf' },
     ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben' }] : []),
@@ -3603,27 +3618,21 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             </div>
           )}
 
-          {activeTab === 'bestand' && (
+          {activeTab === 'vertragsabwicklung' && role === 'admin' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Bestandsübernahme</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Vertragsvollzug, Bewohnerverwaltung und laufende Bestandsverwaltung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Kaufvertragsabwicklung</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Verbindliches Angebot, Notartermin und Kaufvertragsentwurf</div>
                 </div>
                 <StatusBadge status={property?.status || 'DRAFT'} />
               </div>
               <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
-                {property?.status !== 'IN_PORTFOLIO' && property?.status !== 'WON' && property?.status !== 'PURCHASED' ? (
-                  <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '11px 13px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
-                    Die Bestandsakte wird vollständig relevant, sobald der Kaufvertrag abgeschlossen wurde. Daten können intern bereits vorbereitet werden.
-                  </div>
-                ) : null}
-
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   {[
-                    ['Bestandsübernahme', formatDate(property?.portfolioTransferCompletedAt || property?.portfolioEnteredAt)],
-                    ['Kaufpreis', property?.purchasePrice ? formatEuro(property.purchasePrice) : '-'],
-                    ['Kaufpreis gezahlt', formatDate(property?.purchasePricePaidAt || property?.payoutPaidAt)],
+                    ['VA abgegeben', formatDate(property?.bindingOfferSentAt)],
+                    ['VA angenommen', formatDate(property?.bindingOfferAcceptedAt)],
+                    ['Notartermin', formatDate(property?.notaryAppointmentAt)],
                   ].map(([label, value]) => (
                     <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '11px 13px' }}>
                       <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
@@ -3646,6 +3655,40 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <Field label="Kaufpreis (€)"><Input type="number" value={portfolioForm.purchasePrice} onChange={(event) => updatePortfolioForm({ purchasePrice: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Frist / Wiedervorlage"><Input type="date" value={portfolioForm.nextPortfolioReviewAt} onChange={(event) => updatePortfolioForm({ nextPortfolioReviewAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
+                </div>
+
+                {canManagePortfolio ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={savePortfolioFile} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                      <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'Kaufvertragsdaten speichern'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'vertragsvollzug' && role === 'admin' && (
+            <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Vertragsvollzug</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Kaufpreisfälligkeit, Zahlung, Grundbuch und Wohnrechtseintragung</div>
+                </div>
+                <StatusBadge status={property?.status || 'DRAFT'} />
+              </div>
+              <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {[
+                    ['Kaufpreisfälligkeit', formatDate(property?.purchasePriceDueAt)],
+                    ['Kaufpreis gezahlt', formatDate(property?.purchasePricePaidAt || property?.payoutPaidAt)],
+                    ['Wohnrecht eingetragen', formatDate(property?.residentialRightRegisteredAt || property?.landRegisterEntryAt)],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '11px 13px' }}>
+                      <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+                      <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>{value}</div>
+                    </div>
+                  ))}
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
@@ -3674,10 +3717,50 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   </div>
                 </div>
 
+                {canManagePortfolio ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={savePortfolioFile} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                      <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'Vollzugsdaten speichern'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'bestand' && (
+            <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Bestandsübernahme</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Bewohnerverwaltung, Reparaturen und laufende Abrechnungsthemen</div>
+                </div>
+                <StatusBadge status={property?.status || 'DRAFT'} />
+              </div>
+              <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
+                {property?.status !== 'IN_PORTFOLIO' && property?.status !== 'WON' && property?.status !== 'PURCHASED' ? (
+                  <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '11px 13px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
+                    Die Bestandsakte wird vollständig relevant, sobald der Kaufvertrag abgeschlossen wurde. Daten können intern bereits vorbereitet werden.
+                  </div>
+                ) : null}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {[
+                    ['Bestandsübernahme', formatDate(property?.portfolioEnteredAt)],
+                    ['Bewohner', property?.residentName || property?.customer?.displayName || c.kunde || '-'],
+                    ['Nutzungsmodell', labelFrom(usageModelLabels, property?.usageModel || property?.desiredModel)],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '11px 13px' }}>
+                      <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+                      <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
                   <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Bestandsübernahme & Bewohnerverwaltung</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Objekt in Bestand übernommen am"><Input type="date" value={portfolioForm.portfolioTransferCompletedAt} onChange={(event) => updatePortfolioForm({ portfolioTransferCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Objekt in Bestand übernommen am"><Input type="date" value={portfolioForm.portfolioEnteredAt} onChange={(event) => updatePortfolioForm({ portfolioEnteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Bewohner bleibt im Objekt">
                       <input type="checkbox" checked={portfolioForm.residentStaysInProperty} onChange={(event) => updatePortfolioForm({ residentStaysInProperty: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>

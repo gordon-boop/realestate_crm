@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/AppShell";
+import { AppShell } from "@/components/layout/AppShell";
 import { RegisterForm } from "@/components/RegisterForm";
 
 export default function RegisterPage() {
