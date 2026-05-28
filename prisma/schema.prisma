@@ -689,6 +689,7 @@ model RatingCriterion {
   name        String
   description String?
   weight      Decimal          @db.Decimal(8, 4)
+  weightOverrides Json?        @map("weight_overrides")
   sourceType  RatingSourceType @map("source_type")
   required    Boolean          @default(false)
   active      Boolean          @default(true)
@@ -743,6 +744,7 @@ model RatingReturnCurve {
   baseTargetReturn  Decimal      @map("base_target_return") @db.Decimal(6, 4)
   lowerReturnBound  Decimal      @map("lower_return_bound") @db.Decimal(6, 4)
   upperReturnBound  Decimal      @map("upper_return_bound") @db.Decimal(6, 4)
+  returnRule         Json?        @map("return_rule")
 
   @@index([versionId])
   @@map("rating_return_curves")

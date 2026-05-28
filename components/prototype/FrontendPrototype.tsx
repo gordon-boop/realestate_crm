@@ -4154,7 +4154,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       )}
 
       {/* Tabs */}
-      <div style={{ background: 'white', borderBottom: `1px solid ${theme.border}`, padding: '0 28px', display: 'flex', gap: 4 }}>
+      <div style={{ background: 'white', borderBottom: `1px solid ${theme.border}`, padding: '0 28px', display: 'flex', gap: 4, alignItems: 'stretch', overflowX: 'auto' }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => {
             if (t.disabled) {
@@ -4168,8 +4168,22 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             fontSize: 13, fontWeight: 600,
             color: t.disabled ? `${theme.ink}55` : activeTab === t.id ? theme.aubergine : `${theme.ink}99`,
             borderBottom: activeTab === t.id ? `2px solid ${theme.aubergine}` : '2px solid transparent',
-            cursor: t.disabled ? 'not-allowed' : 'pointer', marginBottom: -1
-          }}>{t.label}</button>
+            cursor: t.disabled ? 'not-allowed' : 'pointer',
+            marginBottom: -1,
+            marginLeft: t.tool && !tabs[tabs.indexOf(t) - 1]?.tool ? 'auto' : 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            whiteSpace: 'nowrap',
+            borderLeft: t.tool && !tabs[tabs.indexOf(t) - 1]?.tool ? `1px solid ${theme.borderSoft}` : 'none',
+            backgroundColor: t.tool ? (activeTab === t.id ? `${theme.aubergine}0D` : theme.mintLighter) : 'transparent',
+          }}>
+            {t.icon ? <t.icon size={14} /> : null}
+            <span>{t.label}</span>
+            {t.badge ? (
+              <span style={{ background: activeTab === t.id ? theme.aubergine : `${theme.aubergine}18`, color: activeTab === t.id ? 'white' : theme.aubergine, fontSize: 10.5, fontWeight: 800, borderRadius: 10, padding: '1px 6px', lineHeight: 1.4 }}>{t.badge}</span>
+            ) : null}
+          </button>
         ))}
       </div>
 
@@ -4452,18 +4466,19 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             </div>
           )}
 
-          {activeTab === 'vertragsabwicklung' && role === 'admin' && (
+          {activeTab === 'kvabwicklung' && role === 'admin' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Kaufvertragsabwicklung</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Verbindliches Angebot, Notartermin und Kaufvertragsentwurf</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>KV-Abwicklung</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Von Gutachten und Notar bis Kaufpreiszahlung, Auszahlung und Grundbucheintragung</div>
                 </div>
                 <StatusBadge status={property?.status || 'DRAFT'} />
               </div>
               <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   {[
+                    ['Gutachten', property?.expertOpinionReceivedAt ? 'eingegangen' : property?.expertOpinionOrderedAt ? 'beauftragt' : 'offen'],
                     ['VA abgegeben', formatDate(property?.bindingOfferSentAt)],
                     ['VA angenommen', formatDate(property?.bindingOfferAcceptedAt)],
                     ['Notartermin', formatDate(property?.notaryAppointmentAt)],
@@ -4476,8 +4491,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Kaufvertragsabwicklung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Notar und Kaufvertrag</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Gutachten beauftragt am"><Input type="date" value={expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)} onChange={(event) => setExpertOpinionOrderedDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
+                    <Field label="Gutachtenfirma"><Input value={expertOpinionCompany || property?.expertOpinionCompany || ''} onChange={(event) => setExpertOpinionCompany(event.target.value)} readOnly={!canManageWorkflow} /></Field>
+                    <Field label="Gutachten eingegangen am"><Input type="date" value={expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)} onChange={(event) => setExpertOpinionReceivedDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
                     <Field label="Kaufvertragsnummer"><Input value={portfolioForm.purchaseContractNumber} onChange={(event) => updatePortfolioForm({ purchaseContractNumber: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Verbindliches Angebot abgegeben am"><Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
                     <Field label="Verbindliches Angebot angenommen am"><Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
@@ -4485,16 +4503,33 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <Field label="Notartermin bestätigt für"><Input type="date" value={notaryAppointmentDate || portfolioForm.notaryAppointmentAt} onChange={(event) => setNotaryAppointmentDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
                     <Field label="Kaufvertragsentwurf erhalten am"><Input type="date" value={portfolioForm.purchaseContractDraftReceivedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Kaufvertragsentwurf geprüft am"><Input type="date" value={portfolioForm.purchaseContractDraftReviewedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReviewedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Kaufvertrag unterschrieben am"><Input type="date" value={portfolioForm.purchaseContractSignedAt} onChange={(event) => updatePortfolioForm({ purchaseContractSignedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Kaufpreis (€)"><Input type="number" value={portfolioForm.purchasePrice} onChange={(event) => updatePortfolioForm({ purchasePrice: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Frist / Wiedervorlage"><Input type="date" value={portfolioForm.nextPortfolioReviewAt} onChange={(event) => updatePortfolioForm({ nextPortfolioReviewAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
                 </div>
 
+                <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Vollzug, Zahlung und Grundbuch</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <Field label="Kaufvertrag unterschrieben am"><Input type="date" value={portfolioForm.purchaseContractSignedAt} onChange={(event) => updatePortfolioForm({ purchaseContractSignedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Auflassungsvormerkung eingetragen am"><Input type="date" value={portfolioForm.priorityNoticeRegisteredAt} onChange={(event) => updatePortfolioForm({ priorityNoticeRegisteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufpreisfälligkeit eingetreten am"><Input type="date" value={portfolioForm.purchasePriceDueAt} onChange={(event) => updatePortfolioForm({ purchasePriceDueAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufpreis gezahlt am"><Input type="date" value={portfolioForm.purchasePricePaidAt || portfolioForm.payoutPaidAt} onChange={(event) => updatePortfolioForm({ purchasePricePaidAt: event.target.value, payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Auszahlung erfolgt am"><Input type="date" value={portfolioForm.payoutPaidAt} onChange={(event) => updatePortfolioForm({ payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Wohnrecht eingetragen am"><Input type="date" value={portfolioForm.residentialRightRegisteredAt} onChange={(event) => updatePortfolioForm({ residentialRightRegisteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Grundbucheintragung abgeschlossen am"><Input type="date" value={portfolioForm.landRegisterEntryAt} onChange={(event) => updatePortfolioForm({ landRegisterEntryAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Vollzugsmeldung"><Input value={portfolioForm.transferNotice || ''} onChange={(event) => updatePortfolioForm({ transferNotice: event.target.value })} readOnly={!canManagePortfolio} placeholder="z.B. offen, gemeldet, abgeschlossen" /></Field>
+                    <Field label="Offene Punkte"><Input value={portfolioForm.closingOpenItems || ''} onChange={(event) => updatePortfolioForm({ closingOpenItems: event.target.value })} readOnly={!canManagePortfolio} placeholder="z.B. Fälligkeitsmitteilung, Grundbuchauszug" /></Field>
+                  </div>
+                  <Field label="Interne Kommentare">
+                    <textarea value={portfolioForm.contractClosingNotes || ''} onChange={(event) => updatePortfolioForm({ contractClosingNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '9px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: canManagePortfolio ? 'white' : theme.mintLighter }} />
+                  </Field>
+                </div>
+
                 {canManagePortfolio ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={savePortfolioFile} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                      <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'Kaufvertragsdaten speichern'}
+                      <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'KV-Abwicklung speichern'}
                     </button>
                   </div>
                 ) : null}
@@ -4566,7 +4601,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Bestandsübernahme</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Bestandsverwaltung</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Bewohnerverwaltung, Reparaturen und laufende Abrechnungsthemen</div>
                 </div>
                 <StatusBadge status={property?.status || 'DRAFT'} />
@@ -4916,7 +4951,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <MessageSquare size={15} style={{ color: theme.aubergine }} />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Chatverlauf</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Kommunikation</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {chatReturnTab && (

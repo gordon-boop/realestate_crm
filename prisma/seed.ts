@@ -8,6 +8,7 @@ import {
   OfferKind,
   OfferStatus,
   PartnerStatus,
+  Prisma,
   PrismaClient,
   PropertyCondition,
   PropertyStatus,
@@ -435,7 +436,7 @@ async function main() {
   await seedObjectRatingConfig(admin.id);
 }
 
-async function seedObjectRatingConfig(createdByUserId: string) {
+async function seedObjectRatingConfigLegacy(createdByUserId: string) {
   const version = await prisma.ratingVersion.upsert({
     where: { versionNumber: 1 },
     update: {
@@ -673,6 +674,475 @@ async function seedObjectRatingConfig(createdByUserId: string) {
     { id: "rating_curve_c_v1", ratingClass: "C", minScore: 3.5, maxScore: 4.49, baseTargetReturn: 0.08, lowerReturnBound: 0.075, upperReturnBound: 0.085 },
     { id: "rating_curve_d_v1", ratingClass: "D", minScore: 2.5, maxScore: 3.49, baseTargetReturn: 0.09, lowerReturnBound: 0.085, upperReturnBound: 0.095 },
     { id: "rating_curve_e_v1", ratingClass: "E", minScore: 1, maxScore: 2.49, baseTargetReturn: 0.105, lowerReturnBound: 0.095, upperReturnBound: 0.115 }
+  ];
+
+  for (const curve of returnCurves) {
+    await prisma.ratingReturnCurve.upsert({
+      where: { id: curve.id },
+      update: { versionId: version.id, ...curve },
+      create: { versionId: version.id, ...curve }
+    });
+  }
+}
+
+async function seedObjectRatingConfig(createdByUserId: string) {
+  const version = await prisma.ratingVersion.upsert({
+    where: { versionNumber: 1 },
+    update: {
+      active: true,
+      description: "Objektrating-Konfiguration gemaess Excel-Master: Auswertung, wirtschaftliche Faktoren, Mikrolage, Instandhaltung, Energieausweis und Immobilie."
+    },
+    create: {
+      id: "rating_version_1",
+      versionNumber: 1,
+      active: true,
+      description: "Objektrating-Konfiguration gemaess Excel-Master: Auswertung, wirtschaftliche Faktoren, Mikrolage, Instandhaltung, Energieausweis und Immobilie.",
+      createdByUserId
+    }
+  });
+
+  await prisma.ratingCategory.updateMany({ where: { versionId: version.id }, data: { active: false } });
+  await prisma.ratingCriterion.updateMany({ where: { versionId: version.id }, data: { active: false } });
+  await prisma.ratingFieldMapping.updateMany({ where: { versionId: version.id }, data: { active: false } });
+  await prisma.ratingReturnCurve.deleteMany({ where: { versionId: version.id } });
+
+  const categories = [
+    { id: "rating_cat_economics_v1", name: "Wirtschaftliche Faktoren", weight: 0.2 },
+    { id: "rating_cat_microlocation_v1", name: "Mikrolage", weight: 0.3 },
+    { id: "rating_cat_maintenance_v1", name: "Instandhaltungsaufwand", weight: 0.2 },
+    { id: "rating_cat_energy_v1", name: "Energieausweis", weight: 0.1 },
+    { id: "rating_cat_property_v1", name: "Immobilie", weight: 0.2 }
+  ];
+
+  for (const category of categories) {
+    await prisma.ratingCategory.upsert({
+      where: { id: category.id },
+      update: { versionId: version.id, name: category.name, weight: category.weight, active: true },
+      create: { ...category, versionId: version.id, active: true }
+    });
+  }
+
+  const genericScoreDefinitions = {
+    1: "stark negativ",
+    2: "negativ",
+    3: "unterdurchschnittlich",
+    4: "solide",
+    5: "gut",
+    6: "sehr gut"
+  };
+  const locationScoreDefinitions = {
+    1: "sehr schlecht",
+    2: "schlecht",
+    3: "maessig",
+    4: "mittel",
+    5: "gut",
+    6: "sehr gut"
+  };
+  const analystMapping = { type: "presence", presentScore: 4, missingScore: 2 };
+  const analystConfidence = { default: 0.45, missing: 0.2 };
+
+  type SeedCriterion = {
+    id: string;
+    categoryId: string;
+    name: string;
+    description: string;
+    weight: number;
+    weightOverrides?: Prisma.InputJsonObject;
+    sourceType: RatingSourceType;
+    sourceField: string;
+    mappingRule: Prisma.InputJsonObject;
+    confidenceRule: Prisma.InputJsonObject;
+    scoreDefinitions: Record<number, string>;
+  };
+
+  const criteria: SeedCriterion[] = [
+    {
+      id: "rating_crit_economics_purchase_power_v1",
+      categoryId: "rating_cat_economics_v1",
+      name: "Kaufkraft",
+      description: "Kaufkraftindex am Standort.",
+      weight: 0.2,
+      sourceType: RatingSourceType.api,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: { 1: "< 85", 2: "85 - 92", 3: "92 - 100", 4: "100 - 108", 5: "108 - 118", 6: "> 118" }
+    },
+    {
+      id: "rating_crit_economics_unemployment_rate_v1",
+      categoryId: "rating_cat_economics_v1",
+      name: "Arbeitslosenquote aktuell",
+      description: "Aktuelle Arbeitslosenquote am Standort.",
+      weight: 0.2,
+      sourceType: RatingSourceType.api,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: { 1: "> 8,5%", 2: "7,0 % bis < 8,5 %", 3: "5,5 % bis < 7,0 %", 4: "4,0 % bis < 5,5 %", 5: "3,0 % bis < 4,0 %", 6: "< 3,0%" }
+    },
+    {
+      id: "rating_crit_economics_unemployment_trend_v1",
+      categoryId: "rating_cat_economics_v1",
+      name: "Entwicklung der Arbeitslosenquote",
+      description: "Entwicklung der Arbeitslosenquote der letzten 5 Jahre.",
+      weight: 0.15,
+      sourceType: RatingSourceType.api,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: { 1: "stark steigend (> +1,5%)", 2: "steigend (+0,5 bis +1,5 %)", 3: "leicht steigend (0 bis +0,5 %-Punkte)", 4: "stabil (-0,5 % bis 0%)", 5: "leicht fallend (-0,5 % bis -1,5%)", 6: "stark fallend (< -1,5%)" }
+    },
+    {
+      id: "rating_crit_economics_migration_balance_v1",
+      categoryId: "rating_cat_economics_v1",
+      name: "Wanderungssaldo",
+      description: "Wanderungssaldo am Standort.",
+      weight: 0.2,
+      sourceType: RatingSourceType.api,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: { 1: "< -5", 2: "-5 bis -2", 3: "-2 bis 0", 4: "0 bis +2", 5: "+2 bis +5", 6: "> +5" }
+    },
+    {
+      id: "rating_crit_economics_population_trend_v1",
+      categoryId: "rating_cat_economics_v1",
+      name: "Bevoelkerungsentwicklung",
+      description: "Bevoelkerungsentwicklung ueber 10 Jahre.",
+      weight: 0.25,
+      sourceType: RatingSourceType.api,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: { 1: "< -10% in 10 Jahren", 2: "-5% bis -10% in 10 Jahren", 3: "-1% bis -5% in 10 Jahren", 4: "-1% bis +2% in 10 Jahren", 5: "+2% bis +6% in 10 Jahren", 6: "> +6% in 10 Jahren" }
+    },
+    {
+      id: "rating_crit_micro_public_transport_v1",
+      categoryId: "rating_cat_microlocation_v1",
+      name: "Anbindung oeffentlicher Nahverkehr",
+      description: "Qualitaet der OePNV-Anbindung in der Mikrolage.",
+      weight: 0.23,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: { ...locationScoreDefinitions, 6: "exzellent" }
+    },
+    {
+      id: "rating_crit_micro_individual_transport_v1",
+      categoryId: "rating_cat_microlocation_v1",
+      name: "Individualverkehr",
+      description: "Anbindung fuer den Individualverkehr.",
+      weight: 0.15,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: locationScoreDefinitions
+    },
+    {
+      id: "rating_crit_micro_infrastructure_v1",
+      categoryId: "rating_cat_microlocation_v1",
+      name: "Infrastruktur des Viertels",
+      description: "Restaurants, Einkauf, Schulen, Apotheken und Arztpraxen.",
+      weight: 0.27,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: locationScoreDefinitions
+    },
+    {
+      id: "rating_crit_micro_neighborhood_condition_v1",
+      categoryId: "rating_cat_microlocation_v1",
+      name: "Haeuserzustand der Nachbarschaft / Umgebung",
+      description: "Strassenbild und Zustand der direkten Umgebung.",
+      weight: 0.15,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: {
+        1: "sichtbarer Leerstand, starker Sanierungsstau",
+        2: "mehrere ungepflegte Objekte",
+        3: "gemischtes Strassenbild",
+        4: "ueberwiegend gepflegte Bebauung",
+        5: "hochwertige Wohnbebauung",
+        6: "Premiumumfeld mit sehr hoher Wohnqualitaet"
+      }
+    },
+    {
+      id: "rating_crit_micro_noise_emissions_v1",
+      categoryId: "rating_cat_microlocation_v1",
+      name: "Laermbelastung / Emissionen",
+      description: "Laerm- und Emissionsbelastung der Mikrolage.",
+      weight: 0.2,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.postalCode",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: {
+        1: "Einflugschneise, Autobahn, Hauptstrasse oder Bahnlinie",
+        2: "staerker befahrene Strasse, Autobahnabfahrt oder Gewerbe-/Industriegebiet",
+        3: "innerstaedtische Hauptstrasse, Bus- oder Strassenbahnlinien",
+        4: "ruhige Nebenstrasse nahe Hauptverkehrsader",
+        5: "ruhiges Wohngebiet mit Gruenflaechen in der Naehe",
+        6: "Vorort oder laendliche Gegend mit vielen Gruenflaechen"
+      }
+    },
+    {
+      id: "rating_crit_maintenance_heating_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Heizung / Waermeversorgung",
+      description: "Zustand und Modernitaet der Waermeversorgung.",
+      weight: 0.25,
+      weightOverrides: { house: 0.25, apartment: 0.2 },
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.heatingType",
+      mappingRule: { type: "presence", presentScore: 4, missingScore: 2 },
+      confidenceRule: { default: 0.45, missing: 0.2 },
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_maintenance_roof_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Dach",
+      description: "Zustand und Instandhaltungsbedarf des Dachs.",
+      weight: 0.15,
+      weightOverrides: { house: 0.15, apartment: 0.1 },
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_maintenance_flat_roof_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Flachdach",
+      description: "Zustand und Risiko bei Flachdachanteilen.",
+      weight: 0.15,
+      weightOverrides: { house: 0.15, apartment: 0.1 },
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_maintenance_facade_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Fassade",
+      description: "Zustand der Fassade.",
+      weight: 0.1,
+      weightOverrides: { house: 0.1, apartment: 0.1 },
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_maintenance_masonry_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Mauerwerk / Bauausfuehrung",
+      description: "Baukonstruktion, Mauerwerk und Ausfuehrungsqualitaet.",
+      weight: 0.1,
+      weightOverrides: { house: 0.1, apartment: 0.05 },
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_maintenance_bathrooms_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Sanitaer / Baeder",
+      description: "Zustand und Modernitaet von Sanitaer und Baedern.",
+      weight: 0.12,
+      weightOverrides: { house: 0.12, apartment: 0.2 },
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_maintenance_electrical_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Elektro",
+      description: "Zustand und Modernitaet der Elektroinstallation.",
+      weight: 0.13,
+      weightOverrides: { house: 0.13, apartment: 0.2 },
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_maintenance_windows_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Fenster",
+      description: "Zustand und Modernitaet der Fenster.",
+      weight: 0.15,
+      weightOverrides: { house: 0.15, apartment: 0.15 },
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_energy_certificate_class_v1",
+      categoryId: "rating_cat_energy_v1",
+      name: "Energieausweis",
+      description: "Energieeffizienzklasse aus dem Energieausweis.",
+      weight: 1,
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.energyClass",
+      mappingRule: { type: "enum", scores: { "A+": 6, A: 6, B: 6, C: 5, D: 4, E: 3, F: 2, G: 1, H: 1 }, defaultScore: 3 },
+      confidenceRule: { default: 0.8, missing: 0.25 },
+      scoreDefinitions: { 1: "G/H", 2: "F", 3: "E", 4: "D", 5: "C", 6: "A/B" }
+    },
+    {
+      id: "rating_crit_property_layout_v1",
+      categoryId: "rating_cat_property_v1",
+      name: "Grundriss / Funktionalitaet",
+      description: "Funktionalitaet und Marktgaengigkeit des Grundrisses.",
+      weight: 0.35,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_property_living_quality_v1",
+      categoryId: "rating_cat_property_v1",
+      name: "Wohngefuehl / Attraktivitaet",
+      description: "Subjektive Attraktivitaet und Wohngefuehl des Objekts.",
+      weight: 0.25,
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.visualConditionRating",
+      mappingRule: { type: "enum", scores: { very_bad: 1, bad: 2, medium: 3, moderate: 4, good: 5, very_good: 6 }, defaultScore: 4 },
+      confidenceRule: { default: 0.7, missing: 0.35 },
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_property_light_v1",
+      categoryId: "rating_cat_property_v1",
+      name: "Belichtung",
+      description: "Belichtung und Helligkeit des Objekts.",
+      weight: 0.2,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    },
+    {
+      id: "rating_crit_property_outdoor_area_v1",
+      categoryId: "rating_cat_property_v1",
+      name: "Aussenbereich",
+      description: "Qualitaet und Nutzbarkeit von Balkon, Terrasse, Garten oder Aussenflaechen.",
+      weight: 0.2,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.id",
+      mappingRule: analystMapping,
+      confidenceRule: analystConfidence,
+      scoreDefinitions: genericScoreDefinitions
+    }
+  ];
+
+  for (const criterion of criteria) {
+    await prisma.ratingCriterion.upsert({
+      where: { id: criterion.id },
+      update: {
+        versionId: version.id,
+        categoryId: criterion.categoryId,
+        name: criterion.name,
+        description: criterion.description,
+        weight: criterion.weight,
+        weightOverrides: criterion.weightOverrides ?? undefined,
+        sourceType: criterion.sourceType,
+        required: true,
+        active: true
+      },
+      create: {
+        id: criterion.id,
+        versionId: version.id,
+        categoryId: criterion.categoryId,
+        name: criterion.name,
+        description: criterion.description,
+        weight: criterion.weight,
+        weightOverrides: criterion.weightOverrides ?? undefined,
+        sourceType: criterion.sourceType,
+        required: true,
+        active: true
+      }
+    });
+
+    await prisma.ratingFieldMapping.upsert({
+      where: { id: `${criterion.id}_mapping` },
+      update: {
+        versionId: version.id,
+        criterionId: criterion.id,
+        sourceType: criterion.sourceType,
+        sourceField: criterion.sourceField,
+        mappingRule: criterion.mappingRule,
+        confidenceRule: criterion.confidenceRule,
+        active: true
+      },
+      create: {
+        id: `${criterion.id}_mapping`,
+        versionId: version.id,
+        criterionId: criterion.id,
+        sourceType: criterion.sourceType,
+        sourceField: criterion.sourceField,
+        mappingRule: criterion.mappingRule,
+        confidenceRule: criterion.confidenceRule,
+        active: true
+      }
+    });
+
+    for (const scoreValue of [1, 2, 3, 4, 5, 6]) {
+      const label = criterion.scoreDefinitions[scoreValue];
+      await prisma.ratingScoreDefinition.upsert({
+        where: { criterionId_scoreValue: { criterionId: criterion.id, scoreValue } },
+        update: { versionId: version.id, label, description: `${criterion.name}: ${label}` },
+        create: {
+          id: `${criterion.id}_score_${scoreValue}`,
+          versionId: version.id,
+          criterionId: criterion.id,
+          scoreValue,
+          label,
+          description: `${criterion.name}: ${label}`
+        }
+      });
+    }
+  }
+
+  const adjustmentBounds = { lower: -0.001, upper: 0.0025 };
+  const returnCurves: Array<{
+    id: string;
+    ratingClass: string;
+    minScore: number;
+    maxScore: number;
+    baseTargetReturn: number;
+    lowerReturnBound: number;
+    upperReturnBound: number;
+    returnRule: Prisma.InputJsonObject;
+  }> = [
+    { id: "rating_curve_no_regular_purchase_v1", ratingClass: "Kein Regelankauf", minScore: 0, maxScore: 2.49, baseTargetReturn: 0.1125, lowerReturnBound: 0.1125, upperReturnBound: 0.1125, returnRule: { type: "fixed", value: 0.1125 } },
+    { id: "rating_curve_e_v1", ratingClass: "E", minScore: 2.5, maxScore: 3, baseTargetReturn: 0.1125, lowerReturnBound: 0.1115, upperReturnBound: 0.115, returnRule: { type: "linear", minScore: 2.5, maxScore: 3, minReturn: 0.1125, maxReturn: 0.109, adjustmentBounds } },
+    { id: "rating_curve_d_v1", ratingClass: "D", minScore: 3.01, maxScore: 3.5, baseTargetReturn: 0.109, lowerReturnBound: 0.108, upperReturnBound: 0.1115, returnRule: { type: "linear", minScore: 3, maxScore: 3.5, minReturn: 0.109, maxReturn: 0.104, adjustmentBounds } },
+    { id: "rating_curve_c_v1", ratingClass: "C", minScore: 3.51, maxScore: 4, baseTargetReturn: 0.104, lowerReturnBound: 0.103, upperReturnBound: 0.1065, returnRule: { type: "linear", minScore: 3.5, maxScore: 4, minReturn: 0.104, maxReturn: 0.099, adjustmentBounds } },
+    { id: "rating_curve_b_minus_v1", ratingClass: "B-", minScore: 4.01, maxScore: 4.5, baseTargetReturn: 0.099, lowerReturnBound: 0.098, upperReturnBound: 0.1015, returnRule: { type: "linear", minScore: 4, maxScore: 4.5, minReturn: 0.099, maxReturn: 0.094, adjustmentBounds } },
+    { id: "rating_curve_b_v1", ratingClass: "B", minScore: 4.51, maxScore: 5, baseTargetReturn: 0.094, lowerReturnBound: 0.093, upperReturnBound: 0.0965, returnRule: { type: "linear", minScore: 4.5, maxScore: 5, minReturn: 0.094, maxReturn: 0.09, adjustmentBounds } },
+    { id: "rating_curve_a_minus_v1", ratingClass: "A-", minScore: 5.01, maxScore: 5.5, baseTargetReturn: 0.09, lowerReturnBound: 0.089, upperReturnBound: 0.0925, returnRule: { type: "linear", minScore: 5, maxScore: 5.5, minReturn: 0.09, maxReturn: 0.087, adjustmentBounds } },
+    { id: "rating_curve_a_v1", ratingClass: "A", minScore: 5.51, maxScore: 6, baseTargetReturn: 0.087, lowerReturnBound: 0.086, upperReturnBound: 0.0895, returnRule: { type: "linear", minScore: 5.5, maxScore: 6, minReturn: 0.087, maxReturn: 0.084, adjustmentBounds } }
   ];
 
   for (const curve of returnCurves) {
