@@ -8,6 +8,9 @@ export type CaseSource = "PARTNER" | "INTERNAL";
 export type DesiredModel = "fixed_residential_right" | "sale_and_leaseback" | "other";
 export type UsageModel = "fixed_residential_right" | "lifelong_residential_right" | "usufruct" | "sale_and_leaseback" | "other";
 export type ExitTerminationReason = "move_out" | "resident_death" | "fixed_term_expired" | "waiver_agreement" | "other";
+export type ResidentStatus = "ACTIVE" | "MOVE_OUT_PLANNED" | "MOVED_OUT" | "DECEASED";
+export type RatingSourceType = "questionnaire" | "api" | "analyst" | "document";
+export type ObjectRatingStatus = "draft" | "analyst_review" | "approved";
 export type ExitSalesStatus = "under_review" | "access_pending" | "inspection_scheduled" | "clearance_pending" | "repairs_pending" | "sales_preparation" | "marketing" | "sold" | "completed";
 export type Gender = "male" | "female" | "diverse" | "not_specified";
 export type MaritalStatus = "single" | "married" | "divorced" | "widowed" | "other";
@@ -15,6 +18,8 @@ export type IncomeRange = "under_1000" | "from_1000_to_2000" | "from_2000_to_300
 export type PropertyOwnership = "customer_1" | "customer_2" | "both";
 export type ResidentialRightRecipients = "one_person" | "both";
 export type RatingSix = "very_bad" | "bad" | "moderate" | "medium" | "good" | "very_good";
+export type MoistureDamageStatus = "NONE" | "MINOR" | "SIGNIFICANT";
+export type AccessibilityAssessment = "LOW_BARRIER" | "PARTIALLY_RESTRICTED" | "STRONGLY_RESTRICTED";
 export type BasementType = "none" | "partial" | "full";
 export type ParkingType = "garage" | "carport" | "outdoor_space" | "duplex";
 export type ValuationProvider = "mock" | "pricehubble" | "sprengnetter" | "other";
@@ -67,7 +72,7 @@ export type OfferStatus = "draft" | "review" | "approved" | "sent" | "rejected";
 export type ReminderStatus = "open" | "done" | "overdue" | "cancelled";
 export type LeadStatus = "NEW" | "QUALIFIED" | "ASSIGNED" | "CONTACTED" | "CONVERTED" | "REJECTED";
 export type ActivitySource = "system" | "user" | "partner" | "admin";
-export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead" | "chat";
+export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead" | "chat" | "rating";
 export type ChatMessageVisibility = "shared" | "internal";
 
 export type Partner = {
@@ -198,6 +203,12 @@ export type Property = {
   leasehold?: boolean;
   monumentProtection?: boolean;
   knownDefects?: string;
+  knownMajorMaintenanceOrSpecialAssessments?: boolean;
+  knownMajorMaintenanceOrSpecialAssessmentsDescription?: string;
+  moistureDamageStatus?: MoistureDamageStatus;
+  moistureDamageDescription?: string;
+  accessibilityAssessment?: AccessibilityAssessment;
+  hasElevator?: boolean;
   remainingDebtKnown?: boolean;
   remainingDebtAmount?: number;
   modernization?: Record<string, unknown>;
@@ -252,6 +263,12 @@ export type Property = {
   propertyFileComplete?: boolean;
   residentStaysInProperty?: boolean;
   residentName?: string;
+  residentStatus?: ResidentStatus;
+  residentMoveOutDate?: string;
+  residentDeathDate?: string;
+  residentStatusChangedAt?: string;
+  residentStatusChangedByUserId?: string;
+  residentStatusNote?: string;
   usageModel?: UsageModel;
   usageRightStartsAt?: string;
   usageRightEndsAt?: string;
@@ -310,6 +327,73 @@ export type PropertyExitProcess = {
   followUpAt?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type RatingCategory = {
+  id: string;
+  versionId: string;
+  name: string;
+  weight: number;
+  active: boolean;
+};
+
+export type RatingCriterion = {
+  id: string;
+  versionId: string;
+  categoryId: string;
+  name: string;
+  description?: string;
+  weight: number;
+  sourceType: RatingSourceType;
+  required: boolean;
+  active: boolean;
+  category?: RatingCategory;
+};
+
+export type ObjectRatingScore = {
+  id: string;
+  objectRatingId: string;
+  criterionId: string;
+  criterion?: RatingCriterion;
+  prefilledScore?: number;
+  analystScore?: number;
+  finalScore?: number;
+  source?: RatingSourceType;
+  confidence?: number;
+  comment?: string;
+  changedByUserId?: string;
+  changedAt?: string;
+};
+
+export type RatingAuditLog = {
+  id: string;
+  objectRatingId: string;
+  entityType: string;
+  entityId?: string;
+  action: string;
+  oldValue?: unknown;
+  newValue?: unknown;
+  comment?: string;
+  userId?: string;
+  timestamp: string;
+};
+
+export type ObjectRating = {
+  id: string;
+  objectId: string;
+  configVersionId: string;
+  totalScore?: number;
+  ratingClass?: string;
+  baseTargetReturn?: number;
+  lowerReturnBound?: number;
+  upperReturnBound?: number;
+  finalTargetReturn?: number;
+  status: ObjectRatingStatus;
+  scores: ObjectRatingScore[];
+  auditLogs: RatingAuditLog[];
+  createdAt: string;
+  approvedAt?: string;
+  approvedByUserId?: string;
 };
 
 export type Document = {
@@ -536,6 +620,7 @@ export type CaseView = {
   offer?: Offer;
   offers: Offer[];
   activities: Activity[];
+  objectRatings: ObjectRating[];
   chatMessages: ChatMessage[];
   reminders: Reminder[];
 };

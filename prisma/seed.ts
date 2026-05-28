@@ -12,6 +12,7 @@ import {
   PropertyCondition,
   PropertyStatus,
   PropertyType,
+  RatingSourceType,
   ReminderStatus,
   InternalUserRole,
   UserRole,
@@ -199,6 +200,11 @@ async function main() {
       energyCertificateAvailable: false,
       energyClass: "D",
       visualConditionRating: "good",
+      knownMajorMaintenanceOrSpecialAssessments: true,
+      knownMajorMaintenanceOrSpecialAssessmentsDescription: "Energieausweis und Hausgeldabrechnung 2024 werden noch nachgereicht; keine Sonderumlage bestätigt.",
+      moistureDamageStatus: "NONE",
+      accessibilityAssessment: "PARTIALLY_RESTRICTED",
+      hasElevator: null,
       leaseholdOrMonument: false,
       leasehold: false,
       monumentProtection: false,
@@ -425,6 +431,257 @@ async function main() {
       message: "Bitte Kontakt aufnehmen und Beratungsbedarf klären."
     }
   });
+
+  await seedObjectRatingConfig(admin.id);
+}
+
+async function seedObjectRatingConfig(createdByUserId: string) {
+  const version = await prisma.ratingVersion.upsert({
+    where: { versionNumber: 1 },
+    update: {
+      active: true,
+      description: "Initiale Objektrating-Konfiguration aus Objektrating-Master."
+    },
+    create: {
+      id: "rating_version_1",
+      versionNumber: 1,
+      active: true,
+      description: "Initiale Objektrating-Konfiguration aus Objektrating-Master.",
+      createdByUserId
+    }
+  });
+
+  const categories = [
+    { id: "rating_cat_location_v1", name: "Standort", weight: 0.22 },
+    { id: "rating_cat_economics_v1", name: "Wirtschaftliche Faktoren", weight: 0.18 },
+    { id: "rating_cat_maintenance_v1", name: "Instandhaltung", weight: 0.22 },
+    { id: "rating_cat_property_v1", name: "Immobilie", weight: 0.23 },
+    { id: "rating_cat_documents_v1", name: "Dokumente", weight: 0.15 }
+  ];
+
+  for (const category of categories) {
+    await prisma.ratingCategory.upsert({
+      where: { id: category.id },
+      update: { versionId: version.id, name: category.name, weight: category.weight, active: true },
+      create: { ...category, versionId: version.id, active: true }
+    });
+  }
+
+  const criteria = [
+    {
+      id: "rating_crit_location_microlocation_v1",
+      categoryId: "rating_cat_location_v1",
+      name: "Mikrolage",
+      description: "Makro- und Mikrolage, Anbindung und Nachfrage.",
+      weight: 0.6,
+      sourceType: RatingSourceType.api,
+      sourceField: "property.postalCode",
+      mappingRule: { type: "presence", presentScore: 4, missingScore: 2 },
+      confidenceRule: { default: 0.45, missing: 0.2 }
+    },
+    {
+      id: "rating_crit_economics_purchase_power_v1",
+      categoryId: "rating_cat_economics_v1",
+      name: "Kaufkraft / Nachfrage",
+      description: "Wirtschaftliche Standortqualität als spätere API-Kennzahl.",
+      weight: 1,
+      sourceType: RatingSourceType.api,
+      sourceField: "property.postalCode",
+      mappingRule: { type: "presence", presentScore: 4, missingScore: 2 },
+      confidenceRule: { default: 0.45, missing: 0.2 }
+    },
+    {
+      id: "rating_crit_maintenance_age_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Objektalter",
+      description: "Baujahr als Näherung für altersbedingtes Instandhaltungsrisiko.",
+      weight: 0.25,
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.yearBuilt",
+      mappingRule: {
+        type: "range",
+        ranges: [
+          { min: 2015, score: 6 },
+          { min: 2000, max: 2014, score: 5 },
+          { min: 1990, max: 1999, score: 4 },
+          { min: 1970, max: 1989, score: 3 },
+          { min: 1950, max: 1969, score: 2 },
+          { max: 1949, score: 1 }
+        ]
+      },
+      confidenceRule: { default: 0.8, missing: 0.2 }
+    },
+    {
+      id: "rating_crit_maintenance_condition_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Objektzustand",
+      description: "Optik und sichtbarer Zustand aus dem Fragebogen.",
+      weight: 0.25,
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.visualConditionRating",
+      mappingRule: { type: "enum", scores: { very_good: 6, good: 5, moderate: 4, medium: 3, bad: 2, very_bad: 1 }, defaultScore: 3 },
+      confidenceRule: { default: 0.75, missing: 0.25 }
+    },
+    {
+      id: "rating_crit_maintenance_moisture_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Feuchtigkeit / Schimmel / Wasserschäden",
+      description: "Bekannte Feuchtigkeit, Schimmel oder Wasserschäden.",
+      weight: 0.25,
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.moistureDamageStatus",
+      mappingRule: { type: "enum", scores: { NONE: 6, MINOR: 3, SIGNIFICANT: 1 }, defaultScore: 3 },
+      confidenceRule: { default: 0.8, missing: 0.2 }
+    },
+    {
+      id: "rating_crit_maintenance_special_assessments_v1",
+      categoryId: "rating_cat_maintenance_v1",
+      name: "Instandhaltungsrisiko / Sonderumlagen",
+      description: "Bekannte größere Instandhaltungen oder Sonderumlagen.",
+      weight: 0.25,
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.knownMajorMaintenanceOrSpecialAssessments",
+      mappingRule: { type: "boolean", trueScore: 2, falseScore: 6 },
+      confidenceRule: { default: 0.8, missing: 0.2 }
+    },
+    {
+      id: "rating_crit_property_accessibility_v1",
+      categoryId: "rating_cat_property_v1",
+      name: "Zugänglichkeit",
+      description: "Barrierearmut und komfortable Nutzung.",
+      weight: 0.35,
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.accessibilityAssessment",
+      mappingRule: { type: "enum", scores: { LOW_BARRIER: 6, PARTIALLY_RESTRICTED: 4, STRONGLY_RESTRICTED: 2 }, defaultScore: 3 },
+      confidenceRule: { default: 0.8, missing: 0.2 }
+    },
+    {
+      id: "rating_crit_property_elevator_v1",
+      categoryId: "rating_cat_property_v1",
+      name: "Aufzug / Nutzerkomfort",
+      description: "Aufzug als Komfort- und Drittverwendungsfaktor bei Wohnungen.",
+      weight: 0.25,
+      sourceType: RatingSourceType.questionnaire,
+      sourceField: "property.hasElevator",
+      mappingRule: { type: "boolean", trueScore: 6, falseScore: 3 },
+      confidenceRule: { default: 0.8, missing: 0.35 }
+    },
+    {
+      id: "rating_crit_property_third_use_v1",
+      categoryId: "rating_cat_property_v1",
+      name: "Drittverwendbarkeit",
+      description: "Breite Nutzbarkeit des Objekts für spätere Vermarktung.",
+      weight: 0.4,
+      sourceType: RatingSourceType.analyst,
+      sourceField: "property.propertyType",
+      mappingRule: { type: "enum", scores: { apartment: 5, single_family: 5, semi_detached: 4, row_house: 4, house: 4, multi_family: 3, other: 2 }, defaultScore: 3 },
+      confidenceRule: { default: 0.55, missing: 0.25 }
+    },
+    {
+      id: "rating_crit_document_energy_v1",
+      categoryId: "rating_cat_documents_v1",
+      name: "Energieausweis",
+      description: "Vorhandensein und Prüfstatus des Energieausweises.",
+      weight: 0.5,
+      sourceType: RatingSourceType.document,
+      sourceField: "energy_certificate",
+      mappingRule: { type: "document_status", category: "energy_certificate", scores: { ok: 6, pending: 4, review_required: 3, missing: 1, rejected: 1 }, defaultScore: 3, missingScore: 1 },
+      confidenceRule: { default: 0.85, missing: 0.3 }
+    },
+    {
+      id: "rating_crit_document_core_files_v1",
+      categoryId: "rating_cat_documents_v1",
+      name: "Objektunterlagen",
+      description: "Grundbuch, Grundriss und weitere Pflichtunterlagen.",
+      weight: 0.5,
+      sourceType: RatingSourceType.document,
+      sourceField: "land_register",
+      mappingRule: { type: "document_status", category: "land_register", scores: { ok: 6, pending: 4, review_required: 3, missing: 1, rejected: 1 }, defaultScore: 3, missingScore: 1 },
+      confidenceRule: { default: 0.85, missing: 0.3 }
+    }
+  ];
+
+  for (const criterion of criteria) {
+    await prisma.ratingCriterion.upsert({
+      where: { id: criterion.id },
+      update: {
+        versionId: version.id,
+        categoryId: criterion.categoryId,
+        name: criterion.name,
+        description: criterion.description,
+        weight: criterion.weight,
+        sourceType: criterion.sourceType,
+        required: true,
+        active: true
+      },
+      create: {
+        id: criterion.id,
+        versionId: version.id,
+        categoryId: criterion.categoryId,
+        name: criterion.name,
+        description: criterion.description,
+        weight: criterion.weight,
+        sourceType: criterion.sourceType,
+        required: true,
+        active: true
+      }
+    });
+
+    await prisma.ratingFieldMapping.upsert({
+      where: { id: `${criterion.id}_mapping` },
+      update: {
+        versionId: version.id,
+        criterionId: criterion.id,
+        sourceType: criterion.sourceType,
+        sourceField: criterion.sourceField,
+        mappingRule: criterion.mappingRule,
+        confidenceRule: criterion.confidenceRule,
+        active: true
+      },
+      create: {
+        id: `${criterion.id}_mapping`,
+        versionId: version.id,
+        criterionId: criterion.id,
+        sourceType: criterion.sourceType,
+        sourceField: criterion.sourceField,
+        mappingRule: criterion.mappingRule,
+        confidenceRule: criterion.confidenceRule,
+        active: true
+      }
+    });
+
+    for (const scoreValue of [1, 2, 3, 4, 5, 6]) {
+      const label = ["kritisch", "schwach", "unterdurchschnittlich", "solide", "gut", "sehr gut"][scoreValue - 1];
+      await prisma.ratingScoreDefinition.upsert({
+        where: { criterionId_scoreValue: { criterionId: criterion.id, scoreValue } },
+        update: { versionId: version.id, label, description: `${criterion.name}: ${label}` },
+        create: {
+          id: `${criterion.id}_score_${scoreValue}`,
+          versionId: version.id,
+          criterionId: criterion.id,
+          scoreValue,
+          label,
+          description: `${criterion.name}: ${label}`
+        }
+      });
+    }
+  }
+
+  const returnCurves = [
+    { id: "rating_curve_a_v1", ratingClass: "A", minScore: 5.5, maxScore: 6, baseTargetReturn: 0.07, lowerReturnBound: 0.065, upperReturnBound: 0.075 },
+    { id: "rating_curve_b_v1", ratingClass: "B", minScore: 4.5, maxScore: 5.49, baseTargetReturn: 0.075, lowerReturnBound: 0.07, upperReturnBound: 0.08 },
+    { id: "rating_curve_c_v1", ratingClass: "C", minScore: 3.5, maxScore: 4.49, baseTargetReturn: 0.08, lowerReturnBound: 0.075, upperReturnBound: 0.085 },
+    { id: "rating_curve_d_v1", ratingClass: "D", minScore: 2.5, maxScore: 3.49, baseTargetReturn: 0.09, lowerReturnBound: 0.085, upperReturnBound: 0.095 },
+    { id: "rating_curve_e_v1", ratingClass: "E", minScore: 1, maxScore: 2.49, baseTargetReturn: 0.105, lowerReturnBound: 0.095, upperReturnBound: 0.115 }
+  ];
+
+  for (const curve of returnCurves) {
+    await prisma.ratingReturnCurve.upsert({
+      where: { id: curve.id },
+      update: { versionId: version.id, ...curve },
+      create: { versionId: version.id, ...curve }
+    });
+  }
 }
 
 main()

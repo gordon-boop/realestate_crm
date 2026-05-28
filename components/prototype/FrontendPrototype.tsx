@@ -6,7 +6,7 @@ import {
   MapPin, HelpCircle, Search, Bell, MessageSquare, LogOut, ChevronRight,
   Plus, Clock, AlertCircle, TrendingUp, Users, Briefcase, Settings,
   ArrowLeft, Upload, Calendar, Phone, Mail, Smartphone, User as UserIcon,
-  Save, Send, CheckCircle, AlertTriangle, Activity, X, ChevronDown
+  Save, Send, CheckCircle, AlertTriangle, Activity, X, ChevronDown, ClipboardList
 } from 'lucide-react';
 import { getOptionalDocumentsForPropertyType, getRequiredDocumentsForPropertyType } from '@/lib/document-requirements';
 import {
@@ -558,6 +558,18 @@ function formatEuroCents(value) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));
 }
 
+function formatGermanIntegerInput(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(Number(digits));
+}
+
+function parseGermanNumberInput(value) {
+  const normalized = String(value ?? '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 function formatPercent(value) {
   if (!Number.isFinite(Number(value))) return '-';
   return new Intl.NumberFormat('de-DE', { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value));
@@ -852,13 +864,17 @@ function labelFrom(map, value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : (map[value] || value);
 }
 
-const caseTabKeys = ['kunde', 'objekt', 'indag', 'verbag', 'vertragsabwicklung', 'vertragsvollzug', 'bestand', 'verwertung', 'doks', 'chat', 'aufgaben'];
+const caseTabKeys = ['kunde', 'objekt', 'rating', 'indag', 'verbag', 'kvabwicklung', 'bestand', 'verwertung', 'doks', 'aufgaben', 'chat'];
 const caseTabAliases = {
   customer: 'kunde',
   kunde: 'kunde',
   object: 'objekt',
   objekt: 'objekt',
   property: 'objekt',
+  rating: 'rating',
+  objektrating: 'rating',
+  object_rating: 'rating',
+  'object-rating': 'rating',
   modernization: 'objekt',
   modernisierung: 'objekt',
   condition: 'objekt',
@@ -868,13 +884,17 @@ const caseTabAliases = {
   unverbindliches_angebot: 'indag',
   binding_offer: 'verbag',
   verbindliches_angebot: 'verbag',
-  purchase_processing: 'vertragsabwicklung',
-  'purchase-processing': 'vertragsabwicklung',
-  kaufvertragsabwicklung: 'vertragsabwicklung',
-  vertragsabwicklung: 'vertragsabwicklung',
-  contract_closing: 'vertragsvollzug',
-  'contract-closing': 'vertragsvollzug',
-  vertragsvollzug: 'vertragsvollzug',
+  purchase_processing: 'kvabwicklung',
+  'purchase-processing': 'kvabwicklung',
+  kaufvertragsabwicklung: 'kvabwicklung',
+  vertragsabwicklung: 'kvabwicklung',
+  contract_closing: 'kvabwicklung',
+  'contract-closing': 'kvabwicklung',
+  vertragsvollzug: 'kvabwicklung',
+  kv: 'kvabwicklung',
+  kv_abwicklung: 'kvabwicklung',
+  'kv-abwicklung': 'kvabwicklung',
+  kvabwicklung: 'kvabwicklung',
   portfolio: 'bestand',
   bestand: 'bestand',
   exit: 'verwertung',
@@ -885,6 +905,7 @@ const caseTabAliases = {
   doks: 'doks',
   objektunterlagen: 'doks',
   chat: 'chat',
+  kommunikation: 'chat',
   activity: 'aufgaben',
   activities: 'aufgaben',
   aufgaben: 'aufgaben',
@@ -967,6 +988,7 @@ const legacyPortfolioBucketMap = {
   'contract-closing': 'purchase-processing',
   contract_closing: 'purchase-processing',
   vertragsvollzug: 'purchase-processing',
+  kvabwicklung: 'purchase-processing',
   'exit-sale': 'sale-objects',
   exit_sale: 'sale-objects',
   verwertung: 'sale-objects',
@@ -1032,6 +1054,8 @@ const parkingLabels = { garage: 'Garage', carport: 'Carport', outdoor_space: 'St
 const windowLabels = { wood: 'Holz', aluminium: 'Aluminium', plastic: 'Kunststoff' };
 const energyCertificateLabels = { demand: 'Bedarfsausweis', consumption: 'Verbrauchsausweis' };
 const energyCarrierLabels = { photovoltaik: 'Photovoltaik', solarthermie: 'Solarthermie', batteriespeicher: 'Batteriespeicher' };
+const moistureDamageLabels = { NONE: 'Nein', MINOR: 'Ja, geringfügig', SIGNIFICANT: 'Ja, erheblich' };
+const accessibilityAssessmentLabels = { LOW_BARRIER: 'Barrierearm', PARTIALLY_RESTRICTED: 'Teilweise eingeschränkt', STRONGLY_RESTRICTED: 'Stark eingeschränkt' };
 const documentStatusLabels = { missing: 'fehlt', pending: 'eingereicht', ok: 'geprüft', review_required: 'Prüfung nötig', rejected: 'abgelehnt' };
 const documentScanStatusLabels = { pending: 'Virenscan offen', clean: 'Virenscan unauffällig', suspicious: 'Auffällig', failed: 'Scan fehlgeschlagen' };
 const requirementLabels = { required: 'Pflicht', recommended: 'Empfohlen', optional: 'Optional' };
@@ -1071,6 +1095,12 @@ const documentCategoryLabels = {
 };
 const modernizationLabels = modernizationScopeLabels;
 const productModelLabels = { fixed_residential_right: 'Wohnrecht', sale_and_leaseback: 'Rückmietverkauf', other: 'Sonstiges Nutzungsmodell' };
+const residentStatusLabels = {
+  ACTIVE: 'Bewohner bleibt im Objekt',
+  MOVE_OUT_PLANNED: 'Bewohner zieht aus',
+  MOVED_OUT: 'Bewohner ausgezogen',
+  DECEASED: 'Bewohner verstorben',
+};
 const usageModelLabels = {
   fixed_residential_right: 'Wohnrecht',
   lifelong_residential_right: 'Wohnrecht',
@@ -1122,6 +1152,12 @@ const leadStatusColors = {
 
 function yesNo(value) {
   return value ? 'ja' : 'nein';
+}
+
+function yesNoOptional(value) {
+  if (value === true) return 'ja';
+  if (value === false) return 'nein';
+  return '-';
 }
 
 function formatDate(value) {
@@ -1297,6 +1333,12 @@ const defaultDraft = {
   visualConditionRating: '',
   energyCarriers: [],
   knownDefects: '',
+  knownMajorMaintenanceOrSpecialAssessments: '',
+  knownMajorMaintenanceOrSpecialAssessmentsDescription: '',
+  moistureDamageStatus: '',
+  moistureDamageDescription: '',
+  accessibilityAssessment: '',
+  hasElevator: '',
   generalPropertyNotes: '',
   remainingDebtKnown: '',
   remainingDebtAmount: '',
@@ -1401,6 +1443,12 @@ function draftFromCaseView(caseView) {
     visualConditionRating: property.visualConditionRating || '',
     energyCarriers: property.energyCarriers || [],
     knownDefects: property.knownDefects || '',
+    knownMajorMaintenanceOrSpecialAssessments: property.knownMajorMaintenanceOrSpecialAssessments ?? '',
+    knownMajorMaintenanceOrSpecialAssessmentsDescription: property.knownMajorMaintenanceOrSpecialAssessmentsDescription || '',
+    moistureDamageStatus: property.moistureDamageStatus || '',
+    moistureDamageDescription: property.moistureDamageDescription || '',
+    accessibilityAssessment: property.accessibilityAssessment || '',
+    hasElevator: property.hasElevator ?? '',
     generalPropertyNotes: property.generalPropertyNotes || property.notes || '',
     remainingDebtKnown: property.remainingDebtKnown ?? '',
     remainingDebtAmount: property.remainingDebtAmount || '',
@@ -1499,6 +1547,12 @@ const validationFieldLabels = {
   asbestosRoofKnown: 'Immobiliendaten: Asbest im Dach',
   parkingType: 'Immobiliendaten: Parkplatz',
   parkingCount: 'Immobiliendaten: Anzahl Parkplätze',
+  hasElevator: 'Immobiliendaten: Aufzug vorhanden',
+  knownMajorMaintenanceOrSpecialAssessments: 'Zustand: Instandhaltungen oder Sonderumlagen',
+  knownMajorMaintenanceOrSpecialAssessmentsDescription: 'Zustand: Beschreibung Instandhaltungen oder Sonderumlagen',
+  moistureDamageStatus: 'Zustand: Feuchtigkeit, Schimmel oder Wasserschäden',
+  moistureDamageDescription: 'Zustand: Beschreibung Feuchtigkeit, Schimmel oder Wasserschäden',
+  accessibilityAssessment: 'Zustand: Zugänglichkeit',
   remainingDebtKnown: 'Immobiliendaten: Restschuld bekannt',
   remainingDebtAmount: 'Immobiliendaten: Restschuld-Betrag',
   buildingConditionRoof: 'Zustand: Dach',
@@ -1598,6 +1652,7 @@ function validateCaseStep(step, draft) {
     add('plotAreaSqm', hasValue(draft.plotAreaSqm));
     add('visualConditionRating', hasValue(draft.visualConditionRating));
     if (draft.propertyType === 'apartment') add('coOwnershipShares', hasValue(draft.coOwnershipShares));
+    if (draft.propertyType === 'apartment') add('hasElevator', draft.hasElevator === true || draft.hasElevator === false);
     add('heatingType', hasValue(draft.heatingType));
     add('heatingEnergySource', hasValue(draft.heatingEnergySource));
     if (draft.heatingEnergySource === 'other') add('heatingEnergySourceOther', hasValue(draft.heatingEnergySourceOther));
@@ -1637,6 +1692,15 @@ function validateCaseStep(step, draft) {
     add('buildingConditionSanitary', hasValue(buildingConditionRating(draft.buildingCondition?.sanitary)));
     add('buildingConditionInterior', hasValue(buildingConditionRating(draft.buildingCondition?.interior)));
     add('buildingConditionOutdoor', hasValue(buildingConditionRating(draft.buildingCondition?.outdoor)));
+    add('knownMajorMaintenanceOrSpecialAssessments', draft.knownMajorMaintenanceOrSpecialAssessments === true || draft.knownMajorMaintenanceOrSpecialAssessments === false);
+    if (draft.knownMajorMaintenanceOrSpecialAssessments === true) {
+      add('knownMajorMaintenanceOrSpecialAssessmentsDescription', hasValue(draft.knownMajorMaintenanceOrSpecialAssessmentsDescription));
+    }
+    add('moistureDamageStatus', hasValue(draft.moistureDamageStatus));
+    if (draft.moistureDamageStatus === 'MINOR' || draft.moistureDamageStatus === 'SIGNIFICANT') {
+      add('moistureDamageDescription', hasValue(draft.moistureDamageDescription));
+    }
+    add('accessibilityAssessment', hasValue(draft.accessibilityAssessment));
   }
 
   if (step === 5) {
@@ -1652,11 +1716,37 @@ function validateCaseStep(step, draft) {
 }
 
 function validateCaseDraft(draft) {
+  const allFields = [];
+  let firstInvalidStep = 5;
   for (const currentStep of [1, 2, 3, 4, 5]) {
     const result = validateCaseStep(currentStep, draft);
-    if (!result.valid) return { ...result, step: currentStep };
+    if (!result.valid) {
+      if (!allFields.length) firstInvalidStep = currentStep;
+      allFields.push(...result.fields);
+    }
+  }
+  if (allFields.length) {
+    const labels = allFields.map((field) => validationFieldLabels[field] || field);
+    return {
+      valid: false,
+      fields: allFields,
+      step: firstInvalidStep,
+      message: `Bitte ergänzen Sie folgende Pflichtfelder: ${labels.join(', ')}.`
+    };
   }
   return { valid: true, fields: [], step: 5, message: '' };
+}
+
+function validateForNavigation(step, draft, options = {}) {
+  return options.allowIncomplete ? { valid: true, fields: [], message: '' } : validateCaseStep(step, draft);
+}
+
+function validateForDraftSave(_draft, _options = {}) {
+  return { valid: true, fields: [], message: '' };
+}
+
+function validateForSubmit(draft) {
+  return validateCaseDraft(draft);
 }
 
 // =====================================================================
@@ -2033,7 +2123,7 @@ function adminCaseNextStep(item) {
   if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'Kaufvertrag / Vollzug bearbeiten';
   if (item.status === 'IN_PORTFOLIO') return 'Bestandsverwaltung prüfen';
   if (item.status === 'SOLD') return 'Verkauf prüfen';
-  if (property.exitProcess) return 'Objekte im Verkauf prüfen';
+  if (property.exitProcess) return 'Verkaufsprozess prüfen';
   return 'Vorgang öffnen';
 }
 
@@ -2041,8 +2131,7 @@ function adminCaseTab(item) {
   if (['SUBMITTED', 'DATA_INCOMPLETE', 'INTERNAL_REVIEW'].includes(item.status)) return 'kunde';
   if (['VALUATION_PENDING', 'VALUATED', 'OFFER_CALCULATED', 'OFFER_DRAFTED', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'OFFER_ACCEPTED', 'EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED'].includes(item.status)) return 'indag';
   if (['BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED'].includes(item.status)) return 'verbag';
-  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT'].includes(item.status)) return 'vertragsabwicklung';
-  if (item.status === 'PURCHASED') return 'vertragsvollzug';
+  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'kvabwicklung';
   if (item.status === 'SOLD') return 'verwertung';
   if (item.raw?.property?.exitProcess) return 'verwertung';
   if (['IN_PORTFOLIO', 'WON'].includes(item.status)) return 'bestand';
@@ -2583,7 +2672,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
       cases: purchaseHandlingCases,
       icon: Briefcase,
       tone: theme.aubergine,
-      tab: 'vertragsabwicklung',
+      tab: 'kvabwicklung',
     },
     {
       key: 'inventory-management',
@@ -2597,7 +2686,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
     },
     {
       key: 'sale-objects',
-      title: 'Objekte im Verkauf',
+      title: 'Verkaufsprozess',
       description: 'Nach Wohnrechtsende oder Ende des Rückmietverkaufs: Zugang, Vorbereitung, Vermarktung und Verkauf.',
       action: 'Verkauf prüfen',
       cases: saleObjectCases,
@@ -2608,7 +2697,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   ];
   const activeBucketDefinition = bucketDefinitions.find((item) => item.key === activeBucket);
   const phaseForCase = (item) => {
-    if (saleObjectCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Objekte im Verkauf';
+    if (saleObjectCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Verkaufsprozess';
     if (purchaseHandlingCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Kaufvertragsabwicklung';
     if (inventoryCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Bestandsverwaltung';
     return 'Ankauf';
@@ -2616,8 +2705,8 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   const targetTabForCase = (item, preferActiveBucket = true) => {
     if (preferActiveBucket && activeBucketDefinition?.tab) return activeBucketDefinition.tab;
     const phase = phaseForCase(item);
-    if (phase === 'Kaufvertragsabwicklung') return 'vertragsabwicklung';
-    if (phase === 'Objekte im Verkauf') return 'verwertung';
+    if (phase === 'Kaufvertragsabwicklung') return 'kvabwicklung';
+    if (phase === 'Verkaufsprozess') return 'verwertung';
     return 'bestand';
   };
   const dueDateForCase = (item) => {
@@ -3149,6 +3238,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [bindingOfferSentDate, setBindingOfferSentDate] = useState('');
   const [bindingOfferAcceptedDate, setBindingOfferAcceptedDate] = useState('');
   const [expertOpinionValue, setExpertOpinionValue] = useState('');
+  const [residentStatusAction, setResidentStatusAction] = useState('');
+  const [residentStatusForm, setResidentStatusForm] = useState({ moveOutDate: '', deathDate: '', reportedAt: '', note: '', relativesOrEstateContact: '' });
+  const [ratingScoreInputs, setRatingScoreInputs] = useState({});
+  const [ratingReturnInput, setRatingReturnInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatVisibility, setChatVisibility] = useState('shared');
   const [chatAttachmentFiles, setChatAttachmentFiles] = useState([]);
@@ -3163,9 +3256,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const canManageWorkflow = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
   const canEditOfferDates = canManageWorkflow;
   const canManagePortfolio = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
+  const canManageRating = role === 'admin' && ['advisor', 'admin', 'super_admin'].includes(internalRole);
   const canReviewDocuments = canManageOffers;
   const canEditCaseData = role === 'admin' || property?.status === 'DRAFT';
   const canDeleteDocuments = role === 'admin' || property?.status === 'DRAFT';
+  const canManageResidentStatus = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
 
   useEffect(() => {
     setActiveTab(normalizeCaseTab(initialTab));
@@ -3204,6 +3299,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const bindingOffers = productOffers.filter((offer) => offer.kind === 'binding');
   const offerVersionsCount = (offer) => offer?.versions?.length || offer?.currentVersion || 1;
   const hasBindingOffer = bindingOffers.length > 0;
+  const salesProcessActive = Boolean(
+    property?.exitProcess ||
+    property?.residentStaysInProperty === false ||
+    ['MOVE_OUT_PLANNED', 'MOVED_OUT', 'DECEASED'].includes(property?.residentStatus)
+  );
+  useEffect(() => {
+    const existingExpertOpinionValue = bindingOffers[0]?.marketValue;
+    setExpertOpinionValue(existingExpertOpinionValue ? formatGermanIntegerInput(existingExpertOpinionValue) : '');
+  }, [property?.id, bindingOffers[0]?.marketValue]);
   const canPrepareBindingOffer = Boolean(property?.expertOpinionReceivedAt) || ['EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT', 'IN_PORTFOLIO', 'WON'].includes(property?.status);
   const requestedOfferModels = property ? [
     {
@@ -3227,11 +3331,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   ] : [
     { key: 'fixed_residential_right', model: 'fixed_residential_right', residentialRightYears: 10, recipient: 'one_person', reason: 'Mock-Fall', primary: true }
   ];
-  const topCalculationModels = Array.from(new Map(
-    requestedOfferModels
-      .filter((item) => ['fixed_residential_right', 'sale_and_leaseback'].includes(item.model))
-      .map((item) => [item.model, item])
-  ).values());
   const latestValuation = caseView?.valuation;
   const documents = caseView?.documents?.length ? caseView.documents.map((document) => ({
     id: document.id,
@@ -3312,6 +3411,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ['Grundstück', property.plotAreaSqm ? `${property.plotAreaSqm} m²` : '-'],
     ['Nutzfläche', property.usableAreaSqm ? `${property.usableAreaSqm} m²` : '-'],
     ['Miteigentumsanteile', property.coOwnershipShares || '-'],
+    ['Aufzug vorhanden', property.propertyType === 'apartment' ? yesNoOptional(property.hasElevator) : 'nicht relevant'],
     ['Optik', labelFrom(ratingLabels, property.visualConditionRating)],
     ['Heizung', formatHeatingLabel(property)],
     ['Energieausweis', `${yesNo(property.energyCertificateAvailable)}${property.energyCertificateType ? `, ${labelFrom(energyCertificateLabels, property.energyCertificateType)}` : ''}`],
@@ -3323,6 +3423,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ['PV / Solar', property.energyCarriers?.length ? property.energyCarriers.map((item) => labelFrom(energyCarrierLabels, item)).join(', ') : '-'],
     ['Erbbau/Denkmal', property.leasehold || property.monumentProtection ? 'ja' : 'nein'],
     ['Restschuld', property.remainingDebtAmount ? formatEuro(property.remainingDebtAmount) : '-'],
+    ['Größere Instandhaltungen oder Sonderumlagen', yesNoOptional(property.knownMajorMaintenanceOrSpecialAssessments)],
+    ['Beschreibung Instandhaltungen / Sonderumlagen', property.knownMajorMaintenanceOrSpecialAssessmentsDescription || '-'],
+    ['Feuchtigkeit, Schimmel oder Wasserschäden', labelFrom(moistureDamageLabels, property.moistureDamageStatus)],
+    ['Beschreibung Feuchtigkeit / Schäden', property.moistureDamageDescription || '-'],
+    ['Einschätzung Zugänglichkeit', labelFrom(accessibilityAssessmentLabels, property.accessibilityAssessment)],
     ['Bekannte Mängel', property.knownDefects || '-'],
   ] : [
     ['Typ', 'Einfamilienhaus'],
@@ -3370,6 +3475,31 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     { createdAt: '18.05., 09:45', userId: 'M. Krüger', message: 'Fall angelegt' },
   ];
   const chatMessages = caseView?.chatMessages?.length ? caseView.chatMessages : [];
+  const objectRating = caseView?.objectRatings?.[0];
+  const ratingStatusLabels = { draft: 'Entwurf', analyst_review: 'Analystenprüfung', approved: 'Freigegeben' };
+  const ratingSourceLabels = { questionnaire: 'Fragebogen', api: 'API / Marktdaten', analyst: 'Analyst', document: 'Dokument' };
+  const ratingScores = objectRating?.scores || [];
+  const ratingCategories = Array.from(new Map(ratingScores
+    .map((score) => score.criterion?.category)
+    .filter(Boolean)
+    .map((category) => [category.id, category])
+  ).values());
+  const ratingScoreValue = (score) => score?.finalScore ?? score?.analystScore ?? score?.prefilledScore;
+  const weightedScore = (scores) => {
+    const usable = scores
+      .map((score) => ({ value: ratingScoreValue(score), weight: Number(score.criterion?.weight || 0) }))
+      .filter((item) => Number.isFinite(Number(item.value)) && item.weight > 0);
+    const totalWeight = usable.reduce((sum, item) => sum + item.weight, 0);
+    if (!totalWeight) return undefined;
+    return usable.reduce((sum, item) => sum + Number(item.value) * item.weight, 0) / totalWeight;
+  };
+  const ratingCategoryRows = ratingCategories.map((category) => ({
+    category,
+    score: weightedScore(ratingScores.filter((score) => score.criterion?.categoryId === category.id))
+  }));
+  const ratingOpenChecks = ratingScores.filter((score) => !ratingScoreValue(score) || Number(score.confidence || 0) < 0.65);
+  const ratingReadOnly = objectRating?.status === 'approved' || !canManageRating;
+  const ratingReturnPercent = ratingReturnInput || (objectRating?.finalTargetReturn ? String((Number(objectRating.finalTargetReturn) * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 })) : '');
   async function runCaseAction(label, action) {
     if (!c.propertyId) {
       setNotice?.('Dieser Mock-Fall ist noch nicht mit einer API-ID verbunden.');
@@ -3387,6 +3517,25 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       setBusyAction('');
     }
   }
+  const generateObjectRating = () => runCaseAction('Objektrating erzeugen', async () => {
+    await postJson(`/api/properties/${c.propertyId}/rating`, {});
+  });
+  const saveRatingScore = (score) => runCaseAction('Rating-Kriterium speichern', async () => {
+    const input = ratingScoreInputs[score.id] || {};
+    const analystScore = Number(input.analystScore || score.analystScore || score.finalScore || score.prefilledScore);
+    const comment = String(input.comment || '').trim();
+    if (!comment) throw new Error('Bitte einen Kommentar zur Scoreänderung hinterlegen.');
+    await patchJson(`/api/properties/${c.propertyId}/rating/scores/${score.id}`, { analystScore, comment });
+  });
+  const saveRatingReturn = () => runCaseAction('Zielrendite speichern', async () => {
+    const parsed = parseGermanNumberInput(ratingReturnPercent);
+    if (!Number.isFinite(parsed)) throw new Error('Bitte eine gültige Zielrendite eingeben.');
+    await patchJson(`/api/properties/${c.propertyId}/rating/final-return`, { finalTargetReturn: parsed / 100 });
+    setRatingReturnInput('');
+  });
+  const approveRating = () => runCaseAction('Objektrating freigeben', async () => {
+    await postJson(`/api/properties/${c.propertyId}/rating/approve`, {});
+  });
   const startValuationAndOffer = (model) => runCaseAction(model === 'sale_and_leaseback' ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation', async () => {
     await postJson(`/api/properties/${c.propertyId}/valuation`, { provider: 'sprengnetter' });
     await postJson(`/api/properties/${c.propertyId}/offer/calculate`, { model });
@@ -3396,7 +3545,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     if (!canPrepareBindingOffer) {
       throw new Error('Bitte zuerst das Gutachten als eingegangen markieren.');
     }
-    const parsedExpertOpinionValue = Number(String(expertOpinionValue).replace(',', '.'));
+    const parsedExpertOpinionValue = parseGermanNumberInput(expertOpinionValue);
     if (!Number.isFinite(parsedExpertOpinionValue) || parsedExpertOpinionValue <= 0) {
       throw new Error('Bitte zuerst den Gutachtenwert eintragen.');
     }
@@ -3561,6 +3710,40 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'offer_accepted', offerAcceptedAt: indicativeOfferAcceptedDate, indicativeOfferSentAt: indicativeOfferSentDate });
     }
   });
+  const indicativeOfferDateFields = (
+    <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
+        <Field label="Unverbindliches Angebot abgegeben am">
+          <Input type="date" value={indicativeOfferSentDate} onChange={(event) => setIndicativeOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
+        </Field>
+        <Field label="Unverbindliches Angebot angenommen am" invalid={Boolean(indicativeOfferAcceptedDate && indicativeOfferSentDate && isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate))}>
+          <Input type="date" value={indicativeOfferAcceptedDate} onChange={(event) => setIndicativeOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
+        </Field>
+        {canEditOfferDates && (
+          <button onClick={() => saveOfferDateFields('indicative')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
+            Daten speichern
+          </button>
+        )}
+      </div>
+    </div>
+  );
+  const bindingOfferDateFields = (
+    <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
+        <Field label="Verbindliches Angebot abgegeben am">
+          <Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
+        </Field>
+        <Field label="Verbindliches Angebot angenommen am" invalid={Boolean(bindingOfferAcceptedDate && bindingOfferSentDate && isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate))}>
+          <Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
+        </Field>
+        {canEditOfferDates && (
+          <button onClick={() => saveOfferDateFields('binding')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
+            Daten speichern
+          </button>
+        )}
+      </div>
+    </div>
+  );
   const resetWorkflowStep = () => runCaseAction('Prozessschritt zurücksetzen', async () => {
     if (!resetTargetStatus) {
       throw new Error('Bitte einen neuen Prozessschritt auswählen.');
@@ -3737,23 +3920,51 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     };
     await patchJson(`/api/properties/${c.propertyId}/portfolio`, payload);
   });
-  const saveExitProcess = () => runCaseAction('Verwertung speichern', async () => {
+  const saveExitProcess = () => runCaseAction('Verkaufsprozess speichern', async () => {
     await patchJson(`/api/properties/${c.propertyId}/exit`, exitProcessForm);
   });
+  const startResidentStatusAction = (action) => {
+    const label = action === 'deceased' ? 'verstorben' : 'zieht aus';
+    const firstQuestion = action === 'deceased'
+      ? 'Möchten Sie den Bewohnerstatus auf „verstorben“ setzen?'
+      : 'Möchten Sie den Bewohnerstatus auf „zieht aus“ setzen?';
+    if (!window.confirm(firstQuestion)) return;
+    if (!window.confirm('Diese Änderung startet den Verkaufsprozess. Bitte bestätigen Sie erneut.')) return;
+    setResidentStatusAction(action);
+    setResidentStatusForm({
+      moveOutDate: action === 'move_out' ? dateInputValue(property?.residentMoveOutDate || property?.exitProcess?.usageRightEndedAt) : '',
+      deathDate: action === 'deceased' ? dateInputValue(property?.residentDeathDate || property?.exitProcess?.usageRightEndedAt) : '',
+      reportedAt: action === 'deceased' ? dateInputValue(new Date().toISOString()) : '',
+      note: '',
+      relativesOrEstateContact: property?.residentEmergencyContact || property?.exitProcess?.relativesOrEstateContact || ''
+    });
+    setNotice?.(`Bewohnerstatus „${label}“ vorbereiten.`);
+  };
+  const submitResidentStatusAction = () => runCaseAction('Bewohnerstatus speichern', async () => {
+    await postJson(`/api/properties/${c.propertyId}/resident-status`, {
+      action: residentStatusAction,
+      ...residentStatusForm,
+    });
+    setResidentStatusAction('');
+    await onRefresh?.();
+    changeTab('verwertung');
+  });
+  const openTaskCount = taskRows.length;
+  const unreadCommunicationCount = chatMessages.filter((message) => !message.readByCurrentUser).length;
   const tabs = [
     { id: 'kunde', label: 'Kunde' },
     { id: 'objekt', label: 'Objekt' },
+    ...(role === 'admin' ? [{ id: 'rating', label: 'Objektrating' }] : []),
     { id: 'indag', label: 'Unverbindliches Angebot' },
     { id: 'verbag', label: 'Verbindliches Angebot' },
     ...(role === 'admin' ? [
-      { id: 'vertragsabwicklung', label: 'Kaufvertragsabwicklung' },
-      { id: 'vertragsvollzug', label: 'Vertragsvollzug' },
-      { id: 'bestand', label: 'Bestand' },
-    { id: 'verwertung', label: 'Objekte im Verkauf' },
+      { id: 'kvabwicklung', label: 'KV-Abwicklung' },
+      { id: 'bestand', label: 'Bestandsverwaltung' },
+      { id: 'verwertung', label: 'Verkaufsprozess', disabled: !salesProcessActive },
     ] : []),
     { id: 'doks', label: 'Objektunterlagen' },
-    { id: 'chat', label: 'Chatverlauf' },
-    ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben' }] : []),
+    ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben', tool: true, icon: ClipboardList, badge: openTaskCount }] : []),
+    { id: 'chat', label: 'Kommunikation', tool: true, icon: MessageSquare, badge: unreadCommunicationCount },
   ];
 
   return (
@@ -3780,38 +3991,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         {canEditCaseData && (
           <button onClick={() => onEdit?.(c.propertyId || c.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
         )}
-        {canManageOffers && (
-          <>
-            {topCalculationModels.map((modelRequest, index) => {
-              const isPrimary = index === 0;
-              const label = modelRequest.model === 'sale_and_leaseback' ? 'Rückmietverkauf kalkulieren' : 'Wohnrecht kalkulieren';
-              return (
-                <button
-                  key={modelRequest.key}
-                  onClick={() => startValuationAndOffer(modelRequest.model)}
-                  disabled={Boolean(busyAction)}
-                  style={{
-                    background: isPrimary ? theme.aubergine : 'white',
-                    border: isPrimary ? 'none' : `1px solid ${theme.aubergine}`,
-                    color: isPrimary ? 'white' : theme.aubergine,
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    padding: '8px 14px',
-                    borderRadius: 5,
-                    cursor: busyAction ? 'wait' : 'pointer',
-                    opacity: busyAction ? 0.75 : 1
-                  }}
-                >
-                  {busyAction ? 'Läuft...' : label}
-                </button>
-              );
-            })}
-            {canRejectCase && property?.status !== 'REJECTED' && (
-              <button onClick={() => setRejectModalOpen(true)} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
-                Fall ablehnen
-              </button>
-            )}
-          </>
+        {canRejectCase && property?.status !== 'REJECTED' && (
+          <button onClick={() => setRejectModalOpen(true)} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
+            Fall ablehnen
+          </button>
         )}
         {canOpenResetWorkflow && (
           <button onClick={openResetWorkflowModal} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
@@ -3895,6 +4078,54 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         </div>
       )}
 
+      {residentStatusAction && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 92, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: 'min(560px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', background: theme.goldSoft, borderBottom: `1px solid ${theme.gold}33`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>{residentStatusAction === 'deceased' ? 'Bewohner verstorben melden' : 'Bewohner zieht aus'}</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>Diese Aktion startet den Verkaufsprozess und wird im Aktivitätslog gespeichert.</div>
+              </div>
+              <button onClick={() => setResidentStatusAction('')} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'grid', gap: 14 }}>
+              {residentStatusAction === 'move_out' ? (
+                <Field label="Auszugsdatum oder geplantes Auszugsdatum" required>
+                  <Input type="date" value={residentStatusForm.moveOutDate} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, moveOutDate: event.target.value })} />
+                </Field>
+              ) : (
+                <>
+                  <Field label="Sterbedatum, falls bekannt">
+                    <Input type="date" value={residentStatusForm.deathDate} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, deathDate: event.target.value })} />
+                  </Field>
+                  <Field label="Meldedatum" required>
+                    <Input type="date" value={residentStatusForm.reportedAt} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, reportedAt: event.target.value })} />
+                  </Field>
+                  <Field label="Ansprechpartner Angehörige / Nachlass">
+                    <Input value={residentStatusForm.relativesOrEstateContact} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, relativesOrEstateContact: event.target.value })} />
+                  </Field>
+                </>
+              )}
+              <Field label="Interne Notiz" required>
+                <textarea value={residentStatusForm.note} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, note: event.target.value })} rows={4} placeholder="Kurz dokumentieren, wer informiert hat und was als nächstes zu tun ist." style={{ width: '100%', minHeight: 96, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+              </Field>
+            </div>
+            <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setResidentStatusAction('')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
+              <button
+                onClick={submitResidentStatusAction}
+                disabled={Boolean(busyAction) || !residentStatusForm.note.trim() || (residentStatusAction === 'move_out' && !residentStatusForm.moveOutDate) || (residentStatusAction === 'deceased' && !residentStatusForm.reportedAt)}
+                style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: Boolean(busyAction) || !residentStatusForm.note.trim() || (residentStatusAction === 'move_out' && !residentStatusForm.moveOutDate) || (residentStatusAction === 'deceased' && !residentStatusForm.reportedAt) ? 0.55 : 1 }}
+              >
+                {busyAction === 'Bewohnerstatus speichern' ? 'Wird gespeichert...' : 'Verkaufsprozess starten'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {property?.status === 'REJECTED' && (
         <div style={{ background: '#9B2C2C0F', borderBottom: '1px solid #9B2C2C33', padding: '12px 28px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <AlertTriangle size={17} style={{ color: '#9B2C2C', marginTop: 1 }} />
@@ -3925,13 +4156,19 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       {/* Tabs */}
       <div style={{ background: 'white', borderBottom: `1px solid ${theme.border}`, padding: '0 28px', display: 'flex', gap: 4 }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => changeTab(t.id)} style={{
+          <button key={t.id} onClick={() => {
+            if (t.disabled) {
+              setNotice?.('Der Verkaufsprozess beginnt erst nach Ende des Wohnrechts oder Rückmietverkaufs.');
+              return;
+            }
+            changeTab(t.id);
+          }} style={{
             background: 'transparent', border: 'none',
             padding: '12px 18px',
             fontSize: 13, fontWeight: 600,
-            color: activeTab === t.id ? theme.aubergine : `${theme.ink}99`,
+            color: t.disabled ? `${theme.ink}55` : activeTab === t.id ? theme.aubergine : `${theme.ink}99`,
             borderBottom: activeTab === t.id ? `2px solid ${theme.aubergine}` : '2px solid transparent',
-            cursor: 'pointer', marginBottom: -1
+            cursor: t.disabled ? 'not-allowed' : 'pointer', marginBottom: -1
           }}>{t.label}</button>
         ))}
       </div>
@@ -3960,6 +4197,36 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
                   </div>
                 ))}
+              </div>
+
+              <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Bewohnerstatus</div>
+              <div style={{ display: 'grid', gridTemplateColumns: canManageResidentStatus ? '1fr auto' : '1fr', gap: 16, alignItems: 'start' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
+                  {[
+                    ['Status', labelFrom(residentStatusLabels, property?.residentStatus || 'ACTIVE')],
+                    ['Bewohner bleibt im Objekt', yesNo(property?.residentStaysInProperty !== false)],
+                    ['Auszugsdatum', formatDate(property?.residentMoveOutDate)],
+                    ['Sterbedatum', formatDate(property?.residentDeathDate)],
+                    ['Letzte Änderung', formatDate(property?.residentStatusChangedAt)],
+                    ['Interne Notiz', property?.residentStatusNote || '-'],
+                  ].map(([k, v], i) => (
+                    <div key={i}>
+                      <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
+                      <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                {canManageResidentStatus && (
+                  <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
+                    <button onClick={() => startResidentStatusAction('move_out')} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                      Bewohner zieht aus
+                    </button>
+                    <button onClick={() => startResidentStatusAction('deceased')} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                      Bewohner verstorben melden
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -4026,6 +4293,161 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     ))}
                   </div>
                 </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'rating' && role === 'admin' && (
+            <div style={{ display: 'grid', gap: 14 }}>
+              <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Objektrating</div>
+                    <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>Institutionelle Objektprüfung</div>
+                    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, lineHeight: 1.5, marginTop: 4 }}>
+                      Das Rating wird aus versionierten Kriterien, Gewichtungen und Mapping-Regeln erzeugt. Freigegebene Ratings bleiben revisionssicher nachvollziehbar.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <button onClick={generateObjectRating} disabled={Boolean(busyAction) || objectRating?.status === 'approved'} style={{ background: objectRating ? 'white' : theme.aubergine, color: objectRating ? theme.aubergine : 'white', border: objectRating ? `1px solid ${theme.border}` : 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction || objectRating?.status === 'approved' ? 'default' : 'pointer', opacity: busyAction || objectRating?.status === 'approved' ? 0.6 : 1 }}>
+                      {objectRating ? 'Rating neu berechnen' : 'Vorläufiges Rating erzeugen'}
+                    </button>
+                    {objectRating && canManageRating && objectRating.status !== 'approved' && (
+                      <button onClick={approveRating} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                        Rating freigeben
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {!objectRating ? (
+                  <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', fontSize: 13, color: `${theme.ink}99`, lineHeight: 1.5 }}>
+                    Für diesen Fall wurde noch kein Objektrating erzeugt. Bei Einreichung eines Objekts passiert das automatisch; für bestehende Demo-Fälle kann es hier manuell erzeugt werden.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
+                      {[
+                        ['Gesamtscore', objectRating.totalScore ? Number(objectRating.totalScore).toFixed(2).replace('.', ',') : '-'],
+                        ['Ratingklasse', objectRating.ratingClass || '-'],
+                        ['Status', labelFrom(ratingStatusLabels, objectRating.status)],
+                        ['Zielrendite', formatPercent(objectRating.finalTargetReturn)],
+                        ['Korridor', `${formatPercent(objectRating.lowerReturnBound)} - ${formatPercent(objectRating.upperReturnBound)}`],
+                      ].map(([label, value]) => (
+                        <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 13px' }}>
+                          <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+                          <div style={{ fontSize: 16, color: theme.aubergine, fontWeight: 800 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Finale Zielrendite</div>
+                          <div style={{ fontSize: 12.5, color: `${theme.ink}99` }}>Analysten dürfen die finale Zielrendite nur innerhalb des Rating-Korridors setzen.</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input value={ratingReturnPercent} onChange={(event) => setRatingReturnInput(event.target.value)} disabled={ratingReadOnly} placeholder="z.B. 7,25" style={{ width: 110, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, fontFamily: 'inherit', background: ratingReadOnly ? theme.mintLighter : 'white' }} />
+                          <span style={{ fontSize: 13, color: theme.ink, fontWeight: 700 }}>%</span>
+                          {canManageRating && objectRating.status !== 'approved' && (
+                            <button onClick={saveRatingReturn} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>Speichern</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kategorien</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 18 }}>
+                      {ratingCategoryRows.map(({ category, score }) => (
+                        <div key={category.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', background: 'white' }}>
+                          <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 800 }}>{category.name}</div>
+                          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 4 }}>Gewichtung {formatPercent(category.weight)}</div>
+                          <div style={{ fontSize: 22, color: theme.ink, fontWeight: 800, marginTop: 6 }}>{score ? score.toFixed(2).replace('.', ',') : '-'}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kriterien</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {ratingScores.map((score) => {
+                        const input = ratingScoreInputs[score.id] || {};
+                        const effectiveScore = input.analystScore || score.analystScore || score.finalScore || score.prefilledScore || '';
+                        return (
+                          <div key={score.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', background: Number(score.confidence || 0) < 0.65 ? theme.goldSoft : 'white' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: canManageRating && objectRating.status !== 'approved' ? '1.1fr 0.7fr 0.6fr 0.6fr 0.8fr 1.2fr auto' : '1.2fr 0.8fr 0.6fr 0.6fr 0.8fr 1.2fr', gap: 10, alignItems: 'center' }}>
+                              <div>
+                                <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{score.criterion?.name || score.criterionId}</div>
+                                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{score.criterion?.category?.name || '-'} · Gewichtung {formatPercent(score.criterion?.weight)}</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Quelle</div>
+                                <div style={{ fontSize: 12.5, color: theme.ink }}>{labelFrom(ratingSourceLabels, score.source || score.criterion?.sourceType)}</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Auto</div>
+                                <div style={{ fontSize: 12.5, color: theme.ink }}>{score.prefilledScore || '-'}</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Final</div>
+                                {canManageRating && objectRating.status !== 'approved' ? (
+                                  <select value={effectiveScore} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, analystScore: event.target.value } })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, background: 'white' }}>
+                                    <option value="">-</option>
+                                    {[1, 2, 3, 4, 5, 6].map((value) => <option key={value} value={value}>{value}</option>)}
+                                  </select>
+                                ) : (
+                                  <div style={{ fontSize: 12.5, color: theme.ink }}>{score.finalScore || '-'}</div>
+                                )}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Confidence</div>
+                                <div style={{ fontSize: 12.5, color: theme.ink }}>{formatPercent(score.confidence)}</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Kommentar</div>
+                                {canManageRating && objectRating.status !== 'approved' ? (
+                                  <input value={input.comment ?? ''} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder="Pflicht bei Änderung" style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                                ) : (
+                                  <div style={{ fontSize: 12.5, color: theme.ink }}>{score.comment || '-'}</div>
+                                )}
+                              </div>
+                              {canManageRating && objectRating.status !== 'approved' && (
+                                <button onClick={() => saveRatingScore(score)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>Speichern</button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {objectRating && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Offene Prüfungen</div>
+                    {ratingOpenChecks.length ? ratingOpenChecks.map((score) => (
+                      <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '9px 0' }}>
+                        <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{score.criterion?.name || score.criterionId}</div>
+                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>Confidence {formatPercent(score.confidence)} · {score.prefilledScore ? 'Analystenprüfung empfohlen' : 'Datenbasis fehlt'}</div>
+                      </div>
+                    )) : (
+                      <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Keine offenen Prüfungen.</div>
+                    )}
+                  </div>
+                  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Audit Trail</div>
+                    {objectRating.auditLogs?.length ? objectRating.auditLogs.map((entry) => (
+                      <div key={entry.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '9px 0' }}>
+                        <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{entry.action}</div>
+                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{formatDate(entry.timestamp)}{entry.comment ? ` · ${entry.comment}` : ''}</div>
+                      </div>
+                    )) : (
+                      <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Noch keine Historie vorhanden.</div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -4233,11 +4655,20 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             </div>
           )}
 
-          {activeTab === 'verwertung' && role === 'admin' && (
+          {activeTab === 'verwertung' && role === 'admin' && !salesProcessActive && (
+            <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Verkaufsprozess</div>
+              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', fontSize: 13, color: theme.ink, lineHeight: 1.5 }}>
+                Der Verkaufsprozess beginnt erst nach Ende des Wohnrechts oder Rückmietverkaufs.
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'verwertung' && role === 'admin' && salesProcessActive && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Objekte im Verkauf</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Verkaufsprozess</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Exitphase nach Auszug, Tod, Ablauf oder Aufgabe des Nutzungsrechts</div>
                 </div>
                 <span style={{ background: `${theme.aubergine}12`, color: theme.aubergine, borderRadius: 10, padding: '4px 10px', fontSize: 11, fontWeight: 800 }}>
@@ -4252,7 +4683,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
                   <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Beendigung Nutzungsrecht</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Wohnrecht / Nutzungsrecht beendet am"><Input type="date" value={exitProcessForm.usageRightEndedAt} onChange={(event) => updateExitProcessForm({ usageRightEndedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Wohnrecht / Rückmietverkauf beendet am"><Input type="date" value={exitProcessForm.usageRightEndedAt} onChange={(event) => updateExitProcessForm({ usageRightEndedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Grund der Beendigung">
                       <Select value={exitProcessForm.terminationReason} onChange={(event) => updateExitProcessForm({ terminationReason: event.target.value })}>
                         {Object.entries(exitTerminationReasonLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -4312,7 +4743,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     </Field>
                     <Field label="Verkauf beurkundet am"><Input type="date" value={exitProcessForm.saleNotarizedAt} onChange={(event) => updateExitProcessForm({ saleNotarizedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Kaufpreis erhalten am"><Input type="date" value={exitProcessForm.salePriceReceivedAt} onChange={(event) => updateExitProcessForm({ salePriceReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verwertung abgeschlossen am"><Input type="date" value={exitProcessForm.exitCompletedAt} onChange={(event) => updateExitProcessForm({ exitCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verkaufsprozess abgeschlossen am"><Input type="date" value={exitProcessForm.exitCompletedAt} onChange={(event) => updateExitProcessForm({ exitCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
                   <Field label="Interne Notiz">
                     <textarea value={exitProcessForm.internalNote} onChange={(event) => updateExitProcessForm({ internalNote: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
@@ -4322,7 +4753,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 {canManagePortfolio ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={saveExitProcess} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                      <Save size={14} /> {busyAction === 'Verwertung speichern' ? 'Speichert...' : 'Verwertung speichern'}
+                      <Save size={14} /> {busyAction === 'Verkaufsprozess speichern' ? 'Speichert...' : 'Verkaufsprozess speichern'}
                     </button>
                   </div>
                 ) : null}
@@ -4599,21 +5030,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   Lesende Ansicht: WohnKapital berechnet und gibt Angebote intern frei. Als Makler siehst du hier die vorhandenen Angebotsdaten.
                 </div>
               )}
-              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
-                  <Field label="Unverbindliches Angebot abgegeben am">
-                    <Input type="date" value={indicativeOfferSentDate} onChange={(event) => setIndicativeOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
-                  </Field>
-                  <Field label="Unverbindliches Angebot angenommen am" invalid={Boolean(indicativeOfferAcceptedDate && indicativeOfferSentDate && isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate))}>
-                    <Input type="date" value={indicativeOfferAcceptedDate} onChange={(event) => setIndicativeOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
-                  </Field>
-                  {canEditOfferDates && (
-                    <button onClick={() => saveOfferDateFields('indicative')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
-                      Daten speichern
-                    </button>
-                  )}
-                </div>
-              </div>
               <div style={{ display: 'grid', gap: 12 }}>
                 {requestedOfferModels.map((modelRequest, index) => {
                   const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
@@ -4648,9 +5064,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         {offer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{labelFrom(offerStatusLabels, offer.status, offer.status)}</span> : null}
                       </div>
 
+                      {modelRequest.primary && indicativeOfferDateFields}
+
                       {canManageOffers && (
                         <button onClick={() => setOpenCalculation(openCalculation === key ? '' : key)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', marginBottom: openCalculation === key ? 12 : 0 }}>
-                          Berechnung starten
+                          Unverbindliches Angebot berechnen
                         </button>
                       )}
 
@@ -4670,7 +5088,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                             ))}
                           </div>
                           <button onClick={() => startValuationAndOffer(modelRequest.model)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                            {busyAction ? 'Berechnet...' : 'Berechnung auslösen'}
+                            {busyAction ? 'Berechnet...' : 'Unverbindliches Angebot berechnen'}
                           </button>
                         </div>
                       )}
@@ -4793,21 +5211,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5, marginBottom: 14 }}>
                 Nach Eingang des Gutachtens wird das verbindliche Angebot auf Basis des Gutachtenwerts neu berechnet. Die UVA bleibt als eigene Version bestehen.
               </div>
-              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
-                  <Field label="Verbindliches Angebot abgegeben am">
-                    <Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
-                  </Field>
-                  <Field label="Verbindliches Angebot angenommen am" invalid={Boolean(bindingOfferAcceptedDate && bindingOfferSentDate && isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate))}>
-                    <Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
-                  </Field>
-                  {canEditOfferDates && (
-                    <button onClick={() => saveOfferDateFields('binding')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
-                      Daten speichern
-                    </button>
-                  )}
-                </div>
-              </div>
               {!canPrepareBindingOffer && (
                 <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, marginBottom: 14 }}>
                   Das verbindliche Angebot wird freigeschaltet, sobald im Bereich „Unverbindliches Angebot“ das Gutachten als eingegangen markiert wurde.
@@ -4820,7 +5223,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   const deltaMarket = bindingOffer && indicativeOffer ? bindingOffer.marketValue - indicativeOffer.marketValue : undefined;
                   const deltaPayout = bindingOffer && indicativeOffer ? bindingOffer.payoutAmount - indicativeOffer.payoutAmount : undefined;
                   const key = `binding-${modelRequest.key}-${index}`;
-                  const params = calculationParams[key] || {};
                   const quote = bindingOffer?.payoutAmount && bindingOffer?.marketValue ? Math.round((bindingOffer.payoutAmount / bindingOffer.marketValue) * 100) : undefined;
                   const bindingMetricRows = bindingOffer ? (modelRequest.model === 'sale_and_leaseback' ? rentBackMetricRows(bindingOffer) : role === 'admin' ? [
                     ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
@@ -4846,6 +5248,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         </div>
                         {bindingOffer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{labelFrom(offerStatusLabels, bindingOffer.status, bindingOffer.status)}</span> : null}
                       </div>
+                      {modelRequest.primary && bindingOfferDateFields}
                       {bindingOffer && indicativeOffer && (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
                           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>UVA vs. VA</div>
@@ -4870,19 +5273,13 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
                       {canManageOffers && (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 360px)', gap: 10, marginBottom: 12 }}>
                             <Field label="Gutachtenwert (€)" required>
-                              <Input type="number" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(event.target.value)} placeholder="z.B. 520000" />
-                            </Field>
-                            <Field label="Instandhaltung (€)">
-                              <Input type="number" value={params.maintenancePledge || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, maintenancePledge: event.target.value } })} />
-                            </Field>
-                            <Field label="Interne Verzinsung (%)">
-                              <Input type="number" value={params.interestRate || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, interestRate: event.target.value } })} />
+                              <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder="z.B. 520.000" inputMode="numeric" />
                             </Field>
                           </div>
                           <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction) || !canPrepareBindingOffer} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : canPrepareBindingOffer ? 'pointer' : 'default', opacity: busyAction || !canPrepareBindingOffer ? 0.55 : 1 }}>
-                            {busyAction ? 'Berechnet...' : 'VA auf Gutachtenwert kalkulieren'}
+                            {busyAction ? 'Berechnet...' : 'Verbindliches Angebot berechnen'}
                           </button>
                         </div>
                       )}
@@ -5078,7 +5475,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 // =====================================================================
 // SCREEN 4 — ERFASSUNGSBOGEN SCHRITT 1
 // =====================================================================
-const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', user }) => {
+const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', internalRole = 'employee', user }) => {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState('');
   const [draft, setDraft] = useState(() => draftFromCaseView(initialCase));
@@ -5087,6 +5484,8 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
   const editMode = Boolean(initialCase?.property?.id);
   const canSubmitCase = !editMode || initialCase?.property?.status === 'DRAFT';
   const isInternalCase = role === 'admin';
+  const canNavigateWithIncompleteRequiredFields = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
+  const modelLockedForPortfolio = Boolean(editMode && (initialCase?.property?.status === 'IN_PORTFOLIO' || initialCase?.property?.portfolioEnteredAt));
   const steps = [
     { n: 1, label: 'Persönliche Daten' },
     { n: 2, label: 'Wunschmodell' },
@@ -5108,7 +5507,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
       return;
     }
     for (let currentStep = step; currentStep < nextStep; currentStep += 1) {
-      const result = validateCaseStep(currentStep, draft);
+      const result = validateForNavigation(currentStep, draft, { allowIncomplete: canNavigateWithIncompleteRequiredFields });
       if (!result.valid) {
         setValidation({ fields: result.fields, message: result.message });
         setStep(currentStep);
@@ -5125,10 +5524,17 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
       return;
     }
     if (submit) {
-      const result = validateCaseDraft(draft);
+      const result = validateForSubmit(draft);
       if (!result.valid) {
         setValidation({ fields: result.fields, message: result.message });
         setStep(result.step);
+        setNotice?.(result.message);
+        return;
+      }
+    } else {
+      const result = validateForDraftSave(draft, { allowIncomplete: canNavigateWithIncompleteRequiredFields });
+      if (!result.valid) {
+        setValidation({ fields: result.fields, message: result.message });
         setNotice?.(result.message);
         return;
       }
@@ -5136,13 +5542,23 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
     setValidation({ fields: [], message: '' });
     setSaving(submit ? 'submit' : 'draft');
     try {
+      const incompleteDraftSave = !submit && canNavigateWithIncompleteRequiredFields;
+      const payloadPropertyType = draft.propertyType || (incompleteDraftSave ? 'single_family' : '');
+      const payloadDesiredModel = modelLockedForPortfolio
+        ? (initialCase?.property?.desiredModel || 'fixed_residential_right')
+        : draft.desiredModel || (incompleteDraftSave ? 'fixed_residential_right' : '');
+      const payloadStreet = draft.street || (incompleteDraftSave ? 'Noch offen' : '');
+      const payloadPostalCode = draft.postalCode || (incompleteDraftSave ? '00000' : '');
+      const payloadCity = draft.city || (incompleteDraftSave ? 'Ort offen' : '');
+      const payloadLivingAreaSqm = Number(draft.livingAreaSqm) || (incompleteDraftSave ? 1 : 0);
+      const payloadPlotAreaSqm = Number(draft.plotAreaSqm) || 0;
       const customerPayload = {
         partnerId: isInternalCase ? undefined : 'partner_heimwert',
         assignedAdvisorUserId: isInternalCase ? user?.id : undefined,
         title: draft.title,
-        firstName: draft.firstName,
-        lastName: draft.lastName,
-        displayName: [draft.title, draft.firstName, draft.lastName].filter(Boolean).join(' '),
+        firstName: draft.firstName || (incompleteDraftSave ? 'Entwurf' : ''),
+        lastName: draft.lastName || (incompleteDraftSave ? 'Neukunde' : ''),
+        displayName: [draft.title, draft.firstName || (incompleteDraftSave ? 'Entwurf' : ''), draft.lastName || (incompleteDraftSave ? 'Neukunde' : '')].filter(Boolean).join(' '),
         ageAtSubmission: Number(draft.ageAtSubmission) || undefined,
         gender: draft.gender,
         dateOfBirth: draft.dateOfBirth,
@@ -5157,10 +5573,10 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         email: draft.email,
         phone: draft.phone,
         mobile: draft.mobile,
-        street: draft.street,
-        postalCode: draft.postalCode,
-        city: draft.city,
-        addressText: `${draft.street}, ${draft.postalCode} ${draft.city}`,
+        street: draft.street || undefined,
+        postalCode: draft.postalCode || undefined,
+        city: draft.city || undefined,
+        addressText: [draft.street, [draft.postalCode, draft.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
         consentDataProcessing: Boolean(draft.consentDataProcessing),
       };
       const customerResult = editMode
@@ -5169,19 +5585,19 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
       const propertyPayload = {
         customerId: customerResult.customer.id,
         caseSource: isInternalCase ? 'INTERNAL' : 'PARTNER',
-        objectTitle: `${propertyTypeLabel(draft.propertyType)} ${draft.city}`,
-        propertyType: draft.propertyType,
-        street: draft.street,
-        postalCode: draft.postalCode,
-        city: draft.city,
-        livingAreaSqm: Number(draft.livingAreaSqm),
-        plotAreaSqm: Number(draft.plotAreaSqm),
+        objectTitle: `${propertyTypeLabel(payloadPropertyType)} ${payloadCity}`.trim(),
+        propertyType: payloadPropertyType,
+        street: payloadStreet,
+        postalCode: payloadPostalCode,
+        city: payloadCity,
+        livingAreaSqm: payloadLivingAreaSqm,
+        plotAreaSqm: payloadPlotAreaSqm,
         yearBuilt: Number(draft.yearBuilt) || undefined,
         condition: draft.condition || 'average',
-        desiredModel: draft.desiredModel,
-        residentialRightRecipients: draft.desiredModel === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : undefined,
-        residentialRightPerson: draft.desiredModel === 'fixed_residential_right' && draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
-        desiredResidentialRightYears: draft.desiredModel === 'fixed_residential_right' ? Number(draft.desiredResidentialRightYears) || undefined : undefined,
+        desiredModel: payloadDesiredModel,
+        residentialRightRecipients: payloadDesiredModel === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : undefined,
+        residentialRightPerson: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
+        desiredResidentialRightYears: payloadDesiredModel === 'fixed_residential_right' ? Number(draft.desiredResidentialRightYears) || undefined : undefined,
         rentalModelDisclosureAccepted: Boolean(draft.rentalModelDisclosureAccepted),
         additionalOfferRequested: Boolean(draft.additionalOfferRequested),
         additionalOfferModel: draft.additionalOfferRequested ? draft.additionalOfferModel : undefined,
@@ -5195,7 +5611,8 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         fixedTermReason: draft.fixedTermReason,
         rentalOptionDeselected: false,
         usableAreaSqm: Number(draft.usableAreaSqm) || undefined,
-        coOwnershipShares: draft.propertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
+        coOwnershipShares: payloadPropertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
+        hasElevator: payloadPropertyType === 'apartment' && (draft.hasElevator === true || draft.hasElevator === false) ? draft.hasElevator : undefined,
         parkingAvailable: Boolean(draft.parkingType && draft.parkingType !== 'none'),
         parkingType: draft.parkingType && draft.parkingType !== 'none' ? draft.parkingType || undefined : undefined,
         parkingCount: draft.parkingType && draft.parkingType !== 'none' ? Number(draft.parkingCount) || undefined : undefined,
@@ -5216,6 +5633,11 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         monumentProtection: Boolean(draft.monumentProtection),
         leaseholdOrMonument: Boolean(draft.leasehold || draft.monumentProtection),
         knownDefects: draft.knownDefects,
+        knownMajorMaintenanceOrSpecialAssessments: draft.knownMajorMaintenanceOrSpecialAssessments === true,
+        knownMajorMaintenanceOrSpecialAssessmentsDescription: draft.knownMajorMaintenanceOrSpecialAssessments === true ? draft.knownMajorMaintenanceOrSpecialAssessmentsDescription : undefined,
+        moistureDamageStatus: draft.moistureDamageStatus,
+        moistureDamageDescription: draft.moistureDamageStatus === 'MINOR' || draft.moistureDamageStatus === 'SIGNIFICANT' ? draft.moistureDamageDescription : undefined,
+        accessibilityAssessment: draft.accessibilityAssessment,
         remainingDebtKnown: draft.remainingDebtKnown === true,
         remainingDebtAmount: draft.remainingDebtKnown ? Number(draft.remainingDebtAmount) || undefined : undefined,
         modernization: draft.modernization,
@@ -5322,7 +5744,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
             </div>
           )}
           {step === 1 && <FormStep1 draft={draft} setDraft={setDraft} errors={validation.fields} />}
-          {step === 2 && <FormStep2 draft={draft} setDraft={setDraft} errors={validation.fields} />}
+          {step === 2 && <FormStep2 draft={draft} setDraft={setDraft} errors={validation.fields} modelLocked={modelLockedForPortfolio} />}
           {step === 3 && <FormStep3 draft={draft} setDraft={setDraft} errors={validation.fields} />}
           {step === 4 && <FormStep4 draft={draft} setDraft={setDraft} errors={validation.fields} />}
           {step === 5 && <FormStep5 draft={draft} setDraft={setDraft} errors={validation.fields} />}
@@ -5391,19 +5813,19 @@ const Field = ({ label, required, children, hint, width = '100%', invalid = fals
     {invalid && <div style={{ fontSize: 11, color: '#9B2C2C', fontWeight: 700, marginTop: 5 }}>Bitte ausfüllen.</div>}
   </div>
 );
-const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly, inputRef }) => (
-  <input ref={inputRef} type={type} placeholder={placeholder} defaultValue={defaultValue} value={value} onChange={onChange} onInput={onChange} checked={checked} readOnly={readOnly} style={{
+const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly, disabled, inputRef, inputMode }) => (
+  <input ref={inputRef} type={type} placeholder={placeholder} defaultValue={defaultValue} value={value} onChange={onChange} onInput={onChange} checked={checked} readOnly={readOnly} disabled={disabled} inputMode={inputMode} style={{
     width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
-    borderRadius: 5, background: readOnly ? theme.mintLighter : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
-    boxSizing: 'border-box'
+    borderRadius: 5, background: readOnly || disabled ? theme.mintLighter : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
+    boxSizing: 'border-box', cursor: disabled ? 'not-allowed' : 'text'
   }} />
 );
-const Select = ({ children, defaultValue, value, onChange }) => (
+const Select = ({ children, defaultValue, value, onChange, disabled = false }) => (
   <div style={{ position: 'relative' }}>
-    <select defaultValue={defaultValue} value={value} onChange={onChange} style={{
+    <select defaultValue={defaultValue} value={value} onChange={onChange} disabled={disabled} style={{
       width: '100%', padding: '8px 32px 8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
-      borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
-      appearance: 'none', cursor: 'pointer'
+      borderRadius: 5, background: disabled ? theme.mintLighter : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
+      appearance: 'none', cursor: disabled ? 'not-allowed' : 'pointer'
     }}>{children}</select>
     <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: `${theme.aubergine}88`, pointerEvents: 'none' }} />
   </div>
@@ -5547,10 +5969,15 @@ const FormStep1 = ({ draft, setDraft, errors = [] }) => (
   </div>
 );
 
-const FormStep2 = ({ draft, setDraft, errors = [] }) => (
+const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
   <div>
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Wunschmodell</h2>
     <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte wähle zunächst das gewünschte Hauptmodell. Danach erscheinen nur die passenden Felder.</div>
+    {modelLocked && (
+      <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45, marginBottom: 14 }}>
+        Das Modell kann bei Bestandskunden nicht mehr geändert werden.
+      </div>
+    )}
 
     <Field label="Hauptmodell" required invalid={errors.includes('desiredModel')}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
@@ -5560,7 +5987,9 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
         ].map((option) => {
           const active = draft.desiredModel === option.value;
           return (
-            <button key={option.value} type="button" onClick={() => setDraft({
+            <button key={option.value} type="button" disabled={modelLocked} onClick={() => {
+              if (modelLocked) return;
+              setDraft({
               ...draft,
               desiredModel: option.value,
               desiredResidentialRightYears: option.value === 'fixed_residential_right' ? (draft.desiredResidentialRightYears || 10) : '',
@@ -5568,14 +5997,16 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
               residentialRightPerson: option.value === 'fixed_residential_right' ? draft.residentialRightPerson : '',
               fixedTermReason: option.value === 'fixed_residential_right' ? draft.fixedTermReason : '',
               rentalModelDisclosureAccepted: option.value === 'sale_and_leaseback' ? draft.rentalModelDisclosureAccepted : false,
-            })} style={{
+            });
+            }} style={{
               textAlign: 'left',
               border: `1px solid ${active ? theme.aubergine : theme.border}`,
-              background: active ? `${theme.aubergine}0A` : 'white',
+              background: modelLocked ? theme.mintLighter : active ? `${theme.aubergine}0A` : 'white',
               borderRadius: 8,
               padding: '14px 16px',
-              cursor: 'pointer',
-              color: theme.ink
+              cursor: modelLocked ? 'not-allowed' : 'pointer',
+              color: theme.ink,
+              opacity: modelLocked && !active ? 0.55 : 1
             }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: active ? theme.aubergine : theme.ink, marginBottom: 5 }}>{option.title}</div>
               <div style={{ fontSize: 12.5, lineHeight: 1.45, color: `${theme.ink}99` }}>{option.text}</div>
@@ -5641,13 +6072,13 @@ const FormStep2 = ({ draft, setDraft, errors = [] }) => (
 
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.ink, fontWeight: 700 }}>
-        <input type="checkbox" checked={draft.additionalOfferRequested} onChange={(event) => setDraft({ ...draft, additionalOfferRequested: event.target.checked })} style={{ accentColor: theme.aubergine }} />
+        <input type="checkbox" checked={draft.additionalOfferRequested} disabled={modelLocked} onChange={(event) => setDraft({ ...draft, additionalOfferRequested: event.target.checked })} style={{ accentColor: theme.aubergine }} />
         Zweites Angebot zusätzlich erstellen
       </label>
       {draft.additionalOfferRequested && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 16, marginTop: 14 }}>
           <Field label="Zweites Modell" required invalid={errors.includes('additionalOfferModel')}>
-            <Select value={draft.additionalOfferModel} onChange={(event) => setDraft({
+            <Select value={draft.additionalOfferModel} disabled={modelLocked} onChange={(event) => setDraft({
               ...draft,
               additionalOfferModel: event.target.value,
               additionalOfferResidentialRightRecipients: event.target.value === 'fixed_residential_right' ? (draft.additionalOfferResidentialRightRecipients || 'one_person') : '',
@@ -5710,17 +6141,25 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Grunddaten</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Immobilientyp" required invalid={errors.includes('propertyType')}>
-        <Select value={draft.propertyType} onChange={(event) => setDraft({ ...draft, propertyType: event.target.value })}><option value="">Bitte wählen</option><option value="single_family">Einfamilienhaus</option><option value="semi_detached">Doppelhaushälfte</option><option value="row_house">Reihenhaus</option><option value="apartment">Eigentumswohnung</option></Select>
+        <Select value={draft.propertyType} onChange={(event) => setDraft({ ...draft, propertyType: event.target.value, hasElevator: event.target.value === 'apartment' ? draft.hasElevator : '' })}><option value="">Bitte wählen</option><option value="single_family">Einfamilienhaus</option><option value="semi_detached">Doppelhaushälfte</option><option value="row_house">Reihenhaus</option><option value="apartment">Eigentumswohnung</option></Select>
       </Field>
       <Field label="Baujahr" required invalid={errors.includes('yearBuilt')}><Input type="number" placeholder="z.B. 1978" value={draft.yearBuilt} onChange={(event) => setDraft({ ...draft, yearBuilt: event.target.value })} /></Field>
       <Field label="Wohnfläche (m²)" required invalid={errors.includes('livingAreaSqm')}><Input type="number" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
     </div>
 
-    <div style={{ display: 'grid', gridTemplateColumns: draft.propertyType === 'apartment' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: draft.propertyType === 'apartment' ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
       <Field label="Grundstück (m²)" required invalid={errors.includes('plotAreaSqm')}><Input type="number" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
       <Field label="Nutzfläche (m²)" invalid={errors.includes('usableAreaSqm')}><Input type="number" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
       {draft.propertyType === 'apartment' && (
-        <Field label="Miteigentumsanteile" required hint="Nur bei Eigentumswohnungen" invalid={errors.includes('coOwnershipShares')}><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
+        <>
+          <Field label="Miteigentumsanteile" required hint="Nur bei Eigentumswohnungen" invalid={errors.includes('coOwnershipShares')}><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
+          <Field label="Aufzug vorhanden" required invalid={errors.includes('hasElevator')}>
+            <RadioGroup name="hasElevator" value={draft.hasElevator === true ? 'yes' : draft.hasElevator === false ? 'no' : ''} onChange={(value) => setDraft({ ...draft, hasElevator: value === 'yes' })} options={[
+              { value: 'yes', label: 'Ja' },
+              { value: 'no', label: 'Nein' },
+            ]} />
+          </Field>
+        </>
       )}
     </div>
 
@@ -6017,6 +6456,47 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
             </div>
           );
         })}
+      </div>
+
+      <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 20 }}>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Objektprüfung</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <Field label="Sind größere Instandhaltungen oder Sonderumlagen bekannt?" required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessments')}>
+            <RadioGroup name="knownMajorMaintenanceOrSpecialAssessments" value={draft.knownMajorMaintenanceOrSpecialAssessments === true ? 'yes' : draft.knownMajorMaintenanceOrSpecialAssessments === false ? 'no' : ''} onChange={(value) => setDraft({ ...draft, knownMajorMaintenanceOrSpecialAssessments: value === 'yes', knownMajorMaintenanceOrSpecialAssessmentsDescription: value === 'yes' ? draft.knownMajorMaintenanceOrSpecialAssessmentsDescription : '' })} options={[
+              { value: 'no', label: 'Nein' },
+              { value: 'yes', label: 'Ja' },
+            ]} />
+          </Field>
+          <Field label="Sind Feuchtigkeit, Schimmel oder Wasserschäden bekannt?" required invalid={errors.includes('moistureDamageStatus')}>
+            <Select value={draft.moistureDamageStatus || ''} onChange={(event) => setDraft({ ...draft, moistureDamageStatus: event.target.value, moistureDamageDescription: event.target.value === 'NONE' ? '' : draft.moistureDamageDescription })}>
+              <option value="">Bitte wählen</option>
+              <option value="NONE">Nein</option>
+              <option value="MINOR">Ja, geringfügig</option>
+              <option value="SIGNIFICANT">Ja, erheblich</option>
+            </Select>
+          </Field>
+        </div>
+        {draft.knownMajorMaintenanceOrSpecialAssessments === true && (
+          <div style={{ marginBottom: 16 }}>
+            <Field label="Bitte bekannte Instandhaltungen oder Sonderumlagen beschreiben" required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessmentsDescription')}>
+              <textarea value={draft.knownMajorMaintenanceOrSpecialAssessmentsDescription || ''} onChange={(event) => setDraft({ ...draft, knownMajorMaintenanceOrSpecialAssessmentsDescription: event.target.value })} rows={3} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+            </Field>
+          </div>
+        )}
+        {(draft.moistureDamageStatus === 'MINOR' || draft.moistureDamageStatus === 'SIGNIFICANT') && (
+          <div style={{ marginBottom: 16 }}>
+            <Field label="Bitte Feuchtigkeit, Schimmel oder Wasserschäden beschreiben" required invalid={errors.includes('moistureDamageDescription')}>
+              <textarea value={draft.moistureDamageDescription || ''} onChange={(event) => setDraft({ ...draft, moistureDamageDescription: event.target.value })} rows={3} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+            </Field>
+          </div>
+        )}
+        <Field label="Einschätzung Zugänglichkeit" required invalid={errors.includes('accessibilityAssessment')}>
+          <RadioGroup name="accessibilityAssessment" value={draft.accessibilityAssessment || ''} onChange={(value) => setDraft({ ...draft, accessibilityAssessment: value })} options={[
+            { value: 'LOW_BARRIER', label: 'Barrierearm' },
+            { value: 'PARTIALLY_RESTRICTED', label: 'Teilweise eingeschränkt' },
+            { value: 'STRONGLY_RESTRICTED', label: 'Stark eingeschränkt' },
+          ]} />
+        </Field>
       </div>
     </div>
   );
@@ -6912,7 +7392,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und strukturierte Einreichung an WohnKapital." />}
           {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
           {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} returnTab={caseReturnTab} onTabChange={handleCaseTabChange} onReturnToTab={handleReturnToCaseTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
-          {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} role={role} user={user} />}
+          {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} role={role} internalRole={currentInternalRole} user={user} />}
         </div>
       </div>
     </div>

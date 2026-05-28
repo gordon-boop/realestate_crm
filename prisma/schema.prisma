@@ -200,6 +200,25 @@ enum ModernizationScope {
   complete
 }
 
+enum MoistureDamageStatus {
+  NONE
+  MINOR
+  SIGNIFICANT
+}
+
+enum AccessibilityAssessment {
+  LOW_BARRIER
+  PARTIALLY_RESTRICTED
+  STRONGLY_RESTRICTED
+}
+
+enum ResidentStatus {
+  ACTIVE
+  MOVE_OUT_PLANNED
+  MOVED_OUT
+  DECEASED
+}
+
 enum BasementType {
   none
   partial
@@ -280,6 +299,20 @@ enum ActivityEntityType {
   reminder
   lead
   chat
+  rating
+}
+
+enum RatingSourceType {
+  questionnaire
+  api
+  analyst
+  document
+}
+
+enum ObjectRatingStatus {
+  draft
+  analyst_review
+  approved
 }
 
 enum ChatMessageVisibility {
@@ -328,6 +361,10 @@ model User {
   remindersCreated Reminder[] @relation("ReminderCreatedBy")
   remindersCompleted Reminder[] @relation("ReminderCompletedBy")
   activityVersionsCreated ActivityVersion[] @relation("ActivityVersionCreatedBy")
+  ratingVersionsCreated RatingVersion[] @relation("RatingVersionCreatedBy")
+  objectRatingsApproved ObjectRating[] @relation("ObjectRatingApprovedBy")
+  objectRatingScoresChanged ObjectRatingScore[] @relation("ObjectRatingScoreChangedBy")
+  ratingAuditLogs RatingAuditLog[]
   exitProcessesResponsible PropertyExitProcess[]
   deletedAt    DateTime? @map("deleted_at")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -463,6 +500,12 @@ model Property {
   leasehold                    Boolean           @default(false)
   monumentProtection           Boolean           @default(false) @map("monument_protection")
   knownDefects                 String?           @map("known_defects")
+  knownMajorMaintenanceOrSpecialAssessments Boolean? @map("known_major_maintenance_or_special_assessments")
+  knownMajorMaintenanceOrSpecialAssessmentsDescription String? @map("known_major_maintenance_or_special_assessments_description")
+  moistureDamageStatus         MoistureDamageStatus? @map("moisture_damage_status")
+  moistureDamageDescription    String?           @map("moisture_damage_description")
+  accessibilityAssessment      AccessibilityAssessment? @map("accessibility_assessment")
+  hasElevator                  Boolean?          @map("has_elevator")
   remainingDebtKnown           Boolean           @default(false) @map("remaining_debt_known")
   remainingDebtAmount          Decimal?          @map("remaining_debt_amount") @db.Decimal(14, 2)
   modernizationJson            Json?             @map("modernization_json")
@@ -517,6 +560,12 @@ model Property {
   propertyFileComplete         Boolean           @default(false) @map("property_file_complete")
   residentStaysInProperty      Boolean           @default(true) @map("resident_stays_in_property")
   residentName                 String?           @map("resident_name")
+  residentStatus               ResidentStatus    @default(ACTIVE) @map("resident_status")
+  residentMoveOutDate          DateTime?         @map("resident_move_out_date")
+  residentDeathDate            DateTime?         @map("resident_death_date")
+  residentStatusChangedAt      DateTime?         @map("resident_status_changed_at")
+  residentStatusChangedByUserId String?          @map("resident_status_changed_by_user_id")
+  residentStatusNote           String?           @map("resident_status_note")
   usageModel                   UsageModel?       @map("usage_model")
   usageRightStartsAt           DateTime?         @map("usage_right_starts_at")
   usageRightEndsAt             DateTime?         @map("usage_right_ends_at")
@@ -543,6 +592,7 @@ model Property {
   valuations                   Valuation[]
   offers                       Offer[]
   activities                   Activity[]
+  objectRatings                ObjectRating[]
   chatMessages                 ChatMessage[]
   caseNotifications            CaseNotification[]
   reminders                    Reminder[]
@@ -597,6 +647,170 @@ model PropertyExitProcess {
   @@index([salesStatus])
   @@index([responsibleUserId])
   @@map("property_exit_processes")
+}
+
+model RatingVersion {
+  id            String           @id @default(cuid())
+  versionNumber Int              @unique @map("version_number")
+  description   String?
+  active        Boolean          @default(false)
+  createdByUserId String?        @map("created_by")
+  createdBy     User?            @relation("RatingVersionCreatedBy", fields: [createdByUserId], references: [id])
+  categories    RatingCategory[]
+  criteria      RatingCriterion[]
+  scoreDefinitions RatingScoreDefinition[]
+  fieldMappings RatingFieldMapping[]
+  returnCurves  RatingReturnCurve[]
+  objectRatings ObjectRating[]
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  @@map("rating_versions")
+}
+
+model RatingCategory {
+  id        String          @id @default(cuid())
+  versionId String          @map("version_id")
+  version   RatingVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  name      String
+  weight    Decimal         @db.Decimal(8, 4)
+  active    Boolean         @default(true)
+  criteria  RatingCriterion[]
+
+  @@index([versionId])
+  @@map("rating_categories")
+}
+
+model RatingCriterion {
+  id          String           @id @default(cuid())
+  versionId   String           @map("version_id")
+  version     RatingVersion    @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  categoryId  String           @map("category_id")
+  category    RatingCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  weight      Decimal          @db.Decimal(8, 4)
+  sourceType  RatingSourceType @map("source_type")
+  required    Boolean          @default(false)
+  active      Boolean          @default(true)
+  scoreDefinitions RatingScoreDefinition[]
+  fieldMappings RatingFieldMapping[]
+  objectScores ObjectRatingScore[]
+
+  @@index([versionId])
+  @@index([categoryId])
+  @@map("rating_criteria")
+}
+
+model RatingScoreDefinition {
+  id          String          @id @default(cuid())
+  versionId   String          @map("version_id")
+  version     RatingVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  criterionId String          @map("criterion_id")
+  criterion   RatingCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  scoreValue  Int             @map("score_value")
+  label       String
+  description String?
+
+  @@unique([criterionId, scoreValue])
+  @@index([versionId])
+  @@map("rating_score_definitions")
+}
+
+model RatingFieldMapping {
+  id             String           @id @default(cuid())
+  versionId      String           @map("version_id")
+  version        RatingVersion    @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  criterionId    String           @map("criterion_id")
+  criterion      RatingCriterion  @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  sourceType     RatingSourceType @map("source_type")
+  sourceField    String           @map("source_field")
+  mappingRule    Json?            @map("mapping_rule")
+  confidenceRule Json?            @map("confidence_rule")
+  active         Boolean          @default(true)
+
+  @@index([versionId])
+  @@index([criterionId])
+  @@map("rating_field_mappings")
+}
+
+model RatingReturnCurve {
+  id               String        @id @default(cuid())
+  versionId         String       @map("version_id")
+  version           RatingVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  ratingClass       String       @map("rating_class")
+  minScore          Decimal      @map("min_score") @db.Decimal(5, 2)
+  maxScore          Decimal      @map("max_score") @db.Decimal(5, 2)
+  baseTargetReturn  Decimal      @map("base_target_return") @db.Decimal(6, 4)
+  lowerReturnBound  Decimal      @map("lower_return_bound") @db.Decimal(6, 4)
+  upperReturnBound  Decimal      @map("upper_return_bound") @db.Decimal(6, 4)
+
+  @@index([versionId])
+  @@map("rating_return_curves")
+}
+
+model ObjectRating {
+  id                String             @id @default(cuid())
+  objectId          String             @map("object_id")
+  object            Property           @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  configVersionId   String             @map("config_version_id")
+  configVersion     RatingVersion      @relation(fields: [configVersionId], references: [id])
+  totalScore        Decimal?           @map("total_score") @db.Decimal(5, 2)
+  ratingClass       String?            @map("rating_class")
+  baseTargetReturn  Decimal?           @map("base_target_return") @db.Decimal(6, 4)
+  lowerReturnBound  Decimal?           @map("lower_return_bound") @db.Decimal(6, 4)
+  upperReturnBound  Decimal?           @map("upper_return_bound") @db.Decimal(6, 4)
+  finalTargetReturn Decimal?           @map("final_target_return") @db.Decimal(6, 4)
+  status            ObjectRatingStatus @default(draft)
+  scores            ObjectRatingScore[]
+  auditLogs         RatingAuditLog[]
+  createdAt         DateTime           @default(now()) @map("created_at")
+  approvedAt        DateTime?          @map("approved_at")
+  approvedByUserId  String?            @map("approved_by")
+  approvedBy        User?              @relation("ObjectRatingApprovedBy", fields: [approvedByUserId], references: [id])
+
+  @@index([objectId])
+  @@index([configVersionId])
+  @@map("object_ratings")
+}
+
+model ObjectRatingScore {
+  id             String          @id @default(cuid())
+  objectRatingId String          @map("object_rating_id")
+  objectRating   ObjectRating    @relation(fields: [objectRatingId], references: [id], onDelete: Cascade)
+  criterionId    String          @map("criterion_id")
+  criterion      RatingCriterion @relation(fields: [criterionId], references: [id])
+  prefilledScore Int?            @map("prefilled_score")
+  analystScore   Int?            @map("analyst_score")
+  finalScore     Int?            @map("final_score")
+  source         RatingSourceType?
+  confidence     Decimal?        @db.Decimal(5, 4)
+  comment        String?
+  changedByUserId String?        @map("changed_by")
+  changedBy       User?          @relation("ObjectRatingScoreChangedBy", fields: [changedByUserId], references: [id])
+  changedAt       DateTime?      @map("changed_at")
+
+  @@unique([objectRatingId, criterionId])
+  @@index([criterionId])
+  @@map("object_rating_scores")
+}
+
+model RatingAuditLog {
+  id             String       @id @default(cuid())
+  objectRatingId String       @map("object_rating_id")
+  objectRating   ObjectRating @relation(fields: [objectRatingId], references: [id], onDelete: Cascade)
+  entityType     String       @map("entity_type")
+  entityId       String?      @map("entity_id")
+  action         String
+  oldValue       Json?        @map("old_value")
+  newValue       Json?        @map("new_value")
+  comment        String?
+  userId         String?      @map("user_id")
+  user           User?        @relation(fields: [userId], references: [id])
+  timestamp      DateTime     @default(now())
+
+  @@index([objectRatingId])
+  @@index([userId])
+  @@map("rating_audit_log")
 }
 
 model Document {

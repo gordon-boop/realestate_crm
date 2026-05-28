@@ -19,6 +19,17 @@ const caseInclude = {
     include: { versions: { orderBy: { version: "desc" as const } } }
   },
   activities: { orderBy: { createdAt: "desc" as const } },
+  objectRatings: {
+    orderBy: { createdAt: "desc" as const },
+    include: {
+      configVersion: true,
+      scores: {
+        orderBy: { id: "asc" as const },
+        include: { criterion: { include: { category: true } } }
+      },
+      auditLogs: { orderBy: { timestamp: "desc" as const } }
+    }
+  },
   chatMessages: {
     orderBy: { createdAt: "asc" as const },
     include: {
@@ -130,6 +141,12 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     propertyFileComplete: property.propertyFileComplete,
     residentStaysInProperty: property.residentStaysInProperty,
     residentName: property.residentName ?? undefined,
+    residentStatus: property.residentStatus ?? undefined,
+    residentMoveOutDate: iso(property.residentMoveOutDate),
+    residentDeathDate: iso(property.residentDeathDate),
+    residentStatusChangedAt: iso(property.residentStatusChangedAt),
+    residentStatusChangedByUserId: property.residentStatusChangedByUserId ?? undefined,
+    residentStatusNote: property.residentStatusNote ?? undefined,
     usageModel: property.usageModel ?? undefined,
     usageRightStartsAt: iso(property.usageRightStartsAt),
     usageRightEndsAt: iso(property.usageRightEndsAt),
@@ -145,6 +162,12 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     maintenancePlan: property.maintenancePlanJson as Record<string, unknown> | undefined,
     portfolioTasks: property.portfolioTasksJson as Record<string, unknown> | undefined,
     portfolioNotes: property.portfolioNotes ?? undefined,
+    knownMajorMaintenanceOrSpecialAssessments: property.knownMajorMaintenanceOrSpecialAssessments ?? undefined,
+    knownMajorMaintenanceOrSpecialAssessmentsDescription: property.knownMajorMaintenanceOrSpecialAssessmentsDescription ?? undefined,
+    moistureDamageStatus: property.moistureDamageStatus ?? undefined,
+    moistureDamageDescription: property.moistureDamageDescription ?? undefined,
+    accessibilityAssessment: property.accessibilityAssessment ?? undefined,
+    hasElevator: property.hasElevator ?? undefined,
     exitProcess: property.exitProcess ? {
       ...property.exitProcess,
       usageRightEndedAt: iso(property.exitProcess.usageRightEndedAt),
@@ -251,6 +274,67 @@ function mapActivity(activity: NonNullable<PrismaCase>["activities"][number]) {
   };
 }
 
+function mapObjectRating(rating: NonNullable<PrismaCase>["objectRatings"][number]) {
+  return {
+    id: rating.id,
+    objectId: rating.objectId,
+    configVersionId: rating.configVersionId,
+    totalScore: number(rating.totalScore),
+    ratingClass: rating.ratingClass ?? undefined,
+    baseTargetReturn: number(rating.baseTargetReturn),
+    lowerReturnBound: number(rating.lowerReturnBound),
+    upperReturnBound: number(rating.upperReturnBound),
+    finalTargetReturn: number(rating.finalTargetReturn),
+    status: rating.status,
+    createdAt: iso(rating.createdAt)!,
+    approvedAt: iso(rating.approvedAt),
+    approvedByUserId: rating.approvedByUserId ?? undefined,
+    scores: rating.scores.map((score) => ({
+      id: score.id,
+      objectRatingId: score.objectRatingId,
+      criterionId: score.criterionId,
+      prefilledScore: score.prefilledScore ?? undefined,
+      analystScore: score.analystScore ?? undefined,
+      finalScore: score.finalScore ?? undefined,
+      source: score.source ?? undefined,
+      confidence: number(score.confidence),
+      comment: score.comment ?? undefined,
+      changedByUserId: score.changedByUserId ?? undefined,
+      changedAt: iso(score.changedAt),
+      criterion: {
+        id: score.criterion.id,
+        versionId: score.criterion.versionId,
+        categoryId: score.criterion.categoryId,
+        name: score.criterion.name,
+        description: score.criterion.description ?? undefined,
+        weight: number(score.criterion.weight) ?? 0,
+        sourceType: score.criterion.sourceType,
+        required: score.criterion.required,
+        active: score.criterion.active,
+        category: {
+          id: score.criterion.category.id,
+          versionId: score.criterion.category.versionId,
+          name: score.criterion.category.name,
+          weight: number(score.criterion.category.weight) ?? 0,
+          active: score.criterion.category.active
+        }
+      }
+    })),
+    auditLogs: rating.auditLogs.map((entry) => ({
+      id: entry.id,
+      objectRatingId: entry.objectRatingId,
+      entityType: entry.entityType,
+      entityId: entry.entityId ?? undefined,
+      action: entry.action,
+      oldValue: entry.oldValue,
+      newValue: entry.newValue,
+      comment: entry.comment ?? undefined,
+      userId: entry.userId ?? undefined,
+      timestamp: iso(entry.timestamp)!
+    }))
+  };
+}
+
 function mapChatMessage(message: NonNullable<PrismaCase>["chatMessages"][number]) {
   return {
     id: message.id,
@@ -321,6 +405,7 @@ export function mapCaseView(property: NonNullable<PrismaCase>): CaseView {
     offer: offers[0],
     offers,
     activities: property.activities.map(mapActivity),
+    objectRatings: property.objectRatings.map(mapObjectRating),
     chatMessages: property.chatMessages.map(mapChatMessage),
     reminders: property.reminders.map(mapReminder)
   } as CaseView;
@@ -544,6 +629,7 @@ function shouldCreateNotification(type: string): boolean {
     "binding_offer_accepted",
     "notary_appointment_ordered",
     "contract_signed",
+    "resident_status_changed",
     "workflow_reset",
     "property_rejected",
     "feedback_received"
@@ -561,6 +647,7 @@ function notificationTitle(type: string): string {
     binding_offer_accepted: "VA angenommen",
     notary_appointment_ordered: "Notartermin vereinbart",
     contract_signed: "Kaufvertrag abgeschlossen",
+    resident_status_changed: "Verkaufsprozess gestartet",
     workflow_reset: "Prozessschritt zurückgesetzt",
     property_rejected: "Fall abgelehnt",
     feedback_received: "Kundenrückmeldung eingegangen"

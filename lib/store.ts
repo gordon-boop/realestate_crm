@@ -454,6 +454,7 @@ export function getCases(): CaseView[] {
       offer: propertyOffers[0],
       offers: propertyOffers,
       activities: activities.filter((item) => item.propertyId === property.id),
+      objectRatings: [],
       chatMessages: chatMessages.filter((item) => item.propertyId === property.id),
       reminders: reminders.filter((item) => item.propertyId === property.id)
     };

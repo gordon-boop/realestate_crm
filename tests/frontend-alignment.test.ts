@@ -46,6 +46,9 @@ test("property validation accepts frontend property types and split exclusion fl
     windowInstallationYear: 2012,
     visualConditionRating: "good",
     energyCarriers: ["photovoltaik"],
+    knownMajorMaintenanceOrSpecialAssessments: false,
+    moistureDamageStatus: "NONE",
+    accessibilityAssessment: "PARTIALLY_RESTRICTED",
     remainingDebtKnown: true,
     remainingDebtAmount: 50000,
     modernization: { roof: { scope: "partial", year: "2020" } },
@@ -80,7 +83,11 @@ test("property validation treats empty optional offer enums as absent", () => {
     condition: "average",
     desiredModel: "sale_and_leaseback",
     residentialRightRecipients: "",
-    additionalOfferResidentialRightRecipients: ""
+    additionalOfferResidentialRightRecipients: "",
+    knownMajorMaintenanceOrSpecialAssessments: false,
+    moistureDamageStatus: "NONE",
+    accessibilityAssessment: "LOW_BARRIER",
+    hasElevator: true
   });
 
   assert.equal(parsed.desiredModel, "sale_and_leaseback");
@@ -137,6 +144,9 @@ test("case intake dto covers modernization, document status and technical proper
       basementType: "full",
       parkingType: "garage",
       energyCarriers: ["photovoltaik"],
+      knownMajorMaintenanceOrSpecialAssessments: false,
+      moistureDamageStatus: "NONE",
+      accessibilityAssessment: "PARTIALLY_RESTRICTED",
       remainingDebtKnown: false,
       modernization: { roof: { scope: "partial", year: "2020" } },
       buildingCondition: { roof: { rating: "good", description: "keine sichtbaren Schäden" } },

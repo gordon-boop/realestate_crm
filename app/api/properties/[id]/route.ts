@@ -22,7 +22,17 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canMutateProperty(user, caseView.property)) throw new Error("Forbidden");
-    const body = propertyUpdateSchema.parse(await request.json());
+    const rawBody = await request.json();
+    const body = propertyUpdateSchema.parse(rawBody);
+    const isPortfolioCustomer = caseView.property.status === "IN_PORTFOLIO" || Boolean(caseView.property.portfolioEnteredAt);
+    const hasField = (field: string) => Object.prototype.hasOwnProperty.call(rawBody, field);
+    const modelChangeRequested =
+      (hasField("desiredModel") && body.desiredModel !== caseView.property.desiredModel) ||
+      (hasField("additionalOfferRequested") && body.additionalOfferRequested !== caseView.property.additionalOfferRequested) ||
+      (hasField("additionalOfferModel") && body.additionalOfferModel !== caseView.property.additionalOfferModel);
+    if (isPortfolioCustomer && modelChangeRequested) {
+      throw new Error("Das Modell kann bei Bestandskunden nicht mehr geändert werden.");
+    }
     if (body.leasehold !== undefined || body.monumentProtection !== undefined || body.leaseholdOrMonument !== undefined) {
       body.leaseholdOrMonument = Boolean(body.leaseholdOrMonument || body.leasehold || body.monumentProtection);
     }
@@ -42,6 +52,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         parkingType: body.parkingType as never,
         basementType: body.basementType as never,
         visualConditionRating: body.visualConditionRating as never,
+        moistureDamageStatus: body.moistureDamageStatus as never,
+        accessibilityAssessment: body.accessibilityAssessment as never,
+        hasElevator: body.propertyType === "apartment" ? body.hasElevator : body.propertyType ? null : body.hasElevator,
+        knownMajorMaintenanceOrSpecialAssessmentsDescription: body.knownMajorMaintenanceOrSpecialAssessments === false ? null : body.knownMajorMaintenanceOrSpecialAssessmentsDescription,
+        moistureDamageDescription: body.moistureDamageStatus === "NONE" ? null : body.moistureDamageDescription,
         energyCarriersJson: toOptionalPrismaJson(body.energyCarriers),
         modernizationJson: toOptionalPrismaJson(body.modernization),
         buildingConditionJson: toOptionalPrismaJson(body.buildingCondition)

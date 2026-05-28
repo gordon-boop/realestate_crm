@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CheckCircle, Home, Landmark, ShieldCheck } from "lucide-react";
 import { HomepageCalculator } from "@/components/HomepageCalculator";
 import {
   CTASection,
@@ -7,6 +8,7 @@ import {
   ProcessSteps,
   ProductTeaserCards,
   PublicPageShell,
+  TrustStatsStrip,
 } from "@/components/site/PublicSite";
 import { absoluteUrl, homeFaqs } from "@/lib/site-content";
 import styles from "./page.module.css";
@@ -54,14 +56,17 @@ const homeProcessSteps = [
 
 const advantages = [
   {
+    Icon: Home,
     title: "Kapital freisetzen",
     text: "Nutzen Sie den Wert Ihrer Immobilie, ohne sofort ausziehen zu müssen.",
   },
   {
+    Icon: Landmark,
     title: "Zuhause bleiben",
     text: "Bleiben Sie in Ihrer vertrauten Umgebung und behalten Sie Ihre Lebensqualität.",
   },
   {
+    Icon: ShieldCheck,
     title: "Sicher geregelt",
     text: "Wohnrecht, Bewertung und Auszahlung werden transparent und rechtssicher strukturiert.",
   },
@@ -83,6 +88,7 @@ export default function Page() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
       />
       <HeroSection />
+      <TrustStatsStrip />
       <section className={styles.homeOrientation}>
         <div className={styles.container}>
           <div className={styles.orientationInner}>
@@ -101,7 +107,9 @@ export default function Page() {
           <div className={styles.advantageGrid}>
             {advantages.map((item) => (
               <article key={item.title} className={styles.advantageCard}>
-                <span aria-hidden="true" className={styles.advantageIcon}>✓</span>
+                <span aria-hidden="true" className={styles.advantageIcon}>
+                  <item.Icon size={20} />
+                </span>
                 <h2>{item.title}</h2>
                 <p>{item.text}</p>
               </article>

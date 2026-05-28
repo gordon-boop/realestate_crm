@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup A — Editorial Minimal | WohnKapital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #44005c;
+    --ink-soft: #573063;
+    --ink-muted: #9b8ca3;
+    --accent: #ffac00;
+    --line: #e9e6e1;
+    --bg: #ffffff;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-serif: 'Cormorant Garamond', Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+
+  .switcher { position: fixed; top: 12px; right: 12px; z-index: 100; display: flex; gap: 4px; padding: 6px; background: rgba(255,255,255,0.95); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); font-size: 12px; font-weight: 700; }
+  .switcher a { padding: 6px 12px; border-radius: 999px; color: var(--ink-muted); }
+  .switcher a.active { background: var(--ink); color: #fff; }
+
+  .container { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+
+  header { padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .headerInner { display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+  .logo { font-family: var(--font-serif); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  nav { display: flex; gap: 28px; font-size: 14.5px; color: var(--ink-soft); }
+  .headerCta { padding: 9px 18px; border: 1px solid var(--ink); border-radius: 999px; font-size: 13.5px; font-weight: 600; }
+
+  .hero { padding: 120px 0 100px; }
+  .heroGrid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 80px; align-items: center; }
+  .heroTitle { font-family: var(--font-serif); font-size: clamp(48px, 6.5vw, 84px); font-weight: 500; line-height: 1.02; letter-spacing: -0.025em; margin: 0 0 32px; }
+  .italic { font-style: italic; font-weight: 400; color: var(--ink-soft); }
+  .heroLead { font-size: 19px; line-height: 1.7; color: var(--ink-soft); margin: 0 0 40px; max-width: 480px; }
+  .heroCta { display: inline-flex; align-items: center; gap: 8px; padding: 17px 32px; background: var(--ink); color: #fff; border-radius: 999px; font-size: 16px; font-weight: 600; }
+  .heroCta:hover { background: #2d003d; }
+  .heroTrustLine { margin-top: 28px; color: var(--ink-muted); font-size: 13.5px; font-weight: 500; letter-spacing: 0.02em; }
+  .heroTrustLine span { margin: 0 8px; color: var(--ink); }
+  .heroImg { width: 100%; height: auto; border-radius: 4px; display: block; }
+
+  .section { padding: 100px 0; border-top: 1px solid var(--line); }
+  .sectionTitle { font-family: var(--font-serif); font-size: clamp(32px, 4vw, 48px); font-weight: 500; letter-spacing: -0.02em; margin: 0 0 56px; max-width: 720px; line-height: 1.1; }
+  .stepGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 64px; }
+  .step { }
+  .stepNum { font-family: var(--font-serif); font-size: 14px; font-weight: 500; color: var(--ink-muted); letter-spacing: 0.1em; margin-bottom: 18px; }
+  .stepTitle { font-family: var(--font-serif); font-size: 24px; font-weight: 500; margin: 0 0 12px; letter-spacing: -0.01em; }
+  .stepText { color: var(--ink-soft); font-size: 15.5px; line-height: 1.7; margin: 0; }
+
+  footer { padding: 60px 0; border-top: 1px solid var(--line); color: var(--ink-muted); font-size: 13px; text-align: center; }
+
+  @media (max-width: 900px) {
+    nav { display: none; }
+    .heroGrid { grid-template-columns: 1fr; gap: 48px; }
+    .stepGrid { grid-template-columns: 1fr; gap: 40px; }
+    .hero { padding: 60px 0 80px; }
+    .section { padding: 70px 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="switcher">
+  <a href="a.html" class="active">A</a>
+  <a href="b.html">B</a>
+  <a href="c.html">C</a>
+</div>
+
+<header>
+  <div class="container">
+    <div class="headerInner">
+      <a href="/" class="logo">WohnKapital</a>
+      <nav>
+        <a>Lösungen</a>
+        <a>Sicherheit</a>
+        <a>Ablauf</a>
+        <a>FAQ</a>
+      </nav>
+      <a href="#" class="headerCta">Ersteinschätzung</a>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div class="heroGrid">
+      <div>
+        <h1 class="heroTitle">
+          Im Haus bleiben.<br>
+          <em class="italic">Im Leben gewinnen.</em>
+        </h1>
+        <p class="heroLead">
+          WohnKapital ermöglicht Eigentümern, Kapital aus der eigenen Immobilie freizusetzen
+          und weiterhin im vertrauten Zuhause wohnen zu bleiben.
+        </p>
+        <a href="#" class="heroCta">Kostenlose Ersteinschätzung anfragen</a>
+        <p class="heroTrustLine">
+          Notariell beurkundet<span>·</span>Unabhängige Bewertung<span>·</span>DSGVO-konform
+        </p>
+      </div>
+      <div>
+        <img src="/hero-couple.png" alt="Älteres Eigentümerpaar im vertrauten Zuhause" class="heroImg">
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h2 class="sectionTitle">Ein klarer Ablauf — Sie entscheiden in jedem Schritt.</h2>
+    <div class="stepGrid">
+      <div class="step">
+        <div class="stepNum">01</div>
+        <h3 class="stepTitle">Unverbindliches Gespräch</h3>
+        <p class="stepText">Wir hören zu, prüfen Ihre Situation und besprechen, welche Lösung grundsätzlich passen kann.</p>
+      </div>
+      <div class="step">
+        <div class="stepNum">02</div>
+        <h3 class="stepTitle">Marktwerteinschätzung</h3>
+        <p class="stepText">WohnKapital prüft Lage, Objekt und Unterlagen — und erstellt eine erste transparente Orientierung.</p>
+      </div>
+      <div class="step">
+        <div class="stepNum">03</div>
+        <h3 class="stepTitle">Individuelles Angebot</h3>
+        <p class="stepText">Sie erhalten ein Angebot mit klaren Annahmen, verständlichen Konditionen und Zeit zur Prüfung.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">Mockup A — Editorial Minimal · Reines Weiß, ruhig, viel Weißraum, Stripe/Notion-Ästhetik</div>
+</footer>
+
+</body>
+</html>

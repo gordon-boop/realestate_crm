@@ -22,13 +22,13 @@ export function geocodePostalCode(
 ): GeocodeResult {
   const cleaned = (postalCode ?? "").replace(/\D/g, "");
   if (cleaned.length < 2) {
-    return { ...GERMANY_CENTER, source: "germany_center" };
+    return { latitude: GERMANY_CENTER.lat, longitude: GERMANY_CENTER.lng, source: "germany_center" };
   }
 
   const region = cleaned.slice(0, 2);
   const centroid = PLZ_REGION_CENTROIDS[region];
   if (!centroid) {
-    return { ...GERMANY_CENTER, source: "germany_center" };
+    return { latitude: GERMANY_CENTER.lat, longitude: GERMANY_CENTER.lng, source: "germany_center" };
   }
 
   // Jitter: ±0.04 Grad (~3-4 km), deterministisch aus Seed.

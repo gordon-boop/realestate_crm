@@ -1,5 +1,6 @@
 import { canMutateProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
+import { createDraftObjectRating } from "@/lib/object-rating";
 import { addDbActivity, getDbCaseByPropertyId, updateDbPropertyStatus } from "@/lib/persistence";
 
 export async function POST(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
@@ -15,6 +16,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
 
     const property = await updateDbPropertyStatus(params.id, "SUBMITTED");
     await addDbActivity(params.id, user.id, "submitted", "Fall wurde zur Bewertung eingereicht.");
+    await createDraftObjectRating(params.id, user.id);
     return json({ property });
   } catch (err) {
     return handleApiError(err);

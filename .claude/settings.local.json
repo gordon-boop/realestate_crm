@@ -17,7 +17,18 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:51781/)",
       "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)",
       "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(gh api *)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm --version)",
+      "Bash(Get-ChildItem -Recurse .claude)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(claude mcp add magic --scope user --env API_KEY=\"35ae7490d8a719186acc9afda4af3a40f47434e2603633d7040c6727be7181d7\" -- npx -y @21st-dev/magic@latest 2>&1)",
+      "PowerShell(\\(Get-Command claude -ErrorAction SilentlyContinue\\).Source; \\(Get-Command claude.exe -ErrorAction SilentlyContinue\\).Source)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\AnthropicClaude\\\\app-1.8555.0\\\\claude.exe\" mcp add magic --scope user --env API_KEY=\"35ae7490d8a719186acc9afda4af3a40f47434e2603633d7040c6727be7181d7\" -- npx -y @21st-dev/magic@latest 2>&1)",
+      "PowerShell(Get-Content \"$env:USERPROFILE\\\\.claude.json\" -ErrorAction SilentlyContinue | Select-String -Pattern \"magic\" -Context 3,3)",
+      "mcp__magic__21st_magic_component_inspiration",
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"proptech fintech real estate trust premium\" --design-system --persist -p \"WohnKapital Homepage\")"
     ]
   }
 }

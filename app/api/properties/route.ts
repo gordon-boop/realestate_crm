@@ -93,6 +93,16 @@ export async function POST(request: Request): Promise<Response> {
         leasehold: body.leasehold,
         monumentProtection: body.monumentProtection,
         knownDefects: body.knownDefects,
+        knownMajorMaintenanceOrSpecialAssessments: body.knownMajorMaintenanceOrSpecialAssessments,
+        knownMajorMaintenanceOrSpecialAssessmentsDescription: body.knownMajorMaintenanceOrSpecialAssessments
+          ? body.knownMajorMaintenanceOrSpecialAssessmentsDescription
+          : undefined,
+        moistureDamageStatus: body.moistureDamageStatus as never,
+        moistureDamageDescription: body.moistureDamageStatus && body.moistureDamageStatus !== "NONE"
+          ? body.moistureDamageDescription
+          : undefined,
+        accessibilityAssessment: body.accessibilityAssessment as never,
+        hasElevator: body.propertyType === "apartment" ? body.hasElevator : undefined,
         remainingDebtKnown: body.remainingDebtKnown,
         remainingDebtAmount: body.remainingDebtAmount,
         modernizationJson: toOptionalPrismaJson(body.modernization),

@@ -1,7 +1,23 @@
 import Image from "next/image";
 import Link from "next/link";
+import {
+  Shield,
+  BarChart2,
+  CheckCircle,
+  Home,
+  Clock,
+  RefreshCcw,
+  Scale,
+  ChevronRight,
+  Phone,
+  FileCheck,
+  Wallet,
+  Timer,
+  ClipboardCheck,
+} from "lucide-react";
 import styles from "@/app/page.module.css";
 import { footerLinks, mainNavigation, productTeasers } from "@/lib/site-content";
+import { MobileMenuOverlay } from "./SiteHeaderClient";
 
 export type FaqItem = {
   q: string;
@@ -13,14 +29,26 @@ export type Crumb = {
   href: string;
 };
 
+// Map each product href to an icon
+function ProductIcon({ href }: { href: string }) {
+  const size = 20;
+  if (href.includes("wohnen-bleiben")) return <Home size={size} aria-hidden="true" />;
+  if (href.includes("wohnrecht"))      return <Clock size={size} aria-hidden="true" />;
+  if (href.includes("leaseback"))      return <RefreshCcw size={size} aria-hidden="true" />;
+  if (href.includes("teilverkauf"))    return <Scale size={size} aria-hidden="true" />;
+  return <Home size={size} aria-hidden="true" />;
+}
+
 export function SiteHeader() {
   return (
     <header className={styles.header}>
       <div className={styles.container}>
         <div className={styles.headerInner}>
           <Link href="/" className={styles.logoLink} aria-label="WohnKapital Startseite">
-            <Image src="/brand/wohnkapital-logo.svg" alt="WohnKapital" width={170} height={36} priority />
+            <Image src="/brand/wohnkapital-logo.svg" alt="WohnKapital" width={164} height={34} priority />
           </Link>
+
+          {/* Desktop nav */}
           <nav className={styles.nav} aria-label="Hauptnavigation">
             {mainNavigation.map((item) =>
               "items" in item ? (
@@ -28,7 +56,10 @@ export function SiteHeader() {
                   <Link href={item.href} className={styles.navLink}>{item.label}</Link>
                   <div className={styles.navDropdown}>
                     {item.items.map((child) => (
-                      <Link key={child.href} href={child.href}>{child.label}</Link>
+                      <Link key={child.href} href={child.href}>
+                        <ChevronRight size={12} aria-hidden="true" />
+                        {child.label}
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -37,10 +68,19 @@ export function SiteHeader() {
               )
             )}
           </nav>
+
           <div className={styles.headerActions}>
-            <span className={styles.headerPhone}>Hotline: 0800 000 000</span>
-            <Link href="/#kontakt" className={styles.headerContact}>Kontakt</Link>
+            <a href="tel:0800000000" className={styles.headerPhone}>
+              <Phone size={13} aria-hidden="true" />
+              0800 000 000
+            </a>
+            <Link href="/#rechner" className={styles.headerContact}>
+              Ersteinschätzung
+            </Link>
           </div>
+
+          {/* Mobile: hamburger button + overlay nav */}
+          <MobileMenuOverlay />
         </div>
       </div>
     </header>
@@ -53,14 +93,14 @@ export function SiteFooter() {
       <div className={styles.container}>
         <div className={styles.footerInner}>
           <div className={styles.footerBrand}>
-            <Image src="/brand/wohnkapital-logo.svg" alt="WohnKapital" width={150} height={32} />
+            <Image src="/brand/wohnkapital-logo.svg" alt="WohnKapital" width={144} height={30} />
             <p className={styles.footerTagline}>Im Haus bleiben. Im Leben gewinnen.</p>
             <p className={styles.footerSmall}>
               WohnKapital unterstützt Eigentümer dabei, Kapital aus der Immobilie freizusetzen
               und die Wohnsituation transparent zu planen.
             </p>
           </div>
-          <nav className={styles.footerNav} aria-label="Footer">
+          <nav className={styles.footerNav} aria-label="Footer Navigation">
             {footerLinks.map((link) => (
               <Link key={link.href} href={link.href} className={styles.footerLink}>{link.label}</Link>
             ))}
@@ -151,10 +191,10 @@ export function HeroSection() {
               <Link href="/#rechner" className={styles.btnPrimary}>
                 Kostenlose Ersteinschätzung anfragen
               </Link>
-              <Link href="/so-funktioniert-es" className={styles.btnSecondary}>So funktioniert es</Link>
             </div>
             <p className={styles.heroTrustHint}>Zuhause. Fair. Unabhängig.</p>
           </div>
+
           <div className={styles.heroImage}>
             <Image
               src="/hero-couple.png"
@@ -171,17 +211,68 @@ export function HeroSection() {
   );
 }
 
+export function TrustStatsStrip() {
+  const stats = [
+    {
+      Icon: FileCheck,
+      label: "Notariell",
+      value: "100 %",
+      note: "Jeder Vertrag notariell beurkundet",
+    },
+    {
+      Icon: Wallet,
+      label: "Beratung",
+      value: "0 €",
+      note: "Kostenlos und unverbindlich",
+    },
+    {
+      Icon: Timer,
+      label: "Reaktion",
+      value: "Ø 48 h",
+      note: "Erste Einschätzung nach Anfrage",
+    },
+    {
+      Icon: ClipboardCheck,
+      label: "Bewertung",
+      value: "Unabhängig",
+      note: "Gutachten vor verbindlichem Angebot",
+    },
+  ];
+
+  return (
+    <section className={styles.trustStats} aria-label="Vertrauenskennzahlen">
+      <div className={styles.container}>
+        <div className={styles.trustStatGrid} role="list">
+          {stats.map((stat) => (
+            <div key={stat.label} className={styles.trustStat} role="listitem">
+              <span className={styles.trustStatLabel}>
+                <stat.Icon size={12} aria-hidden="true" />
+                {stat.label}
+              </span>
+              <span className={styles.trustStatValue}>{stat.value}</span>
+              <span className={styles.trustStatNote}>{stat.note}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function TrustSection() {
   const items = [
     {
+      Icon: Shield,
       title: "Notariell begleitet",
       text: "Der Verkauf einer Immobilie wird notariell beurkundet. Alle relevanten Vereinbarungen werden vorab verständlich besprochen.",
     },
     {
+      Icon: BarChart2,
       title: "Transparente Bewertung",
       text: "Die Grundlage bilden nachvollziehbare Marktdaten und, vor einem verbindlichen Angebot, ein unabhängiges Gutachten.",
     },
     {
+      Icon: CheckCircle,
       title: "Keine versteckten Versprechen",
       text: "WohnKapital erklärt Chancen, Grenzen und Kosten offen. Es gibt keine unrealistischen Garantien.",
     },
@@ -193,6 +284,9 @@ export function TrustSection() {
         <div className={styles.trustGrid}>
           {items.map((item, index) => (
             <div key={item.title} className={styles.trustItem}>
+              <div className={styles.trustIconWrap}>
+                <item.Icon size={22} aria-hidden="true" />
+              </div>
               <div className={styles.trustNumber}>{String(index + 1).padStart(2, "0")}</div>
               <h2 className={styles.trustTitle}>{item.title}</h2>
               <p className={styles.trustText}>{item.text}</p>
@@ -218,9 +312,15 @@ export function ProductTeaserCards() {
         <div className={styles.linkCardGrid}>
           {productTeasers.map((teaser) => (
             <Link key={teaser.href} href={teaser.href} className={styles.linkCard}>
+              <div className={styles.linkCardIconWrap} aria-hidden="true">
+                <ProductIcon href={teaser.href} />
+              </div>
               <h3>{teaser.title}</h3>
               <p>{teaser.text}</p>
-              <span>Mehr erfahren</span>
+              <span className={styles.linkCardArrow}>
+                Mehr erfahren
+                <ChevronRight size={15} aria-hidden="true" />
+              </span>
             </Link>
           ))}
         </div>
@@ -273,7 +373,10 @@ export function FAQAccordion({ faqs }: { faqs: readonly FaqItem[] }) {
     <div className={styles.faqList}>
       {faqs.map((item) => (
         <details key={item.q} className={styles.faqItem}>
-          <summary className={styles.faqQ}>{item.q}</summary>
+          <summary className={styles.faqQ}>
+            {item.q}
+            <span className={styles.faqQIcon} aria-hidden="true">+</span>
+          </summary>
           <div className={styles.faqA}>{item.a}</div>
         </details>
       ))}
@@ -299,6 +402,12 @@ export function CTASection({
           <h2 className={styles.finalTitle}>{title}</h2>
           <p className={styles.finalLead}>{text}</p>
           <Link href={href} className={styles.btnPrimaryLg}>{cta}</Link>
+          <div>
+            <a href="tel:0800000000" className={styles.finalPhone}>
+              <Phone size={15} aria-hidden="true" />
+              Oder rufen Sie uns an: 0800 000 000
+            </a>
+          </div>
         </div>
       </div>
     </section>
@@ -313,8 +422,15 @@ export function InternalLinkCards({ title = "Verwandte Themen" }: { title?: stri
         <div className={styles.linkCardGrid}>
           {productTeasers.map((teaser) => (
             <Link key={teaser.href} href={teaser.href} className={styles.linkCard}>
+              <div className={styles.linkCardIconWrap} aria-hidden="true">
+                <ProductIcon href={teaser.href} />
+              </div>
               <h3>{teaser.title}</h3>
               <p>{teaser.text}</p>
+              <span className={styles.linkCardArrow}>
+                Mehr erfahren
+                <ChevronRight size={14} aria-hidden="true" />
+              </span>
             </Link>
           ))}
         </div>

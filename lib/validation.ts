@@ -88,6 +88,12 @@ const propertyBaseSchema = z.object({
   leasehold: optionalBoolean.default(false),
   monumentProtection: optionalBoolean.default(false),
   knownDefects: optionalString,
+  knownMajorMaintenanceOrSpecialAssessments: optionalBoolean,
+  knownMajorMaintenanceOrSpecialAssessmentsDescription: optionalString,
+  moistureDamageStatus: optionalEnum(["NONE", "MINOR", "SIGNIFICANT"]),
+  moistureDamageDescription: optionalString,
+  accessibilityAssessment: optionalEnum(["LOW_BARRIER", "PARTIALLY_RESTRICTED", "STRONGLY_RESTRICTED"]),
+  hasElevator: optionalBoolean,
   remainingDebtKnown: optionalBoolean.default(false),
   remainingDebtAmount: optionalNumber,
   modernization: z.record(z.unknown()).optional(),
@@ -116,8 +122,85 @@ function requireModernizationYears(
   }
 }
 
-export const propertyCreateSchema = propertyBaseSchema.superRefine(requireModernizationYears);
-export const propertyUpdateSchema = propertyBaseSchema.partial().superRefine(requireModernizationYears);
+function requireObjectConditionFields(
+  value: {
+    propertyType?: string;
+    knownMajorMaintenanceOrSpecialAssessments?: boolean;
+    knownMajorMaintenanceOrSpecialAssessmentsDescription?: string;
+    moistureDamageStatus?: string;
+    moistureDamageDescription?: string;
+    accessibilityAssessment?: string;
+    hasElevator?: boolean;
+  },
+  ctx: z.RefinementCtx,
+  requireBaseFields: boolean
+) {
+  const shouldValidate =
+    requireBaseFields ||
+    value.propertyType !== undefined ||
+    value.knownMajorMaintenanceOrSpecialAssessments !== undefined ||
+    value.knownMajorMaintenanceOrSpecialAssessmentsDescription !== undefined ||
+    value.moistureDamageStatus !== undefined ||
+    value.moistureDamageDescription !== undefined ||
+    value.accessibilityAssessment !== undefined ||
+    value.hasElevator !== undefined;
+
+  if (!shouldValidate) return;
+
+  if (value.knownMajorMaintenanceOrSpecialAssessments !== true && value.knownMajorMaintenanceOrSpecialAssessments !== false) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["knownMajorMaintenanceOrSpecialAssessments"],
+      message: "Bitte wählen Sie aus, ob größere Instandhaltungen oder Sonderumlagen bekannt sind."
+    });
+  }
+  if (value.knownMajorMaintenanceOrSpecialAssessments === true && !value.knownMajorMaintenanceOrSpecialAssessmentsDescription?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["knownMajorMaintenanceOrSpecialAssessmentsDescription"],
+      message: "Bitte beschreiben Sie die bekannten Instandhaltungen oder Sonderumlagen."
+    });
+  }
+
+  if (!value.moistureDamageStatus) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["moistureDamageStatus"],
+      message: "Bitte wählen Sie aus, ob Feuchtigkeit, Schimmel oder Wasserschäden bekannt sind."
+    });
+  }
+  if ((value.moistureDamageStatus === "MINOR" || value.moistureDamageStatus === "SIGNIFICANT") && !value.moistureDamageDescription?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["moistureDamageDescription"],
+      message: "Bitte beschreiben Sie die bekannten Feuchtigkeits-, Schimmel- oder Wasserschäden."
+    });
+  }
+
+  if (!value.accessibilityAssessment) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["accessibilityAssessment"],
+      message: "Bitte wählen Sie die Zugänglichkeit aus."
+    });
+  }
+
+  if (value.propertyType === "apartment" && value.hasElevator !== true && value.hasElevator !== false) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["hasElevator"],
+      message: "Bitte geben Sie an, ob ein Aufzug vorhanden ist."
+    });
+  }
+}
+
+export const propertyCreateSchema = propertyBaseSchema.superRefine((value, ctx) => {
+  requireModernizationYears(value, ctx);
+});
+export const propertyUpdateSchema = propertyBaseSchema.partial().superRefine((value, ctx) => {
+  requireModernizationYears(value, ctx);
+  requireObjectConditionFields(value, ctx, false);
+});
 
 export const documentCreateSchema = z.object({
   fileName: z.string().trim().min(1).default("upload-placeholder.pdf"),
@@ -350,4 +433,30 @@ export const propertyExitProcessUpdateSchema = z.object({
   internalNote: optionalString,
   responsibleUserId: optionalString,
   followUpAt: optionalString
+});
+
+export const residentStatusUpdateSchema = z.object({
+  action: z.enum(["move_out", "deceased"]),
+  moveOutDate: optionalString,
+  deathDate: optionalString,
+  reportedAt: optionalString,
+  note: z.string().trim().min(1, "Interne Notiz ist erforderlich."),
+  relativesOrEstateContact: optionalString
+}).superRefine((value, ctx) => {
+  if (value.action === "move_out" && !value.moveOutDate) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["moveOutDate"], message: "Auszugsdatum oder geplantes Auszugsdatum ist erforderlich." });
+  }
+  if (value.action === "deceased" && !value.reportedAt) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["reportedAt"], message: "Meldedatum ist erforderlich." });
+  }
+});
+
+export const objectRatingScoreUpdateSchema = z.object({
+  analystScore: z.coerce.number().int().min(1).max(6).optional(),
+  finalScore: z.coerce.number().int().min(1).max(6).optional(),
+  comment: z.string().trim().min(1, "Kommentar ist erforderlich.")
+});
+
+export const objectRatingReturnUpdateSchema = z.object({
+  finalTargetReturn: z.coerce.number().finite()
 });

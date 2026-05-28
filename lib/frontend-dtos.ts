@@ -181,6 +181,12 @@ export type CaseIntakeDraftDto = {
     visualConditionRating?: RatingSix;
     energyCarriers?: string[];
     knownDefects?: string;
+    knownMajorMaintenanceOrSpecialAssessments?: boolean;
+    knownMajorMaintenanceOrSpecialAssessmentsDescription?: string;
+    moistureDamageStatus?: "NONE" | "MINOR" | "SIGNIFICANT";
+    moistureDamageDescription?: string;
+    accessibilityAssessment?: "LOW_BARRIER" | "PARTIALLY_RESTRICTED" | "STRONGLY_RESTRICTED";
+    hasElevator?: boolean;
     remainingDebtKnown?: boolean;
     remainingDebtAmount?: number;
     modernization?: Record<string, unknown>;

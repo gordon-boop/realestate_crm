@@ -98,7 +98,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       }
     });
 
-    await addDbActivity(params.id, user.id, "exit_process_updated", "Objekte im Verkauf wurden aktualisiert.", {
+    await addDbActivity(params.id, user.id, "exit_process_updated", "Verkaufsprozess wurde aktualisiert.", {
       source: "admin",
       entityType: "property",
       entityId: params.id
