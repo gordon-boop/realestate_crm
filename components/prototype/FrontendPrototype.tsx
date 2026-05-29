@@ -586,15 +586,9 @@ function normalizeFractionRate(value, fallback) {
 }
 
 function rentBackCalculationFromOffer(offer) {
-  const components = offer?.assumptions?.components || {};
   const marketValue = Number(offer?.marketValue);
-  const storedPayoutRate = Number.isFinite(Number(components.payoutRate))
-    ? Number(components.payoutRate)
-    : Number.isFinite(Number(offer?.payoutAmount)) && marketValue > 0
-      ? Number(offer.payoutAmount) / marketValue
-      : undefined;
-  const payoutRate = normalizeFractionRate(storedPayoutRate, 0.7);
-  const annualRentRate = normalizeFractionRate(components.annualRentRate, 0.05);
+  const payoutRate = 0.7;
+  const annualRentRate = 0.05;
   const payoutAmount = marketValue > 0 ? roundMoneyValue(marketValue * payoutRate) : Number(offer?.payoutAmount);
   const annualRent = roundMoneyValue(payoutAmount * annualRentRate);
   const monthlyRent = roundMoneyValue(annualRent / 12);
@@ -3609,7 +3603,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   };
   const chatReturnTab = activeTab === 'chat' ? normalizeCaseTab(returnTab, '') : '';
   const latestOffer = caseView?.offer;
-  const productOffers = caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [];
+  const productOffers = (caseView?.offers?.length ? caseView.offers : latestOffer ? [latestOffer] : [])
+    .slice()
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
   const indicativeOffers = productOffers.filter((offer) => offer.kind !== 'binding');
   const bindingOffers = productOffers.filter((offer) => offer.kind === 'binding');
   const offerVersionsCount = (offer) => offer?.versions?.length || offer?.currentVersion || 1;
