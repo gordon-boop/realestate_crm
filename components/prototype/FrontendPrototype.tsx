@@ -1,6 +1,6 @@
 ﻿// @ts-nocheck
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Home, FileText, Building2, Archive, CheckCircle2, FolderOpen, BookOpen,
   MapPin, HelpCircle, Search, Bell, MessageSquare, LogOut, ChevronRight,
@@ -113,7 +113,138 @@ const Logo = ({ size = 28 }) => (
 // =====================================================================
 // SHARED — Header & Sidebar
 // =====================================================================
-const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onProfileOpen, notifications = [], chatNotifications = [], currentCaseContext, onOpenCase, onOpenNotification, onOpenChatNotification, onOpenCurrentCaseChat }) => {
+const GlobalSearch = ({ onOpenResult }) => {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const wrapperRef = useRef(null);
+  const trimmedQuery = query.trim();
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!wrapperRef.current?.contains(event.target)) setOpen(false);
+    };
+    window.addEventListener('mousedown', handlePointerDown);
+    return () => window.removeEventListener('mousedown', handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    if (trimmedQuery.length < 2) {
+      setResults([]);
+      setLoading(false);
+      setOpen(false);
+      setActiveIndex(0);
+      return undefined;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setLoading(true);
+      setOpen(true);
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`, { signal: controller.signal });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Suche fehlgeschlagen');
+        setResults(payload.results || []);
+        setActiveIndex(0);
+      } catch (err) {
+        if (err?.name !== 'AbortError') {
+          setResults([]);
+          setOpen(true);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [trimmedQuery]);
+
+  const openResult = (result) => {
+    if (!result) return;
+    onOpenResult?.(result);
+    setOpen(false);
+    setQuery('');
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Escape') {
+      setOpen(false);
+      return;
+    }
+    if (event.key === 'ArrowDown' && results.length) {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => Math.min(index + 1, results.length - 1));
+      return;
+    }
+    if (event.key === 'ArrowUp' && results.length) {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => Math.max(index - 1, 0));
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      openResult(results[activeIndex] || results[0]);
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: 290 }}>
+      <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 6, padding: '6px 12px', border: `1px solid ${theme.border}`, width: '100%', boxSizing: 'border-box' }}>
+        <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8, flexShrink: 0 }} />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onFocus={() => trimmedQuery.length >= 2 && setOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder="Fall, Kunde oder Adresse suchen..."
+          style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }}
+        />
+      </div>
+      {open && trimmedQuery.length >= 2 && (
+        <div style={{ position: 'absolute', top: 38, right: 0, width: 430, maxWidth: 'calc(100vw - 48px)', background: 'white', border: `1px solid ${theme.border}`, borderRadius: 8, boxShadow: '0 18px 45px rgba(68, 0, 92, 0.16)', zIndex: 70, overflow: 'hidden' }}>
+          {loading ? (
+            <div style={{ padding: '13px 14px', fontSize: 12.5, color: `${theme.ink}99` }}>Suche...</div>
+          ) : results.length ? (
+            <div style={{ maxHeight: 410, overflowY: 'auto' }}>
+              {results.map((result, index) => {
+                const primary = result.type === 'lead' ? result.leadNumber : result.caseNumber;
+                const active = index === activeIndex;
+                return (
+                  <button
+                    key={`${result.type}-${result.id}`}
+                    type="button"
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => openResult(result)}
+                    style={{ width: '100%', textAlign: 'left', background: active ? theme.mintLighter : 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 14px', cursor: 'pointer', display: 'grid', gap: 4 }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 800 }}>{primary}</span>
+                      <span style={{ background: result.type === 'lead' ? theme.goldSoft : theme.mintLight, color: result.type === 'lead' ? theme.aubergine : '#3D6B1F', border: `1px solid ${result.type === 'lead' ? `${theme.gold}55` : '#3D6B1F22'}`, borderRadius: 999, padding: '3px 8px', fontSize: 10.5, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                        {result.statusLabel || (result.type === 'lead' ? 'Lead' : 'Status offen')}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{result.customerName || 'Name offen'}</div>
+                    <div style={{ fontSize: 12, color: `${theme.ink}99`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{result.propertyAddress || 'Adresse offen'}</div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ padding: '13px 14px', fontSize: 12.5, color: `${theme.ink}99` }}>Keine Treffer gefunden</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onProfileOpen, notifications = [], chatNotifications = [], currentCaseContext, onOpenCase, onOpenSearchResult, onOpenNotification, onOpenChatNotification, onOpenCurrentCaseChat }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const visibleNotifications = notifications.slice(0, 8);
@@ -142,10 +273,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
             {role === 'admin' ? 'Zur Makleransicht' : 'Zur Admin-Ansicht'}
           </button>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 6, padding: '6px 12px', border: `1px solid ${theme.border}`, width: 240 }}>
-          <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
-          <input placeholder="Suchen…" style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }} />
-        </div>
+        <GlobalSearch onOpenResult={onOpenSearchResult} />
         <div style={{ position: 'relative' }}>
           <button
             type="button"
@@ -1009,6 +1137,12 @@ function readLeadCreateFromUrl() {
   if (window.location.pathname === '/admin/leads/new') return true;
   const params = new URLSearchParams(window.location.search);
   return params.get('createLead') === '1' || params.get('mode') === 'create';
+}
+
+function readLeadIdFromUrl() {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('lead') || params.get('leadId');
 }
 
 function updateLeadCreateUrl(role, open = true, mode = 'replace') {
@@ -2420,27 +2554,96 @@ const UrgentTasksPanel = ({ cases, onOpenCase }) => {
   );
 };
 
-const AdminQuickActions = ({ onNewCase, onNewLead, onOpenOther, notice = '' }) => {
-  const secondaryButton = {
-    background: 'white',
-    color: theme.aubergine,
-    border: `1px solid ${theme.border}`,
-    borderRadius: 5,
-    padding: '8px 10px',
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: 'pointer',
-    textAlign: 'left',
+const QuickActionTile = ({ label, icon: Icon = ChevronRight, active = false, disabled = false, onClick, hint }) => {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const highlighted = active && !disabled;
+  const interactive = !disabled;
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title={disabled ? (hint || 'Noch nicht verfügbar') : hint}
+      onClick={interactive ? onClick : undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        width: '100%',
+        minHeight: 54,
+        display: 'grid',
+        gridTemplateColumns: 'auto 1fr auto',
+        alignItems: 'center',
+        gap: 9,
+        textAlign: 'left',
+        background: highlighted ? theme.aubergine : disabled ? theme.mintLighter : 'white',
+        color: highlighted ? 'white' : disabled ? `${theme.ink}66` : theme.aubergine,
+        border: `1px solid ${highlighted ? theme.aubergine : hovered || focused ? `${theme.aubergine}55` : theme.borderSoft}`,
+        borderRadius: 8,
+        padding: '9px 10px',
+        fontSize: 12,
+        fontWeight: 850,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.68 : 1,
+        boxShadow: highlighted
+          ? '0 10px 22px rgba(68,0,92,0.14)'
+          : hovered || focused
+            ? '0 8px 18px rgba(68,0,92,0.08)'
+            : 'none',
+        outline: focused ? `2px solid ${theme.gold}` : 'none',
+        outlineOffset: 2,
+        transform: hovered && !disabled ? 'translateY(-1px)' : 'translateY(0)',
+        transition: 'background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease',
+      }}
+    >
+      <span style={{
+        width: 26,
+        height: 26,
+        borderRadius: 6,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: highlighted ? `${theme.gold}22` : theme.mintLight,
+        color: highlighted ? theme.gold : disabled ? `${theme.ink}66` : theme.aubergine,
+        border: `1px solid ${highlighted ? `${theme.gold}66` : theme.borderSoft}`,
+      }}>
+        <Icon size={14} />
+      </span>
+      <span style={{ color: highlighted ? 'white' : disabled ? `${theme.ink}66` : theme.aubergine, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ width: 6, height: 28, borderRadius: 999, background: highlighted ? theme.gold : hovered || focused ? `${theme.gold}AA` : theme.borderSoft }} />
+    </button>
+  );
+};
+
+const AdminQuickActions = ({ onNewCase, onNewLead, onOpenOther, notice = '', activeAction = '' }) => {
+  const [pressedAction, setPressedAction] = useState('');
+  const triggerAction = (key, handler) => {
+    setPressedAction(key);
+    window.setTimeout(() => setPressedAction((current) => current === key ? '' : current), 800);
+    handler?.();
   };
+  const isActive = (key) => activeAction === key || pressedAction === key;
+  const actions = [
+    { key: 'new-lead', label: 'Neuer Lead', icon: TrendingUp, onClick: () => triggerAction('new-lead', onNewLead) },
+    { key: 'new-case', label: 'Neukunde erfassen', icon: Plus, onClick: () => triggerAction('new-case', onNewCase) },
+    { key: 'reminder', label: 'Wiedervorlage anlegen', icon: Clock, onClick: () => onOpenOther?.('Wiedervorlage anlegen', 'reminder') },
+    { key: 'repair', label: 'Reparatur erfassen', icon: Settings, onClick: () => onOpenOther?.('Reparatur erfassen', 'repair') },
+    { key: 'billing', label: 'Abrechnung erfassen', icon: FileText, onClick: () => onOpenOther?.('Abrechnung erfassen', 'billing') },
+  ];
   return (
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 13px', minHeight: '100%' }}>
       <div style={{ fontSize: 14, fontWeight: 800, color: theme.aubergine, marginBottom: 9 }}>Schnellfunktionen</div>
-      <div style={{ display: 'grid', gap: 7 }}>
-        <button onClick={onNewLead} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Neuer Lead</button>
-        <button onClick={onNewCase} style={secondaryButton}>Neukunde erfassen</button>
-        <button onClick={() => onOpenOther?.('Wiedervorlage anlegen')} style={secondaryButton}>Wiedervorlage anlegen</button>
-        <button onClick={() => onOpenOther?.('Reparatur erfassen')} style={secondaryButton}>Reparatur erfassen</button>
-        <button onClick={() => onOpenOther?.('Abrechnung erfassen')} style={secondaryButton}>Abrechnung erfassen</button>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {actions.map((action) => (
+          <QuickActionTile
+            key={action.key}
+            label={action.label}
+            icon={action.icon}
+            active={isActive(action.key)}
+            onClick={action.onClick}
+          />
+        ))}
       </div>
       {notice && (
         <div style={{ marginTop: 9, background: theme.goldSoft, border: `1px solid ${theme.gold}55`, color: theme.ink, borderRadius: 5, padding: '7px 8px', fontSize: 11.5, lineHeight: 1.35 }}>
@@ -2454,6 +2657,7 @@ const AdminQuickActions = ({ onNewCase, onNewLead, onOpenOther, notice = '' }) =
 const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onNewLead, onOpenLeads, canCreateCase = false }) => {
   const [activeBucket, setActiveBucket] = useState(readAdminBucketFromUrl);
   const [quickActionNotice, setQuickActionNotice] = useState('');
+  const [activeQuickAction, setActiveQuickAction] = useState('');
   const setBucket = (bucket) => {
     setActiveBucket(bucket);
     writeAdminBucketToUrl(bucket);
@@ -2495,7 +2699,8 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
   const activeBucketDefinition = buckets.find((bucket) => bucket.key === activeBucket);
   const tableTitle = activeBucketDefinition?.title || 'Neueste Einreichungen';
   const rows = adminWorkRows({ cases, leads, bucket: activeBucket });
-  const openOther = (label = 'Diese Schnellfunktion') => {
+  const openOther = (label = 'Diese Schnellfunktion', key = 'other') => {
+    setActiveQuickAction(key);
     setQuickActionNotice(`${label}: Die Erfassungsmaske wird im nächsten Schritt angebunden. Der Arbeitskorb "Sonstiges" ist geöffnet.`);
     setBucket('other');
   };
@@ -2517,6 +2722,7 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
           onNewLead={onNewLead}
           onOpenOther={openOther}
           notice={quickActionNotice}
+          activeAction={activeQuickAction}
         />
       </div>
 
@@ -7967,12 +8173,12 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, s
   );
 };
 
-const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', initialCreateOpen = false, onCreate, onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
+const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', initialCreateOpen = false, initialSelectedLeadId = null, onCreate, onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
   const [partnerSelection, setPartnerSelection] = useState({});
   const [partnerFilter, setPartnerFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [activeBucket, setActiveBucket] = useState(() => readLeadBucketFromUrl(role));
-  const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const [selectedLeadId, setSelectedLeadId] = useState(initialSelectedLeadId || readLeadIdFromUrl());
   const [createOpen, setCreateOpen] = useState(() => Boolean(initialCreateOpen) || readLeadCreateFromUrl());
   const [leadDraft, setLeadDraft] = useState(emptyLeadDraft);
   const [savingLead, setSavingLead] = useState(false);
@@ -7987,6 +8193,13 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
       setCreateOpen(true);
     }
   }, [initialCreateOpen]);
+  useEffect(() => {
+    const nextLeadId = initialSelectedLeadId || readLeadIdFromUrl();
+    if (nextLeadId) {
+      setCreateOpen(false);
+      setSelectedLeadId(nextLeadId);
+    }
+  }, [initialSelectedLeadId]);
   const visibleLeads = role === 'admin'
     ? leads
     : leads.filter((lead) => !['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status));
@@ -8477,6 +8690,25 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setScreen('case');
     updateCaseUrl(role, id, nextTab, nextReturnTab, options.replace ? 'replace' : 'push');
   };
+  const handleOpenLead = (id) => {
+    setCaseId(null);
+    setCaseInitialTab('kunde');
+    setCaseReturnTab('');
+    setEditingCaseId(null);
+    setScreen('leads');
+    const params = new URLSearchParams();
+    params.set('screen', 'leads');
+    params.set('lead', String(id));
+    window.history.pushState({}, '', `${basePathForRole(role)}?${params.toString()}`);
+    loadLeads(role);
+  };
+  const handleOpenSearchResult = (result) => {
+    if (result?.type === 'lead') {
+      handleOpenLead(result.id);
+      return;
+    }
+    handleOpenCase(result.id, 'kunde');
+  };
   const handleCaseTabChange = (tab) => {
     const nextTab = normalizeCaseTab(tab);
     setCaseInitialTab(nextTab);
@@ -8723,6 +8955,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         chatNotifications={chatNotifications}
         currentCaseContext={screen === 'case' && caseId ? { caseId, tab: caseInitialTab } : null}
         onOpenCase={handleOpenCase}
+        onOpenSearchResult={handleOpenSearchResult}
         onOpenNotification={handleOpenNotification}
         onOpenChatNotification={handleOpenChatNotification}
         onOpenCurrentCaseChat={handleOpenCurrentCaseChat}
@@ -8748,7 +8981,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} user={user} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} onShowAllCases={() => handleNavigate('in_progress')} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onNewLead={handleNewLead} onOpenLeads={() => handleNavigate('leads')} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
-          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} onCreate={handleCreateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
+          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} initialSelectedLeadId={readLeadIdFromUrl()} onCreate={handleCreateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} registrations={registrations} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
