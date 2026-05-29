@@ -23,6 +23,17 @@ const ratingInclude = {
   auditLogs: { orderBy: { timestamp: "desc" as const } }
 };
 
+const ratingCategoryOrder = [
+  "Wirtschaftliche Faktoren",
+  "Mikrolage",
+  "Instandhaltungsaufwand",
+  "Immobilie",
+  "Energieausweis"
+];
+
+const roofCriterionId = "rating_crit_maintenance_roof_v1";
+const flatRoofCriterionId = "rating_crit_maintenance_flat_roof_v1";
+
 function toNumber(value: unknown): number | undefined {
   if (value === null || value === undefined) return undefined;
   const parsed = Number(value);
@@ -40,6 +51,21 @@ function getPathValue(source: unknown, path: string): unknown {
 
 function documentStatus(property: { documents?: Array<{ category?: string; status?: string }> }, category: string): string | undefined {
   return property.documents?.find((document) => document.category === category)?.status;
+}
+
+function ratingCategorySortValue(category: { name?: string | null }) {
+  const index = ratingCategoryOrder.indexOf(String(category.name ?? ""));
+  return index === -1 ? ratingCategoryOrder.length : index;
+}
+
+function resolveRoofCriterionMode(scores: Array<{ criterionId: string; finalScore?: number | null }>) {
+  const roof = scores.find((score) => score.criterionId === roofCriterionId);
+  const flatRoof = scores.find((score) => score.criterionId === flatRoofCriterionId);
+  const hasRoof = Number.isFinite(toNumber(roof?.finalScore));
+  const hasFlatRoof = Number.isFinite(toNumber(flatRoof?.finalScore));
+  if (hasRoof && !hasFlatRoof) return "roof";
+  if (hasFlatRoof && !hasRoof) return "flat_roof";
+  return undefined;
 }
 
 export function scoreFromRule(value: unknown, mappingRule: unknown, property: { documents?: Array<{ category?: string; status?: string }> } = {}): number | undefined {
@@ -136,13 +162,19 @@ function weightedAverage(items: Array<{ value?: number; weight: number }>): numb
 export function calculateRating(config: Awaited<ReturnType<typeof getActiveRatingVersion>>, scores: Array<{ criterionId: string; finalScore?: number }>, context?: { propertyType?: string | null }) {
   if (!config) throw new Error("No active rating version configured");
   const scoreByCriterion = new Map(scores.map((score) => [score.criterionId, score.finalScore]));
-  const categoryScores = config.categories.map((category) => {
+  const roofMode = resolveRoofCriterionMode(scores);
+  const sortedCategories = [...config.categories].sort((a, b) => ratingCategorySortValue(a) - ratingCategorySortValue(b));
+  const categoryScores = sortedCategories.map((category) => {
     const criteria = config.criteria.filter((criterion) => criterion.categoryId === category.id);
     return {
       category,
       score: weightedAverage(criteria.map((criterion) => ({
         value: scoreByCriterion.get(criterion.id),
-        weight: criterionWeight(criterion, context)
+        weight: criterion.id === roofCriterionId
+          ? roofMode === "roof" ? criterionWeight(criterion, context) : 0
+          : criterion.id === flatRoofCriterionId
+            ? roofMode === "flat_roof" ? criterionWeight(criterion, context) : 0
+            : criterionWeight(criterion, context)
       })))
     };
   });
@@ -306,6 +338,24 @@ export async function updateObjectRatingScore(ratingId: string, scoreId: string,
       confidence: 1
     }
   });
+  const mutuallyExcludedCriterionId = current.criterionId === roofCriterionId
+    ? flatRoofCriterionId
+    : current.criterionId === flatRoofCriterionId
+      ? roofCriterionId
+      : undefined;
+  if (mutuallyExcludedCriterionId) {
+    await prisma.objectRatingScore.updateMany({
+      where: { objectRatingId: ratingId, criterionId: mutuallyExcludedCriterionId },
+      data: {
+        analystScore: null,
+        finalScore: null,
+        comment: null,
+        changedByUserId: userId,
+        changedAt: new Date(),
+        confidence: 0.2
+      }
+    });
+  }
   await prisma.ratingAuditLog.create({
     data: {
       objectRatingId: ratingId,

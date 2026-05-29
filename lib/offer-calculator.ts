@@ -1,4 +1,5 @@
-import type { DesiredModel, OfferAssumptions, PropertyCondition, PropertyType, Valuation } from "./domain.ts";
+import type { DesiredModel, Gender, OfferAssumptions, PropertyCondition, PropertyType, ResidentialRightRecipients, Valuation } from "./domain.ts";
+import { solvePayoutForTargetWeightedIrr, type MortalityGender } from "./residential-right-irr.ts";
 
 export type OfferCalculationInput = {
   valuation: Pick<Valuation, "marketValue">;
@@ -12,8 +13,18 @@ export type OfferCalculationInput = {
   garageCount?: number;
   garageRentMonthly?: number;
   interestRate?: number;
+  targetReturn?: number;
+  customerAge?: number;
+  customerGender?: Gender;
+  spouseAge?: number;
+  spouseGender?: Gender;
+  residentialRightRecipients?: ResidentialRightRecipients;
+  residentialRightPerson?: string;
+  calculationDate?: Date | string;
   acquisitionCostRate?: number;
   salesCostRate?: number;
+  exitValueGrowthRate?: number;
+  maintenanceUsageRate?: number;
   saleAndLeasebackPayoutRate?: number;
   maintenancePledge?: number;
   bankDisbursementRate?: number;
@@ -38,7 +49,7 @@ export type OfferCalculationResult = {
   annualRentRate?: number;
   annualRent?: number;
   monthlyRent?: number;
-  calculationMode?: "DEMO_FIXED_RATE";
+  calculationMode?: "DEMO_FIXED_RATE" | "RATING_TARGET_RETURN_IRR";
   assumptions: OfferAssumptions;
 };
 
@@ -62,6 +73,11 @@ function money(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function precision(value: number, digits = 6): number {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
 function rate(value: number | undefined, fallback: number): number {
   if (value === undefined || !Number.isFinite(value)) {
     return fallback;
@@ -76,6 +92,34 @@ function rate(value: number | undefined, fallback: number): number {
   }
 
   return value;
+}
+
+function normalizeMortalityGender(gender: Gender | undefined): MortalityGender | undefined {
+  if (gender === "female") return "female";
+  if (gender === "male") return "male";
+  return undefined;
+}
+
+function selectMortalityBasis(input: OfferCalculationInput): { age: number; gender: MortalityGender } | undefined {
+  const customerGender = normalizeMortalityGender(input.customerGender);
+  const spouseGender = normalizeMortalityGender(input.spouseGender);
+  const candidates = [
+    input.customerAge !== undefined && customerGender ? { person: "customer_1", age: input.customerAge, gender: customerGender } : undefined,
+    input.spouseAge !== undefined && spouseGender ? { person: "customer_2", age: input.spouseAge, gender: spouseGender } : undefined
+  ].filter((candidate): candidate is { person: string; age: number; gender: MortalityGender } =>
+    Boolean(candidate && Number.isFinite(candidate.age) && candidate.age >= 0)
+  );
+
+  if (!candidates.length) return undefined;
+
+  if (input.residentialRightRecipients === "one_person" && input.residentialRightPerson) {
+    const selected = candidates.find((candidate) => candidate.person === input.residentialRightPerson);
+    if (selected) return { age: Math.trunc(selected.age), gender: selected.gender };
+  }
+
+  // The Excel master bases the joint-case horizon on the person with the longer expected occupancy.
+  const selected = candidates.reduce((current, candidate) => candidate.age < current.age ? candidate : current, candidates[0]);
+  return { age: Math.trunc(selected.age), gender: selected.gender };
 }
 
 export function getResidentialRightRate(years?: number): number {
@@ -136,8 +180,11 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
   const garageCount = input.garageCount ?? 0;
   const garageRentMonthly = input.garageRentMonthly ?? 30;
   const interestRate = rate(input.interestRate, 0.032);
+  const targetReturn = input.targetReturn === undefined ? undefined : rate(input.targetReturn, 0);
   const acquisitionCostRate = rate(input.acquisitionCostRate, 0.08);
-  const salesCostRate = rate(input.salesCostRate, 0.01);
+  const salesCostRate = rate(input.salesCostRate, 0.015);
+  const exitValueGrowthRate = rate(input.exitValueGrowthRate, 0.02);
+  const maintenanceUsageRate = rate(input.maintenanceUsageRate, 0.7);
   const propertyType = input.propertyType ?? "house";
   const energyClass = (input.energyClass ?? "").trim().toUpperCase();
   const isApartment = propertyType === "apartment";
@@ -153,27 +200,74 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
     monthlyRentPerSqm * livingAreaSqm * 12 * durationYears + durationYears * garageCount * garageRentMonthly * 12
   );
   const maintenanceCost = money(livingAreaSqm * Math.round(durationYears + 1) * maintenanceRatePerSqmYear);
+  const mortalityBasis = selectMortalityBasis(input);
   const baseAfterUsageAndMaintenance = marketValue - residentialRightValue - maintenanceCost;
   const interestDiscount = money(baseAfterUsageAndMaintenance * (Math.pow(1 + interestRate, durationYears) - 1));
-  const payoutAmount = money(Math.max(0, marketValue - residentialRightValue - maintenanceCost - interestDiscount));
+  const legacyPayoutAmount = money(Math.max(0, marketValue - residentialRightValue - maintenanceCost - interestDiscount));
+  const targetIrrCalculation = targetReturn && targetReturn > 0 && mortalityBasis
+    ? solvePayoutForTargetWeightedIrr({
+        marketValue,
+        maintenanceCost,
+        durationYears,
+        mortalityAge: mortalityBasis.age,
+        mortalityGender: mortalityBasis.gender,
+        targetReturn,
+        acquisitionCostRate,
+        salesCostRate,
+        exitValueGrowthRate,
+        maintenanceUsageRate,
+        calculationDate: input.calculationDate
+      })
+    : undefined;
+  const payoutAmount = targetIrrCalculation ? money(Math.max(0, targetIrrCalculation.payoutAmount)) : legacyPayoutAmount;
+  const riskDiscount = targetIrrCalculation
+    ? money(marketValue - residentialRightValue - maintenanceCost - payoutAmount)
+    : interestDiscount;
   const acquisitionCost = money(marketValue * acquisitionCostRate);
   const salesCost = money(marketValue * salesCostRate);
   const profitNoIndex = money(marketValue - payoutAmount - maintenanceCost - acquisitionCost - salesCost);
   const capitalEmployed = payoutAmount + maintenanceCost + acquisitionCost + salesCost;
   const annualYieldNoIndex = capitalEmployed > 0 ? money((profitNoIndex / capitalEmployed / durationYears) * 100) / 100 : 0;
+  const components: Record<string, number> = {
+    residentialRightValue,
+    maintenanceCost,
+    interestDiscount,
+    riskDiscount,
+    acquisitionCost,
+    salesCost,
+    profitNoIndex,
+    annualYieldNoIndex,
+    payoutRatio: money(payoutAmount / marketValue)
+  };
+
+  if (targetIrrCalculation) {
+    components.weightedAnnualIrr = precision(targetIrrCalculation.weightedIrr);
+    components.survivalProbability = precision(targetIrrCalculation.survivalProbability);
+    components.initialOutflow = money(targetIrrCalculation.initialOutflow);
+    components.maintenanceReserve = money(targetIrrCalculation.maintenanceReserve);
+  }
+
+  if (targetReturn !== undefined) {
+    components.targetReturn = precision(targetReturn);
+  }
 
   return {
     marketValue,
     adjustedMarketValue: marketValue,
     residentialRightValue,
-    riskDiscount: interestDiscount,
+    riskDiscount,
     companyMargin: maintenanceCost,
     payoutAmount,
+    calculationMode: targetIrrCalculation ? "RATING_TARGET_RETURN_IRR" : undefined,
     assumptions: {
       productModel: "fixed_residential_right",
-      formula: "payout = market_value - residential_right_value - maintenance_cost - interest_discount",
+      formula: targetIrrCalculation
+        ? "payout is solved backwards until mortality_weighted_annual_irr equals the object_rating_target_return"
+        : "payout = market_value - residential_right_value - maintenance_cost - interest_discount",
       note:
-        "Wohnrecht. MVP-Implementierung nach den Kernzellen aus dem Excel-Auszahlungstool.",
+        targetIrrCalculation
+          ? "Wohnrecht. Die Zielrendite aus dem Objektrating wird als sterbequoten-gewichteter jährlicher IRR verwendet; die Auszahlung wird aus den Excel-Nebenrechnungen AG-AI rückwärts gelöst."
+          : "Wohnrecht. MVP-Implementierung nach den Kernzellen aus dem Excel-Auszahlungstool.",
       sourceWorkbook: "Kalkulationstool_befristetes WR_Master - Sterbetafel 2022-2024.xlsx",
       sourceCells: {
         marketValue: "Auszahlungstool_Master!P10/C29",
@@ -181,7 +275,8 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
         maintenanceCost: "Auszahlungstool_Master!R10",
         interestDiscount: "Auszahlungstool_Master!S10",
         payoutAmount: "Auszahlungstool_Master!T10",
-        durationYears: "Auszahlungstool_Master!U10/C19"
+        durationYears: "Auszahlungstool_Master!U10/C19",
+        mortalityWeightedIrr: "Auszahlungstool_Master!AG:AI/T13"
       },
       inputs: {
         durationYears,
@@ -190,19 +285,17 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
         garageCount,
         garageRentMonthly,
         interestRate,
+        targetReturn: targetReturn ?? null,
+        mortalityAge: mortalityBasis?.age ?? null,
+        mortalityGender: mortalityBasis?.gender ?? null,
+        acquisitionCostRate,
+        salesCostRate,
+        exitValueGrowthRate,
+        maintenanceUsageRate,
         propertyType,
         energyClass: input.energyClass ?? null
       },
-      components: {
-        residentialRightValue,
-        maintenanceCost,
-        interestDiscount,
-        acquisitionCost,
-        salesCost,
-        profitNoIndex,
-        annualYieldNoIndex,
-        payoutRatio: money(payoutAmount / marketValue)
-      }
+      components
     }
   };
 }

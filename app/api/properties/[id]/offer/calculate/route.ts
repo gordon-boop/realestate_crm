@@ -19,6 +19,17 @@ function readNumber(input: Record<string, number | string | undefined> | undefin
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function completedAge(dateOfBirth: string | undefined, at: Date): number | undefined {
+  if (!dateOfBirth) return undefined;
+  const birthDate = new Date(dateOfBirth);
+  if (Number.isNaN(birthDate.getTime())) return undefined;
+  let age = at.getFullYear() - birthDate.getFullYear();
+  const birthdayReached = at.getMonth() > birthDate.getMonth()
+    || (at.getMonth() === birthDate.getMonth() && at.getDate() >= birthDate.getDate());
+  if (!birthdayReached) age -= 1;
+  return age >= 0 ? age : undefined;
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
     const user = requireRole("admin");
@@ -32,6 +43,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const kind = body.kind ?? "indicative";
     const residentialRightYears = readNumber(body.inputs, "residentialRightYears") ?? caseView.property.desiredResidentialRightYears;
     const expertOpinionValue = readNumber(body.inputs, "expertOpinionValue");
+    const ratingTargetReturn = readNumber(body.inputs, "targetReturn")
+      ?? caseView.objectRatings.find((rating) => rating.finalTargetReturn !== undefined)?.finalTargetReturn
+      ?? caseView.objectRatings.find((rating) => rating.baseTargetReturn !== undefined)?.baseTargetReturn;
+    const calculationDate = new Date();
 
     if (kind === "binding" && !caseView.property.expertOpinionReceivedAt) {
       throw new Error("Gutachteneingang required before binding offer calculation");
@@ -75,8 +90,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
       monthlyRentPerSqm: readNumber(body.inputs, "monthlyRentPerSqm"),
       garageRentMonthly: readNumber(body.inputs, "garageRentMonthly"),
       interestRate: readNumber(body.inputs, "interestRate"),
+      targetReturn: ratingTargetReturn,
+      customerAge: completedAge(caseView.customer.dateOfBirth, calculationDate) ?? caseView.customer.ageAtSubmission,
+      customerGender: caseView.customer.gender,
+      spouseAge: completedAge(caseView.customer.spouseDateOfBirth, calculationDate),
+      spouseGender: caseView.customer.spouseGender,
+      residentialRightRecipients: caseView.property.residentialRightRecipients,
+      residentialRightPerson: caseView.property.residentialRightPerson,
+      calculationDate,
       acquisitionCostRate: readNumber(body.inputs, "acquisitionCostRate"),
       salesCostRate: readNumber(body.inputs, "salesCostRate"),
+      exitValueGrowthRate: readNumber(body.inputs, "exitValueGrowthRate"),
+      maintenanceUsageRate: readNumber(body.inputs, "maintenanceUsageRate"),
       saleAndLeasebackPayoutRate: kind === "binding" ? undefined : readNumber(body.inputs, "saleAndLeasebackPayoutRate"),
       maintenancePledge: readNumber(body.inputs, "maintenancePledge"),
       bankDisbursementRate: readNumber(body.inputs, "bankDisbursementRate"),

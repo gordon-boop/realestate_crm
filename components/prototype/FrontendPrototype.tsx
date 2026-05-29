@@ -1290,6 +1290,34 @@ const genderLabels = { female: 'weiblich', male: 'männlich', diverse: 'divers',
 const maritalLabels = { single: 'ledig', married: 'verheiratet', divorced: 'geschieden', widowed: 'verwitwet', other: 'sonstiges' };
 const incomeLabels = { under_1000: 'unter 1.000 €', from_1000_to_2000: '1.000 - 2.000 €', from_2000_to_3000: '2.000 - 3.000 €', over_3000: 'über 3.000 €' };
 const ratingLabels = conditionRatingLabels;
+const objectRatingCategoryOrder = ['Wirtschaftliche Faktoren', 'Mikrolage', 'Instandhaltungsaufwand', 'Immobilie', 'Energieausweis'];
+const objectRatingCriterionOrder = [
+  'rating_crit_economics_purchase_power_v1',
+  'rating_crit_economics_unemployment_rate_v1',
+  'rating_crit_economics_unemployment_trend_v1',
+  'rating_crit_economics_migration_balance_v1',
+  'rating_crit_economics_population_trend_v1',
+  'rating_crit_micro_public_transport_v1',
+  'rating_crit_micro_individual_transport_v1',
+  'rating_crit_micro_infrastructure_v1',
+  'rating_crit_micro_neighborhood_condition_v1',
+  'rating_crit_micro_noise_emissions_v1',
+  'rating_crit_maintenance_heating_v1',
+  'rating_crit_maintenance_roof_v1',
+  'rating_crit_maintenance_flat_roof_v1',
+  'rating_crit_maintenance_facade_v1',
+  'rating_crit_maintenance_masonry_v1',
+  'rating_crit_maintenance_bathrooms_v1',
+  'rating_crit_maintenance_electrical_v1',
+  'rating_crit_maintenance_windows_v1',
+  'rating_crit_property_layout_v1',
+  'rating_crit_property_living_quality_v1',
+  'rating_crit_property_light_v1',
+  'rating_crit_property_outdoor_area_v1',
+  'rating_crit_energy_certificate_class_v1',
+];
+const ratingRoofCriterionId = 'rating_crit_maintenance_roof_v1';
+const ratingFlatRoofCriterionId = 'rating_crit_maintenance_flat_roof_v1';
 const recipientLabels = { one_person: 'eine Person', both: 'beide Personen' };
 const basementLabels = { none: 'kein Keller', partial: 'teilunterkellert', full: 'vollunterkellert' };
 const parkingLabels = { garage: 'Garage', carport: 'Carport', outdoor_space: 'Stellplatz', duplex: 'Doppelparker' };
@@ -3750,6 +3778,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [residentStatusForm, setResidentStatusForm] = useState({ moveOutDate: '', deathDate: '', reportedAt: '', note: '', relativesOrEstateContact: '' });
   const [ratingScoreInputs, setRatingScoreInputs] = useState({});
   const [ratingReturnInput, setRatingReturnInput] = useState('');
+  const [openRatingInfo, setOpenRatingInfo] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatVisibility, setChatVisibility] = useState('shared');
   const [chatAttachmentFiles, setChatAttachmentFiles] = useState([]);
@@ -4011,21 +4040,55 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const objectRating = caseView?.objectRatings?.[0];
   const ratingStatusLabels = { draft: 'Entwurf', analyst_review: 'Analystenprüfung', approved: 'Freigegeben' };
   const ratingSourceLabels = { questionnaire: 'Fragebogen', api: 'API / Marktdaten', analyst: 'Analyst', document: 'Dokument' };
-  const ratingScores = (objectRating?.scores || []).filter((score) => score.criterion?.active !== false && score.criterion?.category?.active !== false);
+  const ratingScores = (objectRating?.scores || [])
+    .filter((score) => score.criterion?.active !== false && score.criterion?.category?.active !== false)
+    .sort((a, b) => {
+      const aCategoryIndex = objectRatingCategoryOrder.indexOf(a.criterion?.category?.name || '');
+      const bCategoryIndex = objectRatingCategoryOrder.indexOf(b.criterion?.category?.name || '');
+      const categoryCompare = (aCategoryIndex === -1 ? objectRatingCategoryOrder.length : aCategoryIndex) - (bCategoryIndex === -1 ? objectRatingCategoryOrder.length : bCategoryIndex);
+      if (categoryCompare !== 0) return categoryCompare;
+      const aCriterionIndex = objectRatingCriterionOrder.indexOf(a.criterionId);
+      const bCriterionIndex = objectRatingCriterionOrder.indexOf(b.criterionId);
+      return (aCriterionIndex === -1 ? objectRatingCriterionOrder.length : aCriterionIndex) - (bCriterionIndex === -1 ? objectRatingCriterionOrder.length : bCriterionIndex);
+    });
   const ratingCategories = Array.from(new Map(ratingScores
     .map((score) => score.criterion?.category)
     .filter(Boolean)
     .map((category) => [category.id, category])
-  ).values());
+  ).values()).sort((a, b) => {
+    const aIndex = objectRatingCategoryOrder.indexOf(a.name);
+    const bIndex = objectRatingCategoryOrder.indexOf(b.name);
+    return (aIndex === -1 ? objectRatingCategoryOrder.length : aIndex) - (bIndex === -1 ? objectRatingCategoryOrder.length : bIndex);
+  });
   const ratingScoreValue = (score) => score?.finalScore ?? score?.analystScore ?? score?.prefilledScore;
+  const ratingScoreValueWithInput = (score) => {
+    const input = ratingScoreInputs[score.id] || {};
+    if (input.cleared) return '';
+    if (Object.prototype.hasOwnProperty.call(input, 'analystScore')) return input.analystScore || '';
+    return score?.analystScore || score?.finalScore || score?.prefilledScore || '';
+  };
+  const roofScore = ratingScores.find((score) => score.criterionId === ratingRoofCriterionId);
+  const flatRoofScore = ratingScores.find((score) => score.criterionId === ratingFlatRoofCriterionId);
+  const roofInputValue = roofScore ? ratingScoreValueWithInput(roofScore) : '';
+  const flatRoofInputValue = flatRoofScore ? ratingScoreValueWithInput(flatRoofScore) : '';
+  const selectedRoofCriterionId = roofInputValue && !flatRoofInputValue
+    ? ratingRoofCriterionId
+    : flatRoofInputValue && !roofInputValue
+      ? ratingFlatRoofCriterionId
+      : '';
   const ratingCriterionWeight = (criterion) => {
     const overrides = criterion?.weightOverrides || {};
     const overrideKey = property?.propertyType === 'apartment' ? 'apartment' : property?.propertyType ? 'house' : '';
     return Number(overrides?.[overrideKey] ?? criterion?.weight ?? 0);
   };
+  const ratingEffectiveCriterionWeight = (criterion) => {
+    if (criterion?.id === ratingRoofCriterionId) return selectedRoofCriterionId === ratingRoofCriterionId ? ratingCriterionWeight(criterion) : 0;
+    if (criterion?.id === ratingFlatRoofCriterionId) return selectedRoofCriterionId === ratingFlatRoofCriterionId ? ratingCriterionWeight(criterion) : 0;
+    return ratingCriterionWeight(criterion);
+  };
   const weightedScore = (scores) => {
     const usable = scores
-      .map((score) => ({ value: ratingScoreValue(score), weight: ratingCriterionWeight(score.criterion) }))
+      .map((score) => ({ value: ratingScoreValue(score), weight: ratingEffectiveCriterionWeight(score.criterion) }))
       .filter((item) => Number.isFinite(Number(item.value)) && item.weight > 0);
     const totalWeight = usable.reduce((sum, item) => sum + item.weight, 0);
     if (!totalWeight) return undefined;
@@ -5515,58 +5578,87 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
                     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kriterien</div>
                     <div style={{ display: 'grid', gap: 8 }}>
-                      {ratingScores.map((score) => {
-                        const input = ratingScoreInputs[score.id] || {};
-                        const effectiveScore = input.analystScore || score.analystScore || score.finalScore || score.prefilledScore || '';
+                      {ratingCategoryRows.map(({ category }) => {
+                        const categoryScores = ratingScores.filter((score) => score.criterion?.categoryId === category.id);
                         return (
-                          <div key={score.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', background: Number(score.confidence || 0) < 0.65 ? theme.goldSoft : 'white' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: canManageRating && objectRating.status !== 'approved' ? '1.25fr 0.65fr 0.45fr 0.95fr 0.55fr 1.1fr auto' : '1.35fr 0.75fr 0.45fr 0.9fr 0.55fr 1.1fr', gap: 10, alignItems: 'center' }}>
-                              <div>
-                                <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{score.criterion?.name || score.criterionId}</div>
-                                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{score.criterion?.category?.name || '-'} · Gewichtung {formatPercent(ratingCriterionWeight(score.criterion))}</div>
-                                {score.criterion?.description && (
-                                  <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 4, lineHeight: 1.35 }}>{score.criterion.description}</div>
-                                )}
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Quelle</div>
-                                <div style={{ fontSize: 12.5, color: theme.ink }}>{labelFrom(ratingSourceLabels, score.source || score.criterion?.sourceType)}</div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Auto</div>
-                                <div style={{ fontSize: 12.5, color: theme.ink }}>{score.prefilledScore || '-'}</div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Final</div>
-                                {canManageRating && objectRating.status !== 'approved' ? (
-                                  <select value={effectiveScore} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, analystScore: event.target.value } })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, background: 'white' }}>
-                                    <option value="">-</option>
-                                    {ratingScoreDefinitions(score.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {definition.label}</option>)}
-                                  </select>
-                                ) : (
-                                  <div style={{ fontSize: 12.5, color: theme.ink }}>{score.finalScore || '-'}</div>
-                                )}
-                                {score.finalScore && (
-                                  <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>
-                                    {ratingScoreDefinitions(score.criterion).find((definition) => Number(definition.scoreValue) === Number(score.finalScore))?.label || ''}
+                          <div key={category.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', background: 'white' }}>
+                            <div style={{ padding: '10px 14px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}` }}>
+                              <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 900 }}>{category.name}</div>
+                            </div>
+                            <div style={{ display: 'grid', gap: 0 }}>
+                              {categoryScores.map((score) => {
+                                const input = ratingScoreInputs[score.id] || {};
+                                const effectiveScore = ratingScoreValueWithInput(score);
+                                const isRoofPair = score.criterionId === ratingRoofCriterionId || score.criterionId === ratingFlatRoofCriterionId;
+                                const disabledByRoofChoice = isRoofPair && selectedRoofCriterionId && selectedRoofCriterionId !== score.criterionId;
+                                const effectiveWeight = ratingEffectiveCriterionWeight(score.criterion);
+                                const hasInfo = score.criterion?.category?.name === 'Mikrolage' && Boolean(score.criterion?.description);
+                                return (
+                                  <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '12px 14px', background: disabledByRoofChoice ? theme.mintLighter : Number(score.confidence || 0) < 0.65 ? theme.goldSoft : 'white', opacity: disabledByRoofChoice ? 0.62 : 1 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: canManageRating && objectRating.status !== 'approved' ? '1.25fr 0.65fr 0.45fr 0.95fr 0.55fr 1.1fr auto' : '1.35fr 0.75fr 0.45fr 0.9fr 0.55fr 1.1fr', gap: 10, alignItems: 'center' }}>
+                                      <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                          <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{score.criterion?.name || score.criterionId}</div>
+                                          {hasInfo && (
+                                            <button type="button" aria-label="Erklärung anzeigen" onClick={() => setOpenRatingInfo(openRatingInfo === score.id ? '' : score.id)} style={{ width: 20, height: 20, borderRadius: 999, border: `1px solid ${theme.border}`, background: openRatingInfo === score.id ? theme.aubergine : 'white', color: openRatingInfo === score.id ? 'white' : theme.aubergine, fontSize: 12, fontWeight: 900, lineHeight: '18px', cursor: 'pointer' }}>i</button>
+                                          )}
+                                        </div>
+                                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>
+                                          Gewichtung {formatPercent(effectiveWeight)}
+                                          {disabledByRoofChoice ? ' · ausgegraut, wird nicht mitgerechnet' : ''}
+                                        </div>
+                                        {hasInfo && openRatingInfo === score.id && (
+                                          <div style={{ marginTop: 8, border: `1px solid ${theme.borderSoft}`, background: 'white', borderRadius: 6, padding: '9px 10px', fontSize: 11.5, color: `${theme.ink}99`, lineHeight: 1.45, whiteSpace: 'pre-line' }}>{score.criterion.description}</div>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Quelle</div>
+                                        <div style={{ fontSize: 12.5, color: theme.ink }}>{labelFrom(ratingSourceLabels, score.source || score.criterion?.sourceType)}</div>
+                                      </div>
+                                      <div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Auto</div>
+                                        <div style={{ fontSize: 12.5, color: theme.ink }}>{score.prefilledScore || '-'}</div>
+                                      </div>
+                                      <div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Final</div>
+                                        {canManageRating && objectRating.status !== 'approved' ? (
+                                          <select value={effectiveScore} disabled={disabledByRoofChoice} onChange={(event) => {
+                                            const nextInputs = { ...ratingScoreInputs, [score.id]: { ...input, analystScore: event.target.value, cleared: false } };
+                                            if (score.criterionId === ratingRoofCriterionId && flatRoofScore) nextInputs[flatRoofScore.id] = { ...(nextInputs[flatRoofScore.id] || {}), analystScore: '', cleared: true };
+                                            if (score.criterionId === ratingFlatRoofCriterionId && roofScore) nextInputs[roofScore.id] = { ...(nextInputs[roofScore.id] || {}), analystScore: '', cleared: true };
+                                            setRatingScoreInputs(nextInputs);
+                                          }} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, background: disabledByRoofChoice ? theme.mintLighter : 'white' }}>
+                                            <option value="">-</option>
+                                            {ratingScoreDefinitions(score.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {definition.label}</option>)}
+                                          </select>
+                                        ) : (
+                                          <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : score.finalScore || '-'}</div>
+                                        )}
+                                        {!disabledByRoofChoice && score.finalScore && (
+                                          <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>
+                                            {ratingScoreDefinitions(score.criterion).find((definition) => Number(definition.scoreValue) === Number(score.finalScore))?.label || ''}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Confidence</div>
+                                        <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : formatPercent(score.confidence)}</div>
+                                      </div>
+                                      <div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Kommentar</div>
+                                        {canManageRating && objectRating.status !== 'approved' ? (
+                                          <input value={input.comment ?? ''} disabled={disabledByRoofChoice} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder="Pflicht bei Änderung" style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
+                                        ) : (
+                                          <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : score.comment || '-'}</div>
+                                        )}
+                                      </div>
+                                      {canManageRating && objectRating.status !== 'approved' && (
+                                        <button onClick={() => saveRatingScore(score)} disabled={Boolean(busyAction) || disabledByRoofChoice} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 800, cursor: busyAction || disabledByRoofChoice ? 'default' : 'pointer', opacity: busyAction || disabledByRoofChoice ? 0.5 : 1 }}>Speichern</button>
+                                      )}
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Confidence</div>
-                                <div style={{ fontSize: 12.5, color: theme.ink }}>{formatPercent(score.confidence)}</div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Kommentar</div>
-                                {canManageRating && objectRating.status !== 'approved' ? (
-                                  <input value={input.comment ?? ''} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder="Pflicht bei Änderung" style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                                ) : (
-                                  <div style={{ fontSize: 12.5, color: theme.ink }}>{score.comment || '-'}</div>
-                                )}
-                              </div>
-                              {canManageRating && objectRating.status !== 'approved' && (
-                                <button onClick={() => saveRatingScore(score)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>Speichern</button>
-                              )}
+                                );
+                              })}
                             </div>
                           </div>
                         );

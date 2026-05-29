@@ -75,3 +75,52 @@ test("object rating uses apartment-specific maintenance weights", () => {
 
   assert.equal(result.totalScore, 6);
 });
+
+test("object rating keeps Excel category order", () => {
+  const config = {
+    categories: [
+      { id: "energy", name: "Energieausweis", weight: 0.1 },
+      { id: "property", name: "Immobilie", weight: 0.2 },
+      { id: "economics", name: "Wirtschaftliche Faktoren", weight: 0.2 },
+      { id: "maintenance", name: "Instandhaltungsaufwand", weight: 0.2 },
+      { id: "micro", name: "Mikrolage", weight: 0.3 }
+    ],
+    criteria: [],
+    returnCurves: []
+  } as any;
+
+  const result = calculateRating(config, []);
+
+  assert.deepEqual(result.categoryScores.map((item) => item.category.name), [
+    "Wirtschaftliche Faktoren",
+    "Mikrolage",
+    "Instandhaltungsaufwand",
+    "Immobilie",
+    "Energieausweis"
+  ]);
+});
+
+test("object rating excludes flat roof when roof is selected", () => {
+  const config = {
+    categories: [{ id: "maintenance", name: "Instandhaltungsaufwand", weight: 1 }],
+    criteria: [
+      { id: "rating_crit_maintenance_roof_v1", categoryId: "maintenance", weight: 0.5, weightOverrides: null },
+      { id: "rating_crit_maintenance_flat_roof_v1", categoryId: "maintenance", weight: 0.5, weightOverrides: null },
+      { id: "facade", categoryId: "maintenance", weight: 0.5, weightOverrides: null }
+    ],
+    returnCurves: []
+  } as any;
+
+  const roofResult = calculateRating(config, [
+    { criterionId: "rating_crit_maintenance_roof_v1", finalScore: 6 },
+    { criterionId: "facade", finalScore: 4 }
+  ]);
+  const conflictingResult = calculateRating(config, [
+    { criterionId: "rating_crit_maintenance_roof_v1", finalScore: 6 },
+    { criterionId: "rating_crit_maintenance_flat_roof_v1", finalScore: 1 },
+    { criterionId: "facade", finalScore: 4 }
+  ]);
+
+  assert.equal(roofResult.totalScore, 5);
+  assert.equal(conflictingResult.totalScore, 4);
+});
