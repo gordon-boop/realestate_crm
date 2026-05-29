@@ -4322,7 +4322,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <div>
             <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Unverbindliche Auszahlung</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 42, lineHeight: 1, color: theme.aubergine, fontWeight: 700, fontFamily: 'Georgia, ui-serif, serif' }}>{payoutValue ? formatEuroCents(payoutValue) : '-'}</div>
+              <div style={{ fontSize: 33.6, lineHeight: 1, color: theme.aubergine, fontWeight: 700, fontFamily: 'inherit' }}>{payoutValue ? formatEuroCents(payoutValue) : '-'}</div>
               <div style={{ fontSize: 16, color: `${theme.ink}88`, fontWeight: 650 }}>{quote ? `${quote}%` : '-'}</div>
             </div>
             {rentBackMetrics && (
@@ -4663,7 +4663,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <div>
             <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Verbindliche Auszahlung</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 42, lineHeight: 1, color: theme.aubergine, fontWeight: 700, fontFamily: 'Georgia, ui-serif, serif' }}>{payoutValue ? formatEuroCents(payoutValue) : '-'}</div>
+              <div style={{ fontSize: 33.6, lineHeight: 1, color: theme.aubergine, fontWeight: 700, fontFamily: 'inherit' }}>{payoutValue ? formatEuroCents(payoutValue) : '-'}</div>
               <div style={{ fontSize: 16, color: `${theme.ink}88`, fontWeight: 650 }}>{quote ? `${quote}%` : '-'}</div>
             </div>
             {bindingRentBackMetrics && (
