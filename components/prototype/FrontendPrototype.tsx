@@ -3871,7 +3871,10 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowTasks, onShowDoc
   const visibleActivities = (activities || []).slice(0, 3);
   const visibleTasks = (taskRows || []).slice(0, 3);
   const importantDocuments = (documents || [])
-    .filter((document) => ['expert_opinion', 'appraisal', 'land_register', 'energy_certificate'].includes(document.category))
+    .filter((document) => {
+      const documentName = `${document.name || ''} ${document.fileName || ''}`.toLowerCase();
+      return documentName.includes('indikatives angebot') || ['expert_opinion', 'appraisal', 'land_register', 'energy_certificate'].includes(document.category);
+    })
     .slice(0, 3);
   const visibleDocuments = importantDocuments.length ? importantDocuments : (documents || []).slice(0, 3);
 
@@ -3910,7 +3913,15 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowTasks, onShowDoc
           <div key={document.id || index} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: index === 0 ? '0 0 10px' : '10px 0', borderBottom: index < visibleDocuments.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
             <FileText size={15} style={{ color: theme.aubergine, flex: '0 0 auto' }} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{document.name || document.fileName}</div>
+              <div style={{ fontSize: 12.5, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {document.storageUrl ? (
+                  <a href={document.storageUrl} target="_blank" rel="noreferrer" style={{ color: theme.ink, textDecoration: 'none' }}>
+                    {document.name || document.fileName}
+                  </a>
+                ) : (
+                  document.name || document.fileName
+                )}
+              </div>
               <div style={{ fontSize: 10.8, color: `${theme.ink}77`, marginTop: 2 }}>{document.statusLabel || document.type || 'Unterlage'}</div>
             </div>
           </div>
@@ -4920,6 +4931,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 >
                   PDF-Angebot erstellen
                 </button>
+                {offer?.pdfUrl && (
+                  <a href={offer.pdfUrl} target="_blank" rel="noreferrer" style={{ ...offerButtonStyle('secondary'), textDecoration: 'none' }}>
+                    PDF öffnen
+                  </a>
+                )}
                 {!offer && <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>Bitte zuerst das unverbindliche Angebot berechnen.</span>}
               </>
             )}
