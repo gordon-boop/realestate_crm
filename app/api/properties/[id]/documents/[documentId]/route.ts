@@ -3,10 +3,44 @@ import { handleApiError, json, requireRole } from "@/lib/api";
 import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { documentReviewSchema } from "@/lib/validation";
-import { unlink } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { readFile, unlink } from "node:fs/promises";
+import { basename, extname, join } from "node:path";
 
 export const runtime = "nodejs";
+
+const contentTypes: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".heic": "image/heic",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+};
+
+export async function GET(_request: Request, { params }: { params: { id: string; documentId: string } }): Promise<Response> {
+  try {
+    const user = requireRole("admin", "partner");
+    const caseView = await getDbCaseByPropertyId(params.id);
+    if (!caseView) throw new Error("Property not found");
+    if (!canSeeProperty(user, caseView.property)) throw new Error("Forbidden");
+
+    const document = await prisma.document.findFirst({ where: { id: params.documentId, propertyId: params.id } });
+    if (!document) throw new Error("Document not found");
+
+    const storedFile = `${document.id}-${document.fileName}`;
+    const file = await readFile(join(process.cwd(), "public", "mock-storage", storedFile));
+    const extension = extname(document.fileName).toLowerCase();
+    return new Response(file, {
+      headers: {
+        "content-type": document.fileType || contentTypes[extension] || "application/octet-stream",
+        "content-disposition": `inline; filename="${document.fileName}"`
+      }
+    });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
 
 export async function PATCH(request: Request, { params }: { params: { id: string; documentId: string } }): Promise<Response> {
   try {
@@ -74,7 +108,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     const document = await prisma.document.findFirst({ where: { id: params.documentId, propertyId: params.id } });
     if (!document) throw new Error("Document not found");
     await prisma.document.delete({ where: { id: document.id } });
-    await deleteStoredFile(document.storageUrl);
+    await deleteStoredFile(document.storageUrl, document.id, document.fileName);
 
     await addDbActivity(params.id, user.id, "document_deleted", `Dokument ${document.displayName ?? document.fileName} wurde gelöscht.`, {
       source: user.role,
@@ -89,9 +123,12 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
   }
 }
 
-async function deleteStoredFile(storageUrl?: string) {
-  if (!storageUrl?.startsWith("/mock-storage/")) return;
-  const safeName = basename(storageUrl);
+async function deleteStoredFile(storageUrl?: string, documentId?: string, fileName?: string) {
+  const safeName = storageUrl?.startsWith("/mock-storage/")
+    ? basename(storageUrl)
+    : documentId && fileName && storageUrl?.includes(`/documents/${documentId}`)
+      ? `${documentId}-${fileName}`
+      : "";
   if (!safeName) return;
 
   try {

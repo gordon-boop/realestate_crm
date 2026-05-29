@@ -4057,6 +4057,20 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'offer_accepted', offerAcceptedAt: indicativeOfferAcceptedDate, indicativeOfferSentAt: indicativeOfferSentDate });
     }
   });
+  const createIndicativeOfferPdf = (model) => runCaseAction('PDF-Angebot erstellen', async () => {
+    const response = await fetch(`/api/properties/${c.propertyId}/offer/generate-pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || 'Das PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut.');
+    }
+    if (payload.downloadUrl) {
+      window.open(payload.downloadUrl, '_blank', 'noopener,noreferrer');
+    }
+  });
   const indicativeOfferDateFields = (
     <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
       <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
@@ -4375,16 +4389,31 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 850 }}>{nextStep.title}</div>
             <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 4 }}>{nextStep.help}</div>
           </div>
-          {(canManageOffers || role === 'partner') && (
-            nextStep.state.reached ? (
-              <OfferDonePill>{nextStep.label}</OfferDonePill>
-            ) : (
-              <button onClick={() => runWorkflowAction(nextStep.action)} disabled={nextStep.state.disabled} style={offerButtonStyle('primary', { disabled: nextStep.state.disabled })}>
-                {nextStep.label}
-                <ChevronRight size={15} />
-              </button>
-            )
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {canManageOffers && (
+              <>
+                <button
+                  onClick={() => createIndicativeOfferPdf(modelRequest.model)}
+                  disabled={Boolean(busyAction) || !offer}
+                  title={!offer ? 'Bitte zuerst das unverbindliche Angebot berechnen.' : 'PDF-Angebot erstellen'}
+                  style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !offer, busy: busyAction === 'PDF-Angebot erstellen' })}
+                >
+                  PDF-Angebot erstellen
+                </button>
+                {!offer && <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>Bitte zuerst das unverbindliche Angebot berechnen.</span>}
+              </>
+            )}
+            {(canManageOffers || role === 'partner') && (
+              nextStep.state.reached ? (
+                <OfferDonePill>{nextStep.label}</OfferDonePill>
+              ) : (
+                <button onClick={() => runWorkflowAction(nextStep.action)} disabled={nextStep.state.disabled} style={offerButtonStyle('primary', { disabled: nextStep.state.disabled })}>
+                  {nextStep.label}
+                  <ChevronRight size={15} />
+                </button>
+              )
+            )}
+          </div>
         </div>
       </div>
     );
