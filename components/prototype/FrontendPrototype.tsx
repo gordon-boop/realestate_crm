@@ -17,6 +17,7 @@ import {
   modernizationComponentLabels,
   modernizationScopeLabels,
 } from '@/lib/property-labels';
+import { isInventoryCase } from '@/lib/acquisition-workflow';
 import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 
 // =====================================================================
@@ -3546,6 +3547,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [indicativeOfferAcceptedDate, setIndicativeOfferAcceptedDate] = useState('');
   const [bindingOfferSentDate, setBindingOfferSentDate] = useState('');
   const [bindingOfferAcceptedDate, setBindingOfferAcceptedDate] = useState('');
+  const [acceptedOfferDialog, setAcceptedOfferDialog] = useState(null);
+  const [acceptedOfferModelInput, setAcceptedOfferModelInput] = useState('');
+  const [acceptedOfferNote, setAcceptedOfferNote] = useState('');
   const [expertOpinionValue, setExpertOpinionValue] = useState('');
   const [residentStatusAction, setResidentStatusAction] = useState('');
   const [residentStatusForm, setResidentStatusForm] = useState({ moveOutDate: '', deathDate: '', reportedAt: '', note: '', relativesOrEstateContact: '' });
@@ -3569,7 +3573,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const canReviewDocuments = canManageOffers;
   const canEditCaseData = role === 'admin' || property?.status === 'DRAFT';
   const canDeleteDocuments = role === 'admin' || property?.status === 'DRAFT';
-  const canManageResidentStatus = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
+  const inventoryCase = isInventoryCase(property);
+  const canManageResidentStatus = inventoryCase && role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
 
   useEffect(() => {
     setActiveTab(normalizeCaseTab(initialTab));
@@ -3610,11 +3615,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const bindingOffers = productOffers.filter((offer) => offer.kind === 'binding');
   const offerVersionsCount = (offer) => offer?.versions?.length || offer?.currentVersion || 1;
   const hasBindingOffer = bindingOffers.length > 0;
-  const salesProcessActive = Boolean(
+  const salesProcessActive = Boolean(inventoryCase && (
     property?.exitProcess ||
     property?.residentStaysInProperty === false ||
     ['MOVE_OUT_PLANNED', 'MOVED_OUT', 'DECEASED'].includes(property?.residentStatus)
-  );
+  ));
   useEffect(() => {
     const existingExpertOpinionValue = bindingOffers[0]?.marketValue;
     setExpertOpinionValue(existingExpertOpinionValue ? formatGermanIntegerInput(existingExpertOpinionValue) : '');
@@ -3642,6 +3647,28 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   ] : [
     { key: 'fixed_residential_right', model: 'fixed_residential_right', residentialRightYears: 10, recipient: 'one_person', reason: 'Mock-Fall', primary: true }
   ];
+  const acceptedOfferOptions = (action) => {
+    const kind = action === 'binding_offer_accepted' ? 'binding' : 'indicative';
+    const offers = kind === 'binding' ? bindingOffers : indicativeOffers;
+    const models = offers.length
+      ? offers.map((offer) => offer.model)
+      : requestedOfferModels.map((modelRequest) => modelRequest.model);
+    return Array.from(new Set(models.filter((model) => model && model !== 'other')))
+      .map((model) => ({
+        model,
+        label: labelFrom(productModelLabels, model),
+        offerId: offers.find((offer) => offer.model === model)?.id
+      }));
+  };
+  const existingAcceptedOfferModel = (action) => (
+    action === 'binding_offer_accepted'
+      ? property?.bindingAcceptedOfferModel
+      : property?.indicativeAcceptedOfferModel
+  );
+  const acceptedOfferModelLabel = (action) => {
+    const model = existingAcceptedOfferModel(action);
+    return model ? labelFrom(productModelLabels, model) : '-';
+  };
   const latestValuation = caseView?.valuation;
   const documents = caseView?.documents?.length ? caseView.documents.map((document) => ({
     id: document.id,
@@ -3963,7 +3990,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     setResetNote('');
     setResetModalOpen(true);
   };
-  const handleAcquisitionAction = (step) => runCaseAction(step.label, async () => {
+  const handleAcquisitionAction = (step, acceptedSelection = null) => runCaseAction(step.label, async () => {
     if (!step.action) return;
     if (step.action === 'indicative_offer_sent' && !(indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt))) {
       throw new Error('Bitte zuerst „Unverbindliches Angebot abgegeben am“ eintragen.');
@@ -4020,6 +4047,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       expertOpinionCompany: step.action === 'expert_opinion_ordered' ? (expertOpinionCompany.trim() || property?.expertOpinionCompany) : undefined,
       bindingOfferSentAt: step.action === 'binding_offer_sent' ? (bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt)) : undefined,
       bindingOfferAcceptedAt: step.action === 'binding_offer_accepted' ? (bindingOfferAcceptedDate || dateInputValue(property?.bindingOfferAcceptedAt)) : undefined,
+      acceptedOfferModel: acceptedSelection?.model,
+      acceptedOfferId: acceptedSelection?.offerId,
+      acceptedOfferNote: acceptedSelection?.note,
       notaryAppointmentAt: step.needsDate ? (notaryAppointmentDate || property?.notaryAppointmentAt) : undefined,
       notaryOffice: step.needsDate ? (notaryOffice.trim() || property?.notaryOffice) : undefined
     });
@@ -4038,7 +4068,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'binding_offer_sent', bindingOfferSentAt: bindingOfferSentDate });
       }
       if (bindingOfferAcceptedDate) {
-        await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'binding_offer_accepted', bindingOfferAcceptedAt: bindingOfferAcceptedDate, bindingOfferSentAt: bindingOfferSentDate });
+        startAcceptedOfferSelection('binding_offer_accepted');
       }
       return;
     }
@@ -4054,7 +4084,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'indicative_offer_sent', indicativeOfferSentAt: indicativeOfferSentDate });
     }
     if (indicativeOfferAcceptedDate) {
-      await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'offer_accepted', offerAcceptedAt: indicativeOfferAcceptedDate, indicativeOfferSentAt: indicativeOfferSentDate });
+      startAcceptedOfferSelection('offer_accepted');
     }
   });
   const createIndicativeOfferPdf = (model) => runCaseAction('PDF-Angebot erstellen', async () => {
@@ -4121,10 +4151,56 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     setResetNote('');
   });
   const workflowAction = (action) => acquisitionSteps.find((step) => step.action === action);
-  const runWorkflowAction = (action) => {
+  const startAcceptedOfferSelection = (action, preferredModel) => {
+    const options = acceptedOfferOptions(action);
+    const existingModel = existingAcceptedOfferModel(action);
+    if (role !== 'admin' && !existingModel) {
+      setNotice?.('Das angenommene Modell kann nur intern erfasst werden.');
+      return true;
+    }
+    const selectedModel = existingModel || preferredModel || (options.length === 1 ? options[0].model : '');
+    const selectedOffer = options.find((option) => option.model === selectedModel);
+    if (!existingModel && options.length > 1) {
+      setAcceptedOfferDialog({ action, preferredModel });
+      setAcceptedOfferModelInput(selectedModel || options[0]?.model || '');
+      setAcceptedOfferNote('');
+      return true;
+    }
+    const step = workflowAction(action);
+    if (!step) return false;
+    handleAcquisitionAction(step, selectedModel ? { model: selectedModel, offerId: selectedOffer?.offerId } : null);
+    return true;
+  };
+  const submitAcceptedOfferSelection = () => {
+    if (!acceptedOfferDialog) return;
+    const model = acceptedOfferModelInput;
+    if (!model) {
+      setNotice?.('Bitte wählen Sie das angenommene Modell aus.');
+      return;
+    }
+    const options = acceptedOfferOptions(acceptedOfferDialog.action);
+    const selectedOffer = options.find((option) => option.model === model);
+    if (!selectedOffer) {
+      setNotice?.('Das ausgewählte Modell wurde nicht angeboten.');
+      return;
+    }
+    const step = workflowAction(acceptedOfferDialog.action);
+    if (!step) {
+      setNotice?.('Dieser Prozessschritt ist nicht vorbereitet.');
+      return;
+    }
+    setAcceptedOfferDialog(null);
+    setAcceptedOfferNote('');
+    handleAcquisitionAction(step, { model, offerId: selectedOffer.offerId, note: acceptedOfferNote.trim() || undefined });
+  };
+  const runWorkflowAction = (action, preferredModel) => {
     const step = workflowAction(action);
     if (!step) {
       setNotice?.('Dieser Prozessschritt ist nicht vorbereitet.');
+      return;
+    }
+    if (action === 'offer_accepted' || action === 'binding_offer_accepted') {
+      startAcceptedOfferSelection(action, preferredModel);
       return;
     }
     handleAcquisitionAction(step);
@@ -4375,6 +4451,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 </button>
               )}
             </div>
+            <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 999, padding: '6px 11px', fontSize: 12, color: theme.ink, fontWeight: 750 }}>
+              <span style={{ color: `${theme.ink}88`, fontWeight: 650 }}>Angenommenes Modell:</span>
+              <span style={{ color: theme.aubergine }}>{acceptedOfferModelLabel('offer_accepted')}</span>
+            </div>
           </div>
         )}
 
@@ -4407,7 +4487,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               nextStep.state.reached ? (
                 <OfferDonePill>{nextStep.label}</OfferDonePill>
               ) : (
-                <button onClick={() => runWorkflowAction(nextStep.action)} disabled={nextStep.state.disabled} style={offerButtonStyle('primary', { disabled: nextStep.state.disabled })}>
+                <button onClick={() => runWorkflowAction(nextStep.action, modelRequest.model)} disabled={nextStep.state.disabled} style={offerButtonStyle('primary', { disabled: nextStep.state.disabled })}>
                   {nextStep.label}
                   <ChevronRight size={15} />
                 </button>
@@ -4545,6 +4625,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     await patchJson(`/api/properties/${c.propertyId}/exit`, exitProcessForm);
   });
   const startResidentStatusAction = (action) => {
+    if (!inventoryCase) {
+      setNotice?.('Bewohnerstatus kann erst nach Bestandsübernahme geändert werden.');
+      return;
+    }
     const label = action === 'deceased' ? 'verstorben' : 'zieht aus';
     const firstQuestion = action === 'deceased'
       ? 'Möchten Sie den Bewohnerstatus auf „verstorben“ setzen?'
@@ -4562,6 +4646,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     setNotice?.(`Bewohnerstatus „${label}“ vorbereiten.`);
   };
   const submitResidentStatusAction = () => runCaseAction('Bewohnerstatus speichern', async () => {
+    if (!inventoryCase) {
+      throw new Error('Bewohnerstatus kann erst nach Bestandsübernahme geändert werden.');
+    }
     await postJson(`/api/properties/${c.propertyId}/resident-status`, {
       action: residentStatusAction,
       ...residentStatusForm,
@@ -4727,6 +4814,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 </button>
               )}
             </div>
+            <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 999, padding: '6px 11px', fontSize: 12, color: theme.ink, fontWeight: 750 }}>
+              <span style={{ color: `${theme.ink}88`, fontWeight: 650 }}>Angenommenes Modell:</span>
+              <span style={{ color: theme.aubergine }}>{acceptedOfferModelLabel('binding_offer_accepted')}</span>
+            </div>
           </div>
         )}
 
@@ -4745,7 +4836,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             nextStep.state.reached ? (
               <OfferDonePill>{nextStep.label}</OfferDonePill>
             ) : (
-              <button onClick={() => runWorkflowAction(nextStep.action)} disabled={nextStep.state.disabled} style={offerButtonStyle('primary', { disabled: nextStep.state.disabled })}>
+              <button onClick={() => runWorkflowAction(nextStep.action, modelRequest.model)} disabled={nextStep.state.disabled} style={offerButtonStyle('primary', { disabled: nextStep.state.disabled })}>
                 {nextStep.label}
                 <ChevronRight size={15} />
               </button>
@@ -4867,6 +4958,48 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               <button onClick={() => setResetModalOpen(false)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
               <button onClick={resetWorkflowStep} disabled={Boolean(busyAction) || !resetReason.trim() || !resetTargetStatus} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : !resetReason.trim() || !resetTargetStatus ? 'not-allowed' : 'pointer', opacity: busyAction || !resetReason.trim() || !resetTargetStatus ? 0.55 : 1 }}>
                 {busyAction === 'Prozessschritt zurücksetzen' ? 'Wird zurückgesetzt...' : 'Zurücksetzen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {acceptedOfferDialog && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 91, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>Angenommenes Angebotsmodell auswählen</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>Der Kunde hat mehrere Angebotsmodelle erhalten. Bitte wählen Sie aus, welches Modell angenommen wurde.</div>
+              </div>
+              <button onClick={() => setAcceptedOfferDialog(null)} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <X size={15} />
+              </button>
+            </div>
+            <div style={{ padding: '20px 22px', display: 'grid', gap: 14 }}>
+              <Field label="Angenommenes Modell" required>
+                <Select value={acceptedOfferModelInput} onChange={(event) => setAcceptedOfferModelInput(event.target.value)}>
+                  <option value="">Modell auswählen</option>
+                  {acceptedOfferOptions(acceptedOfferDialog.action).map((option) => (
+                    <option key={option.model} value={option.model}>{option.label}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Annahmedatum">
+                <Input
+                  type="date"
+                  value={acceptedOfferDialog.action === 'binding_offer_accepted' ? bindingOfferAcceptedDate : indicativeOfferAcceptedDate}
+                  onChange={(event) => acceptedOfferDialog.action === 'binding_offer_accepted' ? setBindingOfferAcceptedDate(event.target.value) : setIndicativeOfferAcceptedDate(event.target.value)}
+                />
+              </Field>
+              <Field label="Interne Notiz">
+                <textarea value={acceptedOfferNote} onChange={(event) => setAcceptedOfferNote(event.target.value)} rows={3} placeholder="Optionale Notiz zur Entscheidung des Kunden..." style={{ width: '100%', minHeight: 82, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+              </Field>
+            </div>
+            <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setAcceptedOfferDialog(null)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
+              <button onClick={submitAcceptedOfferSelection} disabled={Boolean(busyAction) || !acceptedOfferModelInput} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : !acceptedOfferModelInput ? 'not-allowed' : 'pointer', opacity: busyAction || !acceptedOfferModelInput ? 0.55 : 1 }}>
+                Übernehmen
               </button>
             </div>
           </div>
@@ -5012,35 +5145,39 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 ))}
               </div>
 
-              <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Bewohnerstatus</div>
-              <div style={{ display: 'grid', gridTemplateColumns: canManageResidentStatus ? '1fr auto' : '1fr', gap: 16, alignItems: 'start' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
-                  {[
-                    ['Status', labelFrom(residentStatusLabels, property?.residentStatus || 'ACTIVE')],
-                    ['Bewohner bleibt im Objekt', yesNo(property?.residentStaysInProperty !== false)],
-                    ['Auszugsdatum', formatDate(property?.residentMoveOutDate)],
-                    ['Sterbedatum', formatDate(property?.residentDeathDate)],
-                    ['Letzte Änderung', formatDate(property?.residentStatusChangedAt)],
-                    ['Interne Notiz', property?.residentStatusNote || '-'],
-                  ].map(([k, v], i) => (
-                    <div key={i}>
-                      <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
-                      <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
+              {inventoryCase && (
+                <>
+                  <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Bewohnerstatus</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: canManageResidentStatus ? '1fr auto' : '1fr', gap: 16, alignItems: 'start' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
+                      {[
+                        ['Status', labelFrom(residentStatusLabels, property?.residentStatus || 'ACTIVE')],
+                        ['Bewohner bleibt im Objekt', yesNo(property?.residentStaysInProperty !== false)],
+                        ['Auszugsdatum', formatDate(property?.residentMoveOutDate)],
+                        ['Sterbedatum', formatDate(property?.residentDeathDate)],
+                        ['Letzte Änderung', formatDate(property?.residentStatusChangedAt)],
+                        ['Interne Notiz', property?.residentStatusNote || '-'],
+                      ].map(([k, v], i) => (
+                        <div key={i}>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
+                          <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                {canManageResidentStatus && (
-                  <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
-                    <button onClick={() => startResidentStatusAction('move_out')} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                      Bewohner zieht aus
-                    </button>
-                    <button onClick={() => startResidentStatusAction('deceased')} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                      Bewohner verstorben melden
-                    </button>
+                    {canManageResidentStatus && (
+                      <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
+                        <button onClick={() => startResidentStatusAction('move_out')} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                          Bewohner zieht aus
+                        </button>
+                        <button onClick={() => startResidentStatusAction('deceased')} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                          Bewohner verstorben melden
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           )}
 

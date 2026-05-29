@@ -1,4 +1,5 @@
 import { canSeeProperty } from "@/lib/access-control";
+import { isInventoryCase } from "@/lib/acquisition-workflow";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import { addDbActivity, getDbCaseByPropertyId } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
@@ -20,6 +21,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const internalRole = user.internalRole ?? "employee";
     if (!["employee", "advisor", "admin", "super_admin"].includes(internalRole)) {
       throw new Error("Forbidden");
+    }
+    if (!isInventoryCase(caseView.property)) {
+      return json({ error: "Bewohnerstatus kann erst nach Bestandsübernahme geändert werden." }, { status: 409 });
     }
 
     const body = residentStatusUpdateSchema.parse(await request.json());

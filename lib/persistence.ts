@@ -109,6 +109,14 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     expertOpinionReceivedAt: iso(property.expertOpinionReceivedAt),
     bindingOfferSentAt: iso(property.bindingOfferSentAt),
     bindingOfferAcceptedAt: iso(property.bindingOfferAcceptedAt),
+    indicativeAcceptedOfferModel: property.indicativeAcceptedOfferModel ?? undefined,
+    indicativeAcceptedOfferId: property.indicativeAcceptedOfferId ?? undefined,
+    indicativeAcceptedOfferModelAt: iso(property.indicativeAcceptedOfferModelAt),
+    indicativeAcceptedOfferModelByUserId: property.indicativeAcceptedOfferModelByUserId ?? undefined,
+    bindingAcceptedOfferModel: property.bindingAcceptedOfferModel ?? undefined,
+    bindingAcceptedOfferId: property.bindingAcceptedOfferId ?? undefined,
+    bindingAcceptedOfferModelAt: iso(property.bindingAcceptedOfferModelAt),
+    bindingAcceptedOfferModelByUserId: property.bindingAcceptedOfferModelByUserId ?? undefined,
     offerAcceptedAt: iso(property.offerAcceptedAt),
     purchaseStartedAt: iso(property.purchaseStartedAt),
     notaryAppointmentAt: iso(property.notaryAppointmentAt),
@@ -937,7 +945,7 @@ export async function advanceDbAcquisitionWorkflow(
   propertyId: string,
   action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted" | "notary_appointment_ordered" | "contract_signed" | "purchase_started" | "notary_appointment" | "purchased" | "enter_portfolio",
   userId: string,
-  options: { indicativeOfferSentAt?: string; offerAcceptedAt?: string; expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; bindingOfferSentAt?: string; bindingOfferAcceptedAt?: string; notaryAppointmentAt?: string; notaryOffice?: string; source?: "admin" | "partner" | "system" | "user" } = {}
+  options: { indicativeOfferSentAt?: string; offerAcceptedAt?: string; expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; bindingOfferSentAt?: string; bindingOfferAcceptedAt?: string; acceptedOfferModel?: DesiredModel; acceptedOfferId?: string; acceptedOfferNote?: string; notaryAppointmentAt?: string; notaryOffice?: string; source?: "admin" | "partner" | "system" | "user" } = {}
 ) {
   const now = new Date();
   const parsedIndicativeSentDate = options.indicativeOfferSentAt ? new Date(options.indicativeOfferSentAt) : now;
@@ -956,9 +964,24 @@ export async function advanceDbAcquisitionWorkflow(
   const notaryDate = Number.isNaN(parsedNotaryDate.getTime()) ? now : parsedNotaryDate;
   const expertCompany = options.expertOpinionCompany?.trim();
   const notaryOffice = options.notaryOffice?.trim();
+  const acceptedModelLabel = options.acceptedOfferModel ? offerModelLabel(options.acceptedOfferModel) : undefined;
   const config = {
     indicative_offer_sent: { status: "INDICATIVE_OFFER_SENT", data: { indicativeOfferSentAt: indicativeSentDate }, type: "indicative_offer_sent", message: `Unverbindliches Angebot abgegeben am ${formatActivityDate(indicativeSentDate)} erfasst.` },
-    offer_accepted: { status: "OFFER_ACCEPTED", data: { offerAcceptedAt: offerAcceptedDate }, type: "offer_accepted", message: `Kunde hat das unverbindliche Angebot am ${formatActivityDate(offerAcceptedDate)} angenommen.` },
+    offer_accepted: {
+      status: "OFFER_ACCEPTED",
+      data: {
+        offerAcceptedAt: offerAcceptedDate,
+        indicativeAcceptedOfferModel: options.acceptedOfferModel,
+        indicativeAcceptedOfferId: options.acceptedOfferId,
+        indicativeAcceptedOfferModelAt: now,
+        indicativeAcceptedOfferModelByUserId: userId,
+        ...(options.acceptedOfferModel ? { desiredModel: options.acceptedOfferModel } : {})
+      },
+      type: "offer_accepted",
+      message: acceptedModelLabel
+        ? `Kunde hat das unverbindliche Angebot für ${acceptedModelLabel} angenommen.`
+        : `Kunde hat das unverbindliche Angebot am ${formatActivityDate(offerAcceptedDate)} angenommen.`
+    },
     expert_opinion_ordered: {
       status: "EXPERT_OPINION_ORDERED",
       data: { expertOpinionOrderedAt: expertOrderedDate, expertOpinionCompany: expertCompany },
@@ -967,7 +990,21 @@ export async function advanceDbAcquisitionWorkflow(
     },
     expert_opinion_received: { status: "EXPERT_OPINION_RECEIVED", data: { expertOpinionReceivedAt: expertReceivedDate }, type: "expert_opinion_received", message: "Gutachten wurde als eingegangen markiert." },
     binding_offer_sent: { status: "BINDING_OFFER_SENT", data: { bindingOfferSentAt: bindingSentDate }, type: "binding_offer_sent", message: `Verbindliches Angebot abgegeben am ${formatActivityDate(bindingSentDate)} erfasst.` },
-    binding_offer_accepted: { status: "BINDING_OFFER_ACCEPTED", data: { bindingOfferAcceptedAt: bindingAcceptedDate }, type: "binding_offer_accepted", message: `Kunde hat das verbindliche Angebot am ${formatActivityDate(bindingAcceptedDate)} angenommen.` },
+    binding_offer_accepted: {
+      status: "BINDING_OFFER_ACCEPTED",
+      data: {
+        bindingOfferAcceptedAt: bindingAcceptedDate,
+        bindingAcceptedOfferModel: options.acceptedOfferModel,
+        bindingAcceptedOfferId: options.acceptedOfferId,
+        bindingAcceptedOfferModelAt: now,
+        bindingAcceptedOfferModelByUserId: userId,
+        ...(options.acceptedOfferModel ? { desiredModel: options.acceptedOfferModel } : {})
+      },
+      type: "binding_offer_accepted",
+      message: acceptedModelLabel
+        ? `Kunde hat das verbindliche Angebot für ${acceptedModelLabel} angenommen.`
+        : `Kunde hat das verbindliche Angebot am ${formatActivityDate(bindingAcceptedDate)} angenommen.`
+    },
     notary_appointment_ordered: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: notaryDate, notaryOffice }, type: "notary_appointment_ordered", message: `Notartermin wurde vereinbart${notaryOffice ? `: ${notaryOffice}` : "."}` },
     contract_signed: { status: "IN_PORTFOLIO", data: { purchasedAt: now, portfolioEnteredAt: now }, type: "contract_signed", message: "Kaufvertrag wurde unterschrieben. Die interne Bestandsübernahme wurde vorbereitet." },
     purchase_started: { status: "PURCHASE_STARTED", data: { purchaseStartedAt: now }, type: "purchase_started", message: "Ankaufsprozess wurde gestartet." },
@@ -980,7 +1017,16 @@ export async function advanceDbAcquisitionWorkflow(
     where: { id: propertyId },
     data: { status: config.status as PropertyStatus, ...config.data }
   });
-  await addDbActivity(propertyId, userId, config.type, config.message, { source: options.source ?? "admin", entityType: "property", entityId: propertyId });
+  await addDbActivity(propertyId, userId, config.type, config.message, {
+    source: options.source ?? "admin",
+    entityType: "property",
+    entityId: propertyId,
+    metadata: {
+      acceptedOfferModel: options.acceptedOfferModel,
+      acceptedOfferId: options.acceptedOfferId,
+      acceptedOfferNote: options.acceptedOfferNote
+    }
+  });
   return property;
 }
 
@@ -1067,13 +1113,14 @@ export async function updateDbAcquisitionWorkflowDate(
   propertyId: string,
   action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted",
   userId: string,
-  options: { indicativeOfferSentAt?: string; offerAcceptedAt?: string; expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; bindingOfferSentAt?: string; bindingOfferAcceptedAt?: string; source?: "admin" | "partner" | "system" | "user" } = {}
+  options: { indicativeOfferSentAt?: string; offerAcceptedAt?: string; expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; bindingOfferSentAt?: string; bindingOfferAcceptedAt?: string; acceptedOfferModel?: DesiredModel; acceptedOfferId?: string; acceptedOfferNote?: string; source?: "admin" | "partner" | "system" | "user" } = {}
 ) {
   const now = new Date();
   const dateFrom = (value?: string) => {
     const parsed = value ? new Date(value) : now;
     return Number.isNaN(parsed.getTime()) ? now : parsed;
   };
+  const acceptedModelLabel = options.acceptedOfferModel ? offerModelLabel(options.acceptedOfferModel) : undefined;
   const config = {
     indicative_offer_sent: {
       data: { indicativeOfferSentAt: dateFrom(options.indicativeOfferSentAt) },
@@ -1081,9 +1128,18 @@ export async function updateDbAcquisitionWorkflowDate(
       message: (date: Date) => `Unverbindliches Angebot abgegeben am ${formatActivityDate(date)} erfasst.`
     },
     offer_accepted: {
-      data: { offerAcceptedAt: dateFrom(options.offerAcceptedAt) },
+      data: {
+        offerAcceptedAt: dateFrom(options.offerAcceptedAt),
+        indicativeAcceptedOfferModel: options.acceptedOfferModel,
+        indicativeAcceptedOfferId: options.acceptedOfferId,
+        indicativeAcceptedOfferModelAt: options.acceptedOfferModel ? now : undefined,
+        indicativeAcceptedOfferModelByUserId: options.acceptedOfferModel ? userId : undefined,
+        ...(options.acceptedOfferModel ? { desiredModel: options.acceptedOfferModel } : {})
+      },
       type: "offer_accepted",
-      message: (date: Date) => `Kunde hat das unverbindliche Angebot am ${formatActivityDate(date)} angenommen.`
+      message: (date: Date) => acceptedModelLabel
+        ? `Kunde hat das unverbindliche Angebot für ${acceptedModelLabel} angenommen.`
+        : `Kunde hat das unverbindliche Angebot am ${formatActivityDate(date)} angenommen.`
     },
     expert_opinion_ordered: {
       data: { expertOpinionOrderedAt: dateFrom(options.expertOpinionOrderedAt), expertOpinionCompany: options.expertOpinionCompany?.trim() },
@@ -1101,9 +1157,18 @@ export async function updateDbAcquisitionWorkflowDate(
       message: (date: Date) => `Verbindliches Angebot abgegeben am ${formatActivityDate(date)} erfasst.`
     },
     binding_offer_accepted: {
-      data: { bindingOfferAcceptedAt: dateFrom(options.bindingOfferAcceptedAt) },
+      data: {
+        bindingOfferAcceptedAt: dateFrom(options.bindingOfferAcceptedAt),
+        bindingAcceptedOfferModel: options.acceptedOfferModel,
+        bindingAcceptedOfferId: options.acceptedOfferId,
+        bindingAcceptedOfferModelAt: options.acceptedOfferModel ? now : undefined,
+        bindingAcceptedOfferModelByUserId: options.acceptedOfferModel ? userId : undefined,
+        ...(options.acceptedOfferModel ? { desiredModel: options.acceptedOfferModel } : {})
+      },
       type: "binding_offer_accepted",
-      message: (date: Date) => `Kunde hat das verbindliche Angebot am ${formatActivityDate(date)} angenommen.`
+      message: (date: Date) => acceptedModelLabel
+        ? `Kunde hat das verbindliche Angebot für ${acceptedModelLabel} angenommen.`
+        : `Kunde hat das verbindliche Angebot am ${formatActivityDate(date)} angenommen.`
     }
   }[action];
   const date = Object.values(config.data).find((value) => value instanceof Date) as Date;
@@ -1115,9 +1180,21 @@ export async function updateDbAcquisitionWorkflowDate(
     source: options.source ?? "admin",
     entityType: "property",
     entityId: propertyId,
-    metadata: { action, date: date.toISOString() }
+    metadata: {
+      action,
+      date: date.toISOString(),
+      acceptedOfferModel: options.acceptedOfferModel,
+      acceptedOfferId: options.acceptedOfferId,
+      acceptedOfferNote: options.acceptedOfferNote
+    }
   });
   return property;
+}
+
+function offerModelLabel(model: DesiredModel): string {
+  if (model === "sale_and_leaseback") return "Rückmietverkauf";
+  if (model === "fixed_residential_right") return "Wohnrecht";
+  return "Nutzungsmodell";
 }
 
 function formatActivityDate(value: Date): string {

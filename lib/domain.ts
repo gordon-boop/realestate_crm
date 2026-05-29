@@ -240,6 +240,14 @@ export type Property = {
   expertOpinionReceivedAt?: string;
   bindingOfferSentAt?: string;
   bindingOfferAcceptedAt?: string;
+  indicativeAcceptedOfferModel?: DesiredModel;
+  indicativeAcceptedOfferId?: string;
+  indicativeAcceptedOfferModelAt?: string;
+  indicativeAcceptedOfferModelByUserId?: string;
+  bindingAcceptedOfferModel?: DesiredModel;
+  bindingAcceptedOfferId?: string;
+  bindingAcceptedOfferModelAt?: string;
+  bindingAcceptedOfferModelByUserId?: string;
   offerCalculationSource?: string;
   offerAcceptedAt?: string;
   purchaseStartedAt?: string;

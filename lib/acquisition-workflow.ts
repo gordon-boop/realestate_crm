@@ -36,6 +36,11 @@ type WorkflowOptions = {
   notaryOffice?: string;
 };
 
+export type InventoryPropertyLike = {
+  status?: PropertyStatus | string | null;
+  portfolioEnteredAt?: string | Date | null;
+};
+
 const workflowSteps = [
   { status: "SUBMITTED", action: null, dateKey: "createdAt" },
   { status: "INDICATIVE_OFFER_SENT", action: "indicative_offer_sent", dateKey: "indicativeOfferSentAt" },
@@ -62,6 +67,18 @@ const statusAliases: Partial<Record<PropertyStatus, string>> = {
   PURCHASED: "IN_PORTFOLIO",
   WON: "IN_PORTFOLIO",
 };
+
+const inventoryStatuses = new Set<string>([
+  "IN_PORTFOLIO",
+  "IN_INVENTORY",
+  "INVENTORY_MANAGEMENT",
+  "BESTAND",
+  "INVENTORY_TAKEOVER_COMPLETED",
+]);
+
+export function isInventoryCase(property?: InventoryPropertyLike | null): boolean {
+  return Boolean(property && (inventoryStatuses.has(String(property.status)) || property.portfolioEnteredAt));
+}
 
 const actionLabels: Record<AcquisitionWorkflowAction, string> = {
   indicative_offer_sent: "UVA abgegeben",

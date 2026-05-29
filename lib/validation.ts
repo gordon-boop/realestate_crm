@@ -365,6 +365,9 @@ export const acquisitionWorkflowSchema = z.object({
   expertOpinionCompany: optionalString,
   bindingOfferSentAt: optionalString,
   bindingOfferAcceptedAt: optionalString,
+  acceptedOfferModel: optionalEnum(["fixed_residential_right", "sale_and_leaseback"]),
+  acceptedOfferId: optionalString,
+  acceptedOfferNote: optionalString,
   notaryAppointmentAt: optionalString,
   notaryOffice: optionalString
 });
