@@ -30,7 +30,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (!caseView) throw new Error("Property not found");
     if (!canMutateProperty(user, caseView.property)) throw new Error("Forbidden");
 
-    const body = portfolioUpdateSchema.parse(await request.json());
+    const rawBody = await request.json();
+    if (Object.prototype.hasOwnProperty.call(rawBody, "usageModel")) {
+      throw new Error("Das Modell kann bei Bestandskunden nicht mehr geändert werden.");
+    }
+    const body = portfolioUpdateSchema.parse(rawBody);
     const property = await prisma.property.update({
       where: { id: params.id },
       data: {
@@ -62,7 +66,6 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         portfolioEnteredAt: dateOrNull(body.portfolioEnteredAt),
         residentStaysInProperty: body.residentStaysInProperty ?? true,
         residentName: body.residentName ?? null,
-        usageModel: body.usageModel ?? null,
         usageRightStartsAt: dateOrNull(body.usageRightStartsAt),
         usageRightEndsAt: dateOrNull(body.usageRightEndsAt),
         monthlyUsageFee: body.monthlyUsageFee ?? null,

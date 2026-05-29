@@ -470,6 +470,7 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
     { key: 'reminder', icon: Clock, label: 'Wiedervorlage anlegen' },
     { key: 'repair', icon: Settings, label: 'Reparatur erfassen' },
     { key: 'billing', icon: FileText, label: 'Abrechnung erfassen' },
+    { key: 'resident-request', icon: MessageSquare, label: 'Bewohneranfrage erfassen' },
   ];
   const selectQuickAction = (item) => {
     setActiveQuickAction(item.key);
@@ -1364,19 +1365,17 @@ const documentCategoryLabels = {
   other: 'Sonstiges',
 };
 const modernizationLabels = modernizationScopeLabels;
-const productModelLabels = { fixed_residential_right: 'Wohnrecht', sale_and_leaseback: 'Rückmietverkauf', other: 'Sonstiges Nutzungsmodell' };
+const productModelLabels = { fixed_residential_right: 'Wohnrecht', sale_and_leaseback: 'Rückmietverkauf', other: 'Sonstiges Modell' };
 const residentStatusLabels = {
   ACTIVE: 'Bewohner bleibt im Objekt',
   MOVE_OUT_PLANNED: 'Bewohner zieht aus',
   MOVED_OUT: 'Bewohner ausgezogen',
   DECEASED: 'Bewohner verstorben',
 };
-const usageModelLabels = {
-  fixed_residential_right: 'Wohnrecht',
-  lifelong_residential_right: 'Wohnrecht',
-  usufruct: 'Wohnrecht',
-  sale_and_leaseback: 'Rückmietverkauf',
-  other: 'sonstiges Nutzungsmodell',
+const closedModelFromProperty = (property = {}) => property.bindingAcceptedOfferModel || property.indicativeAcceptedOfferModel || '';
+const closedModelLabel = (property = {}) => {
+  const model = closedModelFromProperty(property);
+  return model ? labelFrom(productModelLabels, model) : 'Nicht hinterlegt';
 };
 const exitTerminationReasonLabels = {
   move_out: 'Auszug',
@@ -2722,6 +2721,198 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
   );
 };
 
+const quickActionConfig = {
+  reminder: {
+    title: 'Wiedervorlage anlegen',
+    intro: 'Lege eine konkrete Wiedervorlage an einem bestehenden Fall an.',
+    submitLabel: 'Wiedervorlage speichern',
+  },
+  repair: {
+    title: 'Reparatur erfassen',
+    intro: 'Erfasse ein Reparaturthema als operative Aufgabe in der Fallakte.',
+    submitLabel: 'Reparatur speichern',
+  },
+  billing: {
+    title: 'Abrechnung erfassen',
+    intro: 'Erfasse eine Abrechnungsaufgabe, damit sie im Fall nachverfolgt wird.',
+    submitLabel: 'Abrechnung speichern',
+  },
+  'resident-request': {
+    title: 'Bewohneranfrage erfassen',
+    intro: 'Erfasse eine Bewohneranfrage als Aufgabe für die weitere Bearbeitung.',
+    submitLabel: 'Bewohneranfrage speichern',
+  },
+};
+
+const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false }) => {
+  const config = quickActionConfig[action?.key] || quickActionConfig.reminder;
+  const [propertyId, setPropertyId] = useState('');
+  const [dueAt, setDueAt] = useState(tomorrowDateInputValue);
+  const [title, setTitle] = useState('');
+  const [note, setNote] = useState('');
+  const [type, setType] = useState('');
+  const [priority, setPriority] = useState('normal');
+  const [amount, setAmount] = useState('');
+  const [vendor, setVendor] = useState('');
+  const [period, setPeriod] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setPropertyId('');
+    setDueAt(tomorrowDateInputValue());
+    setTitle('');
+    setNote('');
+    setType(action?.key === 'billing' ? 'Hausgeld / Nebenkosten' : action?.key === 'repair' ? 'Instandhaltung / Reparatur' : action?.key === 'resident-request' ? 'Bewohneranfrage' : 'Allgemein');
+    setPriority('normal');
+    setAmount('');
+    setVendor('');
+    setPeriod('');
+    setError('');
+  }, [action?.key]);
+
+  if (!action) return null;
+
+  const caseOptions = cases
+    .filter((item) => item.propertyId || item.id)
+    .map((item) => ({
+      value: item.propertyId || item.id,
+      label: `${item.id} · ${item.kunde} · ${item.objekt}`,
+    }));
+
+  const buildReason = () => {
+    const cleanTitle = title.trim();
+    const cleanNote = note.trim();
+    const parts = [];
+    if (action.key === 'repair') {
+      parts.push(`Reparatur: ${type || 'Reparatur'}`);
+      if (cleanTitle) parts.push(cleanTitle);
+      if (vendor.trim()) parts.push(`Dienstleister: ${vendor.trim()}`);
+      if (amount) parts.push(`Kostenschätzung: ${amount} €`);
+      parts.push(`Priorität: ${priority === 'high' ? 'hoch' : priority === 'low' ? 'niedrig' : 'normal'}`);
+    } else if (action.key === 'billing') {
+      parts.push(`Abrechnung: ${type || 'Abrechnung'}`);
+      if (period.trim()) parts.push(`Zeitraum: ${period.trim()}`);
+      if (amount) parts.push(`Betrag: ${amount} €`);
+      if (cleanTitle) parts.push(cleanTitle);
+    } else if (action.key === 'resident-request') {
+      parts.push(`Bewohneranfrage: ${type || 'Anfrage'}`);
+      if (cleanTitle) parts.push(cleanTitle);
+      parts.push(`Priorität: ${priority === 'high' ? 'hoch' : priority === 'low' ? 'niedrig' : 'normal'}`);
+    } else {
+      parts.push(`Wiedervorlage: ${cleanTitle}`);
+    }
+    if (cleanNote) parts.push(`Notiz: ${cleanNote}`);
+    return parts.filter(Boolean).join(' · ');
+  };
+
+  const submit = () => {
+    setError('');
+    if (!propertyId) {
+      setError('Bitte wählen Sie einen Fall aus.');
+      return;
+    }
+    if (!dueAt) {
+      setError('Bitte erfassen Sie eine Frist / Wiedervorlage.');
+      return;
+    }
+    if (!title.trim() && action.key === 'reminder') {
+      setError('Bitte erfassen Sie den Grund der Wiedervorlage.');
+      return;
+    }
+    if (!title.trim() && ['repair', 'billing', 'resident-request'].includes(action.key)) {
+      setError('Bitte erfassen Sie eine kurze Beschreibung.');
+      return;
+    }
+    onSubmit?.({ propertyId, dueAt, reason: buildReason(), actionKey: action.key });
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(42,26,53,0.32)', zIndex: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ width: 'min(720px, 96vw)', maxHeight: '88vh', overflowY: 'auto', background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 24px 70px rgba(42, 26, 53, 0.22)' }}>
+        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 5 }}>Schnellfunktion</div>
+            <div style={{ fontSize: 19, color: theme.aubergine, fontWeight: 800 }}>{config.title}</div>
+            <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>{config.intro}</div>
+          </div>
+          <button onClick={onClose} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, width: 34, height: 34, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: 20, display: 'grid', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.6fr', gap: 12 }}>
+            <Field label="Fall" required>
+              <Select value={propertyId} onChange={(event) => setPropertyId(event.target.value)}>
+                <option value="">Fall auswählen</option>
+                {caseOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </Select>
+            </Field>
+            <Field label="Frist / Wiedervorlage" required>
+              <Input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
+            </Field>
+          </div>
+
+          {action.key !== 'reminder' && (
+            <div style={{ display: 'grid', gridTemplateColumns: action.key === 'billing' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12 }}>
+              <Field label={action.key === 'billing' ? 'Abrechnungsart' : action.key === 'repair' ? 'Reparaturart' : 'Anfrageart'}>
+                <Input value={type} onChange={(event) => setType(event.target.value)} />
+              </Field>
+              {action.key === 'billing' ? (
+                <Field label="Zeitraum">
+                  <Input value={period} onChange={(event) => setPeriod(event.target.value)} placeholder="z.B. 2026 / Q2" />
+                </Field>
+              ) : (
+                <Field label="Priorität">
+                  <Select value={priority} onChange={(event) => setPriority(event.target.value)}>
+                    <option value="low">Niedrig</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">Hoch</option>
+                  </Select>
+                </Field>
+              )}
+              {action.key === 'billing' && (
+                <Field label="Betrag (€)">
+                  <Input type="number" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                </Field>
+              )}
+            </div>
+          )}
+
+          {action.key === 'repair' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.6fr', gap: 12 }}>
+              <Field label="Dienstleister / Kontakt">
+                <Input value={vendor} onChange={(event) => setVendor(event.target.value)} />
+              </Field>
+              <Field label="Kostenschätzung (€)">
+                <Input type="number" value={amount} onChange={(event) => setAmount(event.target.value)} />
+              </Field>
+            </div>
+          )}
+
+          <Field label={action.key === 'reminder' ? 'Grund der Wiedervorlage' : 'Kurzbeschreibung'} required>
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={action.key === 'repair' ? 'z.B. Heizungsprüfung beauftragen' : action.key === 'billing' ? 'z.B. Hausgeldabrechnung prüfen' : action.key === 'resident-request' ? 'z.B. Bewohner bittet um Rückruf' : 'z.B. Unterlagen nachfassen'} />
+          </Field>
+          <Field label="Interne Notiz">
+            <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '9px 11px', fontSize: 13.5, color: theme.ink, fontFamily: 'inherit', resize: 'vertical' }} />
+          </Field>
+
+          {error && (
+            <div style={{ background: '#9B2C2C12', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 7, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>{error}</div>
+          )}
+        </div>
+
+        <div style={{ padding: '14px 20px', borderTop: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button onClick={onClose} disabled={busy} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 800, cursor: busy ? 'default' : 'pointer' }}>Abbrechen</button>
+          <button onClick={submit} disabled={busy} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 6, padding: '9px 15px', fontSize: 13, fontWeight: 800, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <Save size={14} /> {busy ? 'Speichert...' : config.submitLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
   const filteredCases = filterCasesForScreen(cases, screen);
   const title = menuScreenTitle(screen);
@@ -2825,6 +3016,12 @@ function portfolioCompletion(property = {}) {
   return { done, total: checks.length, percent: Math.round((done / checks.length) * 100) };
 }
 
+function tomorrowDateInputValue() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return dateInputValue(date);
+}
+
 function portfolioFormFromProperty(property = {}) {
   return {
     purchaseContractNumber: property.purchaseContractNumber || '',
@@ -2856,7 +3053,6 @@ function portfolioFormFromProperty(property = {}) {
     portfolioEnteredAt: dateInputValue(property.portfolioEnteredAt),
     residentStaysInProperty: property.residentStaysInProperty !== false,
     residentName: property.residentName || '',
-    usageModel: property.usageModel || (property.desiredModel === 'sale_and_leaseback' ? 'sale_and_leaseback' : 'fixed_residential_right'),
     usageRightStartsAt: dateInputValue(property.usageRightStartsAt || property.residentialRightStartAt || property.rentStartAt),
     usageRightEndsAt: dateInputValue(property.usageRightEndsAt || property.residentialRightEndAt),
     monthlyUsageFee: property.monthlyUsageFee || property.monthlyRent || '',
@@ -2916,7 +3112,6 @@ function exitProcessFormFromProperty(property = {}) {
 
 const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   const [activeBucket, setActiveBucket] = useState(() => parsePortfolioBucket(''));
-  const [quickAction, setQuickAction] = useState('');
 
   useEffect(() => {
     const syncBucket = () => setActiveBucket(parsePortfolioBucket(''));
@@ -3145,20 +3340,6 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
                 <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{item.id} · {nextPortfolioAction[item.status] || 'Wiedervorlage prüfen'}</div>
               </button>
             ))}
-          </div>
-
-          <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-            <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Schnellaktionen</div>
-            {['Reparatur erfassen', 'Abrechnung erfassen', 'Bewohneranfrage erfassen', 'Wiedervorlage anlegen'].map((label, index) => (
-              <button key={label} onClick={() => setQuickAction(label)} style={{ width: '100%', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 16px', textAlign: 'left', color: theme.aubergine, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
-                {label}
-              </button>
-            ))}
-            {quickAction && (
-              <div style={{ margin: '0 12px 12px', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px', fontSize: 12, color: theme.ink, lineHeight: 1.45 }}>
-                {quickAction}: Erfassung wird in der Fallakte vorbereitet. Bitte zuerst einen Vorgang aus der Liste öffnen.
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -3495,7 +3676,8 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
   </div>
 );
 
-const postbankWohnatlasImageUrl = 'https://www.postbank.de/dam/postbank/medienartikel/bilder/2026/Postbank-Wohnatlas-2026-Preisatlas.png';
+const postbankWohnatlasOriginalUrl = 'https://www.postbank.de/dam/postbank/medienartikel/bilder/2026/Postbank-Wohnatlas-2026-Preisatlas.png';
+const postbankWohnatlasImageUrl = '/images/postbank-wohnatlas-2026-preisatlas.png';
 
 const PostbankWohnatlasScreen = () => (
   <div style={{ padding: '20px 28px' }}>
@@ -3512,7 +3694,7 @@ const PostbankWohnatlasScreen = () => (
           <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>Quelle: Postbank Wohnatlas 2026</div>
         </div>
         <a
-          href={postbankWohnatlasImageUrl}
+          href={postbankWohnatlasOriginalUrl}
           target="_blank"
           rel="noreferrer"
           style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 7 }}
@@ -4852,7 +5034,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       portfolioEnteredAt: portfolioForm.portfolioEnteredAt,
       residentStaysInProperty: portfolioForm.residentStaysInProperty,
       residentName: portfolioForm.residentName,
-      usageModel: portfolioForm.usageModel,
       usageRightStartsAt: portfolioForm.usageRightStartsAt,
       usageRightEndsAt: portfolioForm.usageRightEndsAt,
       monthlyUsageFee: portfolioForm.monthlyUsageFee,
@@ -5848,7 +6029,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   {[
                     ['Bestandsübernahme', formatDate(property?.portfolioEnteredAt)],
                     ['Bewohner', property?.residentName || property?.customer?.displayName || c.kunde || '-'],
-                    ['Nutzungsmodell', labelFrom(usageModelLabels, property?.usageModel || property?.desiredModel)],
+                    ['Abgeschlossenes Modell', closedModelLabel(property)],
                   ].map(([label, value]) => (
                     <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '11px 13px' }}>
                       <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
@@ -5865,11 +6046,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       <input type="checkbox" checked={portfolioForm.residentStaysInProperty} onChange={(event) => updatePortfolioForm({ residentStaysInProperty: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
                     <Field label="Bewohnername"><Input value={portfolioForm.residentName} onChange={(event) => updatePortfolioForm({ residentName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Nutzungsmodell">
-                      <Select value={portfolioForm.usageModel} onChange={(event) => updatePortfolioForm({ usageModel: event.target.value })}>
-                        {Object.entries(usageModelLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                      </Select>
-                    </Field>
                     <Field label="Wohnrecht / Nutzungsrecht aktiv ab"><Input type="date" value={portfolioForm.usageRightStartsAt} onChange={(event) => updatePortfolioForm({ usageRightStartsAt: event.target.value, residentialRightStartAt: event.target.value, rentStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Wohnrecht / Nutzungsrecht befristet bis"><Input type="date" value={portfolioForm.usageRightEndsAt} onChange={(event) => updatePortfolioForm({ usageRightEndsAt: event.target.value, residentialRightEndAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Monatliches Nutzungsentgelt / Miete (€)"><Input type="number" value={portfolioForm.monthlyUsageFee} onChange={(event) => updatePortfolioForm({ monthlyUsageFee: event.target.value, monthlyRent: event.target.value })} readOnly={!canManagePortfolio} /></Field>
@@ -8617,6 +8793,8 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const [staff, setStaff] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [notice, setNotice] = useState('');
+  const [quickActionModal, setQuickActionModal] = useState(null);
+  const [quickActionSaving, setQuickActionSaving] = useState(false);
   const [loadingCases, setLoadingCases] = useState(false);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [loadingStaff, setLoadingStaff] = useState(false);
@@ -8876,11 +9054,25 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       handleNewCase();
       return;
     }
-    setNotice(`${item.label}: Die Erfassungsmaske wird im nächsten Schritt angebunden. Der Bereich "Sonstiges" ist geöffnet.`);
-    setCaseId(null);
-    setEditingCaseId(null);
-    setScreen('other');
-    updateScreenUrl(role, 'other', 'push');
+    if (['reminder', 'repair', 'billing', 'resident-request'].includes(item.key)) {
+      setQuickActionModal(item);
+      return;
+    }
+    setNotice(`${item.label}: Diese Schnellfunktion ist noch nicht verfügbar.`);
+  };
+  const handleSaveQuickAction = async ({ propertyId, dueAt, reason, actionKey }) => {
+    setQuickActionSaving(true);
+    try {
+      await postJson(`/api/properties/${propertyId}/reminders`, { reason, dueAt });
+      await loadCases(role);
+      setQuickActionModal(null);
+      const label = quickActionConfig[actionKey]?.title || 'Wiedervorlage';
+      setNotice(`${label} wurde gespeichert.`);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Schnellfunktion konnte nicht gespeichert werden');
+    } finally {
+      setQuickActionSaving(false);
+    }
   };
   const toggleRole = () => {
     if (!canUseAdminData) {
@@ -9093,6 +9285,13 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} role={role} internalRole={currentInternalRole} user={user} />}
         </div>
       </div>
+      <QuickActionModal
+        action={quickActionModal}
+        cases={cases}
+        busy={quickActionSaving}
+        onClose={() => quickActionSaving ? null : setQuickActionModal(null)}
+        onSubmit={handleSaveQuickAction}
+      />
     </div>
   );
 }

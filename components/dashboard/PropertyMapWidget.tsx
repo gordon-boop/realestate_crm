@@ -141,7 +141,9 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
     let cancelled = false;
 
     (async () => {
-      const L = await import("leaflet");
+      const leafletModule = await import("leaflet");
+      const L = leafletModule.default ?? leafletModule;
+      (window as any).L = L;
       await import("leaflet.markercluster");
       // Leaflet CSS muss zur Laufzeit zusätzlich eingebunden werden — siehe README.
 
