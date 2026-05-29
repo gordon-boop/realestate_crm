@@ -575,24 +575,50 @@ function formatPercent(value) {
   return new Intl.NumberFormat('de-DE', { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value));
 }
 
-function rentBackMetricRows(offer) {
+function roundMoneyValue(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function normalizeFractionRate(value, fallback) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) return fallback;
+  return numberValue > 1 ? numberValue / 100 : numberValue;
+}
+
+function rentBackCalculationFromOffer(offer) {
   const components = offer?.assumptions?.components || {};
-  const payoutRate = Number.isFinite(Number(components.payoutRate))
+  const marketValue = Number(offer?.marketValue);
+  const storedPayoutRate = Number.isFinite(Number(components.payoutRate))
     ? Number(components.payoutRate)
-    : offer?.marketValue
-      ? offer.payoutAmount / offer.marketValue
-      : 0.7;
-  const annualRentRate = Number.isFinite(Number(components.annualRentRate)) ? Number(components.annualRentRate) : 0.05;
-  const annualRent = Number.isFinite(Number(components.annualRent)) ? Number(components.annualRent) : offer?.payoutAmount ? offer.payoutAmount * annualRentRate : undefined;
-  const monthlyRent = Number.isFinite(Number(components.monthlyRent)) ? Number(components.monthlyRent) : annualRent ? annualRent / 12 : undefined;
+    : Number.isFinite(Number(offer?.payoutAmount)) && marketValue > 0
+      ? Number(offer.payoutAmount) / marketValue
+      : undefined;
+  const payoutRate = normalizeFractionRate(storedPayoutRate, 0.7);
+  const annualRentRate = normalizeFractionRate(components.annualRentRate, 0.05);
+  const payoutAmount = marketValue > 0 ? roundMoneyValue(marketValue * payoutRate) : Number(offer?.payoutAmount);
+  const annualRent = roundMoneyValue(payoutAmount * annualRentRate);
+  const monthlyRent = roundMoneyValue(annualRent / 12);
+
+  return {
+    marketValue,
+    payoutRate,
+    payoutAmount,
+    annualRentRate,
+    annualRent,
+    monthlyRent,
+  };
+}
+
+function rentBackMetricRows(offer) {
+  const metrics = rentBackCalculationFromOffer(offer);
 
   return [
-    ['Verkehrswert', formatEuro(offer.marketValue)],
-    ['Auszahlungsquote', formatPercent(payoutRate)],
-    ['Auszahlungsbetrag', formatEuro(offer.payoutAmount)],
-    ['Mietfaktor p.a.', formatPercent(annualRentRate)],
-    ['Jahresmiete', formatEuro(annualRent)],
-    ['Monatliche Miete', formatEuroCents(monthlyRent)],
+    ['Verkehrswert', formatEuro(metrics.marketValue)],
+    ['Auszahlungsquote', formatPercent(metrics.payoutRate)],
+    ['Auszahlungsbetrag', formatEuroCents(metrics.payoutAmount)],
+    ['Mietfaktor p.a.', formatPercent(metrics.annualRentRate)],
+    ['Jahresmiete', formatEuroCents(metrics.annualRent)],
+    ['Monatliche Miete', formatEuroCents(metrics.monthlyRent)],
   ];
 }
 
@@ -3291,12 +3317,218 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
   </div>
 );
 
+const firstProcessDate = (...values) => values.find(Boolean) || null;
+
+function isToday(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  return date.getFullYear() === today.getFullYear()
+    && date.getMonth() === today.getMonth()
+    && date.getDate() === today.getDate();
+}
+
+function processDateLabel(value, isCurrent) {
+  if (!value) return '–';
+  if (isCurrent && isToday(value)) return 'heute';
+  try {
+    return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit' }).format(new Date(value));
+  } catch {
+    return '–';
+  }
+}
+
+function buildAcquisitionTimelineSteps(property = {}) {
+  const steps = [
+    {
+      key: 'submitted',
+      label: 'Eingereicht',
+      date: firstProcessDate(property?.submittedAt, property?.createdAt),
+    },
+    {
+      key: 'uva-submitted',
+      label: 'UVA abgegeben',
+      date: firstProcessDate(property?.nonBindingOfferSubmittedAt, property?.indicativeOfferSentAt),
+    },
+    {
+      key: 'uva-accepted',
+      label: 'UVA angenommen',
+      date: firstProcessDate(property?.nonBindingOfferAcceptedAt, property?.offerAcceptedAt),
+    },
+    {
+      key: 'appraisal-ordered',
+      label: 'Gutachten beauftragt',
+      date: firstProcessDate(property?.appraisalOrderedAt, property?.expertOpinionOrderedAt),
+    },
+    {
+      key: 'appraisal-received',
+      label: 'Gutachten eingegangen',
+      date: firstProcessDate(property?.appraisalReceivedAt, property?.expertOpinionReceivedAt),
+    },
+    {
+      key: 'va-submitted',
+      label: 'VA abgegeben',
+      date: firstProcessDate(property?.bindingOfferSubmittedAt, property?.bindingOfferSentAt),
+    },
+    {
+      key: 'va-accepted',
+      label: 'VA angenommen',
+      date: property?.bindingOfferAcceptedAt,
+    },
+    {
+      key: 'notary-contract',
+      label: 'Notar & Kaufvertrag',
+      date: firstProcessDate(property?.notaryAppointmentAt, property?.purchaseContractSignedAt, property?.purchasedAt, property?.portfolioEnteredAt),
+    },
+  ];
+  const lastReachedIndex = steps.reduce((highest, step, index) => (step.date ? index : highest), -1);
+  const currentIndex = Math.max(0, lastReachedIndex);
+  return steps.map((step, index) => ({
+    ...step,
+    current: index === currentIndex,
+    completed: index < currentIndex,
+    open: index > currentIndex,
+  }));
+}
+
+const AcquisitionProcessStepper = ({ property }) => {
+  const steps = buildAcquisitionTimelineSteps(property);
+  const currentIndex = Math.max(0, steps.findIndex((step) => step.current));
+  const lineOffsetPercent = 100 / (steps.length * 2);
+  const completedLineWidth = currentIndex === 0
+    ? '0%'
+    : `calc((100% - ${100 / steps.length}%) * ${currentIndex / (steps.length - 1)})`;
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '18px 20px 16px', boxShadow: '0 10px 26px rgba(68, 0, 92, 0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>ANKAUFSPROZESS</div>
+        <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}66`, color: theme.aubergine, borderRadius: 999, padding: '5px 10px', fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          SIE SIND HIER · SCHRITT {currentIndex + 1} VON {steps.length}
+        </div>
+      </div>
+      <div className="acquisition-stepper-scroll" style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: 2, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div style={{ position: 'relative', minWidth: 960 }}>
+          <div style={{ position: 'absolute', top: 16, left: `${lineOffsetPercent}%`, right: `${lineOffsetPercent}%`, height: 2, background: theme.borderSoft, zIndex: 1 }} />
+          <div style={{ position: 'absolute', top: 16, left: `${lineOffsetPercent}%`, width: completedLineWidth, height: 2, background: theme.aubergine, zIndex: 2 }} />
+          <div style={{ position: 'relative', zIndex: 3, display: 'grid', gridTemplateColumns: `repeat(${steps.length}, minmax(120px, 1fr))`, alignItems: 'start' }}>
+          {steps.map((step, index) => {
+            const circleBase = {
+              position: 'relative',
+              zIndex: 4,
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              fontWeight: 900,
+              boxSizing: 'border-box',
+            };
+            const circleStyle = step.completed
+              ? { ...circleBase, background: theme.aubergine, border: `2px solid ${theme.aubergine}`, color: 'white' }
+              : step.current
+                ? { ...circleBase, background: 'white', border: `2px solid ${theme.gold}`, color: theme.aubergine, boxShadow: `0 0 0 4px ${theme.goldSoft}` }
+                : { ...circleBase, background: '#FAF8FB', border: `1px solid ${theme.border}`, color: `${theme.ink}77` };
+            return (
+              <div key={step.key} style={{ display: 'grid', gridTemplateRows: '34px 34px 18px', rowGap: 6, justifyItems: 'center', alignItems: 'start', textAlign: 'center', padding: '0 8px' }}>
+                <div style={circleStyle}>
+                  {step.completed ? <CheckCircle size={16} /> : index + 1}
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.25, fontWeight: step.current ? 800 : 700, color: step.current || step.completed ? theme.aubergine : `${theme.ink}88`, display: 'flex', alignItems: 'start', justifyContent: 'center', maxWidth: 112 }}>
+                  {step.label}
+                </div>
+                <div style={{ fontSize: 11.5, color: step.current ? theme.aubergine : `${theme.ink}77`, fontWeight: step.current ? 800 : 600 }}>
+                  {processDateLabel(step.date, step.current)}
+                </div>
+              </div>
+            );
+          })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SidePanelCard = ({ title, count, children, actionLabel, onAction }) => (
+  <div style={{ background: 'white', borderRadius: 12, border: `1px solid ${theme.borderSoft}`, padding: '17px 18px', boxShadow: '0 10px 28px rgba(68, 0, 92, 0.035)' }}>
+    <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 16 }}>
+      {title}{Number.isFinite(count) ? ` · ${count}` : ''}
+    </div>
+    {children}
+    {actionLabel && (
+      <button onClick={onAction} style={{ marginTop: 14, background: 'transparent', border: 'none', borderBottom: `1px solid ${theme.gold}`, color: theme.aubergine, padding: '0 0 3px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+        {actionLabel}
+      </button>
+    )}
+  </div>
+);
+
+const CaseSidePanel = ({ activities, taskRows, documents, onShowTasks, onShowDocuments }) => {
+  const visibleActivities = (activities || []).slice(0, 3);
+  const visibleTasks = (taskRows || []).slice(0, 3);
+  const importantDocuments = (documents || [])
+    .filter((document) => ['expert_opinion', 'appraisal', 'land_register', 'energy_certificate'].includes(document.category))
+    .slice(0, 3);
+  const visibleDocuments = importantDocuments.length ? importantDocuments : (documents || []).slice(0, 3);
+
+  return (
+    <div style={{ display: 'grid', gap: 16, height: 'fit-content' }}>
+      <SidePanelCard title="Aktivität" actionLabel="Alle anzeigen">
+        {visibleActivities.length ? visibleActivities.map((activity, index) => (
+          <div key={activity.id || index} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 12, padding: index === 0 ? '0 0 12px' : '12px 0', borderBottom: index < visibleActivities.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
+            <div style={{ fontSize: 11.5, color: `${theme.ink}88`, fontWeight: 700 }}>{activity.time || dateLabel(activity.createdAt)}</div>
+            <div>
+              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35 }}>{activity.text || activity.message}</div>
+              <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{activity.actor || activity.source || activity.userId || 'intern'}</div>
+            </div>
+          </div>
+        )) : (
+          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Keine Aktivitäten vorhanden.</div>
+        )}
+      </SidePanelCard>
+
+      <SidePanelCard title="Offene Aufgaben" count={visibleTasks.length} actionLabel="Neue Aufgabe" onAction={onShowTasks}>
+        {visibleTasks.length ? visibleTasks.map((task, index) => (
+          <div key={`${task.title}-${index}`} style={{ display: 'grid', gridTemplateColumns: '18px 1fr', gap: 10, padding: index === 0 ? '0 0 12px' : '12px 0', borderBottom: index < visibleTasks.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
+            <div style={{ width: 14, height: 14, border: `1px solid ${theme.aubergine}66`, borderRadius: 3, marginTop: 2 }} />
+            <div>
+              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35, fontWeight: 650 }}>{task.text || task.title}</div>
+              <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{task.meta || task.title}</div>
+            </div>
+          </div>
+        )) : (
+          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Keine offenen Aufgaben.</div>
+        )}
+      </SidePanelCard>
+
+      <SidePanelCard title="Objektunterlagen" actionLabel="Alle Dokumente" onAction={onShowDocuments}>
+        {visibleDocuments.length ? visibleDocuments.map((document, index) => (
+          <div key={document.id || index} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: index === 0 ? '0 0 10px' : '10px 0', borderBottom: index < visibleDocuments.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
+            <FileText size={15} style={{ color: theme.aubergine, flex: '0 0 auto' }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{document.name || document.fileName}</div>
+              <div style={{ fontSize: 10.8, color: `${theme.ink}77`, marginTop: 2 }}>{document.statusLabel || document.type || 'Unterlage'}</div>
+            </div>
+          </div>
+        )) : (
+          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Keine Dokumente vorhanden.</div>
+        )}
+      </SidePanelCard>
+    </div>
+  );
+};
+
 // =====================================================================
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
 const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde', returnTab = '', onTabChange, onReturnToTab }) => {
   const [activeTab, setActiveTab] = useState(normalizeCaseTab(initialTab));
   const [busyAction, setBusyAction] = useState('');
+  const [recentSuccessAction, setRecentSuccessAction] = useState('');
   const [openCalculation, setOpenCalculation] = useState('');
   const [calculationParams, setCalculationParams] = useState({});
   const [uploadFile, setUploadFile] = useState(null);
@@ -3594,11 +3826,13 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       setNotice?.('Dieser Mock-Fall ist noch nicht mit einer API-ID verbunden.');
       return;
     }
+    setRecentSuccessAction('');
     setBusyAction(label);
     try {
       await action();
       await onRefresh?.();
       await onNotificationsRefresh?.();
+      setRecentSuccessAction(label);
       setNotice?.(`${label} abgeschlossen.`);
     } catch (err) {
       setNotice?.(err instanceof Error ? err.message : 'Aktion fehlgeschlagen');
@@ -3837,7 +4071,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <Input type="date" value={indicativeOfferAcceptedDate} onChange={(event) => setIndicativeOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
         </Field>
         {canEditOfferDates && (
-          <button onClick={() => saveOfferDateFields('indicative')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
+          <button onClick={() => saveOfferDateFields('indicative')} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: Boolean(busyAction) })}>
             Daten speichern
           </button>
         )}
@@ -3854,7 +4088,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
         </Field>
         {canEditOfferDates && (
-          <button onClick={() => saveOfferDateFields('binding')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
+          <button onClick={() => saveOfferDateFields('binding')} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: Boolean(busyAction) })}>
             Daten speichern
           </button>
         )}
@@ -3908,9 +4142,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     };
   };
   const workflowButtonStyle = ({ reached, nextAllowed, disabled }) => ({
-    background: reached ? `${theme.aubergine}0A` : nextAllowed ? theme.aubergine : 'white',
-    border: `1px solid ${reached || nextAllowed ? theme.aubergine : theme.border}`,
-    color: reached ? theme.aubergine : nextAllowed ? 'white' : `${theme.ink}66`,
+    background: reached ? '#5B8C2B14' : nextAllowed ? theme.aubergine : 'white',
+    border: `1px solid ${reached ? '#5B8C2B33' : nextAllowed ? theme.aubergine : theme.border}`,
+    color: reached ? '#5B8C2B' : nextAllowed ? 'white' : `${theme.ink}66`,
     borderRadius: 5,
     padding: '7px 11px',
     fontSize: 12,
@@ -3921,6 +4155,244 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     gap: 6,
     opacity: disabled && !reached ? 0.58 : 1
   });
+  function offerButtonStyle(variant = 'primary', { disabled = false, busy = false } = {}) {
+    const styles = {
+      primary: {
+        background: theme.aubergine,
+        border: `1px solid ${theme.aubergine}`,
+        color: 'white',
+      },
+      secondary: {
+        background: 'white',
+        border: `1px solid ${theme.aubergine}`,
+        color: theme.aubergine,
+      },
+      disabled: {
+        background: '#F7F4F8',
+        border: `1px solid ${theme.border}`,
+        color: `${theme.ink}66`,
+      },
+    };
+    const selected = disabled ? styles.disabled : styles[variant] || styles.primary;
+    return {
+      ...selected,
+      borderRadius: 8,
+      padding: '10px 16px',
+      minHeight: 42,
+      width: 'auto',
+      justifySelf: 'start',
+      whiteSpace: 'nowrap',
+      fontSize: 12.5,
+      fontWeight: 850,
+      fontFamily: 'inherit',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      cursor: disabled ? 'default' : busy ? 'wait' : 'pointer',
+      opacity: disabled ? 0.62 : 1,
+    };
+  }
+  const OfferDonePill = ({ children }) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B8C2B14', color: '#5B8C2B', border: '1px solid #5B8C2B33', borderRadius: 999, padding: '6px 11px', minHeight: 32, fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
+      <CheckCircle size={13} /> {children}
+    </span>
+  );
+  const OfferSuccessHint = ({ action, children = 'Berechnung aktualisiert' }) => (
+    recentSuccessAction === action ? (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#5B8C2B', fontSize: 12, fontWeight: 800 }}>
+        <CheckCircle size={13} /> {children}
+      </span>
+    ) : null
+  );
+  const renderOfferWorkflowControl = (action, label) => {
+    const state = workflowActionState(action);
+    if (state.reached) {
+      return <OfferDonePill>{label}</OfferDonePill>;
+    }
+    return (
+      <button onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={offerButtonStyle(state.nextAllowed ? 'primary' : 'secondary', { disabled: state.disabled })}>
+        {label}
+      </button>
+    );
+  };
+  const offerShellStyle = { background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' };
+  const offerHeaderStyle = { padding: '20px 24px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 };
+  const offerHeroStyle = { background: '#FEFCF8', padding: '28px 26px', display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 416px)', gap: 28, alignItems: 'center' };
+  const offerSectionTitleStyle = { fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 };
+  const renderOfferBreakdown = (rows, emptyText) => (
+    <div style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, padding: '14px 18px' }}>
+      {rows.length ? rows.map(([label, value], rowIndex) => {
+        const isDelta = String(label).startsWith('Δ');
+        const isNegative = String(value).startsWith('-');
+        return (
+          <div key={`${label}-${rowIndex}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: rowIndex < rows.length - 1 ? `1px solid ${theme.borderSoft}` : 'none', padding: '8px 0' }}>
+            <span style={{ fontSize: 12.5, color: `${theme.ink}99`, fontWeight: 650 }}>{label}</span>
+            <span style={{ fontSize: 12.5, color: isDelta ? (isNegative ? '#9B2C2C' : '#2F7D32') : theme.aubergine, fontWeight: 800, textAlign: 'right' }}>{value}</span>
+          </div>
+        );
+      }) : (
+        <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{emptyText}</div>
+      )}
+    </div>
+  );
+  const renderOfferChipRows = (rows) => (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+      {rows.map(([label, value]) => (
+        <span key={label} style={{ border: `1px solid ${theme.border}`, background: 'white', color: theme.ink, borderRadius: 6, padding: '7px 10px', fontSize: 11.5, fontWeight: 650 }}>
+          {label} {value}
+        </span>
+      ))}
+    </div>
+  );
+  const renderIndicativeOfferCard = (modelRequest, index) => {
+    const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
+    const key = `${modelRequest.key}-${index}`;
+    const params = calculationParams[key] || {};
+    const isRentBack = modelRequest.model === 'sale_and_leaseback';
+    const rentBackMetrics = isRentBack && offer ? rentBackCalculationFromOffer(offer) : null;
+    const quote = rentBackMetrics
+      ? Math.round(rentBackMetrics.payoutRate * 100)
+      : offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
+    const payoutValue = rentBackMetrics?.payoutAmount ?? offer?.payoutAmount;
+    const calculationActionLabel = isRentBack ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation';
+    const offerMeta = offer ? `Version ${offer.currentVersion || 1} · zuletzt berechnet` : 'Entwurf';
+    const maintenanceValue = offer ? (params.maintenance || offer.companyMargin || offer.assumptions?.components?.maintenancePledge) : null;
+    const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer) : [
+      ['Verkehrswert', formatEuro(offer.marketValue)],
+      ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
+      ['Risikoabschlag', offer.riskDiscount ? formatEuro(offer.riskDiscount) : '-'],
+      ['Marge', offer.companyMargin ? formatEuro(offer.companyMargin) : '-'],
+      ['Auszahlungsbetrag', formatEuro(offer.payoutAmount)],
+      ['Quote', quote ? `${quote}%` : '-'],
+    ]) : [];
+    const chipRows = [
+      ['Verkehrswert', offer ? formatEuro(offer.marketValue) : params.marketValue ? `${params.marketValue} €` : '-'],
+      ['Modell', labelFrom(productModelLabels, modelRequest.model)],
+      isRentBack
+        ? ['Info', 'Miete ab Tag 1']
+        : ['Laufzeit', `${modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
+    ];
+    const statusSent = workflowActionState('indicative_offer_sent');
+    const statusAccepted = workflowActionState('offer_accepted');
+    const nextStep = !statusSent.reached
+      ? {
+          title: 'Als Nächstes: Unverbindliches Angebot abgeben',
+          help: 'Berechnung prüfen und den Schritt markieren, sobald der Kunde informiert ist.',
+          label: 'Unverbindliches Angebot abgegeben',
+          action: 'indicative_offer_sent',
+          state: statusSent,
+        }
+      : !statusAccepted.reached
+        ? {
+            title: 'Als Nächstes: Annahme dokumentieren',
+            help: 'Sobald der Kunde das unverbindliche Angebot annimmt, kann die Gutachtenbeauftragung starten.',
+            label: 'UVA angenommen',
+            action: 'offer_accepted',
+            state: statusAccepted,
+          }
+        : {
+            title: 'Unverbindliches Angebot angenommen',
+            help: 'Der nächste operative Schritt ist die Gutachtenbeauftragung.',
+            label: 'UVA angenommen',
+            action: 'offer_accepted',
+            state: statusAccepted,
+          };
+
+    return (
+      <div key={`indicative-offer-card-${key}`} style={offerShellStyle}>
+        <div style={offerHeaderStyle}>
+          <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>
+            Unverbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{labelFrom(productModelLabels, modelRequest.model)}</span>
+          </div>
+          <div style={{ fontSize: 12, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{offerMeta}</div>
+        </div>
+
+        <div style={offerHeroStyle}>
+          <div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Unverbindliche Auszahlung</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 42, lineHeight: 1, color: theme.aubergine, fontWeight: 700, fontFamily: 'Georgia, ui-serif, serif' }}>{payoutValue ? formatEuroCents(payoutValue) : '-'}</div>
+              <div style={{ fontSize: 16, color: `${theme.ink}88`, fontWeight: 650 }}>{quote ? `${quote}%` : '-'}</div>
+            </div>
+            {rentBackMetrics && (
+              <div style={{ marginTop: 8, fontSize: 13, color: `${theme.ink}99`, fontWeight: 650 }}>
+                Monatliche Miete {formatEuroCents(rentBackMetrics.monthlyRent)}
+              </div>
+            )}
+            {renderOfferChipRows(chipRows)}
+          </div>
+          {renderOfferBreakdown(breakdownRows, 'Noch keine UVA-Kalkulation vorhanden.')}
+        </div>
+
+        {canManageOffers && (
+          <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
+            <div style={offerSectionTitleStyle}>Berechnungs-Eingabe</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
+              {[
+                ['marketValue', 'Verkehrswert (€)'],
+                ['maintenance', 'Instandhaltung (€)'],
+                ['interestRate', 'Interne Verzinsung (%)'],
+                ['safetyDiscount', 'Sicherheitsabschlag (%)'],
+              ].map(([field, label]) => (
+                <Field key={field} label={label}>
+                  <Input type="number" value={params[field] || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })} />
+                </Field>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <button onClick={() => startValuationAndOffer(modelRequest.model)} disabled={Boolean(busyAction)} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction), busy: busyAction === calculationActionLabel })}>
+                {busyAction === calculationActionLabel ? 'Berechnet...' : offer ? 'Neu berechnen' : 'Unverbindliches Angebot berechnen'}
+              </button>
+              <OfferSuccessHint action={calculationActionLabel} />
+            </div>
+          </div>
+        )}
+
+        {modelRequest.primary && (
+          <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
+            <div style={offerSectionTitleStyle}>Angebotsdaten</div>
+            <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 14, alignItems: 'end' }}>
+              <Field label="Unverbindliches Angebot abgegeben am">
+                <Input type="date" value={indicativeOfferSentDate} onChange={(event) => setIndicativeOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
+              </Field>
+              <Field label="Unverbindliches Angebot angenommen am" invalid={Boolean(indicativeOfferAcceptedDate && indicativeOfferSentDate && isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate))}>
+                <Input type="date" value={indicativeOfferAcceptedDate} onChange={(event) => setIndicativeOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
+              </Field>
+              {canEditOfferDates && (
+                <button onClick={() => saveOfferDateFields('indicative')} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: Boolean(busyAction) })}>
+                  Daten speichern
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isRentBack && offer && (
+          <div style={{ padding: '0 24px 18px', fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
+            Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Rating-Tool folgt.
+          </div>
+        )}
+
+        <div style={{ background: '#FCF8F0', borderTop: `1px solid ${theme.borderSoft}`, padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 850 }}>{nextStep.title}</div>
+            <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 4 }}>{nextStep.help}</div>
+          </div>
+          {(canManageOffers || role === 'partner') && (
+            nextStep.state.reached ? (
+              <OfferDonePill>{nextStep.label}</OfferDonePill>
+            ) : (
+              <button onClick={() => runWorkflowAction(nextStep.action)} disabled={nextStep.state.disabled} style={offerButtonStyle('primary', { disabled: nextStep.state.disabled })}>
+                {nextStep.label}
+                <ChevronRight size={15} />
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    );
+  };
   const uploadDocument = () => runCaseAction('Dokument-Upload', async () => {
     if (!uploadFile) {
       throw new Error('Bitte zuerst eine Datei auswählen.');
@@ -4090,9 +4562,183 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben', tool: true, icon: ClipboardList, badge: openTaskCount }] : []),
     { id: 'chat', label: 'Kommunikation', tool: true, icon: MessageSquare, badge: unreadCommunicationCount },
   ];
+  const renderBindingOfferCard = (modelRequest, index) => {
+    const bindingOffer = bindingOffers.find((item) => item.model === modelRequest.model);
+    const indicativeOffer = indicativeOffers.find((item) => item.model === modelRequest.model);
+    const isRentBack = modelRequest.model === 'sale_and_leaseback';
+    const bindingRentBackMetrics = isRentBack && bindingOffer ? rentBackCalculationFromOffer(bindingOffer) : null;
+    const indicativeRentBackMetrics = isRentBack && indicativeOffer ? rentBackCalculationFromOffer(indicativeOffer) : null;
+    const deltaMarket = bindingOffer && indicativeOffer ? bindingOffer.marketValue - indicativeOffer.marketValue : undefined;
+    const deltaPayout = bindingOffer && indicativeOffer
+      ? (bindingRentBackMetrics?.payoutAmount ?? bindingOffer.payoutAmount) - (indicativeRentBackMetrics?.payoutAmount ?? indicativeOffer.payoutAmount)
+      : undefined;
+    const quote = bindingRentBackMetrics
+      ? Math.round(bindingRentBackMetrics.payoutRate * 100)
+      : bindingOffer?.payoutAmount && bindingOffer?.marketValue ? Math.round((bindingOffer.payoutAmount / bindingOffer.marketValue) * 100) : undefined;
+    const payoutValue = bindingRentBackMetrics?.payoutAmount ?? bindingOffer?.payoutAmount;
+    const offerMeta = bindingOffer
+      ? `Version ${bindingOffer.currentVersion || 1} · zuletzt berechnet`
+      : 'Entwurf';
+    const statusSent = workflowActionState('binding_offer_sent');
+    const statusAccepted = workflowActionState('binding_offer_accepted');
+    const nextStep = !statusSent.reached
+      ? {
+          title: 'Als Nächstes: Verbindliches Angebot abgeben',
+          help: 'Berechnung ist final. Markiere den Schritt, sobald der Kunde informiert ist.',
+          label: 'Angebot abgegeben',
+          action: 'binding_offer_sent',
+          state: statusSent,
+        }
+      : !statusAccepted.reached
+        ? {
+            title: 'Als Nächstes: Annahme dokumentieren',
+            help: 'Sobald der Kunde das verbindliche Angebot angenommen hat, kann die Notarvorbereitung starten.',
+            label: 'VA angenommen',
+            action: 'binding_offer_accepted',
+            state: statusAccepted,
+          }
+        : {
+            title: 'Verbindliches Angebot angenommen',
+            help: 'Der nächste operative Schritt liegt in Notartermin und Kaufvertrag.',
+            label: 'VA angenommen',
+            action: 'binding_offer_accepted',
+            state: statusAccepted,
+          };
+    const breakdownRows = bindingOffer ? (isRentBack ? [
+      ...rentBackMetricRows(bindingOffer),
+      ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
+      ['Δ Auszahlung vs. UVA', deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuroCents(deltaPayout)}` : '-'],
+    ] : [
+      ['UVA-Marktwert', indicativeOffer ? formatEuro(indicativeOffer.marketValue) : '-'],
+      ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
+      ['Wohnrechtswert', bindingOffer.residentialRightValue ? formatEuro(bindingOffer.residentialRightValue) : '-'],
+      ['Risikoabschlag', bindingOffer.riskDiscount ? formatEuro(bindingOffer.riskDiscount) : '-'],
+      ['Marge', bindingOffer.companyMargin ? formatEuro(bindingOffer.companyMargin) : '-'],
+      ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
+      ['Δ Auszahlung vs. UVA', deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuro(deltaPayout)}` : '-'],
+    ]) : [];
+    const chipRows = [
+      ['Gutachtenwert', bindingOffer ? formatEuro(bindingOffer.marketValue) : expertOpinionValue ? `${expertOpinionValue} €` : '-'],
+      ['Modell', labelFrom(productModelLabels, modelRequest.model)],
+      isRentBack
+        ? ['Info', 'Miete ab Tag 1']
+        : ['Laufzeit', `${modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
+    ];
+
+    return (
+      <div key={`binding-offer-card-${modelRequest.key}-${index}`} style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>
+            Verbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{labelFrom(productModelLabels, modelRequest.model)}</span>
+          </div>
+          <div style={{ fontSize: 12, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{offerMeta}</div>
+        </div>
+
+        <div style={{ background: '#FEFCF8', padding: '28px 26px', display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 416px)', gap: 28, alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Verbindliche Auszahlung</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 42, lineHeight: 1, color: theme.aubergine, fontWeight: 700, fontFamily: 'Georgia, ui-serif, serif' }}>{payoutValue ? formatEuroCents(payoutValue) : '-'}</div>
+              <div style={{ fontSize: 16, color: `${theme.ink}88`, fontWeight: 650 }}>{quote ? `${quote}%` : '-'}</div>
+            </div>
+            {bindingRentBackMetrics && (
+              <div style={{ marginTop: 8, fontSize: 13, color: `${theme.ink}99`, fontWeight: 650 }}>
+                Monatliche Miete {formatEuroCents(bindingRentBackMetrics.monthlyRent)}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+              {chipRows.map(([label, value]) => (
+                <span key={label} style={{ border: `1px solid ${theme.border}`, background: 'white', color: theme.ink, borderRadius: 6, padding: '7px 10px', fontSize: 11.5, fontWeight: 650 }}>
+                  {label} {value}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, padding: '14px 18px' }}>
+            {breakdownRows.length ? breakdownRows.map(([label, value], rowIndex) => {
+              const isDelta = String(label).startsWith('Δ');
+              const isNegative = String(value).startsWith('-');
+              return (
+                <div key={`${label}-${rowIndex}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: rowIndex < breakdownRows.length - 1 ? `1px solid ${theme.borderSoft}` : 'none', padding: '8px 0' }}>
+                  <span style={{ fontSize: 12.5, color: `${theme.ink}99`, fontWeight: 650 }}>{label}</span>
+                  <span style={{ fontSize: 12.5, color: isDelta ? (isNegative ? '#9B2C2C' : '#2F7D32') : theme.aubergine, fontWeight: 800, textAlign: 'right' }}>{value}</span>
+                </div>
+              );
+            }) : (
+              <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Noch keine VA-Kalkulation vorhanden.</div>
+            )}
+          </div>
+        </div>
+
+        {canManageOffers && (
+          <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Berechnungs-Eingabe</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 300px) max-content auto', gap: 14, alignItems: 'end' }}>
+              <Field label="Gutachtenwert (€)" required>
+                <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder="z.B. 650.000" inputMode="numeric" />
+              </Field>
+              <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction) || !canPrepareBindingOffer} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canPrepareBindingOffer, busy: busyAction === 'VA-Kalkulation' })}>
+                {busyAction === 'VA-Kalkulation' ? 'Berechnet...' : 'Neu berechnen'}
+              </button>
+              <OfferSuccessHint action="VA-Kalkulation" />
+            </div>
+          </div>
+        )}
+
+        {modelRequest.primary && (
+          <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Angebotsdaten</div>
+            <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 14, alignItems: 'end' }}>
+              <Field label="Verbindliches Angebot abgegeben am">
+                <Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
+              </Field>
+              <Field label="Verbindliches Angebot angenommen am" invalid={Boolean(bindingOfferAcceptedDate && bindingOfferSentDate && isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate))}>
+                <Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
+              </Field>
+              {canEditOfferDates && (
+                <button onClick={() => saveOfferDateFields('binding')} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: Boolean(busyAction) })}>
+                  Daten speichern
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {modelRequest.model === 'sale_and_leaseback' && bindingOffer && (
+          <div style={{ padding: '0 24px 18px', fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
+            Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Rating-Tool folgt.
+          </div>
+        )}
+
+        <div style={{ background: '#FCF8F0', borderTop: `1px solid ${theme.borderSoft}`, padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 850 }}>{nextStep.title}</div>
+            <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 4 }}>{nextStep.help}</div>
+          </div>
+          {(canManageOffers || role === 'partner') && (
+            nextStep.state.reached ? (
+              <OfferDonePill>{nextStep.label}</OfferDonePill>
+            ) : (
+              <button onClick={() => runWorkflowAction(nextStep.action)} disabled={nextStep.state.disabled} style={offerButtonStyle('primary', { disabled: nextStep.state.disabled })}>
+                {nextStep.label}
+                <ChevronRight size={15} />
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div>
+      <style>{`
+        .case-tabs-strip::-webkit-scrollbar,
+        .acquisition-stepper-scroll::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
       {/* Top Bar */}
       <div style={{ padding: '14px 28px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', gap: 16 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: theme.aubergine, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>
@@ -4277,8 +4923,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         </div>
       )}
 
+      <div style={{ background: theme.mintLight, padding: '16px 28px 20px' }}>
+        <AcquisitionProcessStepper property={property} />
+      </div>
+
       {/* Tabs */}
-      <div style={{ background: 'white', borderBottom: `1px solid ${theme.border}`, padding: '0 28px', display: 'flex', gap: 4, alignItems: 'stretch', overflowX: 'auto' }}>
+      <div className="case-tabs-strip" style={{ background: 'white', borderBottom: `1px solid ${theme.border}`, padding: '0 28px', display: 'flex', gap: 4, alignItems: 'stretch', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => {
             if (t.disabled) {
@@ -5190,6 +5840,85 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           )}
 
           {activeTab === 'indag' && (
+            <div style={{ display: 'grid', gap: 16 }}>
+              {role !== 'admin' && (
+                <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
+                  Lesende Ansicht: WohnKapital berechnet und gibt Angebote intern frei. Als Makler siehst du hier die vorhandenen Angebotsdaten.
+                </div>
+              )}
+              {requestedOfferModels.map((modelRequest, index) => renderIndicativeOfferCard(modelRequest, index))}
+              {canManageOffers && (
+                <div style={{ ...offerShellStyle, padding: '18px 20px', display: 'grid', gap: 14 }}>
+                  <div>
+                    <div style={offerSectionTitleStyle}>Gutachtenbeauftragung</div>
+                    <div style={{ fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5 }}>
+                      Sobald der Kunde das unverbindliche Angebot angenommen hat, kann ein Gutachter beauftragt werden. Nach Eingang des Gutachtens kann das verbindliche Angebot vorbereitet werden.
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, 260px) minmax(260px, 1fr)', gap: 12 }}>
+                    <Field label="Beauftragt am" hint="Pflicht beim Speichern der Beauftragung.">
+                      <Input
+                        type="date"
+                        value={expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)}
+                        onChange={(event) => setExpertOpinionOrderedDate(event.target.value)}
+                        readOnly={!canManageWorkflow}
+                      />
+                    </Field>
+                    <Field label="Gutachter / Gutachterfirma" hint="Pflicht beim Speichern der Beauftragung.">
+                      <Input
+                        value={expertOpinionCompany || property?.expertOpinionCompany || ''}
+                        onChange={(event) => setExpertOpinionCompany(event.target.value)}
+                        placeholder="z.B. Sprengnetter, DEKRA, freier Sachverständiger"
+                        readOnly={!canManageWorkflow}
+                      />
+                    </Field>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                    <button onClick={saveExpertOpinionOrderData} disabled={Boolean(busyAction) || !canManageWorkflow} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canManageWorkflow, busy: busyAction === 'Gutachtenbeauftragung speichern' })}>
+                      Gutachtenbeauftragung speichern
+                    </button>
+                    {property?.expertOpinionOrderedAt && <OfferDonePill>Gutachten beauftragt</OfferDonePill>}
+                  </div>
+                  <div style={{ borderTop: `1px solid ${theme.borderSoft}`, paddingTop: 14, display: 'grid', gap: 12 }}>
+                    <div style={offerSectionTitleStyle}>Eingang des Gutachtens</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, 260px)', gap: 10 }}>
+                      <Field label="Gutachten eingegangen am" hint="Pflicht erst beim Markieren des Eingangs." invalid={Boolean((expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)) && (expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)) && isDateBefore(expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt), expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)))}>
+                        <Input
+                          type="date"
+                          value={expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)}
+                          onChange={(event) => setExpertOpinionReceivedDate(event.target.value)}
+                          readOnly={!canManageWorkflow}
+                        />
+                      </Field>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                      {(() => {
+                        const state = workflowActionState('expert_opinion_received');
+                        const disabled = Boolean(busyAction) || !state.nextAllowed || !canManageWorkflow;
+                        return state.reached ? (
+                          <button onClick={() => runWorkflowAction('expert_opinion_received')} disabled={Boolean(busyAction) || !canManageWorkflow} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canManageWorkflow, busy: Boolean(busyAction) })}>
+                            Eingangsdatum speichern
+                          </button>
+                        ) : (
+                          <button onClick={() => runWorkflowAction('expert_opinion_received')} disabled={disabled} style={offerButtonStyle('primary', { disabled })}>
+                            Gutachten als eingegangen markieren
+                          </button>
+                        );
+                      })()}
+                      {property?.expertOpinionReceivedAt && <OfferDonePill>Gutachten eingegangen</OfferDonePill>}
+                    </div>
+                  </div>
+                  {property?.expertOpinionCompany && (
+                    <div style={{ fontSize: 11, color: `${theme.ink}88` }}>
+                      Gutachter / Gutachterfirma: {property.expertOpinionCompany}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === '__legacy_indag' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Unverbindliches Angebot</div>
               {role !== 'admin' && (
@@ -5202,7 +5931,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
                   const key = `${modelRequest.key}-${index}`;
                   const params = calculationParams[key] || {};
-                  const quote = offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
+                  const rentBackMetrics = modelRequest.model === 'sale_and_leaseback' && offer ? rentBackCalculationFromOffer(offer) : null;
+                  const calculationActionLabel = modelRequest.model === 'sale_and_leaseback' ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation';
+                  const quote = rentBackMetrics
+                    ? Math.round(rentBackMetrics.payoutRate * 100)
+                    : offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
                   const maintenanceValue = offer ? (params.maintenance || offer.companyMargin || offer.assumptions?.components?.maintenancePledge) : null;
                   const indicativeMetricRows = offer ? (modelRequest.model === 'sale_and_leaseback' ? rentBackMetricRows(offer) : role === 'admin' ? [
                     ['Verkehrswert', formatEuro(offer.marketValue)],
@@ -5232,7 +5965,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       </div>
 
                       {canManageOffers && (
-                        <button onClick={() => setOpenCalculation(openCalculation === key ? '' : key)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', marginBottom: openCalculation === key ? 12 : 0 }}>
+                        <button onClick={() => setOpenCalculation(openCalculation === key ? '' : key)} style={{ ...offerButtonStyle('primary'), marginBottom: openCalculation === key ? 12 : 0 }}>
                           Unverbindliches Angebot berechnen
                         </button>
                       )}
@@ -5252,9 +5985,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               </Field>
                             ))}
                           </div>
-                          <button onClick={() => startValuationAndOffer(modelRequest.model)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                            {busyAction ? 'Berechnet...' : 'Unverbindliches Angebot berechnen'}
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <button onClick={() => startValuationAndOffer(modelRequest.model)} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: busyAction === calculationActionLabel })}>
+                              {busyAction === calculationActionLabel ? 'Berechnet...' : 'Unverbindliches Angebot berechnen'}
+                            </button>
+                            <OfferSuccessHint action={calculationActionLabel} />
+                          </div>
                         </div>
                       )}
 
@@ -5270,15 +6006,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           </div>
                           {modelRequest.model === 'sale_and_leaseback' && (
                             <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${theme.borderSoft}`, fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
-                              Demo-Kalkulation, Rating-Tool folgt.
+                              Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Rating-Tool folgt.
                             </div>
                           )}
                           {role === 'partner' && (
                             <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
-                              <button onClick={() => runWorkflowAction('offer_accepted')} disabled={workflowActionState('offer_accepted').disabled} style={workflowButtonStyle(workflowActionState('offer_accepted'))}>
-                                {workflowActionState('offer_accepted').reached ? <CheckCircle size={13} /> : null}
-                                UVA angenommen
-                              </button>
+                              {renderOfferWorkflowControl('offer_accepted', 'UVA angenommen')}
                               <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 6 }}>
                                 Sobald du die Annahme bestätigst, wird der Fall intern weiterbearbeitet und das Gutachten kann beauftragt werden.
                               </div>
@@ -5296,15 +6029,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           {indicativeOfferDateFields}
                           {canManageOffers && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-                              {['indicative_offer_sent', 'offer_accepted'].map((action) => {
-                                const state = workflowActionState(action);
-                                return (
-                                  <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
-                                    {state.reached ? <CheckCircle size={13} /> : null}
-                                    {action === 'indicative_offer_sent' ? 'Unverbindliches Angebot abgegeben' : 'UVA angenommen'}
-                                  </button>
-                                );
-                              })}
+                              {renderOfferWorkflowControl('indicative_offer_sent', 'Unverbindliches Angebot abgegeben')}
+                              {renderOfferWorkflowControl('offer_accepted', 'UVA angenommen')}
                             </div>
                           )}
                         </div>
@@ -5337,14 +6063,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       </Field>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center', marginBottom: 14 }}>
-                      <button onClick={saveExpertOpinionOrderData} disabled={Boolean(busyAction) || !canManageWorkflow} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12, fontWeight: 800, cursor: busyAction || !canManageWorkflow ? 'wait' : 'pointer', opacity: busyAction || !canManageWorkflow ? 0.65 : 1 }}>
+                      <button onClick={saveExpertOpinionOrderData} disabled={Boolean(busyAction) || !canManageWorkflow} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canManageWorkflow, busy: busyAction === 'Gutachtenbeauftragung speichern' })}>
                         Gutachtenbeauftragung speichern
                       </button>
-                      {property?.expertOpinionOrderedAt && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B8C2B14', color: '#5B8C2B', border: '1px solid #5B8C2B33', borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 800 }}>
-                          <CheckCircle size={13} /> Gutachten beauftragt
-                        </span>
-                      )}
+                      {property?.expertOpinionOrderedAt && <OfferDonePill>Gutachten beauftragt</OfferDonePill>}
                     </div>
                     <div style={{ borderTop: `1px solid ${theme.borderSoft}`, paddingTop: 12 }}>
                       <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Eingang des Gutachtens</div>
@@ -5367,20 +6089,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               <button
                                 onClick={() => runWorkflowAction('expert_opinion_received')}
                                 disabled={Boolean(busyAction) || !canManageWorkflow}
-                                style={{
-                                  background: 'white',
-                                  color: theme.aubergine,
-                                  border: `1px solid ${theme.border}`,
-                                  borderRadius: 5,
-                                  padding: '8px 12px',
-                                  fontSize: 12,
-                                  fontWeight: 800,
-                                  cursor: busyAction || !canManageWorkflow ? 'default' : 'pointer',
-                                  justifySelf: 'start',
-                                  width: 'auto',
-                                  whiteSpace: 'nowrap',
-                                  opacity: busyAction || !canManageWorkflow ? 0.58 : 1
-                                }}
+                                style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canManageWorkflow, busy: Boolean(busyAction) })}
                               >
                                 Eingangsdatum speichern
                               </button>
@@ -5390,30 +6099,13 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                             <button
                               onClick={() => runWorkflowAction('expert_opinion_received')}
                               disabled={disabled}
-                              style={{
-                                background: theme.aubergine,
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: 5,
-                                padding: '8px 12px',
-                                fontSize: 12,
-                                fontWeight: 800,
-                                cursor: disabled ? 'default' : 'pointer',
-                                justifySelf: 'start',
-                                width: 'auto',
-                                whiteSpace: 'nowrap',
-                                opacity: disabled ? 0.58 : 1
-                              }}
+                              style={offerButtonStyle('primary', { disabled })}
                             >
                               Gutachten als eingegangen markieren
                             </button>
                           );
                         })()}
-                        {property?.expertOpinionReceivedAt && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B8C2B14', color: '#5B8C2B', border: '1px solid #5B8C2B33', borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 800 }}>
-                            <CheckCircle size={13} /> Gutachten eingegangen
-                          </span>
-                        )}
+                        {property?.expertOpinionReceivedAt && <OfferDonePill>Gutachten eingegangen</OfferDonePill>}
                       </div>
                     </div>
                     {property?.expertOpinionCompany && (
@@ -5428,6 +6120,62 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           )}
 
           {activeTab === 'verbag' && (
+            <div style={{ display: 'grid', gap: 16 }}>
+              {role !== 'admin' && (
+                <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
+                  Lesende Ansicht: Das verbindliche Angebot wird erst nach Gutachten intern berechnet und im Anschluss hier angezeigt.
+                </div>
+              )}
+              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5 }}>
+                Nach Eingang des Gutachtens wird das verbindliche Angebot auf Basis des Gutachtenwerts neu berechnet. Die UVA bleibt als eigene Version bestehen.
+              </div>
+              {!canPrepareBindingOffer && (
+                <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink }}>
+                  Das verbindliche Angebot wird freigeschaltet, sobald im Bereich „Unverbindliches Angebot“ das Gutachten als eingegangen markiert wurde.
+                </div>
+              )}
+              {requestedOfferModels.map((modelRequest, index) => renderBindingOfferCard(modelRequest, index))}
+              {canManageOffers && (
+                <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 12, padding: '18px 20px', boxShadow: '0 10px 28px rgba(68, 0, 92, 0.035)', display: 'grid', gap: 12 }}>
+                  <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Notartermin und Kaufvertrag</div>
+                  {(workflowActionState('notary_appointment_ordered').nextAllowed || workflowActionState('notary_appointment_ordered').reached || workflowActionState('contract_signed').nextAllowed) ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 230px) minmax(190px, 270px) auto auto', gap: 9, alignItems: 'center' }}>
+                      <input
+                        type="datetime-local"
+                        value={notaryAppointmentDate || (property?.notaryAppointmentAt ? property.notaryAppointmentAt.slice(0, 16) : '')}
+                        onChange={(event) => setNotaryAppointmentDate(event.target.value)}
+                        disabled={workflowActionState('notary_appointment_ordered').reached}
+                        title="Notartermin"
+                        style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                      <input
+                        type="text"
+                        value={notaryOffice || property?.notaryOffice || ''}
+                        onChange={(event) => setNotaryOffice(event.target.value)}
+                        disabled={workflowActionState('notary_appointment_ordered').reached}
+                        placeholder="Notar / Notariat"
+                        title="Notar oder Notariat"
+                        style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                      {['notary_appointment_ordered', 'contract_signed'].map((action) => {
+                        const state = workflowActionState(action);
+                        return (
+                          <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                            {state.reached ? <CheckCircle size={13} /> : null}
+                            {state.step?.label || action}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Verfügbar, sobald das verbindliche Angebot angenommen wurde.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === '__legacy_verbag' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Verbindliches Angebot</div>
               {role !== 'admin' && (
@@ -5448,9 +6196,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   const bindingOffer = bindingOffers.find((item) => item.model === modelRequest.model);
                   const indicativeOffer = indicativeOffers.find((item) => item.model === modelRequest.model);
                   const deltaMarket = bindingOffer && indicativeOffer ? bindingOffer.marketValue - indicativeOffer.marketValue : undefined;
-                  const deltaPayout = bindingOffer && indicativeOffer ? bindingOffer.payoutAmount - indicativeOffer.payoutAmount : undefined;
+                  const bindingRentBackMetrics = modelRequest.model === 'sale_and_leaseback' && bindingOffer ? rentBackCalculationFromOffer(bindingOffer) : null;
+                  const indicativeRentBackMetrics = modelRequest.model === 'sale_and_leaseback' && indicativeOffer ? rentBackCalculationFromOffer(indicativeOffer) : null;
+                  const deltaPayout = bindingOffer && indicativeOffer
+                    ? (bindingRentBackMetrics?.payoutAmount ?? bindingOffer.payoutAmount) - (indicativeRentBackMetrics?.payoutAmount ?? indicativeOffer.payoutAmount)
+                    : undefined;
                   const key = `binding-${modelRequest.key}-${index}`;
-                  const quote = bindingOffer?.payoutAmount && bindingOffer?.marketValue ? Math.round((bindingOffer.payoutAmount / bindingOffer.marketValue) * 100) : undefined;
+                  const quote = bindingRentBackMetrics
+                    ? Math.round(bindingRentBackMetrics.payoutRate * 100)
+                    : bindingOffer?.payoutAmount && bindingOffer?.marketValue ? Math.round((bindingOffer.payoutAmount / bindingOffer.marketValue) * 100) : undefined;
                   const bindingMetricRows = bindingOffer ? (modelRequest.model === 'sale_and_leaseback' ? rentBackMetricRows(bindingOffer) : role === 'admin' ? [
                     ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
                     ['Wohnrechtswert', bindingOffer.residentialRightValue ? formatEuro(bindingOffer.residentialRightValue) : '-'],
@@ -5522,7 +6276,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           </div>
                           {modelRequest.model === 'sale_and_leaseback' && (
                             <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${theme.borderSoft}`, fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
-                              Demo-Kalkulation, Rating-Tool folgt.
+                              Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Rating-Tool folgt.
                             </div>
                           )}
                           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}`, fontSize: 12.5, color: `${theme.ink}88`, whiteSpace: 'pre-line' }}>
@@ -5610,79 +6364,17 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           )}
         </div>
 
-        {/* Right column: Workflow & Activity Log */}
+        {/* Right column */}
         <div style={{ display: 'grid', gap: 12, height: 'fit-content' }}>
-        {canManageWorkflow && (
-          <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Briefcase size={14} style={{ color: theme.aubergine }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: theme.aubergine }}>Ankaufsprozess</span>
-              </div>
-              {canOpenResetWorkflow && (
-                <button onClick={openResetWorkflowModal} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '6px 9px', fontSize: 11.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
-                  Schritt zurücksetzen
-                </button>
-              )}
-            </div>
-            {!canManageOffers && (
-              <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '8px 10px', fontSize: 11.8, color: `${theme.ink}99`, lineHeight: 1.45, marginBottom: 10 }}>
-                Prozessschritte können hier zurückgesetzt werden. Neue Angebots- oder Gutachtenschritte werden von Kundenberatern, Admins oder Super-Admins gespeichert.
-              </div>
-            )}
-            <div style={{ display: 'grid', gap: 8 }}>
-              {acquisitionSteps.map((step, index) => {
-                const reached = acquisitionStatusIndex >= index || Boolean(step.date);
-                const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
-                const needsDateBeforeAction = step.needsDate && nextAllowed && ((!notaryAppointmentDate && !property?.notaryAppointmentAt) || (!notaryOffice.trim() && !property?.notaryOffice));
-                const missingBindingOffer = step.action === 'binding_offer_sent' && !hasBindingOffer;
-                const waitingForVaAcceptance = step.action === 'notary_appointment_ordered' && workflowStatus !== 'BINDING_OFFER_ACCEPTED' && !reached;
-                const disabled = Boolean(busyAction) || !canManageOffers || reached || !nextAllowed || !step.action || needsDateBeforeAction || missingBindingOffer;
-                return (
-                  <div key={step.status} style={{ display: 'grid', gap: 6 }}>
-                    <button onClick={() => handleAcquisitionAction(step)} disabled={disabled} style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      background: reached ? `${theme.aubergine}0A` : nextAllowed ? theme.aubergine : 'white',
-                      color: reached ? theme.aubergine : nextAllowed ? 'white' : `${theme.ink}66`,
-                      border: `1px solid ${reached || nextAllowed ? theme.aubergine : theme.border}`,
-                      borderRadius: 6,
-                      padding: '8px 10px',
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      cursor: disabled ? 'default' : 'pointer',
-                      opacity: disabled && !reached ? 0.55 : 1,
-                      textAlign: 'left'
-                    }}>
-                      <span>{step.label}</span>
-                      {reached ? <CheckCircle size={14} /> : <ChevronRight size={14} />}
-                    </button>
-                    {step.needsDate && reached && property?.notaryAppointmentAt && (
-                      <div style={{ fontSize: 11, color: `${theme.ink}88`, paddingLeft: 2 }}>
-                        Termin: {dateLabel(property.notaryAppointmentAt)}{property.notaryOffice ? ` · ${property.notaryOffice}` : ''}
-                      </div>
-                    )}
-                    {waitingForVaAcceptance && (
-                      <div style={{ fontSize: 11, color: `${theme.ink}88`, paddingLeft: 2 }}>
-                        Erst verfügbar, wenn „VA angenommen“ gespeichert wurde.
-                      </div>
-                    )}
-                    {step.action === 'notary_appointment_ordered' && nextAllowed && needsDateBeforeAction && (
-                      <div style={{ fontSize: 11, color: theme.aubergine, fontWeight: 700, paddingLeft: 2 }}>
-                        Termin und Notar im Tab „Verbindliches Angebot“ eintragen.
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 10, lineHeight: 1.45 }}>
-              Der Bestand beginnt, sobald der Kaufvertrag abgeschlossen wurde.
-            </div>
-          </div>
-        )}
+        {activeTab === 'indag' || activeTab === 'verbag' ? (
+          <CaseSidePanel
+            activities={activities}
+            taskRows={taskRows}
+            documents={documents}
+            onShowTasks={() => changeTab('aufgaben')}
+            onShowDocuments={() => changeTab('doks')}
+          />
+        ) : (
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Activity size={14} style={{ color: theme.aubergine }} />
@@ -5700,6 +6392,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             ))}
           </div>
         </div>
+        )}
         </div>
       </div>
     </div>

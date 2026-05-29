@@ -239,7 +239,7 @@ function calculateSaleAndLeasebackOffer(input: OfferCalculationInput): OfferCalc
       productModel: "sale_and_leaseback",
       formula: "payout = market_value * payout_rate; annual_rent = payout * annual_rent_rate; monthly_rent = annual_rent / 12",
       note:
-        "Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Die spätere Produktivversion soll ein Rating-Tool zur Bestimmung der Auszahlungsquote verwenden.",
+        "Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Rating-Tool folgt.",
       calculationMode: "DEMO_FIXED_RATE",
       inputs: {
         marketValue

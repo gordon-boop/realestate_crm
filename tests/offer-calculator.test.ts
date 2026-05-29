@@ -64,6 +64,24 @@ test("calculates Rückmietverkauf demo payout and rent for 800000 market value",
   assert.equal(result.assumptions.components?.monthlyRent, 2333.33);
 });
 
+test("calculates Rückmietverkauf demo payout and rent for 544276 market value", () => {
+  const result = calculateOffer({
+    valuation: { marketValue: 544276 },
+    condition: "good",
+    model: "sale_and_leaseback"
+  });
+
+  assert.equal(result.marketValue, 544276);
+  assert.equal(result.payoutRate, 0.7);
+  assert.equal(result.payoutAmount, 380993.2);
+  assert.equal(result.annualRentRate, 0.05);
+  assert.equal(result.annualRent, 19049.66);
+  assert.equal(result.monthlyRent, 1587.47);
+  assert.equal(result.assumptions.components?.payoutAmount, 380993.2);
+  assert.equal(result.assumptions.components?.annualRent, 19049.66);
+  assert.equal(result.assumptions.components?.monthlyRent, 1587.47);
+});
+
 test("falls back to 10 year residential right rate for unsupported MVP duration", () => {
   assert.equal(getResidentialRightRate(7), 0.28);
 });
