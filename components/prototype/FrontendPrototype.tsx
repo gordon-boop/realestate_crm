@@ -438,6 +438,41 @@ const SidebarQuickAction = ({ item, active, onSelect }) => {
   );
 };
 
+const SidebarPrimaryAction = ({ icon: Icon = Plus, label, onClick }) => {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: '10px 11px',
+        borderRadius: 7,
+        border: `1px solid ${focused ? theme.gold : theme.aubergine}`,
+        background: hovered || focused ? '#3a0050' : theme.aubergine,
+        color: 'white',
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: 'pointer',
+        boxShadow: focused ? `0 0 0 2px ${theme.gold}55` : '0 5px 14px rgba(68, 0, 92, 0.12)',
+        transition: 'background 140ms ease, box-shadow 140ms ease, border-color 140ms ease',
+      }}
+    >
+      <Icon size={15} style={{ color: theme.gold, flexShrink: 0 }} />
+      <span>{label}</span>
+    </button>
+  );
+};
+
 const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, onQuickAction, leadCount = 0, draftCount = 0, inProgressCount = 0, portfolioCount = 0, rejectedCount = 0 }) => {
   const [activeQuickAction, setActiveQuickAction] = useState('');
   const partnerNav = [
@@ -477,29 +512,41 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
     window.setTimeout(() => setActiveQuickAction((current) => current === item.key ? '' : current), 900);
     onQuickAction?.(item);
   };
+  const selectPartnerNewCase = () => {
+    setActiveQuickAction('partner-new-case');
+    window.setTimeout(() => setActiveQuickAction((current) => current === 'partner-new-case' ? '' : current), 900);
+    onQuickAction?.({ key: 'new-case', icon: Plus, label: 'Neukunde anlegen' });
+  };
 
   return (
     <div style={{ width: 220, background: theme.mintLight, borderRight: `1px solid ${theme.border}`, padding: '16px 12px', flexShrink: 0, overflowY: 'auto' }}>
       {nav.map((item, i) => (
-        <div key={i}
-          onClick={() => item.screen && onNavigate(item.screen)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6,
-            background: isActive(item) ? theme.aubergine : 'transparent',
-            color: isActive(item) ? 'white' : theme.ink,
-            fontSize: 13, fontWeight: isActive(item) ? 600 : 500,
-            marginBottom: 2, cursor: item.screen ? 'pointer' : 'default',
-            opacity: item.screen ? 1 : 0.85
-          }}>
-          <item.icon size={15} />
-          <span style={{ flex: 1 }}>{item.label}</span>
-          {item.internal && (
-            <span style={{ fontSize: 9, color: isActive(item) ? theme.gold : theme.oliv, fontWeight: 700, letterSpacing: '0.08em' }}>INT</span>
+        <React.Fragment key={i}>
+          <div
+            onClick={() => item.screen && onNavigate(item.screen)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6,
+              background: isActive(item) ? theme.aubergine : 'transparent',
+              color: isActive(item) ? 'white' : theme.ink,
+              fontSize: 13, fontWeight: isActive(item) ? 600 : 500,
+              marginBottom: 2, cursor: item.screen ? 'pointer' : 'default',
+              opacity: item.screen ? 1 : 0.85
+            }}>
+            <item.icon size={15} />
+            <span style={{ flex: 1 }}>{item.label}</span>
+            {item.internal && (
+              <span style={{ fontSize: 9, color: isActive(item) ? theme.gold : theme.oliv, fontWeight: 700, letterSpacing: '0.08em' }}>INT</span>
+            )}
+            {item.badge && (
+              <span style={{ background: isActive(item) ? theme.gold : `${theme.aubergine}15`, color: theme.aubergine, fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10 }}>{item.badge}</span>
+            )}
+          </div>
+          {role === 'partner' && i === 0 && (
+            <div style={{ padding: '8px 0 12px' }}>
+              <SidebarPrimaryAction label="Neukunde anlegen" onClick={selectPartnerNewCase} />
+            </div>
           )}
-          {item.badge && (
-            <span style={{ background: isActive(item) ? theme.gold : `${theme.aubergine}15`, color: theme.aubergine, fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10 }}>{item.badge}</span>
-          )}
-        </div>
+        </React.Fragment>
       ))}
       <div style={{ height: 16 }} />
       <div style={{ fontSize: 10, color: `${theme.aubergine}99`, fontWeight: 700, letterSpacing: '0.1em', padding: '0 10px 6px', textTransform: 'uppercase' }}>Wissen</div>
@@ -2315,9 +2362,6 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], user = {}, onOpenCase,
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>{brokerGreeting(user)}</div>
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Was steht heute an?</h1>
         </div>
-        <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-          <Plus size={15} /> Neukunde anlegen
-        </button>
       </div>
 
       <BrokerWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={changeBucket} />
@@ -3403,9 +3447,108 @@ const registrationStatusLabels = {
   rejected: 'abgelehnt',
 };
 
-const PartnerDirectory = ({ partners = [], registrations = [], leads = [], onSetPartnerStatus, onDeletePartner }) => {
+const initialPartnerDraft = {
+  companyName: '',
+  contactFirstName: '',
+  contactLastName: '',
+  email: '',
+  phone: '',
+  mobilePhone: '',
+  region: '',
+  status: 'active',
+  street: '',
+  postalCode: '',
+  city: '',
+  federalState: '',
+  website: '',
+  note: '',
+  commissionModel: '',
+  contactRole: '',
+  loginEmail: '',
+  loginName: '',
+  initialPassword: 'demo1234',
+};
+
+const PartnerCreateModal = ({ onClose, onSubmit, saving = false }) => {
+  const [draft, setDraft] = useState(initialPartnerDraft);
+  const set = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    await onSubmit?.({
+      ...draft,
+      loginEmail: draft.loginEmail || draft.email,
+      loginName: draft.loginName || `${draft.contactFirstName} ${draft.contactLastName}`.trim(),
+    });
+  };
+  const inputStyle = { border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
+  const labelStyle = { display: 'grid', gap: 5, fontSize: 11.5, color: theme.ink, fontWeight: 700 };
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(30, 11, 40, 0.28)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <form onSubmit={submit} style={{ width: 'min(900px, 96vw)', maxHeight: '92vh', overflow: 'auto', background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 10, boxShadow: '0 20px 60px rgba(30, 11, 40, 0.22)' }}>
+        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Stammdaten</div>
+            <h2 style={{ margin: '3px 0 0', color: theme.aubergine, fontSize: 20 }}>Partner anlegen</h2>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 34, height: 34, cursor: saving ? 'wait' : 'pointer' }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: 20, display: 'grid', gap: 18 }}>
+          <section style={{ display: 'grid', gap: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: theme.aubergine, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Partnerdaten</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              <label style={labelStyle}>Firmenname / Maklerbüro *<input required value={draft.companyName} onChange={(event) => set('companyName', event.target.value)} style={inputStyle} /></label>
+              <label style={labelStyle}>Region / Tätigkeitsgebiet *<input required value={draft.region} onChange={(event) => set('region', event.target.value)} style={inputStyle} placeholder="z. B. Hamburg, Stuttgart, München" /></label>
+              <label style={labelStyle}>Ansprechpartner Vorname *<input required value={draft.contactFirstName} onChange={(event) => set('contactFirstName', event.target.value)} style={inputStyle} /></label>
+              <label style={labelStyle}>Ansprechpartner Nachname *<input required value={draft.contactLastName} onChange={(event) => set('contactLastName', event.target.value)} style={inputStyle} /></label>
+              <label style={labelStyle}>E-Mail *<input required type="email" value={draft.email} onChange={(event) => set('email', event.target.value)} style={inputStyle} /></label>
+              <label style={labelStyle}>Status *<select value={draft.status} onChange={(event) => set('status', event.target.value)} style={inputStyle}><option value="active">aktiv</option><option value="inactive">inaktiv</option></select></label>
+              <label style={labelStyle}>Telefon<input value={draft.phone} onChange={(event) => set('phone', event.target.value)} style={inputStyle} /></label>
+              <label style={labelStyle}>Mobil<input value={draft.mobilePhone} onChange={(event) => set('mobilePhone', event.target.value)} style={inputStyle} /></label>
+              <label style={labelStyle}>Straße<input value={draft.street} onChange={(event) => set('street', event.target.value)} style={inputStyle} /></label>
+              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10 }}>
+                <label style={labelStyle}>PLZ<input value={draft.postalCode} onChange={(event) => set('postalCode', event.target.value)} style={inputStyle} /></label>
+                <label style={labelStyle}>Ort<input value={draft.city} onChange={(event) => set('city', event.target.value)} style={inputStyle} /></label>
+              </div>
+              <label style={labelStyle}>Bundesland<input value={draft.federalState} onChange={(event) => set('federalState', event.target.value)} style={inputStyle} /></label>
+              <label style={labelStyle}>Website<input value={draft.website} onChange={(event) => set('website', event.target.value)} style={inputStyle} placeholder="https://..." /></label>
+              <label style={labelStyle}>Funktion<input value={draft.contactRole} onChange={(event) => set('contactRole', event.target.value)} style={inputStyle} /></label>
+              <label style={labelStyle}>Provisionsmodell<input value={draft.commissionModel} onChange={(event) => set('commissionModel', event.target.value)} style={inputStyle} /></label>
+            </div>
+            <label style={labelStyle}>Notiz<textarea value={draft.note} onChange={(event) => set('note', event.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></label>
+          </section>
+
+          <section style={{ display: 'grid', gap: 12, borderTop: `1px solid ${theme.borderSoft}`, paddingTop: 16 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: theme.aubergine, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Partnerzugang</div>
+              <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>Für die Demo wird direkt ein erster Makler-Login angelegt. Das Passwort wird bcrypt-gehasht gespeichert.</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+              <label style={labelStyle}>Login-E-Mail<input type="email" value={draft.loginEmail} onChange={(event) => set('loginEmail', event.target.value)} style={inputStyle} placeholder="leer = Partner-E-Mail" /></label>
+              <label style={labelStyle}>Login-Name<input value={draft.loginName} onChange={(event) => set('loginName', event.target.value)} style={inputStyle} placeholder="leer = Ansprechpartner" /></label>
+              <label style={labelStyle}>Initialpasswort<input value={draft.initialPassword} onChange={(event) => set('initialPassword', event.target.value)} style={inputStyle} /></label>
+            </div>
+          </section>
+        </div>
+
+        <div style={{ padding: '14px 20px', borderTop: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button type="button" onClick={onClose} disabled={saving} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer' }}>Abbrechen</button>
+          <button type="submit" disabled={saving} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 15px', fontSize: 13, fontWeight: 800, cursor: saving ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <Plus size={15} /> {saving ? 'Speichern...' : 'Partner anlegen'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const PartnerDirectory = ({ partners = [], registrations = [], leads = [], canCreatePartner = false, canManagePartnerStatus = false, onCreatePartner, onSetPartnerStatus, onDeletePartner }) => {
   const [selectedLetter, setSelectedLetter] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createSaving, setCreateSaving] = useState(false);
   const availableLetters = new Set(partners.map(partnerInitial));
   const normalizedSearch = search.trim().toLowerCase();
   const visiblePartners = partners
@@ -3420,13 +3563,29 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], onSet
   const activePartners = partners.filter((partner) => partner.status === 'active').length;
   const inactivePartners = partners.length - activePartners;
   const openRegistrations = registrations.filter((registration) => registration.status !== 'approved');
+  const submitCreate = async (payload) => {
+    setCreateSaving(true);
+    try {
+      await onCreatePartner?.(payload);
+      setCreateOpen(false);
+    } finally {
+      setCreateSaving(false);
+    }
+  };
 
   return (
     <div style={{ padding: '20px 28px' }}>
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
-        <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Partner</h1>
-        <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Tabellarische Übersicht aller Vertriebspartner mit Lead-Zuweisungen und Freischaltung.</div>
+      <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Partner</h1>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Tabellarische Übersicht aller Vertriebspartner mit Lead-Zuweisungen und Freischaltung.</div>
+        </div>
+        {canCreatePartner && (
+          <button onClick={() => setCreateOpen(true)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 15px', borderRadius: 6, fontSize: 13, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <Plus size={15} /> Partner anlegen
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 48px', gap: 14, alignItems: 'start' }}>
@@ -3459,7 +3618,7 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], onSet
                         </a>
                       )}
                     </div>
-                    {registration.partnerId && registration.status === 'pending_approval' ? (
+                    {canManagePartnerStatus && registration.partnerId && registration.status === 'pending_approval' ? (
                       <button onClick={() => onSetPartnerStatus?.(registration.partnerId, 'active')} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '7px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
                         Freigeben
                       </button>
@@ -3503,7 +3662,7 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], onSet
                       <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 800 }}>{assignedLeadCount}</td>
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
-                        {!isActive ? (
+                        {canManagePartnerStatus ? (!isActive ? (
                           <button disabled={emailPending} onClick={() => onSetPartnerStatus?.(partner.id, 'active')} title={emailPending ? 'Bitte zuerst die E-Mail bestätigen.' : 'Partner freischalten'} style={{ background: emailPending ? theme.borderSoft : theme.aubergine, color: emailPending ? `${theme.ink}66` : 'white', border: 'none', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: emailPending ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
                             Freischalten
                           </button>
@@ -3511,10 +3670,13 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], onSet
                           <button onClick={() => onSetPartnerStatus?.(partner.id, 'inactive')} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                             Sperren
                           </button>
-                        )}
+                        )) : null}
+                        {canManagePartnerStatus && (
                           <button onClick={() => onDeletePartner?.(partner)} style={{ background: '#fff7f5', color: '#9B2C2C', border: '1px solid #efc0b9', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                             Löschen
                           </button>
+                        )}
+                        {!canManagePartnerStatus && <span style={{ fontSize: 12, color: `${theme.ink}66` }}>Nur Super Admin/Admin</span>}
                         </div>
                       </td>
                     </tr>
@@ -3540,6 +3702,7 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], onSet
           })}
         </div>
       </div>
+      {createOpen && <PartnerCreateModal saving={createSaving} onClose={() => createSaving ? null : setCreateOpen(false)} onSubmit={submitCreate} />}
     </div>
   );
 };
@@ -3860,14 +4023,19 @@ const SidePanelCard = ({ title, count, children, actionLabel, onAction }) => (
     </div>
     {children}
     {actionLabel && (
-      <button onClick={onAction} style={{ marginTop: 14, background: 'transparent', border: 'none', borderBottom: `1px solid ${theme.gold}`, color: theme.aubergine, padding: '0 0 3px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+      <button
+        onClick={onAction}
+        disabled={!onAction}
+        title={!onAction ? 'Noch nicht verfügbar' : actionLabel}
+        style={{ marginTop: 14, background: 'transparent', border: 'none', borderBottom: `1px solid ${onAction ? theme.gold : theme.border}`, color: onAction ? theme.aubergine : `${theme.ink}66`, padding: '0 0 3px', fontSize: 12, fontWeight: 700, cursor: onAction ? 'pointer' : 'not-allowed' }}
+      >
         {actionLabel}
       </button>
     )}
   </div>
 );
 
-const CaseSidePanel = ({ activities, taskRows, documents, onShowTasks, onShowDocuments }) => {
+const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onShowTasks, onShowDocuments }) => {
   const visibleActivities = (activities || []).slice(0, 3);
   const visibleTasks = (taskRows || []).slice(0, 3);
   const importantDocuments = (documents || [])
@@ -3880,7 +4048,7 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowTasks, onShowDoc
 
   return (
     <div style={{ display: 'grid', gap: 16, height: 'fit-content' }}>
-      <SidePanelCard title="Aktivität" actionLabel="Alle anzeigen">
+      <SidePanelCard title="Aktivität" actionLabel="Alle anzeigen" onAction={onShowActivities}>
         {visibleActivities.length ? visibleActivities.map((activity, index) => (
           <div key={activity.id || index} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 12, padding: index === 0 ? '0 0 12px' : '12px 0', borderBottom: index < visibleActivities.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
             <div style={{ fontSize: 11.5, color: `${theme.ink}88`, fontWeight: 700 }}>{activity.time || dateLabel(activity.createdAt)}</div>
@@ -7012,6 +7180,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             activities={activities}
             taskRows={taskRows}
             documents={documents}
+            onShowActivities={() => changeTab('kommunikation')}
             onShowTasks={() => changeTab('aufgaben')}
             onShowDocuments={() => changeTab('doks')}
           />
@@ -8321,6 +8490,7 @@ const emptyLeadDraft = {
 };
 
 const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, submitting }) => {
+  const activePartners = partners.filter((partner) => partner.status === 'active');
   const set = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
   const field = (label, key, props = {}) => (
     <label style={{ display: 'grid', gap: 5 }}>
@@ -8426,7 +8596,7 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, s
               <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Zuständiger Partner/Makler</span>
               <select value={draft.assignedPartnerId || ''} onChange={(event) => set('assignedPartnerId', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
                 <option value="">Noch nicht zuweisen</option>
-                {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
+                {activePartners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
               </select>
             </label>
             {field('Routing-Grund', 'routingReason')}
@@ -8484,10 +8654,11 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
     converted: leads.filter((lead) => ['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status)).length,
     rejected: leads.filter((lead) => ['REJECTED', 'CLOSED'].includes(lead.status)).length
   };
-  const activePartnerCount = partners.filter((partner) => partner.status === 'active').length;
+  const activePartners = partners.filter((partner) => partner.status === 'active');
+  const activePartnerCount = activePartners.length;
   const advisorOptions = staff.filter((member) => ['advisor', 'admin', 'super_admin'].includes(member.internalRole));
   const assigneeOptions = [
-    ...partners.map((partner) => ({ value: `partner:${partner.id}`, label: `Partner · ${partner.contactName || partner.companyName}` })),
+    ...activePartners.map((partner) => ({ value: `partner:${partner.id}`, label: `Partner · ${partner.contactName || partner.companyName}` })),
     ...advisorOptions.map((member) => ({ value: `advisor:${member.id}`, label: `Intern · ${member.name}` })),
   ];
   const adminBuckets = [
@@ -8629,7 +8800,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                 <select value={partnerFilter} onChange={(event) => setPartnerFilter(event.target.value)} style={{ padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: 'white', fontSize: 12 }}>
                   <option value="ALL">Alle Zuweisungen</option>
                   <option value="UNASSIGNED">Nicht zugewiesen</option>
-                  {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
+                  {activePartners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
                   {advisorOptions.map((member) => <option key={member.id} value={`advisor:${member.id}`}>{member.name} (intern)</option>)}
                 </select>
               )}
@@ -9198,6 +9369,20 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       setNotice(err instanceof Error ? err.message : 'Partner konnte nicht gelöscht werden');
     }
   };
+  const handleCreatePartner = async (payload) => {
+    if (!['employee', 'admin', 'super_admin'].includes(currentInternalRole)) {
+      setNotice('Sie haben keine Berechtigung, Partner anzulegen.');
+      return;
+    }
+    try {
+      await postJson('/api/partners', payload);
+      setNotice('Partner wurde angelegt.');
+      await loadLeads('admin');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Partner konnte nicht angelegt werden');
+      throw err;
+    }
+  };
   const handleCreateStaff = async (staffInput) => {
     try {
       await postJson('/api/staff', staffInput);
@@ -9290,7 +9475,18 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} initialSelectedLeadId={readLeadIdFromUrl()} onCreate={handleCreateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
-          {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} registrations={registrations} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
+          {screen === 'partners' && role === 'admin' && (
+            <PartnerDirectory
+              partners={partners}
+              registrations={registrations}
+              leads={leads}
+              canCreatePartner={['employee', 'admin', 'super_admin'].includes(currentInternalRole)}
+              canManagePartnerStatus={['admin', 'super_admin'].includes(currentInternalRole)}
+              onCreatePartner={handleCreatePartner}
+              onSetPartnerStatus={handleSetPartnerStatus}
+              onDeletePartner={handleDeletePartner}
+            />
+          )}
           {screen === 'staff' && canViewStaff && <StaffDirectory staff={staff} canManageStaff={canManageStaff} onCreateStaff={handleCreateStaff} onUpdateStaffRole={handleUpdateStaffRole} onDeleteStaff={handleDeleteStaff} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}

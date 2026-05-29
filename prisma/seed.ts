@@ -434,6 +434,888 @@ async function main() {
   });
 
   await seedObjectRatingConfig(admin.id);
+  await seedPearsDemoData({ partnerId: partner.id, adminId: admin.id, partnerUserId: partnerUser.id });
+}
+
+type PearsDemoContext = {
+  partnerId: string;
+  adminId: string;
+  partnerUserId: string;
+};
+
+type PearsDemoCase = {
+  caseNumber: string;
+  customerId: string;
+  propertyId: string;
+  customer: {
+    displayName: string;
+    firstName: string;
+    lastName: string;
+    ageAtSubmission: number;
+    email: string;
+    phone: string;
+    street: string;
+    postalCode: string;
+    city: string;
+  };
+  property: {
+    objectTitle: string;
+    propertyType: PropertyType;
+    street: string;
+    postalCode: string;
+    city: string;
+    livingAreaSqm: number;
+    plotAreaSqm?: number;
+    yearBuilt: number;
+    condition: PropertyCondition;
+    desiredModel: DesiredModel;
+    desiredResidentialRightYears?: number;
+    additionalOfferRequested?: boolean;
+    additionalOfferModel?: DesiredModel;
+    status: PropertyStatus;
+    marketValue: number;
+    latitude: number;
+    longitude: number;
+    nextStep: string;
+    lastActivityLabel: string;
+    lastActivityAt: Date;
+  };
+  dates?: Partial<{
+    indicativeOfferSentAt: Date;
+    offerAcceptedAt: Date;
+    expertOpinionOrderedAt: Date;
+    expertOpinionReceivedAt: Date;
+    bindingOfferSentAt: Date;
+    bindingOfferAcceptedAt: Date;
+    purchaseStartedAt: Date;
+    notaryAppointmentAt: Date;
+    purchasedAt: Date;
+    portfolioEnteredAt: Date;
+    purchaseContractSignedAt: Date;
+    purchasePriceDueAt: Date;
+    purchasePricePaidAt: Date;
+    residentialRightRegisteredAt: Date;
+    ownershipTransferAt: Date;
+    landRegisterEntryAt: Date;
+  }>;
+  modelAccepted?: DesiredModel;
+  reminder?: {
+    reason: string;
+    dueAt: Date;
+  };
+};
+
+async function seedPearsDemoData(context: PearsDemoContext) {
+  await removeTechnicalDemoResidue();
+  await removeLegacyDemoLeads();
+
+  const demoCases: PearsDemoCase[] = [
+    {
+      caseNumber: "WK-2026-014",
+      customerId: "demo_customer_eva_schmidt",
+      propertyId: "demo_property_eva_schmidt",
+      customer: {
+        displayName: "Eva Schmidt",
+        firstName: "Eva",
+        lastName: "Schmidt",
+        ageAtSubmission: 72,
+        email: "eva.schmidt@example.com",
+        phone: "+49 711 234567",
+        street: "Hauptstrasse 14",
+        postalCode: "70563",
+        city: "Stuttgart"
+      },
+      property: {
+        objectTitle: "EFH Stuttgart-Vaihingen",
+        propertyType: PropertyType.single_family,
+        street: "Hauptstrasse 14",
+        postalCode: "70563",
+        city: "Stuttgart",
+        livingAreaSqm: 142,
+        plotAreaSqm: 380,
+        yearBuilt: 1978,
+        condition: PropertyCondition.good,
+        desiredModel: DesiredModel.fixed_residential_right,
+        desiredResidentialRightYears: 10,
+        additionalOfferRequested: true,
+        additionalOfferModel: DesiredModel.sale_and_leaseback,
+        status: PropertyStatus.SUBMITTED,
+        marketValue: 638000,
+        latitude: 48.7261,
+        longitude: 9.1119,
+        nextStep: "Erstprüfung abschliessen",
+        lastActivityLabel: "Heute, 09:20",
+        lastActivityAt: new Date("2026-05-29T07:20:00.000Z")
+      },
+      reminder: {
+        reason: "Neue Einreichung prüfen und Dokumentenliste ergänzen.",
+        dueAt: new Date("2026-05-29T13:00:00.000Z")
+      }
+    },
+    {
+      caseNumber: "WK-2026-015",
+      customerId: "demo_customer_hans_becker",
+      propertyId: "demo_property_hans_becker",
+      customer: {
+        displayName: "Hans Becker",
+        firstName: "Hans",
+        lastName: "Becker",
+        ageAtSubmission: 75,
+        email: "hans.becker@example.com",
+        phone: "+49 89 445566",
+        street: "Bodenseestrasse 88",
+        postalCode: "81243",
+        city: "München"
+      },
+      property: {
+        objectTitle: "ETW München-Pasing",
+        propertyType: PropertyType.apartment,
+        street: "Bodenseestrasse 88",
+        postalCode: "81243",
+        city: "München",
+        livingAreaSqm: 91,
+        yearBuilt: 1996,
+        condition: PropertyCondition.good,
+        desiredModel: DesiredModel.sale_and_leaseback,
+        status: PropertyStatus.INDICATIVE_OFFER_SENT,
+        marketValue: 503194,
+        latitude: 48.1469,
+        longitude: 11.4616,
+        nextStep: "UVA beim Kunden nachfassen",
+        lastActivityLabel: "Gestern, 16:45",
+        lastActivityAt: new Date("2026-05-28T14:45:00.000Z")
+      },
+      dates: {
+        indicativeOfferSentAt: new Date("2026-05-27T10:00:00.000Z")
+      },
+      reminder: {
+        reason: "Rückmeldung zum unverbindlichen Angebot einholen.",
+        dueAt: new Date("2026-05-30T09:00:00.000Z")
+      }
+    },
+    {
+      caseNumber: "WK-2026-016",
+      customerId: "demo_customer_renate_mayer",
+      propertyId: "demo_property_renate_mayer",
+      customer: {
+        displayName: "Renate Mayer",
+        firstName: "Renate",
+        lastName: "Mayer",
+        ageAtSubmission: 76,
+        email: "renate.mayer@example.com",
+        phone: "+49 7071 223344",
+        street: "Aixer Strasse 21",
+        postalCode: "72072",
+        city: "Tübingen"
+      },
+      property: {
+        objectTitle: "EFH Tübingen-Südstadt",
+        propertyType: PropertyType.single_family,
+        street: "Aixer Strasse 21",
+        postalCode: "72072",
+        city: "Tübingen",
+        livingAreaSqm: 156,
+        plotAreaSqm: 510,
+        yearBuilt: 1982,
+        condition: PropertyCondition.average,
+        desiredModel: DesiredModel.fixed_residential_right,
+        desiredResidentialRightYears: 12,
+        status: PropertyStatus.EXPERT_OPINION_RECEIVED,
+        marketValue: 650000,
+        latitude: 48.5071,
+        longitude: 9.0595,
+        nextStep: "Gutachten auswerten",
+        lastActivityLabel: "Vor 2 Tagen",
+        lastActivityAt: new Date("2026-05-27T11:30:00.000Z")
+      },
+      dates: {
+        indicativeOfferSentAt: new Date("2026-05-20T10:00:00.000Z"),
+        offerAcceptedAt: new Date("2026-05-22T10:00:00.000Z"),
+        expertOpinionOrderedAt: new Date("2026-05-23T09:00:00.000Z"),
+        expertOpinionReceivedAt: new Date("2026-05-27T11:00:00.000Z")
+      },
+      modelAccepted: DesiredModel.fixed_residential_right,
+      reminder: {
+        reason: "Verbindliches Angebot auf Basis des Gutachtens vorbereiten.",
+        dueAt: new Date("2026-05-31T10:00:00.000Z")
+      }
+    },
+    {
+      caseNumber: "WK-2026-017",
+      customerId: "demo_customer_karl_hoffmann",
+      propertyId: "demo_property_karl_hoffmann",
+      customer: {
+        displayName: "Karl Hoffmann",
+        firstName: "Karl",
+        lastName: "Hoffmann",
+        ageAtSubmission: 79,
+        email: "karl.hoffmann@example.com",
+        phone: "+49 711 778899",
+        street: "Plochinger Strasse 42",
+        postalCode: "73730",
+        city: "Esslingen"
+      },
+      property: {
+        objectTitle: "ETW Esslingen-Zell",
+        propertyType: PropertyType.apartment,
+        street: "Plochinger Strasse 42",
+        postalCode: "73730",
+        city: "Esslingen",
+        livingAreaSqm: 84,
+        yearBuilt: 2001,
+        condition: PropertyCondition.good,
+        desiredModel: DesiredModel.fixed_residential_right,
+        desiredResidentialRightYears: 10,
+        status: PropertyStatus.BINDING_OFFER_ACCEPTED,
+        marketValue: 425000,
+        latitude: 48.7396,
+        longitude: 9.3047,
+        nextStep: "Notartermin abstimmen",
+        lastActivityLabel: "Vor 3 Tagen",
+        lastActivityAt: new Date("2026-05-26T12:20:00.000Z")
+      },
+      dates: {
+        indicativeOfferSentAt: new Date("2026-05-15T10:00:00.000Z"),
+        offerAcceptedAt: new Date("2026-05-17T10:00:00.000Z"),
+        expertOpinionOrderedAt: new Date("2026-05-18T09:00:00.000Z"),
+        expertOpinionReceivedAt: new Date("2026-05-22T11:00:00.000Z"),
+        bindingOfferSentAt: new Date("2026-05-24T10:00:00.000Z"),
+        bindingOfferAcceptedAt: new Date("2026-05-26T12:00:00.000Z")
+      },
+      modelAccepted: DesiredModel.fixed_residential_right,
+      reminder: {
+        reason: "Notartermin und Kaufvertragsentwurf anstossen.",
+        dueAt: new Date("2026-06-02T09:00:00.000Z")
+      }
+    },
+    {
+      caseNumber: "WK-2026-018",
+      customerId: "demo_customer_maria_weber",
+      propertyId: "demo_property_maria_weber",
+      customer: {
+        displayName: "Maria Weber",
+        firstName: "Maria",
+        lastName: "Weber",
+        ageAtSubmission: 74,
+        email: "maria.weber@example.com",
+        phone: "+49 721 223344",
+        street: "Haid-und-Neu-Strasse 63",
+        postalCode: "76131",
+        city: "Karlsruhe"
+      },
+      property: {
+        objectTitle: "EFH Karlsruhe-Oststadt",
+        propertyType: PropertyType.single_family,
+        street: "Haid-und-Neu-Strasse 63",
+        postalCode: "76131",
+        city: "Karlsruhe",
+        livingAreaSqm: 138,
+        plotAreaSqm: 420,
+        yearBuilt: 1988,
+        condition: PropertyCondition.good,
+        desiredModel: DesiredModel.sale_and_leaseback,
+        status: PropertyStatus.NOTARY_APPOINTMENT,
+        marketValue: 560000,
+        latitude: 49.0105,
+        longitude: 8.4245,
+        nextStep: "Kaufvertragsentwurf prüfen",
+        lastActivityLabel: "Vor 4 Tagen",
+        lastActivityAt: new Date("2026-05-25T09:45:00.000Z")
+      },
+      dates: {
+        indicativeOfferSentAt: new Date("2026-05-10T10:00:00.000Z"),
+        offerAcceptedAt: new Date("2026-05-12T10:00:00.000Z"),
+        expertOpinionOrderedAt: new Date("2026-05-13T09:00:00.000Z"),
+        expertOpinionReceivedAt: new Date("2026-05-17T11:00:00.000Z"),
+        bindingOfferSentAt: new Date("2026-05-19T10:00:00.000Z"),
+        bindingOfferAcceptedAt: new Date("2026-05-21T12:00:00.000Z"),
+        purchaseStartedAt: new Date("2026-05-22T09:00:00.000Z"),
+        notaryAppointmentAt: new Date("2026-06-04T14:00:00.000Z")
+      },
+      modelAccepted: DesiredModel.sale_and_leaseback,
+      reminder: {
+        reason: "Rückmietverkauf im Kaufvertragsentwurf prüfen.",
+        dueAt: new Date("2026-06-03T11:00:00.000Z")
+      }
+    },
+    {
+      caseNumber: "WK-2026-019",
+      customerId: "demo_customer_bernd_fischer",
+      propertyId: "demo_property_bernd_fischer",
+      customer: {
+        displayName: "Bernd Fischer",
+        firstName: "Bernd",
+        lastName: "Fischer",
+        ageAtSubmission: 78,
+        email: "bernd.fischer@example.com",
+        phone: "+49 761 334455",
+        street: "Basler Landstrasse 112",
+        postalCode: "79111",
+        city: "Freiburg"
+      },
+      property: {
+        objectTitle: "DHH Freiburg-St. Georgen",
+        propertyType: PropertyType.semi_detached,
+        street: "Basler Landstrasse 112",
+        postalCode: "79111",
+        city: "Freiburg",
+        livingAreaSqm: 128,
+        plotAreaSqm: 310,
+        yearBuilt: 1976,
+        condition: PropertyCondition.average,
+        desiredModel: DesiredModel.fixed_residential_right,
+        desiredResidentialRightYears: 10,
+        status: PropertyStatus.IN_PORTFOLIO,
+        marketValue: 540000,
+        latitude: 47.9828,
+        longitude: 7.7961,
+        nextStep: "Bestandsreview terminieren",
+        lastActivityLabel: "Vor 7 Tagen",
+        lastActivityAt: new Date("2026-05-22T10:00:00.000Z")
+      },
+      dates: {
+        indicativeOfferSentAt: new Date("2026-04-18T10:00:00.000Z"),
+        offerAcceptedAt: new Date("2026-04-21T10:00:00.000Z"),
+        expertOpinionOrderedAt: new Date("2026-04-22T09:00:00.000Z"),
+        expertOpinionReceivedAt: new Date("2026-04-26T11:00:00.000Z"),
+        bindingOfferSentAt: new Date("2026-04-29T10:00:00.000Z"),
+        bindingOfferAcceptedAt: new Date("2026-05-02T12:00:00.000Z"),
+        purchaseStartedAt: new Date("2026-05-03T09:00:00.000Z"),
+        notaryAppointmentAt: new Date("2026-05-08T14:00:00.000Z"),
+        purchaseContractSignedAt: new Date("2026-05-08T15:00:00.000Z"),
+        purchasePriceDueAt: new Date("2026-05-14T10:00:00.000Z"),
+        purchasePricePaidAt: new Date("2026-05-16T10:00:00.000Z"),
+        residentialRightRegisteredAt: new Date("2026-05-20T10:00:00.000Z"),
+        ownershipTransferAt: new Date("2026-05-21T10:00:00.000Z"),
+        landRegisterEntryAt: new Date("2026-05-21T11:00:00.000Z"),
+        portfolioEnteredAt: new Date("2026-05-22T10:00:00.000Z"),
+        purchasedAt: new Date("2026-05-22T10:00:00.000Z")
+      },
+      modelAccepted: DesiredModel.fixed_residential_right,
+      reminder: {
+        reason: "Erstes Bestandsreview mit Bewohner abstimmen.",
+        dueAt: new Date("2026-06-12T10:00:00.000Z")
+      }
+    },
+    {
+      caseNumber: "WK-2026-020",
+      customerId: "demo_customer_petra_klein",
+      propertyId: "demo_property_petra_klein",
+      customer: {
+        displayName: "Petra Klein",
+        firstName: "Petra",
+        lastName: "Klein",
+        ageAtSubmission: 73,
+        email: "petra.klein@example.com",
+        phone: "+49 30 667788",
+        street: "Jungfernstieg 5",
+        postalCode: "20354",
+        city: "Hamburg"
+      },
+      property: {
+        objectTitle: "ETW Hamburg-Neustadt",
+        propertyType: PropertyType.apartment,
+        street: "Jungfernstieg 5",
+        postalCode: "20354",
+        city: "Hamburg",
+        livingAreaSqm: 88,
+        yearBuilt: 2004,
+        condition: PropertyCondition.very_good,
+        desiredModel: DesiredModel.sale_and_leaseback,
+        status: PropertyStatus.SOLD,
+        marketValue: 720000,
+        latitude: 53.5527,
+        longitude: 9.9926,
+        nextStep: "Verwertung abgeschlossen dokumentieren",
+        lastActivityLabel: "Vor 10 Tagen",
+        lastActivityAt: new Date("2026-05-19T10:00:00.000Z")
+      },
+      dates: {
+        indicativeOfferSentAt: new Date("2026-03-18T10:00:00.000Z"),
+        offerAcceptedAt: new Date("2026-03-21T10:00:00.000Z"),
+        expertOpinionOrderedAt: new Date("2026-03-22T09:00:00.000Z"),
+        expertOpinionReceivedAt: new Date("2026-03-26T11:00:00.000Z"),
+        bindingOfferSentAt: new Date("2026-03-29T10:00:00.000Z"),
+        bindingOfferAcceptedAt: new Date("2026-04-02T12:00:00.000Z"),
+        purchaseStartedAt: new Date("2026-04-03T09:00:00.000Z"),
+        notaryAppointmentAt: new Date("2026-04-09T14:00:00.000Z"),
+        purchaseContractSignedAt: new Date("2026-04-09T15:00:00.000Z"),
+        purchasePricePaidAt: new Date("2026-04-18T10:00:00.000Z"),
+        portfolioEnteredAt: new Date("2026-04-22T10:00:00.000Z")
+      },
+      modelAccepted: DesiredModel.sale_and_leaseback
+    }
+  ];
+
+  for (const demoCase of demoCases) {
+    await upsertPearsDemoCase(demoCase, context);
+  }
+
+  await seedPearsDemoLeads(context);
+  await prisma.numberSequence.upsert({ where: { key: "lead" }, update: { value: 3 }, create: { key: "lead", value: 3 } });
+  await prisma.numberSequence.upsert({ where: { key: "case:2026" }, update: { value: 20 }, create: { key: "case:2026", value: 20 } });
+}
+
+async function upsertPearsDemoCase(demoCase: PearsDemoCase, context: PearsDemoContext) {
+  const customer = await prisma.customer.upsert({
+    where: { id: demoCase.customerId },
+    update: {
+      partnerId: context.partnerId,
+      assignedAdvisorUserId: context.adminId,
+      displayName: demoCase.customer.displayName,
+      firstName: demoCase.customer.firstName,
+      lastName: demoCase.customer.lastName,
+      ageAtSubmission: demoCase.customer.ageAtSubmission,
+      email: demoCase.customer.email,
+      phone: demoCase.customer.phone,
+      street: demoCase.customer.street,
+      postalCode: demoCase.customer.postalCode,
+      city: demoCase.customer.city,
+      addressText: `${demoCase.customer.street}, ${demoCase.customer.postalCode} ${demoCase.customer.city}`,
+      consentDataProcessing: true
+    },
+    create: {
+      id: demoCase.customerId,
+      partnerId: context.partnerId,
+      assignedAdvisorUserId: context.adminId,
+      displayName: demoCase.customer.displayName,
+      firstName: demoCase.customer.firstName,
+      lastName: demoCase.customer.lastName,
+      ageAtSubmission: demoCase.customer.ageAtSubmission,
+      email: demoCase.customer.email,
+      phone: demoCase.customer.phone,
+      street: demoCase.customer.street,
+      postalCode: demoCase.customer.postalCode,
+      city: demoCase.customer.city,
+      addressText: `${demoCase.customer.street}, ${demoCase.customer.postalCode} ${demoCase.customer.city}`,
+      consentDataProcessing: true
+    }
+  });
+
+  const acceptedModel = demoCase.modelAccepted ?? demoCase.property.desiredModel;
+  const property = await prisma.property.upsert({
+    where: { caseNumber: demoCase.caseNumber },
+    update: buildPearsDemoPropertyData(demoCase, customer.id, context.partnerId, context.adminId, acceptedModel),
+    create: {
+      id: demoCase.propertyId,
+      caseNumber: demoCase.caseNumber,
+      ...buildPearsDemoPropertyData(demoCase, customer.id, context.partnerId, context.adminId, acceptedModel)
+    }
+  });
+
+  await clearPropertyDemoRelations(property.id);
+
+  const valuation = await prisma.valuation.create({
+    data: {
+      propertyId: property.id,
+      provider: ValuationProvider.sprengnetter,
+      status: ValuationStatus.completed,
+      sourceLabel: "Demo-Gutachten",
+      marketValue: demoCase.property.marketValue,
+      valueMin: Math.round(demoCase.property.marketValue * 0.96),
+      valueMax: Math.round(demoCase.property.marketValue * 1.04),
+      confidenceScore: 0.86,
+      rawResponseJson: { source: "pears-demo", caseNumber: demoCase.caseNumber },
+      startedAt: demoCase.dates?.expertOpinionOrderedAt ?? demoCase.property.lastActivityAt,
+      completedAt: demoCase.dates?.expertOpinionReceivedAt ?? demoCase.property.lastActivityAt
+    }
+  });
+
+  if (demoCase.property.status !== PropertyStatus.SUBMITTED) {
+    await createDemoOffer(property.id, valuation.id, demoCase.caseNumber, OfferKind.indicative, demoCase.property.desiredModel, demoCase.property.marketValue, demoCase.dates?.indicativeOfferSentAt);
+  }
+  if ([PropertyStatus.BINDING_OFFER_ACCEPTED, PropertyStatus.NOTARY_APPOINTMENT, PropertyStatus.IN_PORTFOLIO, PropertyStatus.SOLD].includes(demoCase.property.status)) {
+    await createDemoOffer(property.id, valuation.id, demoCase.caseNumber, OfferKind.binding, acceptedModel, demoCase.property.marketValue, demoCase.dates?.bindingOfferSentAt);
+  }
+
+  await createDemoDocuments(property.id, customer.id, context.adminId, demoCase.caseNumber, demoCase.property.status);
+  if (demoCase.reminder) {
+    await prisma.reminder.create({
+      data: {
+        propertyId: property.id,
+        assignedToUserId: context.adminId,
+        createdByUserId: context.adminId,
+        reason: demoCase.reminder.reason,
+        status: ReminderStatus.open,
+        dueAt: demoCase.reminder.dueAt,
+        lastReminderAt: demoCase.property.lastActivityAt
+      }
+    });
+  }
+  await prisma.activity.create({
+    data: {
+      propertyId: property.id,
+      userId: context.adminId,
+      type: "demo_status",
+      message: `${demoCase.customer.displayName}: ${demoCase.property.nextStep}.`,
+      source: "admin",
+      entityType: "property",
+      entityId: property.id,
+      createdAt: demoCase.property.lastActivityAt
+    }
+  });
+}
+
+function buildPearsDemoPropertyData(
+  demoCase: PearsDemoCase,
+  customerId: string,
+  partnerId: string,
+  adminId: string,
+  acceptedModel: DesiredModel
+) {
+  const dates = demoCase.dates ?? {};
+  const isInventory = demoCase.property.status === PropertyStatus.IN_PORTFOLIO;
+  return {
+    objectTitle: demoCase.property.objectTitle,
+    customerId,
+    partnerId,
+    assignedAdvisorUserId: adminId,
+    caseSource: "PARTNER",
+    propertyType: demoCase.property.propertyType,
+    street: demoCase.property.street,
+    postalCode: demoCase.property.postalCode,
+    city: demoCase.property.city,
+    livingAreaSqm: demoCase.property.livingAreaSqm,
+    plotAreaSqm: demoCase.property.plotAreaSqm ?? 0,
+    yearBuilt: demoCase.property.yearBuilt,
+    condition: demoCase.property.condition,
+    occupancyStatus: "owner_occupied",
+    desiredModel: demoCase.property.desiredModel,
+    preferredValuationProvider: ValuationProvider.sprengnetter,
+    desiredResidentialRightYears: demoCase.property.desiredResidentialRightYears,
+    additionalOfferRequested: demoCase.property.additionalOfferRequested ?? false,
+    additionalOfferModel: demoCase.property.additionalOfferModel,
+    rentalModelDisclosureAccepted: demoCase.property.desiredModel === DesiredModel.sale_and_leaseback,
+    indicativeOfferSentAt: dates.indicativeOfferSentAt,
+    offerAcceptedAt: dates.offerAcceptedAt,
+    expertOpinionOrderedAt: dates.expertOpinionOrderedAt,
+    expertOpinionCompany: dates.expertOpinionOrderedAt ? "Sprengnetter" : undefined,
+    expertOpinionReceivedAt: dates.expertOpinionReceivedAt,
+    bindingOfferSentAt: dates.bindingOfferSentAt,
+    bindingOfferAcceptedAt: dates.bindingOfferAcceptedAt,
+    indicativeAcceptedOfferModel: dates.offerAcceptedAt ? acceptedModel : undefined,
+    indicativeAcceptedOfferModelAt: dates.offerAcceptedAt,
+    indicativeAcceptedOfferModelByUserId: dates.offerAcceptedAt ? adminId : undefined,
+    bindingAcceptedOfferModel: dates.bindingOfferAcceptedAt ? acceptedModel : undefined,
+    bindingAcceptedOfferModelAt: dates.bindingOfferAcceptedAt,
+    bindingAcceptedOfferModelByUserId: dates.bindingOfferAcceptedAt ? adminId : undefined,
+    purchaseStartedAt: dates.purchaseStartedAt,
+    notaryAppointmentAt: dates.notaryAppointmentAt,
+    purchasedAt: dates.purchasedAt,
+    portfolioEnteredAt: dates.portfolioEnteredAt,
+    purchaseContractNumber: dates.purchaseContractSignedAt ? `KV-${demoCase.caseNumber.replace("WK-", "")}` : undefined,
+    purchaseContractSignedAt: dates.purchaseContractSignedAt,
+    purchasePrice: dates.purchaseContractSignedAt ? Math.round(demoCase.property.marketValue * 0.7) : undefined,
+    purchasePriceDueAt: dates.purchasePriceDueAt,
+    purchasePricePaidAt: dates.purchasePricePaidAt,
+    payoutPaidAt: dates.purchasePricePaidAt,
+    ownershipTransferAt: dates.ownershipTransferAt,
+    landRegisterEntryAt: dates.landRegisterEntryAt,
+    residentialRightRegisteredAt: dates.residentialRightRegisteredAt,
+    residentStaysInProperty: true,
+    residentName: isInventory ? demoCase.customer.displayName : undefined,
+    usageModel: isInventory ? acceptedModel : undefined,
+    usageRightStartsAt: dates.portfolioEnteredAt,
+    usageRightEndsAt: acceptedModel === DesiredModel.fixed_residential_right && dates.portfolioEnteredAt
+      ? new Date("2036-05-22T10:00:00.000Z")
+      : undefined,
+    monthlyRent: acceptedModel === DesiredModel.sale_and_leaseback ? Math.round(demoCase.property.marketValue * 0.7 * 0.05 / 12) : undefined,
+    monthlyUsageFee: acceptedModel === DesiredModel.sale_and_leaseback ? Math.round(demoCase.property.marketValue * 0.7 * 0.05 / 12) : undefined,
+    residentContactName: isInventory ? demoCase.customer.displayName : undefined,
+    residentEmergencyContact: isInventory ? "Angehörige laut Objektakte" : undefined,
+    propertyManagerName: isInventory ? "WEG-Verwaltung Südwest GmbH" : undefined,
+    buildingInsurance: isInventory ? "Gebäudeversicherung geprüft" : undefined,
+    serviceChargeStatus: isInventory ? "Hausgeldabrechnung angefordert" : undefined,
+    nextPortfolioReviewAt: isInventory ? new Date("2026-11-22T10:00:00.000Z") : undefined,
+    maintenancePlanJson: isInventory ? { nextReviewDate: "2026-11-22", annualBudget: 2800, notes: "Regelmäßige Bestandsprüfung vereinbart." } : undefined,
+    portfolioTasksJson: isInventory ? { nextAppointmentDate: "2026-11-22", nextAppointmentType: "Bestandsreview" } : undefined,
+    portfolioNotes: isInventory ? "Bestandsobjekt für Demo: Bewohner bleibt im Objekt." : undefined,
+    offerCalculationSource: "application",
+    lastActivityLabel: demoCase.property.lastActivityLabel,
+    lastActivityAt: demoCase.property.lastActivityAt,
+    notes: demoCase.property.nextStep,
+    latitude: demoCase.property.latitude,
+    longitude: demoCase.property.longitude,
+    geocodingSource: "demo",
+    status: demoCase.property.status
+  };
+}
+
+async function createDemoOffer(
+  propertyId: string,
+  valuationId: string,
+  caseNumber: string,
+  kind: OfferKind,
+  model: DesiredModel,
+  marketValue: number,
+  sentAt?: Date
+) {
+  const isRentBack = model === DesiredModel.sale_and_leaseback;
+  const payoutAmount = Math.round((isRentBack ? marketValue * 0.7 : marketValue * 0.58) * 100) / 100;
+  const annualRent = isRentBack ? Math.round(payoutAmount * 0.05 * 100) / 100 : 0;
+  await prisma.offer.create({
+    data: {
+      propertyId,
+      valuationId,
+      offerNumber: `ANG-${caseNumber.replace("WK-", "")}-${kind === OfferKind.indicative ? "UVA" : "VA"}`,
+      kind,
+      currentVersion: kind === OfferKind.indicative ? 1 : 2,
+      marketValue,
+      adjustedMarketValue: marketValue,
+      residentialRightValue: isRentBack ? 0 : Math.round(marketValue * 0.24 * 100) / 100,
+      riskDiscount: isRentBack ? 0 : Math.round(marketValue * 0.04 * 100) / 100,
+      companyMargin: isRentBack ? 0 : Math.round(marketValue * 0.14 * 100) / 100,
+      payoutAmount,
+      model,
+      residentialRightYears: isRentBack ? undefined : 10,
+      assumptionsJson: isRentBack
+        ? {
+            calculationMode: "DEMO_FIXED_RATE",
+            payoutRate: 0.7,
+            annualRentRate: 0.05,
+            annualRent,
+            monthlyRent: Math.round((annualRent / 12) * 100) / 100
+          }
+        : { formula: "Demo Wohnrecht", residentialRightYears: 10 },
+      aiCustomerText: "Demo-Angebot für den Pears-Termin.",
+      aiPartnerSummary: "Fiktiver, sauberer Demo-Fall.",
+      aiInternalRationale: "Demo-Daten ohne technische Testnamen.",
+      bindingOfferText: kind === OfferKind.binding ? "Verbindliches Demo-Angebot vorbereitet." : "Noch kein verbindliches Angebot erstellt.",
+      validUntil: sentAt ? new Date(sentAt.getTime() + 28 * 24 * 60 * 60 * 1000) : undefined,
+      status: sentAt ? OfferStatus.sent : OfferStatus.review,
+      sentAt
+    }
+  });
+}
+
+async function createDemoDocuments(propertyId: string, customerId: string, adminId: string, caseNumber: string, status: PropertyStatus) {
+  const landRegister = await prisma.document.create({
+    data: {
+      propertyId,
+      customerId,
+      uploadedByUserId: adminId,
+      fileName: `Grundbuchauszug_${caseNumber}.pdf`,
+      displayName: "Grundbuchauszug",
+      fileType: "application/pdf",
+      storageUrl: `/demo/${caseNumber}/grundbuchauszug.pdf`,
+      category: DocumentCategory.land_register,
+      requirementLevel: DocumentRequirementLevel.required,
+      status: status === PropertyStatus.SUBMITTED ? DocumentStatus.review_required : DocumentStatus.ok,
+      scanStatus: "clean"
+    }
+  });
+  await prisma.documentVersion.create({
+    data: {
+      documentId: landRegister.id,
+      version: 1,
+      snapshotJson: { source: "pears-demo" },
+      createdByUserId: adminId
+    }
+  });
+
+  await prisma.document.create({
+    data: {
+      propertyId,
+      customerId,
+      uploadedByUserId: adminId,
+      fileName: `Energieausweis_${caseNumber}.pdf`,
+      displayName: "Energieausweis",
+      fileType: "application/pdf",
+      storageUrl: `/demo/${caseNumber}/energieausweis.pdf`,
+      category: DocumentCategory.energy_certificate,
+      requirementLevel: DocumentRequirementLevel.required,
+      status: [PropertyStatus.SUBMITTED, PropertyStatus.INDICATIVE_OFFER_SENT].includes(status) ? DocumentStatus.missing : DocumentStatus.ok,
+      scanStatus: "clean"
+    }
+  });
+}
+
+async function seedPearsDemoLeads(context: PearsDemoContext) {
+  const leads = [
+    {
+      id: "pears_lead_peter_wagner",
+      leadNumber: "LEAD-001",
+      firstName: "Peter",
+      lastName: "Wagner",
+      name: "Peter Wagner",
+      email: "peter.wagner@example.com",
+      phone: "+49 40 778899",
+      postalCode: "22301",
+      city: "Hamburg",
+      federalState: "Hamburg",
+      status: LeadStatus.NEW,
+      assignedPartnerId: undefined,
+      message: "Telefonische Erstanfrage, Objekt in Hamburg-Winterhude.",
+      propertyType: PropertyType.single_family,
+      propertyCity: "Hamburg",
+      propertyPostalCode: "22301",
+      region: "Hamburg",
+      productInterest: DesiredModel.fixed_residential_right,
+      routingReason: undefined
+    },
+    {
+      id: "pears_lead_sabine_keller",
+      leadNumber: "LEAD-002",
+      firstName: "Sabine",
+      lastName: "Keller",
+      name: "Sabine Keller",
+      email: "sabine.keller@example.com",
+      phone: "+49 711 445566",
+      postalCode: "70184",
+      city: "Stuttgart",
+      federalState: "Baden-Württemberg",
+      status: LeadStatus.ASSIGNED_TO_PARTNER,
+      assignedPartnerId: context.partnerId,
+      message: "Lead aus Rückrufwunsch, an Makler zur Erstansprache übergeben.",
+      propertyType: PropertyType.apartment,
+      propertyCity: "Stuttgart",
+      propertyPostalCode: "70184",
+      region: "Stuttgart",
+      productInterest: DesiredModel.sale_and_leaseback,
+      routingReason: "Region Stuttgart"
+    },
+    {
+      id: "pears_lead_thomas_braun",
+      leadNumber: "LEAD-003",
+      firstName: "Thomas",
+      lastName: "Braun",
+      name: "Thomas Braun",
+      email: "thomas.braun@example.com",
+      phone: "+49 89 112233",
+      postalCode: "80686",
+      city: "München",
+      federalState: "Bayern",
+      status: LeadStatus.PARTNER_CONTACT_PENDING,
+      assignedPartnerId: context.partnerId,
+      message: "Makler soll Unterlagen zur Wohnung in München anfordern.",
+      propertyType: PropertyType.apartment,
+      propertyCity: "München",
+      propertyPostalCode: "80686",
+      region: "München",
+      productInterest: DesiredModel.fixed_residential_right,
+      routingReason: "Region München"
+    }
+  ];
+
+  for (const lead of leads) {
+    await prisma.lead.upsert({
+      where: { leadNumber: lead.leadNumber },
+      update: {
+        source: LeadSource.phone,
+        status: lead.status,
+        assignedPartnerId: lead.assignedPartnerId,
+        assignedByUserId: lead.assignedPartnerId ? context.adminId : undefined,
+        assignedAt: lead.assignedPartnerId ? new Date("2026-05-29T08:00:00.000Z") : undefined,
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        postalCode: lead.postalCode,
+        city: lead.city,
+        federalState: lead.federalState,
+        contactConsent: true,
+        propertyType: lead.propertyType,
+        propertyCity: lead.propertyCity,
+        propertyPostalCode: lead.propertyPostalCode,
+        message: lead.message,
+        productInterest: lead.productInterest,
+        region: lead.region,
+        routingReason: lead.routingReason,
+        internalNote: "Pears-Demo-Lead"
+      },
+      create: {
+        id: lead.id,
+        leadNumber: lead.leadNumber,
+        source: LeadSource.phone,
+        status: lead.status,
+        assignedPartnerId: lead.assignedPartnerId,
+        assignedByUserId: lead.assignedPartnerId ? context.adminId : undefined,
+        assignedAt: lead.assignedPartnerId ? new Date("2026-05-29T08:00:00.000Z") : undefined,
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        postalCode: lead.postalCode,
+        city: lead.city,
+        federalState: lead.federalState,
+        contactConsent: true,
+        propertyType: lead.propertyType,
+        propertyCity: lead.propertyCity,
+        propertyPostalCode: lead.propertyPostalCode,
+        message: lead.message,
+        productInterest: lead.productInterest,
+        region: lead.region,
+        routingReason: lead.routingReason,
+        internalNote: "Pears-Demo-Lead"
+      }
+    });
+  }
+}
+
+async function clearPropertyDemoRelations(propertyId: string) {
+  const offers = await prisma.offer.findMany({ where: { propertyId }, select: { id: true } });
+  const offerIds = offers.map((offer) => offer.id);
+  if (offerIds.length) await prisma.offerVersion.deleteMany({ where: { offerId: { in: offerIds } } });
+  await prisma.offer.deleteMany({ where: { propertyId } });
+
+  const documents = await prisma.document.findMany({ where: { propertyId }, select: { id: true } });
+  const documentIds = documents.map((document) => document.id);
+  if (documentIds.length) await prisma.documentVersion.deleteMany({ where: { documentId: { in: documentIds } } });
+  await prisma.document.deleteMany({ where: { propertyId } });
+
+  const activities = await prisma.activity.findMany({ where: { propertyId }, select: { id: true } });
+  const activityIds = activities.map((activity) => activity.id);
+  if (activityIds.length) await prisma.activityVersion.deleteMany({ where: { activityId: { in: activityIds } } });
+  await prisma.activity.deleteMany({ where: { propertyId } });
+
+  const chatMessages = await prisma.chatMessage.findMany({ where: { propertyId }, select: { id: true } });
+  const chatMessageIds = chatMessages.map((message) => message.id);
+  if (chatMessageIds.length) {
+    await prisma.chatAttachment.deleteMany({ where: { chatMessageId: { in: chatMessageIds } } });
+    await prisma.chatMessageRead.deleteMany({ where: { chatMessageId: { in: chatMessageIds } } });
+  }
+  await prisma.chatMessage.deleteMany({ where: { propertyId } });
+
+  await prisma.caseNotification.deleteMany({ where: { propertyId } });
+  await prisma.reminder.deleteMany({ where: { propertyId } });
+  await prisma.valuation.deleteMany({ where: { propertyId } });
+}
+
+async function removeLegacyDemoLeads() {
+  await prisma.lead.deleteMany({
+    where: {
+      OR: [
+        { leadNumber: { startsWith: "LD-2026-" } },
+        { name: { contains: "Test", mode: "insensitive" } },
+        { name: { contains: "API", mode: "insensitive" } }
+      ]
+    }
+  });
+}
+
+async function removeTechnicalDemoResidue() {
+  const technicalProperties = await prisma.property.findMany({
+    where: {
+      OR: [
+        { caseNumber: { in: ["WK-2026-008", "WK-2026-021", "WK-2026-022", "WK-2026-023"] } },
+        { objectTitle: { contains: "Test", mode: "insensitive" } },
+        { objectTitle: { contains: "API", mode: "insensitive" } },
+        { customer: { displayName: { contains: "API", mode: "insensitive" } } },
+        { customer: { displayName: { contains: "Test202", mode: "insensitive" } } },
+        { customer: { displayName: { contains: "Workflow Test", mode: "insensitive" } } },
+        { customer: { displayName: { contains: "Beratungstest", mode: "insensitive" } } },
+        { customer: { displayName: { contains: "Endtoend", mode: "insensitive" } } }
+      ]
+    },
+    select: { id: true }
+  });
+
+  for (const property of technicalProperties) {
+    await clearPropertyDemoRelations(property.id);
+    await prisma.property.delete({ where: { id: property.id } }).catch(() => undefined);
+  }
 }
 
 async function seedObjectRatingConfigLegacy(createdByUserId: string) {

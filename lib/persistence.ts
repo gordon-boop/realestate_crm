@@ -740,6 +740,10 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
   const assignedPartnerId = user?.role === "partner" ? user.partnerId : user?.role === "admin" ? input.assignedPartnerId : undefined;
   const assignedAdvisorUserId = user?.role === "admin" && !isInternalAdmin(user) ? user.id : user?.role === "admin" ? input.assignedAdvisorUserId : undefined;
   const assigned = Boolean(assignedPartnerId || assignedAdvisorUserId);
+  if (assignedPartnerId) {
+    const partner = await prisma.partner.findFirst({ where: { id: assignedPartnerId, status: "active" } });
+    if (!partner) throw new Error("Partner not found");
+  }
   const source = user?.role === "partner" ? "partner" : user?.role === "admin" ? (!isInternalAdmin(user) ? "internal" : input.source ?? "phone") : "homepage";
   const lead = await prisma.lead.create({
     data: {

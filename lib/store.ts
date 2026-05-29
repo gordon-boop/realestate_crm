@@ -18,6 +18,7 @@
 import { makeId, nowIso } from "./id.ts";
 
 const runtimeStoreEnabled = process.env.WK_ENABLE_RUNTIME_STORE === "true";
+const demoPasswordHash = "$2b$12$idQ09RAGiZUr50i8zRONNuJf27hemp7bMUNmH2rJsKbme1JTImMH6";
 const runtimeStoreDisabledMessage = "Runtime store disabled in production. Set WK_ENABLE_RUNTIME_STORE=true to enable.";
 
 function assertRuntimeStoreEnabled(): void {
@@ -58,7 +59,7 @@ const users: User[] = [
     id: "user_admin",
     name: "Admin Demo",
     email: "admin@demo.local",
-    passwordHash: "demo1234",
+    passwordHash: demoPasswordHash,
     role: "admin",
     internalRole: "super_admin",
     createdAt: stamp,
@@ -69,7 +70,7 @@ const users: User[] = [
     partnerId: "partner_heimwert",
     name: "Mara Seidel",
     email: "makler@demo.local",
-    passwordHash: "demo1234",
+    passwordHash: demoPasswordHash,
     role: "partner",
     createdAt: stamp,
     updatedAt: stamp
