@@ -402,7 +402,44 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
   );
 };
 
-const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, leadCount = 0, draftCount = 0, inProgressCount = 0, portfolioCount = 0, rejectedCount = 0 }) => {
+const SidebarQuickAction = ({ item, active, onSelect }) => {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect?.(item)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '7px 10px',
+        borderRadius: 6,
+        border: 'none',
+        background: active ? `${theme.aubergine}12` : hovered || focused ? 'rgba(68, 0, 92, 0.055)' : 'transparent',
+        color: active ? theme.aubergine : theme.ink,
+        fontSize: 12.5,
+        fontWeight: active ? 700 : 520,
+        textAlign: 'left',
+        cursor: 'pointer',
+        outline: focused ? `2px solid ${theme.gold}` : 'none',
+        outlineOffset: 1,
+      }}
+    >
+      <Icon size={14} style={{ color: theme.gold, flexShrink: 0 }} />
+      <span style={{ flex: 1, lineHeight: 1.25 }}>{item.label}</span>
+    </button>
+  );
+};
+
+const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, onQuickAction, leadCount = 0, draftCount = 0, inProgressCount = 0, portfolioCount = 0, rejectedCount = 0 }) => {
+  const [activeQuickAction, setActiveQuickAction] = useState('');
   const partnerNav = [
     { icon: Home, label: 'Home', screen: 'dashboard' },
     { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
@@ -426,6 +463,19 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, l
   ];
   const nav = role === 'admin' ? adminNav : partnerNav;
   const isActive = (item) => item.screen === currentScreen;
+  const canUseQuickActions = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
+  const quickActions = [
+    { key: 'new-lead', icon: TrendingUp, label: 'Neuer Lead' },
+    { key: 'new-case', icon: Plus, label: 'Neukunde erfassen' },
+    { key: 'reminder', icon: Clock, label: 'Wiedervorlage anlegen' },
+    { key: 'repair', icon: Settings, label: 'Reparatur erfassen' },
+    { key: 'billing', icon: FileText, label: 'Abrechnung erfassen' },
+  ];
+  const selectQuickAction = (item) => {
+    setActiveQuickAction(item.key);
+    window.setTimeout(() => setActiveQuickAction((current) => current === item.key ? '' : current), 900);
+    onQuickAction?.(item);
+  };
 
   return (
     <div style={{ width: 220, background: theme.mintLight, borderRight: `1px solid ${theme.border}`, padding: '16px 12px', flexShrink: 0, overflowY: 'auto' }}>
@@ -454,7 +504,7 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, l
       <div style={{ fontSize: 10, color: `${theme.aubergine}99`, fontWeight: 700, letterSpacing: '0.1em', padding: '0 10px 6px', textTransform: 'uppercase' }}>Wissen</div>
       {[
         { icon: BookOpen, label: 'Broschüre', screen: 'knowledge_brochure' },
-        { icon: MapPin, label: 'Postbank Atlas', screen: 'knowledge_atlas' },
+        { icon: MapPin, label: 'Postbank Wohnatlas', screen: 'knowledge_atlas' },
         { icon: FileText, label: 'Leitfaden', screen: 'knowledge_guide' },
         { icon: HelpCircle, label: 'FAQs', screen: 'knowledge_faq' },
       ].map((item, i) => (
@@ -463,6 +513,17 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, l
           <span>{item.label}</span>
         </div>
       ))}
+      {canUseQuickActions && (
+        <>
+          <div style={{ height: 14, borderTop: `1px solid ${theme.borderSoft}`, margin: '16px 4px 0' }} />
+          <div style={{ fontSize: 10, color: `${theme.aubergine}99`, fontWeight: 700, letterSpacing: '0.1em', padding: '0 10px 6px', textTransform: 'uppercase' }}>Schnellfunktionen</div>
+          <div style={{ display: 'grid', gap: 2 }}>
+            {quickActions.map((item) => (
+              <SidebarQuickAction key={item.key} item={item} active={activeQuickAction === item.key} onSelect={selectQuickAction} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -2429,7 +2490,7 @@ function adminWorkRows({ cases, leads, bucket }) {
 }
 
 const AdminWorkBuckets = ({ buckets, activeBucket, onSelect, style = {} }) => (
-  <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(170px, 1fr))', gap: 10, marginBottom: 18, ...style }}>
+  <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(170px, 1fr))', gap: 14, marginBottom: 18, ...style }}>
     {buckets.map((bucket) => {
       const active = activeBucket === bucket.key;
       return (
@@ -2441,22 +2502,24 @@ const AdminWorkBuckets = ({ buckets, activeBucket, onSelect, style = {} }) => (
             background: active ? theme.aubergine : 'white',
             color: active ? 'white' : theme.ink,
             border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
-            borderRadius: 8,
-            padding: '12px 13px',
+            borderRadius: 10,
+            padding: '14px 16px',
             cursor: 'pointer',
-            minHeight: 126,
+            minHeight: 104,
             boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
             display: 'flex',
             flexDirection: 'column',
+            justifyContent: 'space-between',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
             <span style={{ fontSize: 10.5, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</span>
             <bucket.icon size={15} style={{ color: active ? theme.gold : `${theme.aubergine}77` }} />
           </div>
-          <div style={{ fontSize: 24, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine, marginBottom: 6 }}>{bucket.count}</div>
-          <div style={{ fontSize: 11.5, lineHeight: 1.32, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, minHeight: 30, flex: 1 }}>{bucket.description}</div>
-          <div style={{ fontSize: 11.5, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 9 }}>{bucket.action}</div>
+          <div style={{ fontSize: 28, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine }}>{bucket.count}</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            {bucket.action} <ChevronRight size={13} />
+          </div>
         </button>
       );
     })}
@@ -2554,110 +2617,8 @@ const UrgentTasksPanel = ({ cases, onOpenCase }) => {
   );
 };
 
-const QuickActionTile = ({ label, icon: Icon = ChevronRight, active = false, disabled = false, onClick, hint }) => {
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const highlighted = active && !disabled;
-  const interactive = !disabled;
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      title={disabled ? (hint || 'Noch nicht verfügbar') : hint}
-      onClick={interactive ? onClick : undefined}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={{
-        width: '100%',
-        minHeight: 54,
-        display: 'grid',
-        gridTemplateColumns: 'auto 1fr auto',
-        alignItems: 'center',
-        gap: 9,
-        textAlign: 'left',
-        background: highlighted ? theme.aubergine : disabled ? theme.mintLighter : 'white',
-        color: highlighted ? 'white' : disabled ? `${theme.ink}66` : theme.aubergine,
-        border: `1px solid ${highlighted ? theme.aubergine : hovered || focused ? `${theme.aubergine}55` : theme.borderSoft}`,
-        borderRadius: 8,
-        padding: '9px 10px',
-        fontSize: 12,
-        fontWeight: 850,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.68 : 1,
-        boxShadow: highlighted
-          ? '0 10px 22px rgba(68,0,92,0.14)'
-          : hovered || focused
-            ? '0 8px 18px rgba(68,0,92,0.08)'
-            : 'none',
-        outline: focused ? `2px solid ${theme.gold}` : 'none',
-        outlineOffset: 2,
-        transform: hovered && !disabled ? 'translateY(-1px)' : 'translateY(0)',
-        transition: 'background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease',
-      }}
-    >
-      <span style={{
-        width: 26,
-        height: 26,
-        borderRadius: 6,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: highlighted ? `${theme.gold}22` : theme.mintLight,
-        color: highlighted ? theme.gold : disabled ? `${theme.ink}66` : theme.aubergine,
-        border: `1px solid ${highlighted ? `${theme.gold}66` : theme.borderSoft}`,
-      }}>
-        <Icon size={14} />
-      </span>
-      <span style={{ color: highlighted ? 'white' : disabled ? `${theme.ink}66` : theme.aubergine, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-      <span style={{ width: 6, height: 28, borderRadius: 999, background: highlighted ? theme.gold : hovered || focused ? `${theme.gold}AA` : theme.borderSoft }} />
-    </button>
-  );
-};
-
-const AdminQuickActions = ({ onNewCase, onNewLead, onOpenOther, notice = '', activeAction = '' }) => {
-  const [pressedAction, setPressedAction] = useState('');
-  const triggerAction = (key, handler) => {
-    setPressedAction(key);
-    window.setTimeout(() => setPressedAction((current) => current === key ? '' : current), 800);
-    handler?.();
-  };
-  const isActive = (key) => activeAction === key || pressedAction === key;
-  const actions = [
-    { key: 'new-lead', label: 'Neuer Lead', icon: TrendingUp, onClick: () => triggerAction('new-lead', onNewLead) },
-    { key: 'new-case', label: 'Neukunde erfassen', icon: Plus, onClick: () => triggerAction('new-case', onNewCase) },
-    { key: 'reminder', label: 'Wiedervorlage anlegen', icon: Clock, onClick: () => onOpenOther?.('Wiedervorlage anlegen', 'reminder') },
-    { key: 'repair', label: 'Reparatur erfassen', icon: Settings, onClick: () => onOpenOther?.('Reparatur erfassen', 'repair') },
-    { key: 'billing', label: 'Abrechnung erfassen', icon: FileText, onClick: () => onOpenOther?.('Abrechnung erfassen', 'billing') },
-  ];
-  return (
-    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 13px', minHeight: '100%' }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: theme.aubergine, marginBottom: 9 }}>Schnellfunktionen</div>
-      <div style={{ display: 'grid', gap: 8 }}>
-        {actions.map((action) => (
-          <QuickActionTile
-            key={action.key}
-            label={action.label}
-            icon={action.icon}
-            active={isActive(action.key)}
-            onClick={action.onClick}
-          />
-        ))}
-      </div>
-      {notice && (
-        <div style={{ marginTop: 9, background: theme.goldSoft, border: `1px solid ${theme.gold}55`, color: theme.ink, borderRadius: 5, padding: '7px 8px', fontSize: 11.5, lineHeight: 1.35 }}>
-          {notice}
-        </div>
-      )}
-    </div>
-  );
-};
-
 const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onNewLead, onOpenLeads, canCreateCase = false }) => {
   const [activeBucket, setActiveBucket] = useState(readAdminBucketFromUrl);
-  const [quickActionNotice, setQuickActionNotice] = useState('');
-  const [activeQuickAction, setActiveQuickAction] = useState('');
   const setBucket = (bucket) => {
     setActiveBucket(bucket);
     writeAdminBucketToUrl(bucket);
@@ -2699,11 +2660,6 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
   const activeBucketDefinition = buckets.find((bucket) => bucket.key === activeBucket);
   const tableTitle = activeBucketDefinition?.title || 'Neueste Einreichungen';
   const rows = adminWorkRows({ cases, leads, bucket: activeBucket });
-  const openOther = (label = 'Diese Schnellfunktion', key = 'other') => {
-    setActiveQuickAction(key);
-    setQuickActionNotice(`${label}: Die Erfassungsmaske wird im nächsten Schritt angebunden. Der Arbeitskorb "Sonstiges" ist geöffnet.`);
-    setBucket('other');
-  };
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -2715,18 +2671,11 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
         </div>
       </div>
 
-      <div className="admin-dashboard-top-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: 16, alignItems: 'stretch', marginBottom: 18 }}>
+      <div className="admin-dashboard-top-grid" style={{ marginBottom: 18 }}>
         <AdminWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={setBucket} style={{ marginBottom: 0 }} />
-        <AdminQuickActions
-          onNewCase={onNewCase}
-          onNewLead={onNewLead}
-          onOpenOther={openOther}
-          notice={quickActionNotice}
-          activeAction={activeQuickAction}
-        />
       </div>
 
-      <div className="admin-dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 620px', gap: 16, alignItems: 'stretch' }}>
+      <div className="admin-dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(390px, 0.74fr)', gap: 16, alignItems: 'stretch' }}>
         <AdminWorklist
           title={tableTitle}
           rows={rows}
@@ -3514,6 +3463,46 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
       <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>{eyebrow}</div>
       <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: '0 0 10px' }}>{title}</h1>
       <div style={{ fontSize: 13.5, color: `${theme.ink}aa`, lineHeight: 1.65 }}>{text}</div>
+    </div>
+  </div>
+);
+
+const postbankWohnatlasImageUrl = 'https://www.postbank.de/dam/postbank/medienartikel/bilder/2026/Postbank-Wohnatlas-2026-Preisatlas.png';
+
+const PostbankWohnatlasScreen = () => (
+  <div style={{ padding: '20px 28px' }}>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Wissen</div>
+      <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0 }}>Postbank Wohnatlas 2026</h1>
+      <div style={{ fontSize: 13.5, color: `${theme.ink}99`, marginTop: 6 }}>Preisentwicklung und regionale Einordnung auf Basis des Postbank Wohnatlas.</div>
+    </div>
+
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
+      <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 800 }}>Preisentwicklungskarte</div>
+          <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>Quelle: Postbank Wohnatlas 2026</div>
+        </div>
+        <a
+          href={postbankWohnatlasImageUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+        >
+          Original öffnen
+          <ChevronRight size={14} />
+        </a>
+      </div>
+      <div style={{ padding: 16, background: theme.mintLighter, overflowX: 'auto' }}>
+        <img
+          src={postbankWohnatlasImageUrl}
+          alt="Postbank Wohnatlas 2026 Preisatlas"
+          style={{ display: 'block', width: '100%', maxWidth: 1400, minWidth: 720, height: 'auto', margin: '0 auto', borderRadius: 6, border: `1px solid ${theme.borderSoft}`, background: 'white' }}
+        />
+      </div>
+      <div style={{ padding: '10px 16px 14px', fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.5, borderTop: `1px solid ${theme.borderSoft}` }}>
+        Diese Darstellung dient der internen Marktinformation. Nutzungsrechte für externe Veröffentlichungen sind gesondert zu prüfen.
+      </div>
     </div>
   </div>
 );
@@ -8785,6 +8774,22 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setScreen('leads');
     updateLeadCreateUrl(role, true, 'push');
   };
+  const handleSidebarQuickAction = (item) => {
+    if (!item) return;
+    if (item.key === 'new-lead') {
+      handleNewLead();
+      return;
+    }
+    if (item.key === 'new-case') {
+      handleNewCase();
+      return;
+    }
+    setNotice(`${item.label}: Die Erfassungsmaske wird im nächsten Schritt angebunden. Der Bereich "Sonstiges" ist geöffnet.`);
+    setCaseId(null);
+    setEditingCaseId(null);
+    setScreen('other');
+    updateScreenUrl(role, 'other', 'push');
+  };
   const toggleRole = () => {
     if (!canUseAdminData) {
       setNotice('Für die Admin-Ansicht sind interne Rechte erforderlich.');
@@ -8943,7 +8948,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const editingCase = editingCaseId ? cases.find((item) => item.propertyId === editingCaseId || item.id === editingCaseId)?.raw : null;
 
   return (
-    <div style={{ background: theme.mint, fontFamily: '"Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: theme.mint, fontFamily: '"Inter", "Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header
         role={role}
         user={user}
@@ -8967,6 +8972,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           internalRole={currentInternalRole}
           currentScreen={screen}
           onNavigate={handleNavigate}
+          onQuickAction={handleSidebarQuickAction}
           leadCount={leads.filter((lead) => role === 'admin' ? ['NEW', 'IN_REVIEW'].includes(lead.status) : !['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status)).length}
           draftCount={filterCasesForScreen(cases, 'drafts').length}
           inProgressCount={filterCasesForScreen(cases, 'in_progress').length}
@@ -8988,7 +8994,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           {screen === 'staff' && canViewStaff && <StaffDirectory staff={staff} canManageStaff={canManageStaff} onCreateStaff={handleCreateStaff} onUpdateStaffRole={handleUpdateStaffRole} onDeleteStaff={handleDeleteStaff} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}
-          {screen === 'knowledge_atlas' && <SimpleMenuScreen title="Postbank Atlas" eyebrow="Wissen" text="Hier kann später der Postbank Atlas oder ein externer Marktdaten-Link für regionale Einschätzungen eingebunden werden." />}
+          {screen === 'knowledge_atlas' && <PostbankWohnatlasScreen />}
           {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und strukturierte Einreichung an WohnKapital." />}
           {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
           {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} returnTab={caseReturnTab} onTabChange={handleCaseTabChange} onReturnToTab={handleReturnToCaseTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
