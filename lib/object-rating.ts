@@ -17,7 +17,9 @@ const ratingConfigInclude = {
 
 const ratingInclude = {
   configVersion: true,
-  scores: { include: { criterion: { include: { category: true } } } },
+  scores: {
+    include: { criterion: { include: { category: true, scoreDefinitions: { orderBy: { scoreValue: "asc" as const } } } } }
+  },
   auditLogs: { orderBy: { timestamp: "desc" as const } }
 };
 
@@ -225,6 +227,13 @@ export async function createDraftObjectRating(propertyId: string, userId?: strin
     });
 
   if (existing) {
+    const activeCriterionIds = preparedScores.map((score) => score.criterionId);
+    await prisma.objectRatingScore.deleteMany({
+      where: {
+        objectRatingId: rating.id,
+        criterionId: { notIn: activeCriterionIds }
+      }
+    });
     await Promise.all(preparedScores.map((score) => prisma.objectRatingScore.upsert({
       where: { objectRatingId_criterionId: { objectRatingId: rating.id, criterionId: score.criterionId } },
       create: { objectRatingId: rating.id, ...score },

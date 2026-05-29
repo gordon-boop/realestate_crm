@@ -18,7 +18,11 @@ export async function GET(): Promise<Response> {
 export async function POST(request: Request): Promise<Response> {
   try {
     const user = getCurrentUser();
-    const body = leadCreateSchema.parse(await request.json());
+    if (user?.role === "partner") {
+      throw new Error("Forbidden");
+    }
+    const rawBody = await request.json();
+    const body = leadCreateSchema.parse(user ? rawBody : { ...rawBody, source: "homepage" });
     const lead = await createDbLead(body, user);
     return json({ lead }, { status: 201 });
   } catch (err) {

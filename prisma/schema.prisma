@@ -271,6 +271,9 @@ enum LeadSource {
   admin
   internal
   partner
+  phone
+  website
+  referral
   other
 }
 
@@ -280,6 +283,11 @@ enum LeadStatus {
   ASSIGNED
   CONTACTED
   CONVERTED
+  IN_REVIEW
+  ASSIGNED_TO_PARTNER
+  PARTNER_CONTACT_PENDING
+  CONVERTED_TO_CASE
+  CLOSED
   REJECTED
 }
 
@@ -935,8 +943,8 @@ model OfferVersion {
 
 model Activity {
   id         String   @id @default(cuid())
-  propertyId String   @map("property_id")
-  property   Property @relation(fields: [propertyId], references: [id])
+  propertyId String?  @map("property_id")
+  property   Property? @relation(fields: [propertyId], references: [id])
   userId     String   @map("user_id")
   user       User     @relation(fields: [userId], references: [id])
   type       String
@@ -1076,13 +1084,30 @@ model Lead {
   name                        String?
   email                       String?
   phone                       String?
+  mobilePhone                 String?      @map("mobile_phone")
+  street                      String?
   postalCode                  String?      @map("postal_code")
   city                        String?
+  federalState                String?      @map("federal_state")
+  preferredContactMethod      String?      @map("preferred_contact_method")
+  contactConsent              Boolean?     @map("contact_consent")
+  propertyStreet              String?      @map("property_street")
+  propertyPostalCode          String?      @map("property_postal_code")
+  propertyCity                String?      @map("property_city")
   propertyType                PropertyType? @map("property_type")
+  livingAreaSqm               Int?         @map("living_area_sqm")
+  plotAreaSqm                 Int?         @map("plot_area_sqm")
+  yearBuilt                   Int?         @map("year_built")
+  propertyNote                String?      @map("property_note")
   estimatedPropertyValueRange String?      @map("estimated_property_value_range")
   youngestOwnerAgeRange       String?      @map("youngest_owner_age_range")
   message                     String?
   productInterest             DesiredModel? @map("product_interest")
+  region                      String?
+  routingReason               String?      @map("routing_reason")
+  internalNote                String?      @map("internal_note")
+  createdByUserId             String?      @map("created_by_user_id")
+  convertedCaseId             String?      @map("converted_case_id")
   createdAt                   DateTime     @default(now()) @map("created_at")
   updatedAt                   DateTime     @updatedAt @map("updated_at")
 

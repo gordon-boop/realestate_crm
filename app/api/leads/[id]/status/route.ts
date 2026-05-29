@@ -12,8 +12,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (!lead) throw new Error("Lead not found");
     if (user.role === "partner" && lead.assignedPartnerId !== user.partnerId) throw new Error("Forbidden");
     if (user.role === "admin" && !isInternalAdmin(user) && lead.assignedAdvisorUserId !== user.id) throw new Error("Forbidden");
-    if (user.role === "partner" && body.status !== "CONTACTED") throw new Error("Forbidden");
-    if (body.status === "CONVERTED") throw new Error("Use convert endpoint for converted leads");
+    if (user.role === "partner" && !["CONTACTED", "PARTNER_CONTACT_PENDING", "REJECTED"].includes(body.status)) throw new Error("Forbidden");
+    if (["CONVERTED", "CONVERTED_TO_CASE"].includes(body.status)) throw new Error("Use convert endpoint for converted leads");
 
     return json({ lead: await updateDbLeadStatus(params.id, body.status) });
   } catch (err) {

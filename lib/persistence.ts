@@ -5,6 +5,7 @@ import { acquisitionStatusLabel } from "./acquisition-workflow.ts";
 import type { CaseNotification, CaseView, DesiredModel, Lead, OfferAssumptions, PropertyStatus, User } from "./domain.ts";
 import { sendCaseNotificationEmailStub } from "./email.ts";
 import { prisma } from "./prisma.ts";
+import { nextSequenceValue } from "./sequence.ts";
 
 const caseInclude = {
   partner: true,
@@ -25,7 +26,7 @@ const caseInclude = {
       configVersion: true,
       scores: {
         orderBy: { id: "asc" as const },
-        include: { criterion: { include: { category: true } } }
+        include: { criterion: { include: { category: true, scoreDefinitions: { orderBy: { scoreValue: "asc" as const } } } } }
       },
       auditLogs: { orderBy: { timestamp: "desc" as const } }
     }
@@ -308,9 +309,18 @@ function mapObjectRating(rating: NonNullable<PrismaCase>["objectRatings"][number
         name: score.criterion.name,
         description: score.criterion.description ?? undefined,
         weight: number(score.criterion.weight) ?? 0,
+        weightOverrides: score.criterion.weightOverrides as Record<string, number> | undefined,
         sourceType: score.criterion.sourceType,
         required: score.criterion.required,
         active: score.criterion.active,
+        scoreDefinitions: score.criterion.scoreDefinitions.map((definition) => ({
+          id: definition.id,
+          versionId: definition.versionId,
+          criterionId: definition.criterionId,
+          scoreValue: definition.scoreValue,
+          label: definition.label,
+          description: definition.description ?? undefined
+        })),
         category: {
           id: score.criterion.category.id,
           versionId: score.criterion.category.versionId,
@@ -717,31 +727,63 @@ export async function getDbLeads(user: User): Promise<Lead[]> {
 }
 
 export async function createDbLead(input: Partial<Lead>, user?: User): Promise<Lead> {
-  const count = await prisma.lead.count();
   const now = new Date();
+  const leadNumber = `LEAD-${String(await nextSequenceValue("lead")).padStart(3, "0")}`;
+  const assignedPartnerId = user?.role === "partner" ? user.partnerId : user?.role === "admin" ? input.assignedPartnerId : undefined;
+  const assignedAdvisorUserId = user?.role === "admin" && !isInternalAdmin(user) ? user.id : user?.role === "admin" ? input.assignedAdvisorUserId : undefined;
+  const assigned = Boolean(assignedPartnerId || assignedAdvisorUserId);
+  const source = user?.role === "partner" ? "partner" : user?.role === "admin" ? (!isInternalAdmin(user) ? "internal" : input.source ?? "phone") : "homepage";
   const lead = await prisma.lead.create({
     data: {
-      leadNumber: `LD-2026-${String(count + 1).padStart(3, "0")}`,
-      source: user?.role === "partner" ? "partner" : user?.role === "admin" ? (!isInternalAdmin(user) ? "internal" : input.source ?? "admin") : "homepage",
-      status: user?.role === "partner" && user.partnerId ? "ASSIGNED" : user?.role === "admin" && !isInternalAdmin(user) ? "ASSIGNED" : "NEW",
-      assignedPartnerId: user?.role === "partner" ? user.partnerId : undefined,
-      assignedAdvisorUserId: user?.role === "admin" && !isInternalAdmin(user) ? user.id : undefined,
-      assignedByUserId: user?.role === "partner" || user?.role === "admin" ? user.id : undefined,
-      assignedAt: user?.role === "partner" || (user?.role === "admin" && !isInternalAdmin(user)) ? now : undefined,
+      leadNumber,
+      source: source as never,
+      status: assigned ? "ASSIGNED_TO_PARTNER" : source === "homepage" ? "NEW" : "IN_REVIEW",
+      assignedPartnerId,
+      assignedAdvisorUserId,
+      assignedByUserId: assigned ? user?.id : undefined,
+      assignedAt: assigned ? now : undefined,
       firstName: input.firstName,
       lastName: input.lastName,
       name: input.name,
       email: input.email,
       phone: input.phone,
+      mobilePhone: input.mobilePhone,
+      street: input.street,
       postalCode: input.postalCode,
       city: input.city,
+      federalState: input.federalState,
+      preferredContactMethod: input.preferredContactMethod,
+      contactConsent: input.contactConsent,
+      propertyStreet: input.propertyStreet,
+      propertyPostalCode: input.propertyPostalCode,
+      propertyCity: input.propertyCity,
       propertyType: input.propertyType as never,
+      livingAreaSqm: input.livingAreaSqm,
+      plotAreaSqm: input.plotAreaSqm,
+      yearBuilt: input.yearBuilt,
+      propertyNote: input.propertyNote,
       estimatedPropertyValueRange: input.estimatedPropertyValueRange,
       youngestOwnerAgeRange: input.youngestOwnerAgeRange,
       message: input.message,
-      productInterest: input.productInterest as never
+      productInterest: input.productInterest as never,
+      region: input.region,
+      routingReason: input.routingReason,
+      internalNote: input.internalNote,
+      createdByUserId: user?.id
     }
   });
+  if (assigned && user?.id) {
+    await prisma.activity.create({
+      data: {
+        userId: user.id,
+        type: "lead_assigned",
+        message: `Lead ${lead.leadNumber} wurde weitergeleitet.${input.routingReason ? ` Grund: ${input.routingReason}` : ""}`,
+        source: user.role === "partner" ? "partner" : "admin",
+        entityType: "lead",
+        entityId: lead.id
+      }
+    });
+  }
   return mapLead(lead);
 }
 
@@ -756,16 +798,29 @@ export async function assignDbLead(leadId: string, assignment: { partnerId?: str
   }
   const existing = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!existing) throw new Error("Lead not found");
-  if (existing.status === "CONVERTED") throw new Error("Converted leads cannot be assigned");
+  if (["CONVERTED", "CONVERTED_TO_CASE"].includes(existing.status)) throw new Error("Converted leads cannot be assigned");
   if (existing.status === "REJECTED") throw new Error("Rejected leads must be reactivated before assignment");
   const lead = await prisma.lead.update({
     where: { id: leadId },
     data: {
-      status: "ASSIGNED",
+      status: "ASSIGNED_TO_PARTNER",
       assignedPartnerId: assignment.partnerId ?? null,
       assignedAdvisorUserId: assignment.advisorUserId ?? null,
       assignedByUserId: userId,
       assignedAt: new Date()
+    }
+  });
+  const targetLabel = assignment.partnerId
+    ? (await prisma.partner.findUnique({ where: { id: assignment.partnerId } }))?.contactName || "Makler"
+    : (await prisma.user.findUnique({ where: { id: assignment.advisorUserId || "" } }))?.name || "Kundenberater";
+  await prisma.activity.create({
+    data: {
+      userId,
+      type: "lead_assigned",
+      message: `Lead wurde an ${targetLabel} weitergeleitet.`,
+      source: "admin",
+      entityType: "lead",
+      entityId: lead.id
     }
   });
   return mapLead(lead);
@@ -774,9 +829,9 @@ export async function assignDbLead(leadId: string, assignment: { partnerId?: str
 export async function updateDbLeadStatus(leadId: string, status: Lead["status"]): Promise<Lead> {
   const existing = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!existing) throw new Error("Lead not found");
-  if (existing.status === "CONVERTED") throw new Error("Converted leads cannot be changed");
-  if (status === "CONVERTED") throw new Error("Use convert endpoint for converted leads");
-  if (status === "ASSIGNED") throw new Error("Use assign endpoint for lead assignment");
+  if (["CONVERTED", "CONVERTED_TO_CASE"].includes(existing.status)) throw new Error("Converted leads cannot be changed");
+  if (["CONVERTED", "CONVERTED_TO_CASE"].includes(status)) throw new Error("Use convert endpoint for converted leads");
+  if (["ASSIGNED", "ASSIGNED_TO_PARTNER"].includes(status)) throw new Error("Use assign endpoint for lead assignment");
 
   const lead = await prisma.lead.update({
     where: { id: leadId },
@@ -795,7 +850,7 @@ export async function getDbLeadById(leadId: string): Promise<Lead | undefined> {
 export async function convertDbLeadToCase(leadId: string, assignment: { partnerId?: string; advisorUserId?: string }, userId: string, source: "admin" | "partner" = "partner"): Promise<CaseView> {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) throw new Error("Lead not found");
-  if (lead.status === "CONVERTED") throw new Error("Lead already converted");
+  if (["CONVERTED", "CONVERTED_TO_CASE"].includes(lead.status)) throw new Error("Lead already converted");
   if (lead.status === "REJECTED") throw new Error("Rejected leads cannot be converted");
   if (assignment.partnerId && lead.assignedPartnerId !== assignment.partnerId) throw new Error("Forbidden");
   if (assignment.advisorUserId && lead.assignedAdvisorUserId !== assignment.advisorUserId) throw new Error("Forbidden");
@@ -818,9 +873,11 @@ export async function convertDbLeadToCase(leadId: string, assignment: { partnerI
         lastName,
         email: lead.email,
         phone: lead.phone,
+        mobile: lead.mobilePhone,
+        street: lead.street,
         postalCode: lead.postalCode,
         city: lead.city,
-        addressText: [lead.postalCode, lead.city].filter(Boolean).join(" "),
+        addressText: [lead.street, lead.postalCode, lead.city].filter(Boolean).join(" "),
         consentDataProcessing: true
       }
     });
@@ -833,25 +890,27 @@ export async function convertDbLeadToCase(leadId: string, assignment: { partnerI
         assignedAdvisorUserId: assignment.advisorUserId,
         caseSource: assignment.advisorUserId ? "INTERNAL" : "PARTNER",
         propertyType: (lead.propertyType || "single_family") as never,
-        street: "Noch offen",
-        postalCode: lead.postalCode || "00000",
-        city: lead.city || "Ort offen",
-        livingAreaSqm: isApartment ? 80 : 130,
-        plotAreaSqm: isApartment ? 0 : 350,
+        street: lead.propertyStreet || lead.street || "Noch offen",
+        postalCode: lead.propertyPostalCode || lead.postalCode || "00000",
+        city: lead.propertyCity || lead.city || "Ort offen",
+        livingAreaSqm: lead.livingAreaSqm || (isApartment ? 80 : 130),
+        plotAreaSqm: lead.plotAreaSqm || (isApartment ? 0 : 350),
+        yearBuilt: lead.yearBuilt,
         condition: "average",
         desiredModel: (lead.productInterest || "fixed_residential_right") as DesiredModel,
         preferredValuationProvider: "sprengnetter",
         offerCalculationSource: "application",
-        notes: lead.message ? `Aus Homepage-Lead übernommen: ${lead.message}` : "Aus Homepage-Lead übernommen.",
+        notes: [lead.message && `Gesprächsnotiz: ${lead.message}`, lead.propertyNote && `Objektnotiz: ${lead.propertyNote}`, lead.internalNote && `Interne Lead-Notiz: ${lead.internalNote}`].filter(Boolean).join("\n") || "Aus Lead übernommen.",
         status: "DRAFT"
       }
     });
     await tx.lead.update({
       where: { id: lead.id },
       data: {
-        status: "CONVERTED",
+        status: "CONVERTED_TO_CASE",
         convertedCustomerId: customer.id,
         convertedPropertyId: property.id,
+        convertedCaseId: property.id,
         convertedAt: new Date()
       }
     });
@@ -904,9 +963,9 @@ export async function advanceDbAcquisitionWorkflow(
       status: "EXPERT_OPINION_ORDERED",
       data: { expertOpinionOrderedAt: expertOrderedDate, expertOpinionCompany: expertCompany },
       type: "expert_opinion_ordered",
-      message: `Gutachten wurde beauftragt${expertCompany ? `: ${expertCompany}` : "."}`
+      message: "Gutachten wurde als beauftragt markiert."
     },
-    expert_opinion_received: { status: "EXPERT_OPINION_RECEIVED", data: { expertOpinionReceivedAt: expertReceivedDate }, type: "expert_opinion_received", message: "Gutachten ist eingegangen." },
+    expert_opinion_received: { status: "EXPERT_OPINION_RECEIVED", data: { expertOpinionReceivedAt: expertReceivedDate }, type: "expert_opinion_received", message: "Gutachten wurde als eingegangen markiert." },
     binding_offer_sent: { status: "BINDING_OFFER_SENT", data: { bindingOfferSentAt: bindingSentDate }, type: "binding_offer_sent", message: `Verbindliches Angebot abgegeben am ${formatActivityDate(bindingSentDate)} erfasst.` },
     binding_offer_accepted: { status: "BINDING_OFFER_ACCEPTED", data: { bindingOfferAcceptedAt: bindingAcceptedDate }, type: "binding_offer_accepted", message: `Kunde hat das verbindliche Angebot am ${formatActivityDate(bindingAcceptedDate)} angenommen.` },
     notary_appointment_ordered: { status: "NOTARY_APPOINTMENT", data: { notaryAppointmentAt: notaryDate, notaryOffice }, type: "notary_appointment_ordered", message: `Notartermin wurde vereinbart${notaryOffice ? `: ${notaryOffice}` : "."}` },
@@ -1006,9 +1065,9 @@ export async function resetDbAcquisitionWorkflow(
 
 export async function updateDbAcquisitionWorkflowDate(
   propertyId: string,
-  action: "indicative_offer_sent" | "offer_accepted" | "binding_offer_sent" | "binding_offer_accepted",
+  action: "indicative_offer_sent" | "offer_accepted" | "expert_opinion_ordered" | "expert_opinion_received" | "binding_offer_sent" | "binding_offer_accepted",
   userId: string,
-  options: { indicativeOfferSentAt?: string; offerAcceptedAt?: string; bindingOfferSentAt?: string; bindingOfferAcceptedAt?: string; source?: "admin" | "partner" | "system" | "user" } = {}
+  options: { indicativeOfferSentAt?: string; offerAcceptedAt?: string; expertOpinionOrderedAt?: string; expertOpinionReceivedAt?: string; expertOpinionCompany?: string; bindingOfferSentAt?: string; bindingOfferAcceptedAt?: string; source?: "admin" | "partner" | "system" | "user" } = {}
 ) {
   const now = new Date();
   const dateFrom = (value?: string) => {
@@ -1026,6 +1085,16 @@ export async function updateDbAcquisitionWorkflowDate(
       type: "offer_accepted",
       message: (date: Date) => `Kunde hat das unverbindliche Angebot am ${formatActivityDate(date)} angenommen.`
     },
+    expert_opinion_ordered: {
+      data: { expertOpinionOrderedAt: dateFrom(options.expertOpinionOrderedAt), expertOpinionCompany: options.expertOpinionCompany?.trim() },
+      type: "expert_opinion_ordered",
+      message: () => "Gutachtenbeauftragung gespeichert."
+    },
+    expert_opinion_received: {
+      data: { expertOpinionReceivedAt: dateFrom(options.expertOpinionReceivedAt) },
+      type: "expert_opinion_received",
+      message: () => "Gutachten wurde als eingegangen markiert."
+    },
     binding_offer_sent: {
       data: { bindingOfferSentAt: dateFrom(options.bindingOfferSentAt) },
       type: "binding_offer_sent",
@@ -1037,7 +1106,7 @@ export async function updateDbAcquisitionWorkflowDate(
       message: (date: Date) => `Kunde hat das verbindliche Angebot am ${formatActivityDate(date)} angenommen.`
     }
   }[action];
-  const date = Object.values(config.data)[0] as Date;
+  const date = Object.values(config.data).find((value) => value instanceof Date) as Date;
   const property = await prisma.property.update({
     where: { id: propertyId },
     data: config.data
@@ -1068,19 +1137,36 @@ function mapLead(lead: Awaited<ReturnType<typeof prisma.lead.findFirst>>): Lead 
     assignedAt: iso(lead.assignedAt),
     convertedCustomerId: lead.convertedCustomerId ?? undefined,
     convertedPropertyId: lead.convertedPropertyId ?? undefined,
+    convertedCaseId: lead.convertedCaseId ?? undefined,
     convertedAt: iso(lead.convertedAt),
     firstName: lead.firstName ?? undefined,
     lastName: lead.lastName ?? undefined,
     name: lead.name ?? undefined,
     email: lead.email ?? undefined,
     phone: lead.phone ?? undefined,
+    mobilePhone: lead.mobilePhone ?? undefined,
+    street: lead.street ?? undefined,
     postalCode: lead.postalCode ?? undefined,
     city: lead.city ?? undefined,
+    federalState: lead.federalState ?? undefined,
+    preferredContactMethod: lead.preferredContactMethod ?? undefined,
+    contactConsent: lead.contactConsent ?? undefined,
+    propertyStreet: lead.propertyStreet ?? undefined,
+    propertyPostalCode: lead.propertyPostalCode ?? undefined,
+    propertyCity: lead.propertyCity ?? undefined,
     propertyType: lead.propertyType ?? undefined,
+    livingAreaSqm: lead.livingAreaSqm ?? undefined,
+    plotAreaSqm: lead.plotAreaSqm ?? undefined,
+    yearBuilt: lead.yearBuilt ?? undefined,
+    propertyNote: lead.propertyNote ?? undefined,
     estimatedPropertyValueRange: lead.estimatedPropertyValueRange ?? undefined,
     youngestOwnerAgeRange: lead.youngestOwnerAgeRange ?? undefined,
     message: lead.message ?? undefined,
     productInterest: lead.productInterest ?? undefined,
+    region: lead.region ?? undefined,
+    routingReason: lead.routingReason ?? undefined,
+    internalNote: lead.internalNote ?? undefined,
+    createdByUserId: lead.createdByUserId ?? undefined,
     createdAt: iso(lead.createdAt)!,
     updatedAt: iso(lead.updatedAt)!
   };

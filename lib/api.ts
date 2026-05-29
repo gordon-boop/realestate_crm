@@ -12,7 +12,7 @@ export function error(message: string, status = 400): NextResponse {
 
 export function handleApiError(err: unknown): NextResponse {
   const message = err instanceof Error ? err.message : "Unknown error";
-  const status = message.includes("Authentication") ? 401 : message.includes("required") ? 403 : message.includes("not found") ? 404 : 400;
+  const status = message.includes("Authentication") ? 401 : message.includes("required") || message.includes("Forbidden") ? 403 : message.includes("not found") ? 404 : 400;
   return error(message, status);
 }
 

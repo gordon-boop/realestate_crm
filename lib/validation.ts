@@ -99,6 +99,9 @@ const propertyBaseSchema = z.object({
   modernization: z.record(z.unknown()).optional(),
   buildingCondition: z.record(z.unknown()).optional(),
   generalPropertyNotes: optionalString,
+  expertOpinionOrderedAt: optionalString,
+  expertOpinionReceivedAt: optionalString,
+  expertOpinionCompany: optionalString,
   notes: optionalString
 });
 
@@ -270,19 +273,49 @@ export const notificationReadSchema = z.object({
 });
 
 export const leadCreateSchema = z.object({
-  source: z.enum(["homepage", "admin", "internal", "partner", "other"]).default("homepage"),
+  source: z.enum(["homepage", "admin", "internal", "partner", "phone", "website", "referral", "other"]).default("homepage"),
   firstName: optionalString,
   lastName: optionalString,
   name: optionalString,
   email: optionalString,
   phone: optionalString,
+  mobilePhone: optionalString,
+  street: optionalString,
   postalCode: optionalString,
   city: optionalString,
+  federalState: optionalString,
+  preferredContactMethod: optionalString,
+  contactConsent: optionalBoolean,
+  propertyStreet: optionalString,
+  propertyPostalCode: optionalString,
+  propertyCity: optionalString,
   propertyType: z.enum(["house", "single_family", "semi_detached", "row_house", "apartment"]).optional(),
+  livingAreaSqm: optionalNumber,
+  plotAreaSqm: optionalNumber,
+  yearBuilt: optionalNumber,
+  propertyNote: optionalString,
   estimatedPropertyValueRange: optionalString,
   youngestOwnerAgeRange: optionalString,
   message: optionalString,
-  productInterest: z.enum(["fixed_residential_right", "sale_and_leaseback", "other"]).optional()
+  productInterest: z.enum(["fixed_residential_right", "sale_and_leaseback", "other"]).optional(),
+  region: optionalString,
+  assignedPartnerId: optionalString,
+  routingReason: optionalString,
+  internalNote: optionalString
+}).superRefine((value, ctx) => {
+  const manualLead = value.source !== "homepage";
+  if (manualLead && !value.firstName && !value.lastName && !value.name) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["lastName"], message: "Bitte erfassen Sie mindestens Vorname oder Nachname." });
+  }
+  if (manualLead && !value.phone && !value.mobilePhone && !value.email) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["phone"], message: "Bitte erfassen Sie mindestens eine Kontaktmöglichkeit." });
+  }
+  if (manualLead && !value.postalCode && !value.city) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["city"], message: "Bitte erfassen Sie Ort oder PLZ." });
+  }
+  if (value.assignedPartnerId && !value.routingReason) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["routingReason"], message: "Bitte erfassen Sie den Routing-Grund." });
+  }
 });
 
 export const leadAssignSchema = z.object({
@@ -293,7 +326,7 @@ export const leadAssignSchema = z.object({
 });
 
 export const leadStatusSchema = z.object({
-  status: z.enum(["NEW", "QUALIFIED", "ASSIGNED", "CONTACTED", "CONVERTED", "REJECTED"])
+  status: z.enum(["NEW", "QUALIFIED", "ASSIGNED", "CONTACTED", "CONVERTED", "IN_REVIEW", "ASSIGNED_TO_PARTNER", "PARTNER_CONTACT_PENDING", "CONVERTED_TO_CASE", "CLOSED", "REJECTED"])
 });
 
 export const staffCreateSchema = z.object({

@@ -70,7 +70,18 @@ export type DocumentScanStatus = "pending" | "clean" | "suspicious" | "failed";
 export type OfferKind = "indicative" | "binding";
 export type OfferStatus = "draft" | "review" | "approved" | "sent" | "rejected";
 export type ReminderStatus = "open" | "done" | "overdue" | "cancelled";
-export type LeadStatus = "NEW" | "QUALIFIED" | "ASSIGNED" | "CONTACTED" | "CONVERTED" | "REJECTED";
+export type LeadStatus =
+  | "NEW"
+  | "QUALIFIED"
+  | "ASSIGNED"
+  | "CONTACTED"
+  | "CONVERTED"
+  | "IN_REVIEW"
+  | "ASSIGNED_TO_PARTNER"
+  | "PARTNER_CONTACT_PENDING"
+  | "CONVERTED_TO_CASE"
+  | "CLOSED"
+  | "REJECTED";
 export type ActivitySource = "system" | "user" | "partner" | "admin";
 export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead" | "chat" | "rating";
 export type ChatMessageVisibility = "shared" | "internal";
@@ -344,10 +355,21 @@ export type RatingCriterion = {
   name: string;
   description?: string;
   weight: number;
+  weightOverrides?: Record<string, number>;
   sourceType: RatingSourceType;
   required: boolean;
   active: boolean;
   category?: RatingCategory;
+  scoreDefinitions?: RatingScoreDefinition[];
+};
+
+export type RatingScoreDefinition = {
+  id: string;
+  versionId: string;
+  criterionId: string;
+  scoreValue: number;
+  label: string;
+  description?: string;
 };
 
 export type ObjectRatingScore = {
@@ -586,7 +608,7 @@ export type Reminder = {
 export type Lead = {
   id: string;
   leadNumber: string;
-  source: "homepage" | "admin" | "internal" | "partner" | "other";
+  source: "homepage" | "admin" | "internal" | "partner" | "phone" | "website" | "referral" | "other";
   status: LeadStatus;
   assignedPartnerId?: string;
   assignedAdvisorUserId?: string;
@@ -594,19 +616,36 @@ export type Lead = {
   assignedAt?: string;
   convertedCustomerId?: string;
   convertedPropertyId?: string;
+  convertedCaseId?: string;
   convertedAt?: string;
   firstName?: string;
   lastName?: string;
   name?: string;
   email?: string;
   phone?: string;
+  mobilePhone?: string;
+  street?: string;
   postalCode?: string;
   city?: string;
+  federalState?: string;
+  preferredContactMethod?: string;
+  contactConsent?: boolean;
+  propertyStreet?: string;
+  propertyPostalCode?: string;
+  propertyCity?: string;
   propertyType?: PropertyType;
+  livingAreaSqm?: number;
+  plotAreaSqm?: number;
+  yearBuilt?: number;
+  propertyNote?: string;
   estimatedPropertyValueRange?: string;
   youngestOwnerAgeRange?: string;
   message?: string;
   productInterest?: DesiredModel;
+  region?: string;
+  routingReason?: string;
+  internalNote?: string;
+  createdByUserId?: string;
   createdAt: string;
   updatedAt: string;
 };

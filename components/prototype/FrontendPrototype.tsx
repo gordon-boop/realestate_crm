@@ -983,6 +983,32 @@ function updateScreenUrl(role, screen = 'dashboard', mode = 'replace') {
   window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
 }
 
+function readLeadCreateFromUrl() {
+  if (typeof window === 'undefined') return false;
+  if (window.location.pathname === '/admin/leads/new') return true;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('createLead') === '1' || params.get('mode') === 'create';
+}
+
+function updateLeadCreateUrl(role, open = true, mode = 'replace') {
+  if (typeof window === 'undefined') return;
+  if (open && role === 'admin') {
+    window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', '/admin/leads/new');
+    return;
+  }
+  const params = new URLSearchParams(window.location.search);
+  params.set('screen', 'leads');
+  if (open) {
+    params.set('createLead', '1');
+  } else {
+    params.delete('createLead');
+    if (params.get('screen') !== 'leads') params.set('screen', 'leads');
+  }
+  const query = params.toString();
+  const url = query ? `${basePathForRole(role)}?${query}` : basePathForRole(role);
+  window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
+}
+
 const portfolioBucketKeys = ['purchase-processing', 'inventory-management', 'sale-objects'];
 const legacyPortfolioBucketMap = {
   'contract-closing': 'purchase-processing',
@@ -1135,19 +1161,39 @@ const offerStatusLabels = {
 };
 const leadStatusLabels = {
   NEW: 'Neu',
+  IN_REVIEW: 'In Prüfung',
   QUALIFIED: 'Qualifiziert',
   ASSIGNED: 'Zugewiesen',
+  ASSIGNED_TO_PARTNER: 'An Makler weitergeleitet',
   CONTACTED: 'Kontaktiert',
+  PARTNER_CONTACT_PENDING: 'Kontakt durch Makler offen',
   CONVERTED: 'Umgewandelt',
+  CONVERTED_TO_CASE: 'In Kundenfall umgewandelt',
+  CLOSED: 'Geschlossen',
   REJECTED: 'Abgelehnt',
 };
 const leadStatusColors = {
   NEW: theme.gold,
+  IN_REVIEW: theme.aubergineSoft,
   QUALIFIED: theme.aubergineSoft,
   ASSIGNED: theme.oliv,
+  ASSIGNED_TO_PARTNER: theme.oliv,
   CONTACTED: '#7B61C7',
+  PARTNER_CONTACT_PENDING: '#7B61C7',
   CONVERTED: '#5B8C2B',
+  CONVERTED_TO_CASE: '#5B8C2B',
+  CLOSED: `${theme.ink}88`,
   REJECTED: '#9B2C2C',
+};
+const leadSourceLabels = {
+  homepage: 'Homepage',
+  website: 'Website',
+  phone: 'Telefon',
+  referral: 'Empfehlung',
+  admin: 'Intern',
+  internal: 'Intern',
+  partner: 'Makler',
+  other: 'Sonstiges',
 };
 
 function yesNo(value) {
@@ -1497,6 +1543,14 @@ function missingRequiredDocumentFields(draft) {
   return missing;
 }
 
+function requiredDocumentFieldKeys(draft) {
+  return getRequiredDocumentsForPropertyType(draft.propertyType).map((document) => (
+    document.category === 'land_register'
+      ? 'document:land_register_or_power'
+      : `document:${document.category}`
+  ));
+}
+
 const validationFieldLabels = {
   firstName: 'Persönliche Daten: Vorname',
   lastName: 'Persönliche Daten: Nachname',
@@ -1590,7 +1644,9 @@ function validationMessageFor(step, fields) {
 
 function validateCaseStep(step, draft) {
   const fields = [];
+  const checked = [];
   const add = (field, valid) => {
+    checked.push(field);
     if (!valid) fields.push(field);
   };
 
@@ -1704,6 +1760,7 @@ function validateCaseStep(step, draft) {
   }
 
   if (step === 5) {
+    checked.push(...requiredDocumentFieldKeys(draft));
     fields.push(...missingRequiredDocumentFields(draft));
   }
 
@@ -1711,6 +1768,7 @@ function validateCaseStep(step, draft) {
   return {
     valid,
     fields,
+    checked,
     message: valid ? '' : validationMessageFor(step, fields)
   };
 }
@@ -1768,7 +1826,7 @@ const getBrokerNextStep = (item) => {
 };
 
 const brokerBucketKeys = ['new-leads', 'missing-documents', 'follow-up-offers'];
-const brokerLeadStatuses = ['NEW', 'QUALIFIED', 'ASSIGNED', 'CONTACTED'];
+const brokerLeadStatuses = ['ASSIGNED', 'ASSIGNED_TO_PARTNER', 'CONTACTED', 'PARTNER_CONTACT_PENDING'];
 const brokerMissingDocumentStatuses = ['DATA_INCOMPLETE'];
 const brokerOfferFollowUpStatuses = ['APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT', 'BINDING_OFFER_SENT'];
 const brokerDashboardStatuses = [
@@ -2065,7 +2123,7 @@ const adminAcquisitionStatuses = [
   'PURCHASED',
 ];
 const adminOtherStatuses = ['IN_PORTFOLIO', 'APPOINTMENT_SCHEDULED', 'WON', 'SOLD'];
-const adminLeadStatuses = ['NEW', 'QUALIFIED', 'ASSIGNED', 'CONTACTED'];
+const adminLeadStatuses = ['NEW', 'IN_REVIEW', 'QUALIFIED', 'ASSIGNED', 'ASSIGNED_TO_PARTNER', 'CONTACTED', 'PARTNER_CONTACT_PENDING'];
 
 function readAdminBucketFromUrl() {
   if (typeof window === 'undefined') return '';
@@ -2150,9 +2208,9 @@ function adminWarningBadges(item) {
 
 function leadNextStep(lead) {
   if (lead.status === 'NEW') return 'Lead qualifizieren';
-  if (lead.status === 'QUALIFIED') return 'Verantwortlichen zuweisen';
-  if (lead.status === 'ASSIGNED') return 'Kontakt aufnehmen';
-  if (lead.status === 'CONTACTED') return 'In Kundenfall umwandeln';
+  if (['IN_REVIEW', 'QUALIFIED'].includes(lead.status)) return 'Verantwortlichen zuweisen';
+  if (['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)) return 'Kontakt aufnehmen';
+  if (['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status)) return 'In Kundenfall umwandeln';
   return 'Lead prüfen';
 }
 
@@ -2215,8 +2273,8 @@ function adminWorkRows({ cases, leads, bucket }) {
   });
 }
 
-const AdminWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
-  <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(190px, 1fr))', gap: 12, marginBottom: 18 }}>
+const AdminWorkBuckets = ({ buckets, activeBucket, onSelect, style = {} }) => (
+  <div className="lead-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(170px, 1fr))', gap: 10, marginBottom: 18, ...style }}>
     {buckets.map((bucket) => {
       const active = activeBucket === bucket.key;
       return (
@@ -2229,21 +2287,21 @@ const AdminWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
             color: active ? 'white' : theme.ink,
             border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
             borderRadius: 8,
-            padding: '15px 16px',
+            padding: '12px 13px',
             cursor: 'pointer',
-            minHeight: 154,
+            minHeight: 126,
             boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
             display: 'flex',
             flexDirection: 'column',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-            <span style={{ fontSize: 11, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</span>
-            <bucket.icon size={16} style={{ color: active ? theme.gold : `${theme.aubergine}77` }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 10.5, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</span>
+            <bucket.icon size={15} style={{ color: active ? theme.gold : `${theme.aubergine}77` }} />
           </div>
-          <div style={{ fontSize: 29, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine, marginBottom: 7 }}>{bucket.count}</div>
-          <div style={{ fontSize: 12, lineHeight: 1.35, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, minHeight: 34, flex: 1 }}>{bucket.description}</div>
-          <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 12 }}>{bucket.action}</div>
+          <div style={{ fontSize: 24, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine, marginBottom: 6 }}>{bucket.count}</div>
+          <div style={{ fontSize: 11.5, lineHeight: 1.32, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, minHeight: 30, flex: 1 }}>{bucket.description}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 9 }}>{bucket.action}</div>
         </button>
       );
     })}
@@ -2341,20 +2399,40 @@ const UrgentTasksPanel = ({ cases, onOpenCase }) => {
   );
 };
 
-const AdminQuickActions = ({ onNewCase, onOpenLeads, onOpenOther }) => (
-  <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px' }}>
-    <div style={{ fontSize: 14, fontWeight: 800, color: theme.aubergine, marginBottom: 10 }}>Schnellaktionen</div>
-    <div style={{ display: 'grid', gap: 8 }}>
-      <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '9px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Neukunde anlegen</button>
-      <button onClick={onOpenLeads} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '9px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Lead erfassen</button>
-      <button onClick={onOpenOther} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '9px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Reparatur erfassen</button>
-      <button onClick={onOpenOther} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '9px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Abrechnung erfassen</button>
+const AdminQuickActions = ({ onNewCase, onNewLead, onOpenOther, notice = '' }) => {
+  const secondaryButton = {
+    background: 'white',
+    color: theme.aubergine,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 5,
+    padding: '8px 10px',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+    textAlign: 'left',
+  };
+  return (
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 13px', minHeight: '100%' }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: theme.aubergine, marginBottom: 9 }}>Schnellfunktionen</div>
+      <div style={{ display: 'grid', gap: 7 }}>
+        <button onClick={onNewLead} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }}>Neuer Lead</button>
+        <button onClick={onNewCase} style={secondaryButton}>Neukunde erfassen</button>
+        <button onClick={() => onOpenOther?.('Wiedervorlage anlegen')} style={secondaryButton}>Wiedervorlage anlegen</button>
+        <button onClick={() => onOpenOther?.('Reparatur erfassen')} style={secondaryButton}>Reparatur erfassen</button>
+        <button onClick={() => onOpenOther?.('Abrechnung erfassen')} style={secondaryButton}>Abrechnung erfassen</button>
+      </div>
+      {notice && (
+        <div style={{ marginTop: 9, background: theme.goldSoft, border: `1px solid ${theme.gold}55`, color: theme.ink, borderRadius: 5, padding: '7px 8px', fontSize: 11.5, lineHeight: 1.35 }}>
+          {notice}
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
-const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onOpenLeads, canCreateCase = false }) => {
+const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onNewLead, onOpenLeads, canCreateCase = false }) => {
   const [activeBucket, setActiveBucket] = useState(readAdminBucketFromUrl);
+  const [quickActionNotice, setQuickActionNotice] = useState('');
   const setBucket = (bucket) => {
     setActiveBucket(bucket);
     writeAdminBucketToUrl(bucket);
@@ -2396,7 +2474,10 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
   const activeBucketDefinition = buckets.find((bucket) => bucket.key === activeBucket);
   const tableTitle = activeBucketDefinition?.title || 'Neueste Einreichungen';
   const rows = adminWorkRows({ cases, leads, bucket: activeBucket });
-  const openOther = () => setBucket('other');
+  const openOther = (label = 'Diese Schnellfunktion') => {
+    setQuickActionNotice(`${label}: Die Erfassungsmaske wird im nächsten Schritt angebunden. Der Arbeitskorb "Sonstiges" ist geöffnet.`);
+    setBucket('other');
+  };
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -2406,14 +2487,17 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankaufsübersicht</h1>
           <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Leads, Einreichungen und laufende Ankäufe nach Handlungsbedarf.</div>
         </div>
-        {canCreateCase && (
-          <button onClick={onNewCase} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 18px', borderRadius: 6, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-            <Plus size={15} /> Neukunde anlegen
-          </button>
-        )}
       </div>
 
-      <AdminWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={setBucket} />
+      <div className="admin-dashboard-top-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: 16, alignItems: 'stretch', marginBottom: 18 }}>
+        <AdminWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={setBucket} style={{ marginBottom: 0 }} />
+        <AdminQuickActions
+          onNewCase={onNewCase}
+          onNewLead={onNewLead}
+          onOpenOther={openOther}
+          notice={quickActionNotice}
+        />
+      </div>
 
       <div className="admin-dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 620px', gap: 16, alignItems: 'stretch' }}>
         <AdminWorklist
@@ -2427,9 +2511,8 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
         <PropertyMapWidget fillHeight height={288} />
       </div>
 
-      <div className="admin-dashboard-secondary-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 620px', gap: 16, alignItems: 'start', marginTop: 16 }}>
+      <div style={{ marginTop: 16 }}>
         <UrgentTasksPanel cases={cases} onOpenCase={onOpenCase} />
-        <AdminQuickActions onNewCase={onNewCase} onOpenLeads={onOpenLeads} onOpenOther={openOther} />
       </div>
     </div>
   );
@@ -3017,7 +3100,7 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], onSet
               </thead>
               <tbody>
                 {visiblePartners.map((partner) => {
-                  const assignedLeadCount = leads.filter((lead) => lead.assignedPartnerId === partner.id && lead.status !== 'CONVERTED').length;
+                  const assignedLeadCount = leads.filter((lead) => lead.assignedPartnerId === partner.id && !['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status)).length;
                   const isActive = partner.status === 'active';
                   const registration = partner.registration || registrations.find((item) => item.partnerId === partner.id);
                   const emailPending = registration?.status === 'email_pending';
@@ -3478,16 +3561,21 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const objectRating = caseView?.objectRatings?.[0];
   const ratingStatusLabels = { draft: 'Entwurf', analyst_review: 'Analystenprüfung', approved: 'Freigegeben' };
   const ratingSourceLabels = { questionnaire: 'Fragebogen', api: 'API / Marktdaten', analyst: 'Analyst', document: 'Dokument' };
-  const ratingScores = objectRating?.scores || [];
+  const ratingScores = (objectRating?.scores || []).filter((score) => score.criterion?.active !== false && score.criterion?.category?.active !== false);
   const ratingCategories = Array.from(new Map(ratingScores
     .map((score) => score.criterion?.category)
     .filter(Boolean)
     .map((category) => [category.id, category])
   ).values());
   const ratingScoreValue = (score) => score?.finalScore ?? score?.analystScore ?? score?.prefilledScore;
+  const ratingCriterionWeight = (criterion) => {
+    const overrides = criterion?.weightOverrides || {};
+    const overrideKey = property?.propertyType === 'apartment' ? 'apartment' : property?.propertyType ? 'house' : '';
+    return Number(overrides?.[overrideKey] ?? criterion?.weight ?? 0);
+  };
   const weightedScore = (scores) => {
     const usable = scores
-      .map((score) => ({ value: ratingScoreValue(score), weight: Number(score.criterion?.weight || 0) }))
+      .map((score) => ({ value: ratingScoreValue(score), weight: ratingCriterionWeight(score.criterion) }))
       .filter((item) => Number.isFinite(Number(item.value)) && item.weight > 0);
     const totalWeight = usable.reduce((sum, item) => sum + item.weight, 0);
     if (!totalWeight) return undefined;
@@ -3497,6 +3585,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     category,
     score: weightedScore(ratingScores.filter((score) => score.criterion?.categoryId === category.id))
   }));
+  const ratingScoreDefinitions = (criterion) => (criterion?.scoreDefinitions?.length ? criterion.scoreDefinitions : [1, 2, 3, 4, 5, 6].map((value) => ({ scoreValue: value, label: String(value) })));
   const ratingOpenChecks = ratingScores.filter((score) => !ratingScoreValue(score) || Number(score.confidence || 0) < 0.65);
   const ratingReadOnly = objectRating?.status === 'approved' || !canManageRating;
   const ratingReturnPercent = ratingReturnInput || (objectRating?.finalTargetReturn ? String((Number(objectRating.finalTargetReturn) * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 })) : '');
@@ -3573,6 +3662,17 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     }
     await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'offer_accepted' });
   });
+  const saveExpertOpinionOrderData = () => runCaseAction('Gutachtenbeauftragung speichern', async () => {
+    const orderedDate = expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt);
+    const company = expertOpinionCompany.trim() || property?.expertOpinionCompany || '';
+    if (!orderedDate) throw new Error('Bitte geben Sie das Beauftragungsdatum an.');
+    if (!company.trim()) throw new Error('Bitte geben Sie den Gutachter oder die Gutachterfirma an.');
+    await postJson(`/api/properties/${c.propertyId}/workflow`, {
+      action: 'expert_opinion_ordered',
+      expertOpinionOrderedAt: orderedDate,
+      expertOpinionCompany: company.trim()
+    });
+  });
   const markFeedbackReceived = () => runCaseAction('Kundenrückmeldung', async () => {
     await postJson(`/api/properties/${c.propertyId}/feedback-received`);
   });
@@ -3635,32 +3735,45 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   };
   const handleAcquisitionAction = (step) => runCaseAction(step.label, async () => {
     if (!step.action) return;
+    if (step.action === 'indicative_offer_sent' && !(indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt))) {
+      throw new Error('Bitte zuerst „Unverbindliches Angebot abgegeben am“ eintragen.');
+    }
     if (step.action === 'offer_accepted') {
       const submittedDate = indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt);
       const acceptedDate = indicativeOfferAcceptedDate || dateInputValue(property?.offerAcceptedAt);
       if (!submittedDate) throw new Error('Bitte zuerst „Unverbindliches Angebot abgegeben am“ eintragen.');
+      if (!acceptedDate) throw new Error('Bitte zuerst „Unverbindliches Angebot angenommen am“ eintragen.');
       if (acceptedDate && isDateBefore(acceptedDate, submittedDate)) {
         throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
       }
+    }
+    if (step.action === 'binding_offer_sent' && !(bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt))) {
+      throw new Error('Bitte zuerst „Verbindliches Angebot abgegeben am“ eintragen.');
     }
     if (step.action === 'binding_offer_accepted') {
       const submittedDate = bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt);
       const acceptedDate = bindingOfferAcceptedDate || dateInputValue(property?.bindingOfferAcceptedAt);
       if (!submittedDate) throw new Error('Bitte zuerst „Verbindliches Angebot abgegeben am“ eintragen.');
+      if (!acceptedDate) throw new Error('Bitte zuerst „Verbindliches Angebot angenommen am“ eintragen.');
       if (acceptedDate && isDateBefore(acceptedDate, submittedDate)) {
         throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
       }
     }
     if (step.action === 'expert_opinion_ordered') {
       if (!expertOpinionOrderedDate && !property?.expertOpinionOrderedAt) {
-        throw new Error('Bitte Datum der Gutachterbeauftragung eintragen.');
+        throw new Error('Bitte geben Sie das Beauftragungsdatum an.');
       }
       if (!expertOpinionCompany.trim() && !property?.expertOpinionCompany) {
-        throw new Error('Bitte Gutachterfirma eintragen.');
+        throw new Error('Bitte geben Sie den Gutachter oder die Gutachterfirma an.');
       }
     }
-    if (step.action === 'expert_opinion_received' && !expertOpinionReceivedDate && !property?.expertOpinionReceivedAt) {
-      throw new Error('Bitte Eingangsdatum des Gutachtens eintragen.');
+    if (step.action === 'expert_opinion_received') {
+      const orderedDate = expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt);
+      const receivedDate = expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt);
+      if (!receivedDate) throw new Error('Bitte geben Sie das Eingangsdatum des Gutachtens an.');
+      if (orderedDate && isDateBefore(receivedDate, orderedDate)) {
+        throw new Error('Das Eingangsdatum des Gutachtens darf nicht vor der Beauftragung liegen.');
+      }
     }
     if (step.needsDate && !notaryAppointmentDate && !property?.notaryAppointmentAt) {
       throw new Error('Bitte zuerst den Notartermin eintragen.');
@@ -3683,10 +3796,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   });
   const saveOfferDateFields = (kind) => runCaseAction(kind === 'binding' ? 'Datumsfelder verbindliches Angebot' : 'Datumsfelder unverbindliches Angebot', async () => {
     if (kind === 'binding') {
-      if (bindingOfferAcceptedDate && !bindingOfferSentDate) {
-        throw new Error('acceptedAt darf nicht gesetzt werden, wenn submittedAt fehlt.');
+      const submittedDate = bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt);
+      const acceptedDate = bindingOfferAcceptedDate || dateInputValue(property?.bindingOfferAcceptedAt);
+      if (acceptedDate && !submittedDate) {
+        throw new Error('Bitte zuerst „Verbindliches Angebot abgegeben am“ eintragen.');
       }
-      if (isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate)) {
+      if (isDateBefore(acceptedDate, submittedDate)) {
         throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
       }
       if (bindingOfferSentDate) {
@@ -3697,10 +3812,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       }
       return;
     }
-    if (indicativeOfferAcceptedDate && !indicativeOfferSentDate) {
-      throw new Error('acceptedAt darf nicht gesetzt werden, wenn submittedAt fehlt.');
+    const submittedDate = indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt);
+    const acceptedDate = indicativeOfferAcceptedDate || dateInputValue(property?.offerAcceptedAt);
+    if (acceptedDate && !submittedDate) {
+      throw new Error('Bitte zuerst „Unverbindliches Angebot abgegeben am“ eintragen.');
     }
-    if (isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate)) {
+    if (isDateBefore(acceptedDate, submittedDate)) {
       throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
     }
     if (indicativeOfferSentDate) {
@@ -3776,11 +3893,18 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const nextAllowed = acquisitionStatusIndex === -1 ? index === 0 : index === acquisitionStatusIndex + 1;
     const needsDateBeforeAction = step.needsDate && nextAllowed && (!notaryAppointmentDate && !property?.notaryAppointmentAt || !notaryOffice.trim() && !property?.notaryOffice);
     const missingBindingOffer = action === 'binding_offer_sent' && !hasBindingOffer;
+    const missingRequiredActionData =
+      (action === 'indicative_offer_sent' && !(indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt))) ||
+      (action === 'offer_accepted' && !(indicativeOfferAcceptedDate || dateInputValue(property?.offerAcceptedAt))) ||
+      (action === 'expert_opinion_ordered' && (!(expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)) || !(expertOpinionCompany.trim() || property?.expertOpinionCompany))) ||
+      (action === 'expert_opinion_received' && !(expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt))) ||
+      (action === 'binding_offer_sent' && !(bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt))) ||
+      (action === 'binding_offer_accepted' && !(bindingOfferAcceptedDate || dateInputValue(property?.bindingOfferAcceptedAt)));
     return {
       step,
       reached,
       nextAllowed,
-      disabled: Boolean(busyAction) || reached || !nextAllowed || needsDateBeforeAction || missingBindingOffer
+      disabled: Boolean(busyAction) || reached || !nextAllowed || needsDateBeforeAction || missingBindingOffer || missingRequiredActionData
     };
   };
   const workflowButtonStyle = ({ reached, nextAllowed, disabled }) => ({
@@ -4389,10 +4513,13 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         const effectiveScore = input.analystScore || score.analystScore || score.finalScore || score.prefilledScore || '';
                         return (
                           <div key={score.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', background: Number(score.confidence || 0) < 0.65 ? theme.goldSoft : 'white' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: canManageRating && objectRating.status !== 'approved' ? '1.1fr 0.7fr 0.6fr 0.6fr 0.8fr 1.2fr auto' : '1.2fr 0.8fr 0.6fr 0.6fr 0.8fr 1.2fr', gap: 10, alignItems: 'center' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: canManageRating && objectRating.status !== 'approved' ? '1.25fr 0.65fr 0.45fr 0.95fr 0.55fr 1.1fr auto' : '1.35fr 0.75fr 0.45fr 0.9fr 0.55fr 1.1fr', gap: 10, alignItems: 'center' }}>
                               <div>
                                 <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{score.criterion?.name || score.criterionId}</div>
-                                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{score.criterion?.category?.name || '-'} · Gewichtung {formatPercent(score.criterion?.weight)}</div>
+                                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{score.criterion?.category?.name || '-'} · Gewichtung {formatPercent(ratingCriterionWeight(score.criterion))}</div>
+                                {score.criterion?.description && (
+                                  <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 4, lineHeight: 1.35 }}>{score.criterion.description}</div>
+                                )}
                               </div>
                               <div>
                                 <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Quelle</div>
@@ -4407,10 +4534,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                 {canManageRating && objectRating.status !== 'approved' ? (
                                   <select value={effectiveScore} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, analystScore: event.target.value } })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, background: 'white' }}>
                                     <option value="">-</option>
-                                    {[1, 2, 3, 4, 5, 6].map((value) => <option key={value} value={value}>{value}</option>)}
+                                    {ratingScoreDefinitions(score.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {definition.label}</option>)}
                                   </select>
                                 ) : (
                                   <div style={{ fontSize: 12.5, color: theme.ink }}>{score.finalScore || '-'}</div>
+                                )}
+                                {score.finalScore && (
+                                  <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>
+                                    {ratingScoreDefinitions(score.criterion).find((definition) => Number(definition.scoreValue) === Number(score.finalScore))?.label || ''}
+                                  </div>
                                 )}
                               </div>
                               <div>
@@ -5099,8 +5231,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         {offer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{labelFrom(offerStatusLabels, offer.status, offer.status)}</span> : null}
                       </div>
 
-                      {modelRequest.primary && indicativeOfferDateFields}
-
                       {canManageOffers && (
                         <button onClick={() => setOpenCalculation(openCalculation === key ? '' : key)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', marginBottom: openCalculation === key ? 12 : 0 }}>
                           Unverbindliches Angebot berechnen
@@ -5143,19 +5273,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               Demo-Kalkulation, Rating-Tool folgt.
                             </div>
                           )}
-                          {canManageOffers && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
-                              {['indicative_offer_sent', 'offer_accepted'].map((action) => {
-                                const state = workflowActionState(action);
-                                return (
-                                  <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
-                                    {state.reached ? <CheckCircle size={13} /> : null}
-                                    {state.step?.label || action}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
                           {role === 'partner' && (
                             <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${theme.borderSoft}` }}>
                               <button onClick={() => runWorkflowAction('offer_accepted')} disabled={workflowActionState('offer_accepted').disabled} style={workflowButtonStyle(workflowActionState('offer_accepted'))}>
@@ -5173,64 +5290,139 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           Noch keine Berechnung vorhanden.
                         </div>
                       )}
+                      {modelRequest.primary && (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Angebotsstatus / Angebotsdaten</div>
+                          {indicativeOfferDateFields}
+                          {canManageOffers && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+                              {['indicative_offer_sent', 'offer_accepted'].map((action) => {
+                                const state = workflowActionState(action);
+                                return (
+                                  <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                                    {state.reached ? <CheckCircle size={13} /> : null}
+                                    {action === 'indicative_offer_sent' ? 'Unverbindliches Angebot abgegeben' : 'UVA angenommen'}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
                 {canManageOffers && (
                   <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', background: 'white' }}>
-                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Gutachterbeauftragung</div>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Gutachtenbeauftragung</div>
                     <div style={{ fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5, marginBottom: 12 }}>
-                      Sobald der Kunde das unverbindliche Angebot angenommen hat, wird hier der Gutachter beauftragt. Nach Eingang des Gutachtens wird rechts im Prozess das verbindliche Angebot freigeschaltet.
+                      Sobald der Kunde das unverbindliche Angebot angenommen hat, kann ein Gutachter beauftragt werden. Nach Eingang des Gutachtens kann das verbindliche Angebot vorbereitet werden.
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 10, marginBottom: 12 }}>
-                      <Field label="Beauftragt am" required>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, 260px) minmax(260px, 1fr)', gap: 10, marginBottom: 12 }}>
+                      <Field label="Beauftragt am" hint="Pflicht beim Speichern der Beauftragung.">
                         <Input
                           type="date"
-                          value={expertOpinionOrderedDate || (property?.expertOpinionOrderedAt ? property.expertOpinionOrderedAt.slice(0, 10) : '')}
+                          value={expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)}
                           onChange={(event) => setExpertOpinionOrderedDate(event.target.value)}
-                          readOnly={workflowActionState('expert_opinion_ordered').reached}
+                          readOnly={!canManageWorkflow}
                         />
                       </Field>
-                      <Field label="Gutachterfirma" required>
+                      <Field label="Gutachter / Gutachterfirma" hint="Pflicht beim Speichern der Beauftragung.">
                         <Input
                           value={expertOpinionCompany || property?.expertOpinionCompany || ''}
                           onChange={(event) => setExpertOpinionCompany(event.target.value)}
                           placeholder="z.B. Sprengnetter, DEKRA, freier Sachverständiger"
-                          readOnly={workflowActionState('expert_opinion_ordered').reached}
+                          readOnly={!canManageWorkflow}
                         />
                       </Field>
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center' }}>
-                      {['expert_opinion_ordered', 'expert_opinion_received'].map((action) => {
-                        const state = workflowActionState(action);
-                        return (
-                          <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
-                            {state.reached ? <CheckCircle size={13} /> : null}
-                            {state.step?.label || action}
-                          </button>
-                        );
-                      })}
-                      <div style={{ minWidth: 170 }}>
-                        <input
-                          type="date"
-                          value={expertOpinionReceivedDate || (property?.expertOpinionReceivedAt ? property.expertOpinionReceivedAt.slice(0, 10) : '')}
-                          onChange={(event) => setExpertOpinionReceivedDate(event.target.value)}
-                          disabled={workflowActionState('expert_opinion_received').reached}
-                          title="Gutachten eingegangen am"
-                          style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box', background: workflowActionState('expert_opinion_received').reached ? theme.mintLighter : 'white' }}
-                        />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center', marginBottom: 14 }}>
+                      <button onClick={saveExpertOpinionOrderData} disabled={Boolean(busyAction) || !canManageWorkflow} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12, fontWeight: 800, cursor: busyAction || !canManageWorkflow ? 'wait' : 'pointer', opacity: busyAction || !canManageWorkflow ? 0.65 : 1 }}>
+                        Gutachtenbeauftragung speichern
+                      </button>
+                      {property?.expertOpinionOrderedAt && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B8C2B14', color: '#5B8C2B', border: '1px solid #5B8C2B33', borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 800 }}>
+                          <CheckCircle size={13} /> Gutachten beauftragt
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ borderTop: `1px solid ${theme.borderSoft}`, paddingTop: 12 }}>
+                      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Eingang des Gutachtens</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, 260px)', gap: 10, marginBottom: 12 }}>
+                        <Field label="Gutachten eingegangen am" hint="Pflicht erst beim Markieren des Eingangs." invalid={Boolean((expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)) && (expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)) && isDateBefore(expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt), expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)))}>
+                          <Input
+                            type="date"
+                            value={expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)}
+                            onChange={(event) => setExpertOpinionReceivedDate(event.target.value)}
+                            readOnly={!canManageWorkflow}
+                          />
+                        </Field>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center' }}>
+                        {(() => {
+                          const state = workflowActionState('expert_opinion_received');
+                          const disabled = Boolean(busyAction) || !state.nextAllowed || !canManageWorkflow;
+                          if (state.reached) {
+                            return (
+                              <button
+                                onClick={() => runWorkflowAction('expert_opinion_received')}
+                                disabled={Boolean(busyAction) || !canManageWorkflow}
+                                style={{
+                                  background: 'white',
+                                  color: theme.aubergine,
+                                  border: `1px solid ${theme.border}`,
+                                  borderRadius: 5,
+                                  padding: '8px 12px',
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  cursor: busyAction || !canManageWorkflow ? 'default' : 'pointer',
+                                  justifySelf: 'start',
+                                  width: 'auto',
+                                  whiteSpace: 'nowrap',
+                                  opacity: busyAction || !canManageWorkflow ? 0.58 : 1
+                                }}
+                              >
+                                Eingangsdatum speichern
+                              </button>
+                            );
+                          }
+                          return (
+                            <button
+                              onClick={() => runWorkflowAction('expert_opinion_received')}
+                              disabled={disabled}
+                              style={{
+                                background: theme.aubergine,
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 5,
+                                padding: '8px 12px',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: disabled ? 'default' : 'pointer',
+                                justifySelf: 'start',
+                                width: 'auto',
+                                whiteSpace: 'nowrap',
+                                opacity: disabled ? 0.58 : 1
+                              }}
+                            >
+                              Gutachten als eingegangen markieren
+                            </button>
+                          );
+                        })()}
+                        {property?.expertOpinionReceivedAt && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B8C2B14', color: '#5B8C2B', border: '1px solid #5B8C2B33', borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 800 }}>
+                            <CheckCircle size={13} /> Gutachten eingegangen
+                          </span>
+                        )}
                       </div>
                     </div>
                     {property?.expertOpinionCompany && (
                       <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 10 }}>
-                        Beauftragte Firma: {property.expertOpinionCompany}
+                        Gutachter / Gutachterfirma: {property.expertOpinionCompany}
                       </div>
                     )}
                   </div>
                 )}
-                {latestValuation ? (
-                  <div style={{ fontSize: 12, color: `${theme.ink}88` }}>Wertspanne: {formatEuro(latestValuation.valueMin)} bis {formatEuro(latestValuation.valueMax)}</div>
-                ) : null}
               </div>
             </div>
           )}
@@ -5283,7 +5475,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         </div>
                         {bindingOffer ? <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 800, textTransform: 'uppercase' }}>{labelFrom(offerStatusLabels, bindingOffer.status, bindingOffer.status)}</span> : null}
                       </div>
-                      {modelRequest.primary && bindingOfferDateFields}
                       {bindingOffer && indicativeOffer && (
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
                           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>UVA vs. VA</div>
@@ -5357,24 +5548,32 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           Noch keine VA-Kalkulation vorhanden.
                         </div>
                       )}
+                      {modelRequest.primary && (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Angebotsstatus / Angebotsdaten</div>
+                          {bindingOfferDateFields}
+                          {canManageOffers && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+                              {['binding_offer_sent', 'binding_offer_accepted'].map((action) => {
+                                const state = workflowActionState(action);
+                                return (
+                                  <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
+                                    {state.reached ? <CheckCircle size={13} /> : null}
+                                    {action === 'binding_offer_sent' ? 'Verbindliches Angebot abgegeben' : 'VA angenommen'}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
               {canManageOffers && (
                 <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 12 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Prozessschritte speichern</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
-                    {['binding_offer_sent', 'binding_offer_accepted'].map((action) => {
-                      const state = workflowActionState(action);
-                      return (
-                        <button key={action} onClick={() => runWorkflowAction(action)} disabled={state.disabled} style={workflowButtonStyle(state)}>
-                          {state.reached ? <CheckCircle size={13} /> : null}
-                          {state.step?.label || action}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Notartermin und Kaufvertrag</div>
                   {(workflowActionState('notary_appointment_ordered').nextAllowed || workflowActionState('notary_appointment_ordered').reached || workflowActionState('contract_signed').nextAllowed) && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 230px) minmax(190px, 270px) auto auto', gap: 9, alignItems: 'center' }}>
                       <input
@@ -5528,7 +5727,23 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
     { n: 4, label: 'Modernisierungen' },
     { n: 5, label: 'Dokumente' },
   ];
-  const progress = Math.round((step / steps.length) * 100);
+  const stepProgressRows = steps.map((item) => {
+    const result = validateCaseStep(item.n, draft);
+    const total = result.checked.length;
+    const missing = result.fields.length;
+    return {
+      ...item,
+      total,
+      missing,
+      complete: total > 0 && missing === 0,
+      missingLabels: result.fields.slice(0, 3).map((field) => validationFieldLabels[field] || field)
+    };
+  });
+  const totalRequiredFields = stepProgressRows.reduce((sum, item) => sum + item.total, 0);
+  const missingRequiredFields = stepProgressRows.reduce((sum, item) => sum + item.missing, 0);
+  const completedRequiredFields = Math.max(0, totalRequiredFields - missingRequiredFields);
+  const progress = totalRequiredFields ? Math.round((completedRequiredFields / totalRequiredFields) * 100) : 0;
+  const stepProgress = Math.round((step / steps.length) * 100);
   useEffect(() => {
     setDraft(draftFromCaseView(initialCase));
     setValidation({ fields: [], message: '' });
@@ -5825,10 +6040,50 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
             <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Fortschritt</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
               <span style={{ fontSize: 24, fontWeight: 700, color: theme.aubergine }}>{progress}%</span>
-              <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Schritt {step} von 5</span>
+              <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Pflichtfelder</span>
             </div>
             <div style={{ height: 6, background: theme.borderSoft, borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ width: `${progress}%`, height: '100%', background: theme.aubergine, borderRadius: 3 }} />
+            </div>
+            <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 8, lineHeight: 1.4 }}>
+              {completedRequiredFields} von {totalRequiredFields} relevanten Pflichtpunkten erledigt · Schritt {step} von 5 ({stepProgress}%)
+            </div>
+            <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
+              {stepProgressRows.map((item) => (
+                <button
+                  key={item.n}
+                  type="button"
+                  onClick={() => goToStep(item.n)}
+                  style={{
+                    textAlign: 'left',
+                    background: item.n === step ? `${theme.aubergine}0A` : item.complete ? theme.mintLighter : 'white',
+                    border: `1px solid ${item.n === step ? `${theme.aubergine}44` : item.complete ? `${theme.oliv}33` : theme.borderSoft}`,
+                    borderRadius: 7,
+                    padding: '9px 10px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontSize: 12.5, color: item.n === step ? theme.aubergine : theme.ink, fontWeight: 800 }}>{item.label}</span>
+                    <span style={{
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      color: item.complete ? '#3D6B1F' : item.missing ? '#9B2C2C' : `${theme.ink}88`,
+                      background: item.complete ? '#3D6B1F14' : item.missing ? '#9B2C2C12' : theme.mintLight,
+                      borderRadius: 999,
+                      padding: '2px 7px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {item.complete ? 'vollständig' : `${item.missing} offen`}
+                    </span>
+                  </div>
+                  {!item.complete && item.missingLabels.length ? (
+                    <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 5, lineHeight: 1.35 }}>
+                      {item.missingLabels.join(' · ')}{item.missing > item.missingLabels.length ? ` · +${item.missing - item.missingLabels.length}` : ''}
+                    </div>
+                  ) : null}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -6664,7 +6919,7 @@ function writeLeadBucketToUrl(bucket) {
 }
 
 function leadPriority(lead) {
-  const rank = { NEW: 1, QUALIFIED: 2, ASSIGNED: 3, CONTACTED: 4, CONVERTED: 5, REJECTED: 6 };
+  const rank = { NEW: 1, IN_REVIEW: 2, QUALIFIED: 2, ASSIGNED: 3, ASSIGNED_TO_PARTNER: 3, CONTACTED: 4, PARTNER_CONTACT_PENDING: 4, CONVERTED: 5, CONVERTED_TO_CASE: 5, REJECTED: 6, CLOSED: 7 };
   return rank[lead.status] || 9;
 }
 
@@ -6702,28 +6957,191 @@ const LeadWorkBuckets = ({ buckets, activeBucket, onSelect, columns = 4 }) => (
   </div>
 );
 
-const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
+const emptyLeadDraft = {
+  source: 'phone',
+  firstName: '',
+  lastName: '',
+  phone: '',
+  mobilePhone: '',
+  email: '',
+  street: '',
+  postalCode: '',
+  city: '',
+  federalState: '',
+  preferredContactMethod: 'phone',
+  contactConsent: true,
+  message: '',
+  propertyStreet: '',
+  propertyPostalCode: '',
+  propertyCity: '',
+  propertyType: '',
+  livingAreaSqm: '',
+  plotAreaSqm: '',
+  yearBuilt: '',
+  propertyNote: '',
+  productInterest: '',
+  region: '',
+  assignedPartnerId: '',
+  routingReason: '',
+  internalNote: ''
+};
+
+const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, submitting }) => {
+  const set = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+  const field = (label, key, props = {}) => (
+    <label style={{ display: 'grid', gap: 5 }}>
+      <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{label}</span>
+      <input value={draft[key] || ''} onChange={(event) => set(key, event.target.value)} {...props} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit', ...props.style }} />
+    </label>
+  );
+  return (
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '18px 20px', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Interne Lead-Erfassung</div>
+          <h2 style={{ margin: 0, color: theme.aubergine, fontSize: 20 }}>Lead erfassen</h2>
+          <p style={{ margin: '6px 0 0', color: `${theme.ink}99`, fontSize: 12.5, lineHeight: 1.45 }}>
+            Dieser Interessent ist noch kein Kundenfall. Nach Prüfung kann der Lead einem Makler zugewiesen oder in einen Kundenfall umgewandelt werden.
+          </p>
+        </div>
+        <button type="button" onClick={onCancel} style={{ alignSelf: 'start', background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '7px 10px', cursor: 'pointer', fontWeight: 800 }}>Schließen</button>
+      </div>
+
+      <div style={{ display: 'grid', gap: 16 }}>
+        <section>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Interessent</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+            {field('Vorname', 'firstName')}
+            {field('Nachname', 'lastName')}
+            {field('Telefon', 'phone')}
+            {field('Mobil', 'mobilePhone')}
+            {field('E-Mail', 'email', { type: 'email' })}
+            {field('Straße', 'street')}
+            {field('PLZ', 'postalCode')}
+            {field('Ort', 'city')}
+            {field('Bundesland', 'federalState')}
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Bevorzugte Kontaktart</span>
+              <select value={draft.preferredContactMethod || ''} onChange={(event) => set('preferredContactMethod', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+                <option value="phone">Telefon</option>
+                <option value="mobile">Mobil</option>
+                <option value="email">E-Mail</option>
+              </select>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 21, fontSize: 12.5, color: theme.ink, fontWeight: 650 }}>
+              <input type="checkbox" checked={Boolean(draft.contactConsent)} onChange={(event) => set('contactConsent', event.target.checked)} style={{ accentColor: theme.aubergine }} />
+              Einwilligung zur Kontaktaufnahme
+            </label>
+          </div>
+          <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
+            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Notiz zum Gespräch</span>
+            <textarea value={draft.message || ''} onChange={(event) => set('message', event.target.value)} rows={3} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit' }} />
+          </label>
+        </section>
+
+        <section>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Objekt, soweit bekannt</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+            {field('Objektadresse, falls abweichend', 'propertyStreet')}
+            {field('PLZ Objekt', 'propertyPostalCode')}
+            {field('Ort Objekt', 'propertyCity')}
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Objekttyp</span>
+              <select value={draft.propertyType || ''} onChange={(event) => set('propertyType', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+                <option value="">Noch offen</option>
+                <option value="single_family">Einfamilienhaus</option>
+                <option value="semi_detached">Doppelhaushälfte</option>
+                <option value="row_house">Reihenhaus</option>
+                <option value="apartment">Eigentumswohnung</option>
+              </select>
+            </label>
+            {field('Wohnfläche', 'livingAreaSqm', { type: 'number' })}
+            {field('Grundstücksfläche', 'plotAreaSqm', { type: 'number' })}
+            {field('Baujahr', 'yearBuilt', { type: 'number' })}
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Gewünschtes Modell</span>
+              <select value={draft.productInterest || ''} onChange={(event) => set('productInterest', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+                <option value="">Noch unklar</option>
+                <option value="fixed_residential_right">Wohnrecht</option>
+                <option value="sale_and_leaseback">Rückmietverkauf</option>
+                <option value="other">Sonstiges</option>
+              </select>
+            </label>
+          </div>
+          <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
+            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Grober Zustand / Notiz</span>
+            <textarea value={draft.propertyNote || ''} onChange={(event) => set('propertyNote', event.target.value)} rows={2} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit' }} />
+          </label>
+        </section>
+
+        <section>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Lead-Quelle und Routing</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Lead-Quelle</span>
+              <select value={draft.source || 'phone'} onChange={(event) => set('source', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+                <option value="phone">Telefon</option>
+                <option value="website">Website</option>
+                <option value="referral">Empfehlung</option>
+                <option value="partner">Makler</option>
+                <option value="other">Sonstiges</option>
+              </select>
+            </label>
+            {field('Region', 'region')}
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Zuständiger Partner/Makler</span>
+              <select value={draft.assignedPartnerId || ''} onChange={(event) => set('assignedPartnerId', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+                <option value="">Noch nicht zuweisen</option>
+                {partners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
+              </select>
+            </label>
+            {field('Routing-Grund', 'routingReason')}
+          </div>
+          <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
+            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Interne Notiz</span>
+            <textarea value={draft.internalNote || ''} onChange={(event) => set('internalNote', event.target.value)} rows={2} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit' }} />
+          </label>
+        </section>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+        <button type="button" onClick={onCancel} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', cursor: 'pointer', fontWeight: 800 }}>Abbrechen</button>
+        <button type="button" disabled={submitting} onClick={() => onSubmit(draft)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 800, opacity: submitting ? 0.6 : 1 }}>Lead speichern</button>
+      </div>
+    </div>
+  );
+};
+
+const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', initialCreateOpen = false, onCreate, onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
   const [partnerSelection, setPartnerSelection] = useState({});
   const [partnerFilter, setPartnerFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [activeBucket, setActiveBucket] = useState(() => readLeadBucketFromUrl(role));
   const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const [createOpen, setCreateOpen] = useState(() => Boolean(initialCreateOpen) || readLeadCreateFromUrl());
+  const [leadDraft, setLeadDraft] = useState(emptyLeadDraft);
+  const [savingLead, setSavingLead] = useState(false);
   useEffect(() => {
     const allowed = role === 'admin' ? adminLeadBucketKeys : partnerLeadBucketKeys;
     if (activeBucket && !allowed.includes(activeBucket)) {
       setActiveBucket('');
     }
   }, [role, activeBucket]);
+  useEffect(() => {
+    if (initialCreateOpen) {
+      setCreateOpen(true);
+    }
+  }, [initialCreateOpen]);
   const visibleLeads = role === 'admin'
     ? leads
-    : leads.filter((lead) => lead.status !== 'CONVERTED' && lead.status !== 'REJECTED');
+    : leads.filter((lead) => !['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status));
   const leadStats = {
     new: visibleLeads.filter((lead) => lead.status === 'NEW').length,
-    qualified: visibleLeads.filter((lead) => lead.status === 'QUALIFIED').length,
-    assigned: visibleLeads.filter((lead) => lead.status === 'ASSIGNED').length,
-    contacted: visibleLeads.filter((lead) => lead.status === 'CONTACTED').length,
-    converted: leads.filter((lead) => lead.status === 'CONVERTED').length,
-    rejected: leads.filter((lead) => lead.status === 'REJECTED').length
+    qualified: visibleLeads.filter((lead) => ['IN_REVIEW', 'QUALIFIED'].includes(lead.status)).length,
+    assigned: visibleLeads.filter((lead) => ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)).length,
+    contacted: visibleLeads.filter((lead) => ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status)).length,
+    converted: leads.filter((lead) => ['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status)).length,
+    rejected: leads.filter((lead) => ['REJECTED', 'CLOSED'].includes(lead.status)).length
   };
   const activePartnerCount = partners.filter((partner) => partner.status === 'active').length;
   const advisorOptions = staff.filter((member) => ['advisor', 'admin', 'super_admin'].includes(member.internalRole));
@@ -6747,21 +7165,29 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   const rowsByBucket = role === 'admin'
     ? {
         'new-leads': visibleLeads.filter((lead) => lead.status === 'NEW'),
-        qualification: visibleLeads.filter((lead) => lead.status === 'QUALIFIED'),
-        assignment: visibleLeads.filter((lead) => lead.status === 'ASSIGNED'),
-        'follow-up': visibleLeads.filter((lead) => lead.status === 'CONTACTED'),
-        completed: visibleLeads.filter((lead) => ['CONVERTED', 'REJECTED'].includes(lead.status)),
+        qualification: visibleLeads.filter((lead) => ['IN_REVIEW', 'QUALIFIED'].includes(lead.status)),
+        assignment: visibleLeads.filter((lead) => ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)),
+        'follow-up': visibleLeads.filter((lead) => ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status)),
+        completed: visibleLeads.filter((lead) => ['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status)),
       }
     : {
-        assigned: visibleLeads.filter((lead) => lead.status === 'ASSIGNED'),
-        contacted: visibleLeads.filter((lead) => lead.status === 'CONTACTED'),
-        converted: leads.filter((lead) => lead.status === 'CONVERTED'),
+        assigned: visibleLeads.filter((lead) => ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)),
+        contacted: visibleLeads.filter((lead) => ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status)),
+        converted: leads.filter((lead) => ['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status)),
       };
   const activeBucketLabel = buckets.find((bucket) => bucket.key === activeBucket)?.label;
   const changeBucket = (bucket) => {
     setActiveBucket(bucket);
     setSelectedLeadId(null);
     writeLeadBucketToUrl(bucket);
+  };
+  const openCreateForm = () => {
+    setCreateOpen(true);
+    updateLeadCreateUrl(role, true);
+  };
+  const closeCreateForm = () => {
+    setCreateOpen(false);
+    updateLeadCreateUrl(role, false);
   };
   const searchNeedle = search.trim().toLowerCase();
   const baseLeads = activeBucket ? (rowsByBucket[activeBucket] || []) : visibleLeads;
@@ -6778,7 +7204,10 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
         lead.city,
         lead.message,
         lead.estimatedPropertyValueRange,
-        propertyTypeLabel(lead.propertyType)
+        propertyTypeLabel(lead.propertyType),
+        lead.propertyPostalCode,
+        lead.propertyCity,
+        lead.region
       ].filter(Boolean).join(' ').toLowerCase();
       const matchesSearch = !searchNeedle || haystack.includes(searchNeedle);
       const matchesPartner = role !== 'admin' || !canAssignLeads
@@ -6799,6 +7228,16 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
     const advisor = staff.find((item) => item.id === lead.assignedAdvisorUserId);
     return advisor ? `${advisor.name} (intern)` : 'nicht zugewiesen';
   };
+  const submitLead = async (draft) => {
+    setSavingLead(true);
+    try {
+      await onCreate?.(draft);
+      setLeadDraft(emptyLeadDraft);
+      closeCreateForm();
+    } finally {
+      setSavingLead(false);
+    }
+  };
 
   return (
     <div style={{ padding: '20px 28px' }}>
@@ -6809,10 +7248,23 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Leads</h1>
         </div>
-        <div style={{ fontSize: 12, color: `${theme.ink}88` }}>
-          {loading ? 'Leads werden geladen...' : `${filteredLeads.length} von ${visibleLeads.length} Einträgen`}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontSize: 12, color: `${theme.ink}88` }}>
+            {loading ? 'Leads werden geladen...' : `${filteredLeads.length} von ${visibleLeads.length} Einträgen`}
+          </div>
         </div>
       </div>
+
+      {createOpen && (
+        <LeadCreatePanel
+          draft={leadDraft}
+          setDraft={setLeadDraft}
+          partners={partners}
+          submitting={savingLead}
+          onSubmit={submitLead}
+          onCancel={closeCreateForm}
+        />
+      )}
 
       <LeadWorkBuckets buckets={buckets} activeBucket={activeBucket} onSelect={changeBucket} columns={role === 'admin' ? 5 : 3} />
 
@@ -6861,8 +7313,8 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                   const assignedAdvisor = staff.find((member) => member.id === lead.assignedAdvisorUserId);
                   const currentAssigneeValue = lead.assignedAdvisorUserId ? `advisor:${lead.assignedAdvisorUserId}` : lead.assignedPartnerId ? `partner:${lead.assignedPartnerId}` : '';
                   const selectedAssigneeValue = partnerSelection[lead.id] || currentAssigneeValue || assigneeOptions[0]?.value || '';
-                  const assignmentLocked = ['CONVERTED', 'REJECTED'].includes(lead.status);
-                  const canConvertLead = lead.status === 'CONTACTED';
+                  const assignmentLocked = ['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status);
+                  const canConvertLead = ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status);
                   const rowActive = selectedLead?.id === lead.id;
                   return (
                     <tr key={lead.id} onClick={() => setSelectedLeadId(lead.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, background: rowActive ? `${theme.aubergine}08` : 'white', cursor: 'pointer' }}>
@@ -6878,9 +7330,9 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                         {lead.message && <div style={{ color: `${theme.ink}99`, fontSize: 12, marginTop: 4, maxWidth: 340, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.message}</div>}
                       </td>
                       <td style={{ padding: '12px 16px', color: `${theme.ink}cc` }}>
-                        <div>{propertyTypeLabel(lead.propertyType)} {lead.city || ''}</div>
+                        <div>{propertyTypeLabel(lead.propertyType)} {lead.propertyCity || lead.city || ''}</div>
                         <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
-                          {[lead.postalCode, lead.estimatedPropertyValueRange && `${lead.estimatedPropertyValueRange} Tsd.`, lead.youngestOwnerAgeRange && `${lead.youngestOwnerAgeRange} Jahre`].filter(Boolean).join(' · ') || '-'}
+                          {[lead.propertyPostalCode || lead.postalCode, lead.region, lead.estimatedPropertyValueRange && `${lead.estimatedPropertyValueRange} Tsd.`, lead.youngestOwnerAgeRange && `${lead.youngestOwnerAgeRange} Jahre`].filter(Boolean).join(' · ') || '-'}
                         </div>
                       </td>
                       <td style={{ padding: '12px 16px' }}><LeadStatusBadge status={lead.status} /></td>
@@ -6901,16 +7353,16 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                               disabled={!selectedAssigneeValue || assignmentLocked}
                               style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: !selectedAssigneeValue || assignmentLocked ? 'not-allowed' : 'pointer', opacity: !selectedAssigneeValue || assignmentLocked ? 0.45 : 1 }}
                             >
-                              {lead.status === 'CONVERTED' ? 'Umgewandelt' : lead.status === 'REJECTED' ? 'Abgelehnt' : assignedPartner || assignedAdvisor ? 'Neu zuweisen' : 'Zuweisen'}
+                              {['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status) ? 'Umgewandelt' : lead.status === 'REJECTED' ? 'Abgelehnt' : assignedPartner || assignedAdvisor ? 'Neu zuweisen' : 'Zuweisen'}
                             </button>
                           </div>
                         ) : (
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <button onClick={() => onMarkContacted(lead.id)} disabled={lead.status === 'CONVERTED'} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: lead.status === 'CONVERTED' ? 0.45 : 1 }}>
+                            <button onClick={() => onMarkContacted(lead.id)} disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status) ? 0.45 : 1 }}>
                               Kontaktiert
                             </button>
                             <button onClick={() => onConvert(lead.id)} disabled={!canConvertLead} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: canConvertLead ? 'pointer' : 'not-allowed', opacity: canConvertLead ? 1 : 0.45 }}>
-                              {lead.status === 'ASSIGNED' ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}
+                              {['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status) ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}
                             </button>
                           </div>
                         )}
@@ -6936,11 +7388,12 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
               </div>
               <div style={{ display: 'grid', gap: 12, fontSize: 12.5 }}>
                 {[
-                  ['Quelle', selectedLead.source || 'homepage'],
+                  ['Quelle', leadSourceLabels[selectedLead.source] || selectedLead.source || 'Homepage'],
                   ['Erfasst', formatDate(selectedLead.createdAt)],
-                  ['Kontakt', [selectedLead.email, selectedLead.phone].filter(Boolean).join(' · ') || 'offen'],
-                  ['Objekt', `${propertyTypeLabel(selectedLead.propertyType)} ${selectedLead.city || ''}`.trim()],
+                  ['Kontakt', [selectedLead.email, selectedLead.phone, selectedLead.mobilePhone].filter(Boolean).join(' · ') || 'offen'],
+                  ['Objekt', `${propertyTypeLabel(selectedLead.propertyType)} ${selectedLead.propertyCity || selectedLead.city || ''}`.trim()],
                   ['PLZ', selectedLead.postalCode || '-'],
+                  ['Region', selectedLead.region || '-'],
                   ['Wertindikation', selectedLead.estimatedPropertyValueRange ? `${selectedLead.estimatedPropertyValueRange} Tsd.` : '-'],
                   ['Jüngster Eigentümer', selectedLead.youngestOwnerAgeRange ? `${selectedLead.youngestOwnerAgeRange} Jahre` : '-'],
                   ['Interesse', productModelLabels[selectedLead.productInterest] || '-'],
@@ -6959,15 +7412,15 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 
               {role === 'admin' && canAssignLeads ? (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
-                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onUpdateStatus(selectedLead.id, 'QUALIFIED')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Als qualifiziert markieren</button>
-                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Lead ablehnen</button>
+                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'IN_REVIEW')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>In Prüfung markieren</button>
+                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Lead ablehnen</button>
                 </div>
               ) : (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
                   <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', display: 'grid', gap: 8 }}>
                     {[
-                      { label: 'Kontakt aufnehmen', done: ['CONTACTED', 'CONVERTED'].includes(selectedLead.status), active: selectedLead.status === 'ASSIGNED' },
-                      { label: 'Kundenfall anlegen', done: selectedLead.status === 'CONVERTED', active: selectedLead.status === 'CONTACTED' }
+                      { label: 'Kontakt aufnehmen', done: ['CONTACTED', 'PARTNER_CONTACT_PENDING', 'CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status), active: ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) },
+                      { label: 'Kundenfall anlegen', done: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status), active: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) }
                     ].map((step, index) => (
                       <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: 8, color: step.done ? '#5B8C2B' : step.active ? theme.aubergine : `${theme.ink}88`, fontSize: 12.5, fontWeight: step.active ? 800 : 650 }}>
                         <span style={{ width: 20, height: 20, borderRadius: '50%', background: step.done ? '#5B8C2B' : step.active ? theme.aubergine : 'white', color: step.done || step.active ? 'white' : `${theme.ink}88`, border: step.done || step.active ? 'none' : `1px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
@@ -6977,8 +7430,8 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                       </div>
                     ))}
                   </div>
-                  <button disabled={selectedLead.status === 'CONVERTED'} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: selectedLead.status === 'CONVERTED' ? 'not-allowed' : 'pointer', opacity: selectedLead.status === 'CONVERTED' ? 0.45 : 1 }}>Kontaktiert markieren</button>
-                  <button disabled={selectedLead.status !== 'CONTACTED'} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: selectedLead.status === 'CONTACTED' ? 'pointer' : 'not-allowed', opacity: selectedLead.status === 'CONTACTED' ? 1 : 0.45 }}>{selectedLead.status === 'ASSIGNED' ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}</button>
+                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 'not-allowed' : 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Kontaktiert markieren</button>
+                  <button disabled={!['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status)} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 'pointer' : 'not-allowed', opacity: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 1 : 0.45 }}>{['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}</button>
                 </div>
               )}
             </>
@@ -6994,7 +7447,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 // =====================================================================
 // MAIN APP
 // =====================================================================
-export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialScreen } = {}) {
+export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialScreen, initialLeadCreate = false } = {}) {
   const urlCaseLocation = parseCaseLocation('kunde');
   const initialCaseLocation = {
     caseId: initialCaseId || urlCaseLocation.caseId,
@@ -7235,6 +7688,16 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setScreen('case');
     updateCaseUrl(role, id, 'kunde', '', 'push');
   };
+  const handleNewLead = () => {
+    if (role !== 'admin') {
+      setNotice('Lead-Erfassung ist nur für interne Nutzer verfügbar.');
+      return;
+    }
+    setCaseId(null);
+    setEditingCaseId(null);
+    setScreen('leads');
+    updateLeadCreateUrl(role, true, 'push');
+  };
   const toggleRole = () => {
     if (!canUseAdminData) {
       setNotice('Für die Admin-Ansicht sind interne Rechte erforderlich.');
@@ -7275,9 +7738,23 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       setNotice(err instanceof Error ? err.message : 'Lead konnte nicht zugewiesen werden');
     }
   };
+  const handleCreateLead = async (leadDraft) => {
+    try {
+      const payload = Object.fromEntries(Object.entries(leadDraft).map(([key, value]) => [key, value === '' ? undefined : value]));
+      if (payload.assignedPartnerId && !payload.routingReason) {
+        throw new Error('Bitte erfassen Sie den Routing-Grund, wenn der Lead direkt an einen Makler weitergeleitet wird.');
+      }
+      await postJson('/api/leads', payload);
+      setNotice(payload.assignedPartnerId ? 'Lead wurde erfasst und an den Makler weitergeleitet.' : 'Lead wurde erfasst.');
+      await loadLeads(role);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht erfasst werden');
+      throw err;
+    }
+  };
   const handleMarkLeadContacted = async (leadId) => {
     try {
-      await patchJson(`/api/leads/${leadId}/status`, { status: 'CONTACTED' });
+      await patchJson(`/api/leads/${leadId}/status`, { status: 'PARTNER_CONTACT_PENDING' });
       setNotice('Lead wurde als kontaktiert markiert.');
       await loadLeads(role);
     } catch (err) {
@@ -7402,7 +7879,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           internalRole={currentInternalRole}
           currentScreen={screen}
           onNavigate={handleNavigate}
-          leadCount={leads.filter((lead) => role === 'admin' ? lead.status === 'NEW' : lead.status !== 'CONVERTED' && lead.status !== 'REJECTED').length}
+          leadCount={leads.filter((lead) => role === 'admin' ? ['NEW', 'IN_REVIEW'].includes(lead.status) : !['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status)).length}
           draftCount={filterCasesForScreen(cases, 'drafts').length}
           inProgressCount={filterCasesForScreen(cases, 'in_progress').length}
           portfolioCount={filterCasesForScreen(cases, 'portfolio').length}
@@ -7415,8 +7892,8 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
             </div>
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} user={user} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} onShowAllCases={() => handleNavigate('in_progress')} />}
-          {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
-          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['admin', 'super_admin'].includes(currentInternalRole)} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
+          {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onNewLead={handleNewLead} onOpenLeads={() => handleNavigate('leads')} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
+          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} onCreate={handleCreateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && <PartnerDirectory partners={partners} registrations={registrations} leads={leads} onSetPartnerStatus={handleSetPartnerStatus} onDeletePartner={handleDeletePartner} />}
