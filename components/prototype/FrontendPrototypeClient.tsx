@@ -12,6 +12,7 @@ type FrontendPrototypeProps = {
   initialReturnTab?: string;
   initialScreen?: string;
   initialLeadCreate?: boolean;
+  initialPartnerId?: string | null;
 };
 
 const FrontendPrototype = dynamic(
@@ -32,7 +33,8 @@ export function FrontendPrototypeClient({
   initialTab,
   initialReturnTab,
   initialScreen,
-  initialLeadCreate
+  initialLeadCreate,
+  initialPartnerId
 }: FrontendPrototypeProps) {
   return (
     <FrontendPrototype
@@ -43,6 +45,7 @@ export function FrontendPrototypeClient({
       initialReturnTab={initialReturnTab}
       initialScreen={initialScreen}
       initialLeadCreate={initialLeadCreate}
+      initialPartnerId={initialPartnerId}
     />
   );
 }

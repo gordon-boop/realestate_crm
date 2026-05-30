@@ -497,7 +497,7 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
     { icon: FileText, label: 'Sonstiges', screen: 'other' },
   ];
   const nav = role === 'admin' ? adminNav : partnerNav;
-  const isActive = (item) => item.screen === currentScreen;
+  const isActive = (item) => item.screen === currentScreen || (item.screen === 'partners' && currentScreen === 'partner_detail');
   const canUseQuickActions = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
   const quickActions = [
     { key: 'new-lead', icon: TrendingUp, label: 'Neuer Lead' },
@@ -1189,6 +1189,7 @@ const appScreenKeys = [
   'sold',
   'rejected',
   'partners',
+  'partner_detail',
   'staff',
   'other',
   'knowledge_brochure',
@@ -1218,6 +1219,17 @@ function parseCaseLocation(fallbackTab = 'kunde') {
     tab: normalizeCaseTab(params.get('tab'), fallbackTab),
     returnTab: normalizeCaseTab(params.get('returnTab'), ''),
   };
+}
+
+function readPartnerIdFromUrl() {
+  if (typeof window === 'undefined') return null;
+  const match = window.location.pathname.match(/^\/admin\/partners\/([^/?#]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
+function updatePartnerUrl(partnerId, mode = 'push') {
+  if (typeof window === 'undefined' || !partnerId) return;
+  window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', `/admin/partners/${encodeURIComponent(partnerId)}`);
 }
 
 function updateCaseUrl(role, caseId, tab = 'kunde', returnTab = '', mode = 'replace') {
@@ -3469,16 +3481,18 @@ const initialPartnerDraft = {
   initialPassword: 'demo1234',
 };
 
-const PartnerCreateModal = ({ onClose, onSubmit, saving = false }) => {
-  const [draft, setDraft] = useState(initialPartnerDraft);
+const PartnerCreateModal = ({ onClose, onSubmit, saving = false, initialDraft = initialPartnerDraft, mode = 'create', canEditStatus = true }) => {
+  const isEditMode = mode === 'edit';
+  const [draft, setDraft] = useState(() => ({ ...initialPartnerDraft, ...initialDraft }));
   const set = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
   const submit = async (event) => {
     event.preventDefault();
-    await onSubmit?.({
-      ...draft,
-      loginEmail: draft.loginEmail || draft.email,
-      loginName: draft.loginName || `${draft.contactFirstName} ${draft.contactLastName}`.trim(),
-    });
+    const payload = { ...draft };
+    if (!isEditMode) {
+      payload.loginEmail = draft.loginEmail || draft.email;
+      payload.loginName = draft.loginName || `${draft.contactFirstName} ${draft.contactLastName}`.trim();
+    }
+    await onSubmit?.(payload);
   };
   const inputStyle = { border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
   const labelStyle = { display: 'grid', gap: 5, fontSize: 11.5, color: theme.ink, fontWeight: 700 };
@@ -3488,7 +3502,7 @@ const PartnerCreateModal = ({ onClose, onSubmit, saving = false }) => {
         <div style={{ padding: '18px 20px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Stammdaten</div>
-            <h2 style={{ margin: '3px 0 0', color: theme.aubergine, fontSize: 20 }}>Partner anlegen</h2>
+            <h2 style={{ margin: '3px 0 0', color: theme.aubergine, fontSize: 20 }}>{isEditMode ? 'Partner bearbeiten' : 'Partner anlegen'}</h2>
           </div>
           <button type="button" onClick={onClose} disabled={saving} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 34, height: 34, cursor: saving ? 'wait' : 'pointer' }}>
             <X size={16} />
@@ -3504,7 +3518,7 @@ const PartnerCreateModal = ({ onClose, onSubmit, saving = false }) => {
               <label style={labelStyle}>Ansprechpartner Vorname *<input required value={draft.contactFirstName} onChange={(event) => set('contactFirstName', event.target.value)} style={inputStyle} /></label>
               <label style={labelStyle}>Ansprechpartner Nachname *<input required value={draft.contactLastName} onChange={(event) => set('contactLastName', event.target.value)} style={inputStyle} /></label>
               <label style={labelStyle}>E-Mail *<input required type="email" value={draft.email} onChange={(event) => set('email', event.target.value)} style={inputStyle} /></label>
-              <label style={labelStyle}>Status *<select value={draft.status} onChange={(event) => set('status', event.target.value)} style={inputStyle}><option value="active">aktiv</option><option value="inactive">inaktiv</option></select></label>
+              <label style={labelStyle}>Status *<select disabled={!canEditStatus} value={draft.status} onChange={(event) => set('status', event.target.value)} style={{ ...inputStyle, background: canEditStatus ? 'white' : theme.mintLighter, color: canEditStatus ? theme.ink : `${theme.ink}88` }}><option value="active">aktiv</option><option value="inactive">inaktiv</option></select></label>
               <label style={labelStyle}>Telefon<input value={draft.phone} onChange={(event) => set('phone', event.target.value)} style={inputStyle} /></label>
               <label style={labelStyle}>Mobil<input value={draft.mobilePhone} onChange={(event) => set('mobilePhone', event.target.value)} style={inputStyle} /></label>
               <label style={labelStyle}>Straße<input value={draft.street} onChange={(event) => set('street', event.target.value)} style={inputStyle} /></label>
@@ -3520,7 +3534,7 @@ const PartnerCreateModal = ({ onClose, onSubmit, saving = false }) => {
             <label style={labelStyle}>Notiz<textarea value={draft.note} onChange={(event) => set('note', event.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></label>
           </section>
 
-          <section style={{ display: 'grid', gap: 12, borderTop: `1px solid ${theme.borderSoft}`, paddingTop: 16 }}>
+          {!isEditMode && <section style={{ display: 'grid', gap: 12, borderTop: `1px solid ${theme.borderSoft}`, paddingTop: 16 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 800, color: theme.aubergine, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Partnerzugang</div>
               <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>Für die Demo wird direkt ein erster Makler-Login angelegt. Das Passwort wird bcrypt-gehasht gespeichert.</div>
@@ -3530,13 +3544,13 @@ const PartnerCreateModal = ({ onClose, onSubmit, saving = false }) => {
               <label style={labelStyle}>Login-Name<input value={draft.loginName} onChange={(event) => set('loginName', event.target.value)} style={inputStyle} placeholder="leer = Ansprechpartner" /></label>
               <label style={labelStyle}>Initialpasswort<input value={draft.initialPassword} onChange={(event) => set('initialPassword', event.target.value)} style={inputStyle} /></label>
             </div>
-          </section>
+          </section>}
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <button type="button" onClick={onClose} disabled={saving} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: saving ? 'wait' : 'pointer' }}>Abbrechen</button>
           <button type="submit" disabled={saving} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 15px', fontSize: 13, fontWeight: 800, cursor: saving ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-            <Plus size={15} /> {saving ? 'Speichern...' : 'Partner anlegen'}
+            {isEditMode ? <Save size={15} /> : <Plus size={15} />} {saving ? 'Speichern...' : isEditMode ? 'Änderungen speichern' : 'Partner anlegen'}
           </button>
         </div>
       </form>
@@ -3544,7 +3558,7 @@ const PartnerCreateModal = ({ onClose, onSubmit, saving = false }) => {
   );
 };
 
-const PartnerDirectory = ({ partners = [], registrations = [], leads = [], canCreatePartner = false, canManagePartnerStatus = false, onCreatePartner, onSetPartnerStatus, onDeletePartner }) => {
+const PartnerDirectory = ({ partners = [], registrations = [], leads = [], canCreatePartner = false, canManagePartnerStatus = false, onCreatePartner, onOpenPartner, onSetPartnerStatus, onDeletePartner }) => {
   const [selectedLetter, setSelectedLetter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -3662,6 +3676,9 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], canCr
                       <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 800 }}>{assignedLeadCount}</td>
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
+                        <button onClick={() => onOpenPartner?.(partner.id)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                          Öffnen <ChevronRight size={13} />
+                        </button>
                         {canManagePartnerStatus ? (!isActive ? (
                           <button disabled={emailPending} onClick={() => onSetPartnerStatus?.(partner.id, 'active')} title={emailPending ? 'Bitte zuerst die E-Mail bestätigen.' : 'Partner freischalten'} style={{ background: emailPending ? theme.borderSoft : theme.aubergine, color: emailPending ? `${theme.ink}66` : 'white', border: 'none', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: emailPending ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
                             Freischalten
@@ -3703,6 +3720,272 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], canCr
         </div>
       </div>
       {createOpen && <PartnerCreateModal saving={createSaving} onClose={() => createSaving ? null : setCreateOpen(false)} onSubmit={submitCreate} />}
+    </div>
+  );
+};
+
+function splitContactName(name = '') {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { firstName: parts[0] || '-', lastName: '-' };
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts.at(-1) };
+}
+
+function partnerDetailToDraft(partner) {
+  const contact = splitContactName(partner?.contactName);
+  const details = partner?.details || {};
+  return {
+    ...initialPartnerDraft,
+    companyName: partner?.companyName || '',
+    contactFirstName: contact.firstName === '-' ? '' : contact.firstName,
+    contactLastName: contact.lastName === '-' ? '' : contact.lastName,
+    email: partner?.email || '',
+    phone: partner?.phone || '',
+    mobilePhone: '',
+    region: details.region || '',
+    status: partner?.status || 'active',
+    street: details.street || '',
+    postalCode: details.postalCode || '',
+    city: details.city || '',
+    federalState: details.federalState || '',
+    website: details.website || '',
+    note: details.note || '',
+    commissionModel: details.commissionModel || '',
+    contactRole: details.contactRole || '',
+    initialPassword: '',
+  };
+}
+
+const PartnerInfoRow = ({ label, value }) => (
+  <div>
+    <div style={{ color: `${theme.ink}70`, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+    <div style={{ color: theme.ink, fontSize: 13, lineHeight: 1.45 }}>{value || '-'}</div>
+  </div>
+);
+
+const PartnerDetailCard = ({ title, children }) => (
+  <section style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12, fontWeight: 850, color: theme.aubergine, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{title}</div>
+    <div style={{ padding: 16 }}>{children}</div>
+  </section>
+);
+
+const PartnerDetailTable = ({ columns, rows, emptyText, renderRow }) => (
+  rows.length ? (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 680 }}>
+        <thead>
+          <tr style={{ background: theme.mintLight }}>
+            {columns.map((column) => (
+              <th key={column} style={{ textAlign: 'left', padding: '9px 12px', fontSize: 11, fontWeight: 800, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{rows.map(renderRow)}</tbody>
+      </table>
+    </div>
+  ) : (
+    <div style={{ color: `${theme.ink}88`, fontSize: 13 }}>{emptyText}</div>
+  )
+);
+
+const PartnerDetail = ({ partnerId, canManagePartnerStatus = false, onBack, onOpenLead, onOpenCase, onUpdated }) => {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPartnerDetail() {
+      setLoading(true);
+      setErrorMessage('');
+      try {
+        const response = await fetch(`/api/partners/${encodeURIComponent(partnerId)}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Partnerdetails konnten nicht geladen werden');
+        if (!cancelled) setDetail(payload);
+      } catch (err) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : 'Partnerdetails konnten nicht geladen werden';
+          setErrorMessage(message.includes('not found') ? 'Partner nicht gefunden' : message.includes('role required') ? 'Zugriff nicht erlaubt.' : message);
+          setDetail(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    if (partnerId) loadPartnerDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [partnerId]);
+
+  if (loading) {
+    return (
+      <div style={{ padding: '24px 28px', color: theme.aubergine, fontWeight: 700 }}>
+        Partnerdetails werden geladen...
+      </div>
+    );
+  }
+
+  if (errorMessage || !detail?.partner) {
+    return (
+      <div style={{ padding: '24px 28px' }}>
+        <PartnerDetailCard title="Partnerdetails">
+          <div style={{ color: '#9B2C2C', fontSize: 14, fontWeight: 700, marginBottom: 14 }}>{errorMessage || 'Partner nicht gefunden'}</div>
+          <button onClick={onBack} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '9px 13px', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <ArrowLeft size={15} /> Zur Partnerübersicht
+          </button>
+        </PartnerDetailCard>
+      </div>
+    );
+  }
+
+  const partner = detail.partner;
+  const details = partner.details || {};
+  const contact = splitContactName(partner.contactName);
+  const leads = detail.leads || [];
+  const cases = detail.cases || [];
+  const users = detail.users || [];
+  const statusActive = partner.status === 'active';
+  const submitEdit = async (payload) => {
+    setEditSaving(true);
+    try {
+      const response = await fetch(`/api/partners/${encodeURIComponent(partner.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Partner konnte nicht gespeichert werden');
+      setDetail((current) => current ? { ...current, partner: result.partner || current.partner } : current);
+      setEditOpen(false);
+      await onUpdated?.();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Partner konnte nicht gespeichert werden');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: '20px 28px', display: 'grid', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+        <div>
+          <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: theme.aubergine, fontSize: 12, fontWeight: 800, padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 9 }}>
+            <ArrowLeft size={14} /> Zur Partnerübersicht
+          </button>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Partnerdetails</div>
+          <h1 style={{ fontSize: 24, fontWeight: 650, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>{partner.companyName}</h1>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: statusActive ? '#5B8C2B' : '#A87308', background: statusActive ? '#5B8C2B1A' : `${theme.gold}1A`, borderRadius: 10, padding: '3px 9px' }}>{statusActive ? 'aktiv' : 'inaktiv'}</span>
+            {details.region && <span style={{ fontSize: 11, fontWeight: 800, color: theme.aubergine, background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 10, padding: '3px 9px' }}>{details.region}</span>}
+          </div>
+        </div>
+        <button onClick={() => setEditOpen(true)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 14px', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+          <Save size={15} />
+          Partner bearbeiten
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(300px, 0.9fr)', gap: 16 }}>
+        <PartnerDetailCard title="Stammdaten">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+            <PartnerInfoRow label="Firmenname / Maklerbüro" value={partner.companyName} />
+            <PartnerInfoRow label="Status" value={statusActive ? 'aktiv' : 'inaktiv'} />
+            <PartnerInfoRow label="Region / Tätigkeitsgebiet" value={details.region || '-'} />
+            <PartnerInfoRow label="Straße" value={details.street || partner.address} />
+            <PartnerInfoRow label="PLZ" value={details.postalCode || '-'} />
+            <PartnerInfoRow label="Ort" value={details.city || '-'} />
+            <PartnerInfoRow label="Bundesland" value={details.federalState || '-'} />
+            <PartnerInfoRow label="Website" value={details.website ? <a href={details.website} target="_blank" rel="noreferrer" style={{ color: theme.aubergine, fontWeight: 800 }}>{details.website}</a> : '-'} />
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <PartnerInfoRow label="Notiz" value={details.note || '-'} />
+          </div>
+        </PartnerDetailCard>
+
+        <PartnerDetailCard title="Ansprechpartner">
+          <div style={{ display: 'grid', gap: 16 }}>
+            <PartnerInfoRow label="Vorname" value={contact.firstName} />
+            <PartnerInfoRow label="Nachname" value={contact.lastName} />
+            <PartnerInfoRow label="E-Mail" value={partner.email} />
+            <PartnerInfoRow label="Telefon" value={partner.phone || '-'} />
+            <PartnerInfoRow label="Mobil" value="-" />
+            <PartnerInfoRow label="Rolle / Funktion" value={details.contactRole || '-'} />
+          </div>
+        </PartnerDetailCard>
+      </div>
+
+      <PartnerDetailCard title="Login-Nutzer">
+        <PartnerDetailTable
+          columns={['Name', 'E-Mail', 'Rolle', 'Letzter Login', 'Status']}
+          rows={users}
+          emptyText="Für diesen Partner ist noch kein Login-Nutzer angelegt."
+          renderRow={(item) => (
+            <tr key={item.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+              <td style={{ padding: '11px 12px', color: theme.ink, fontWeight: 700 }}>{item.name}</td>
+              <td style={{ padding: '11px 12px', color: theme.ink }}>{item.email}</td>
+              <td style={{ padding: '11px 12px', color: theme.ink }}>{item.role === 'partner' ? 'Makler / Partner' : item.role}</td>
+              <td style={{ padding: '11px 12px', color: `${theme.ink}88` }}>nicht erfasst</td>
+              <td style={{ padding: '11px 12px' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: item.deletedAt ? '#A87308' : '#5B8C2B', background: item.deletedAt ? `${theme.gold}1A` : '#5B8C2B1A', borderRadius: 10, padding: '3px 9px' }}>{item.deletedAt ? 'inaktiv' : 'aktiv'}</span>
+              </td>
+            </tr>
+          )}
+        />
+      </PartnerDetailCard>
+
+      <PartnerDetailCard title="Zugewiesene Leads">
+        <PartnerDetailTable
+          columns={['Leadnummer', 'Name', 'Ort', 'Status', 'Letzte Aktivität', 'Öffnen']}
+          rows={leads}
+          emptyText="Keine Leads zugewiesen."
+          renderRow={(lead) => (
+            <tr key={lead.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+              <td style={{ padding: '11px 12px', color: theme.aubergine, fontWeight: 800, fontFamily: 'ui-monospace, monospace' }}>{lead.leadNumber}</td>
+              <td style={{ padding: '11px 12px', color: theme.ink, fontWeight: 700 }}>{lead.name || [lead.firstName, lead.lastName].filter(Boolean).join(' ') || 'Name offen'}</td>
+              <td style={{ padding: '11px 12px', color: theme.ink }}>{lead.propertyCity || lead.city || '-'}</td>
+              <td style={{ padding: '11px 12px' }}><LeadStatusBadge status={lead.status} /></td>
+              <td style={{ padding: '11px 12px', color: `${theme.ink}88` }}>{formatDate(lead.updatedAt || lead.createdAt)}</td>
+              <td style={{ padding: '11px 12px' }}>
+                <button onClick={() => onOpenLead?.(lead.id)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Öffnen</button>
+              </td>
+            </tr>
+          )}
+        />
+      </PartnerDetailCard>
+
+      <PartnerDetailCard title="Eingereichte Fälle">
+        <PartnerDetailTable
+          columns={['Fallnummer', 'Kunde', 'Objekt', 'Status', 'Letzte Aktivität', 'Öffnen']}
+          rows={cases}
+          emptyText="Keine Fälle vorhanden."
+          renderRow={(item) => (
+            <tr key={item.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+              <td style={{ padding: '11px 12px', color: theme.aubergine, fontWeight: 800, fontFamily: 'ui-monospace, monospace' }}>{item.caseNumber || item.id}</td>
+              <td style={{ padding: '11px 12px', color: theme.ink, fontWeight: 700 }}>{item.customer?.displayName || [item.customer?.firstName, item.customer?.lastName].filter(Boolean).join(' ') || 'Kunde offen'}</td>
+              <td style={{ padding: '11px 12px', color: theme.ink }}>{item.objectTitle || [item.street, [item.postalCode, item.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '-'}</td>
+              <td style={{ padding: '11px 12px' }}><StatusBadge status={item.status} /></td>
+              <td style={{ padding: '11px 12px', color: `${theme.ink}88` }}>{formatDate(item.lastActivityAt || item.updatedAt)}</td>
+              <td style={{ padding: '11px 12px' }}>
+                <button onClick={() => onOpenCase?.(item.id, 'kunde')} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Öffnen</button>
+              </td>
+            </tr>
+          )}
+        />
+      </PartnerDetailCard>
+      {editOpen && (
+        <PartnerCreateModal
+          mode="edit"
+          saving={editSaving}
+          initialDraft={partnerDetailToDraft(partner)}
+          canEditStatus={canManagePartnerStatus}
+          onClose={() => editSaving ? null : setEditOpen(false)}
+          onSubmit={submitEdit}
+        />
+      )}
     </div>
   );
 };
@@ -3835,6 +4118,43 @@ const SimpleMenuScreen = ({ title, eyebrow = 'CRM', text }) => (
       <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>{eyebrow}</div>
       <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: '0 0 10px' }}>{title}</h1>
       <div style={{ fontSize: 13.5, color: `${theme.ink}aa`, lineHeight: 1.65 }}>{text}</div>
+    </div>
+  </div>
+);
+
+const customerBrochurePdfUrl = '/documents/WohnKapital_Kundenbroschuere.pdf';
+
+const CustomerBrochureScreen = () => (
+  <div style={{ padding: '20px 28px' }}>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Wissen</div>
+      <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0 }}>Broschüre</h1>
+      <div style={{ fontSize: 13.5, color: `${theme.ink}99`, marginTop: 6 }}>Aktuelle WohnKapital-Kundenbroschüre als PDF.</div>
+    </div>
+
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
+      <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 800 }}>WohnKapital Kundenbroschüre</div>
+          <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>PDF wird direkt im CRM angezeigt.</div>
+        </div>
+        <a
+          href={customerBrochurePdfUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+        >
+          PDF öffnen
+          <ChevronRight size={14} />
+        </a>
+      </div>
+      <div style={{ background: theme.mintLighter, minHeight: 'calc(100vh - 230px)' }}>
+        <iframe
+          title="WohnKapital Kundenbroschüre"
+          src={customerBrochurePdfUrl}
+          style={{ display: 'block', width: '100%', height: 'calc(100vh - 230px)', minHeight: 640, border: 'none', background: 'white' }}
+        />
+      </div>
     </div>
   </div>
 );
@@ -8959,17 +9279,19 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 // =====================================================================
 // MAIN APP
 // =====================================================================
-export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialScreen, initialLeadCreate = false } = {}) {
+export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialScreen, initialLeadCreate = false, initialPartnerId = null } = {}) {
   const urlCaseLocation = parseCaseLocation('kunde');
   const initialCaseLocation = {
     caseId: initialCaseId || urlCaseLocation.caseId,
     tab: normalizeCaseTab(initialTab || urlCaseLocation.tab),
     returnTab: normalizeCaseTab(initialReturnTab || urlCaseLocation.returnTab, ''),
   };
+  const initialPartnerDetailId = initialPartnerId || readPartnerIdFromUrl();
   const initialAppScreen = normalizeAppScreen(initialScreen || parseAppLocation('dashboard'));
   const [role, setRole] = useState(initialRole);
-  const [screen, setScreen] = useState(initialCaseLocation.caseId ? 'case' : initialAppScreen);
+  const [screen, setScreen] = useState(initialCaseLocation.caseId ? 'case' : initialPartnerDetailId ? 'partner_detail' : initialAppScreen);
   const [caseId, setCaseId] = useState(initialCaseLocation.caseId);
+  const [partnerDetailId, setPartnerDetailId] = useState(initialPartnerDetailId);
   const [caseInitialTab, setCaseInitialTab] = useState(initialCaseLocation.tab);
   const [caseReturnTab, setCaseReturnTab] = useState(initialCaseLocation.returnTab);
   const [editingCaseId, setEditingCaseId] = useState(null);
@@ -9076,16 +9398,26 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   useEffect(() => {
     const syncFromUrl = () => {
       const locationState = parseCaseLocation('kunde');
+      const partnerIdFromUrl = readPartnerIdFromUrl();
       if (locationState.caseId) {
         setCaseId(locationState.caseId);
         setCaseInitialTab(locationState.tab);
         setCaseReturnTab(locationState.returnTab);
+        setPartnerDetailId(null);
         setEditingCaseId(null);
         setScreen('case');
+      } else if (partnerIdFromUrl) {
+        setCaseId(null);
+        setCaseInitialTab('kunde');
+        setCaseReturnTab('');
+        setPartnerDetailId(partnerIdFromUrl);
+        setEditingCaseId(null);
+        setScreen('partner_detail');
       } else {
         setCaseId(null);
         setCaseInitialTab('kunde');
         setCaseReturnTab('');
+        setPartnerDetailId(null);
         setScreen(parseAppLocation('dashboard'));
       }
     };
@@ -9121,6 +9453,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setCaseId(null);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setPartnerDetailId(null);
     setEditingCaseId(null);
     updateScreenUrl(role, nextScreen, 'push');
     if (nextScreen === 'leads' || nextScreen === 'partners') loadLeads(role);
@@ -9132,6 +9465,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setCaseId(id);
     setCaseInitialTab(nextTab);
     setCaseReturnTab(nextReturnTab);
+    setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('case');
     updateCaseUrl(role, id, nextTab, nextReturnTab, options.replace ? 'replace' : 'push');
@@ -9140,6 +9474,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setCaseId(null);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('leads');
     const params = new URLSearchParams();
@@ -9154,6 +9489,15 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       return;
     }
     handleOpenCase(result.id, 'kunde');
+  };
+  const handleOpenPartner = (id) => {
+    setCaseId(null);
+    setCaseInitialTab('kunde');
+    setCaseReturnTab('');
+    setPartnerDetailId(id);
+    setEditingCaseId(null);
+    setScreen('partner_detail');
+    updatePartnerUrl(id, 'push');
   };
   const handleCaseTabChange = (tab) => {
     const nextTab = normalizeCaseTab(tab);
@@ -9194,6 +9538,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     }
   };
   const handleNewCase = () => {
+    setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('erfassung');
     updateScreenUrl(role, 'erfassung', 'push');
@@ -9202,12 +9547,14 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setEditingCaseId(id);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setPartnerDetailId(null);
     setScreen('erfassung');
     updateScreenUrl(role, 'erfassung', 'push');
   };
   const handleBack = () => {
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('dashboard');
     updateScreenUrl(role, 'dashboard', 'push');
@@ -9217,6 +9564,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setCaseId(id);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('case');
     updateCaseUrl(role, id, 'kunde', '', 'push');
@@ -9227,6 +9575,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       return;
     }
     setCaseId(null);
+    setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('leads');
     updateLeadCreateUrl(role, true, 'push');
@@ -9270,6 +9619,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setRole(nextRole);
     setScreen('dashboard');
     setCaseId(null);
+    setPartnerDetailId(null);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
     setEditingCaseId(null);
@@ -9483,13 +9833,24 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
               canCreatePartner={['employee', 'admin', 'super_admin'].includes(currentInternalRole)}
               canManagePartnerStatus={['admin', 'super_admin'].includes(currentInternalRole)}
               onCreatePartner={handleCreatePartner}
+              onOpenPartner={handleOpenPartner}
               onSetPartnerStatus={handleSetPartnerStatus}
               onDeletePartner={handleDeletePartner}
             />
           )}
+          {screen === 'partner_detail' && role === 'admin' && (
+            <PartnerDetail
+              partnerId={partnerDetailId}
+              canManagePartnerStatus={['admin', 'super_admin'].includes(currentInternalRole)}
+              onBack={() => handleNavigate('partners')}
+              onOpenLead={handleOpenLead}
+              onOpenCase={handleOpenCase}
+              onUpdated={() => loadLeads('admin')}
+            />
+          )}
           {screen === 'staff' && canViewStaff && <StaffDirectory staff={staff} canManageStaff={canManageStaff} onCreateStaff={handleCreateStaff} onUpdateStaffRole={handleUpdateStaffRole} onDeleteStaff={handleDeleteStaff} />}
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
-          {screen === 'knowledge_brochure' && <SimpleMenuScreen title="Broschüre" eyebrow="Wissen" text="Hier kann später die aktuelle WohnKapital-Broschüre als Download, Vorschau oder Link hinterlegt werden." />}
+          {screen === 'knowledge_brochure' && <CustomerBrochureScreen />}
           {screen === 'knowledge_atlas' && <PostbankWohnatlasScreen />}
           {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und strukturierte Einreichung an WohnKapital." />}
           {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}

@@ -369,6 +369,29 @@ export const partnerCreateSchema = z.object({
   }
 });
 
+export const partnerUpdateSchema = z.object({
+  companyName: z.string().trim().min(1, "Bitte geben Sie den Firmennamen ein."),
+  contactFirstName: z.string().trim().min(1, "Bitte geben Sie einen Ansprechpartner an."),
+  contactLastName: z.string().trim().min(1, "Bitte geben Sie einen Ansprechpartner an."),
+  email: z.string().trim().email("Bitte geben Sie eine gÃƒÂ¼ltige E-Mail-Adresse ein.").toLowerCase(),
+  phone: optionalString,
+  mobilePhone: optionalString,
+  region: z.string().trim().min(1, "Bitte wÃƒÂ¤hlen Sie eine Region aus."),
+  status: z.enum(["active", "inactive"]).default("active"),
+  street: optionalString,
+  postalCode: optionalString,
+  city: optionalString,
+  federalState: optionalString,
+  website: optionalString,
+  note: optionalString,
+  commissionModel: optionalString,
+  contactRole: optionalString
+}).superRefine((value, ctx) => {
+  if (!value.phone && !value.mobilePhone) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["phone"], message: "Bitte geben Sie Telefon oder Mobilnummer an." });
+  }
+});
+
 export const acquisitionWorkflowSchema = z.object({
   action: z.enum([
     "indicative_offer_sent",
