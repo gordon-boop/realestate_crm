@@ -9,13 +9,20 @@ import { nextSequenceValue } from "@/lib/sequence";
 type CalculateOfferBody = {
   model?: DesiredModel;
   kind?: "indicative" | "binding";
-  inputs?: Record<string, number | string | undefined>;
+  inputs?: Record<string, number | string | null | undefined>;
 };
 
-function readNumber(input: Record<string, number | string | undefined> | undefined, key: string): number | undefined {
+function hasInput(input: Record<string, number | string | null | undefined> | undefined, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(input ?? {}, key);
+}
+
+function readNumber(input: Record<string, number | string | null | undefined> | undefined, key: string): number | undefined {
   const value = input?.[key];
-  if (value === undefined || value === "") return undefined;
-  const parsed = Number(value);
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  const normalized = String(value).trim().replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  if (!normalized) return undefined;
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
@@ -36,16 +43,21 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const caseView = await getDbCaseByPropertyId(params.id);
     if (!caseView) throw new Error("Property not found");
     if (!canCalculateOffer(user, caseView.property)) throw new Error("Forbidden");
-    if (!caseView.valuation) throw new Error("Valuation required before offer calculation");
 
     const body = (await request.json().catch(() => ({}))) as CalculateOfferBody;
     const model = body.model ?? caseView.property.desiredModel;
     const kind = body.kind ?? "indicative";
     const residentialRightYears = readNumber(body.inputs, "residentialRightYears") ?? caseView.property.desiredResidentialRightYears;
+    const manualMarketValue = readNumber(body.inputs, "manualMarketValue") ?? readNumber(body.inputs, "marketValue");
     const expertOpinionValue = readNumber(body.inputs, "expertOpinionValue");
+    const leadingMarketValue = kind === "binding" ? expertOpinionValue : manualMarketValue;
+    const approvedRating = caseView.objectRatings.find((rating) => rating.status === "approved" && rating.finalTargetReturn !== undefined);
+    const latestRatingWithFinalReturn = caseView.objectRatings.find((rating) => rating.finalTargetReturn !== undefined);
+    const latestRatingWithBaseReturn = caseView.objectRatings.find((rating) => rating.baseTargetReturn !== undefined);
     const ratingTargetReturn = readNumber(body.inputs, "targetReturn")
-      ?? caseView.objectRatings.find((rating) => rating.finalTargetReturn !== undefined)?.finalTargetReturn
-      ?? caseView.objectRatings.find((rating) => rating.baseTargetReturn !== undefined)?.baseTargetReturn;
+      ?? approvedRating?.finalTargetReturn
+      ?? latestRatingWithFinalReturn?.finalTargetReturn
+      ?? latestRatingWithBaseReturn?.baseTargetReturn;
     const calculationDate = new Date();
 
     if (kind === "binding" && !caseView.property.expertOpinionReceivedAt) {
@@ -54,27 +66,40 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (kind === "binding" && !expertOpinionValue) {
       throw new Error("Gutachtenwert required before binding offer calculation");
     }
+    if (!leadingMarketValue && !caseView.valuation) {
+      throw new Error("Bitte geben Sie einen Verkehrswert ein.");
+    }
 
-    const calculationValuation = kind === "binding" && expertOpinionValue
+    const calculationValuation = leadingMarketValue
       ? await prisma.valuation.create({
           data: {
             propertyId: params.id,
-            provider: "sprengnetter",
+            provider: "other",
             status: "completed",
-            sourceLabel: "Gutachtenwert",
-            marketValue: expertOpinionValue,
-            valueMin: expertOpinionValue,
-            valueMax: expertOpinionValue,
+            sourceLabel: kind === "binding" ? "Gutachtenwert" : "Manuell eingegebener Verkehrswert",
+            marketValue: leadingMarketValue,
+            valueMin: leadingMarketValue,
+            valueMax: leadingMarketValue,
             confidenceScore: 1,
             rawResponseJson: toPrismaJson({
-              source: "manual_expert_opinion",
-              expertOpinionValue,
+              source: kind === "binding" ? "manual_expert_opinion" : "manual_market_value",
+              manualMarketValue: kind === "indicative" ? leadingMarketValue : undefined,
+              expertOpinionValue: kind === "binding" ? leadingMarketValue : undefined,
               note: "Gutachtenwert wurde manuell für die VA-Kalkulation hinterlegt."
             }),
             completedAt: new Date()
           }
         })
       : caseView.valuation;
+    if (!calculationValuation) {
+      throw new Error("Bitte geben Sie einen Verkehrswert ein.");
+    }
+    const residentialMonthlyRent = hasInput(body.inputs, "residentialMonthlyRent")
+      ? readNumber(body.inputs, "residentialMonthlyRent") ?? 0
+      : undefined;
+    const garageMonthlyRent = hasInput(body.inputs, "garageMonthlyRent")
+      ? readNumber(body.inputs, "garageMonthlyRent") ?? 0
+      : undefined;
 
     const calculation = calculateOffer({
       valuation: {
@@ -89,7 +114,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       garageCount: readNumber(body.inputs, "garageCount") ?? (caseView.property.parkingAvailable ? caseView.property.parkingCount : 0),
       monthlyRentPerSqm: readNumber(body.inputs, "monthlyRentPerSqm"),
       garageRentMonthly: readNumber(body.inputs, "garageRentMonthly"),
+      residentialMonthlyRent,
+      garageMonthlyRent,
       interestRate: readNumber(body.inputs, "interestRate"),
+      safetyDiscountRate: readNumber(body.inputs, "safetyDiscountRate") ?? readNumber(body.inputs, "safetyDiscount"),
       targetReturn: ratingTargetReturn,
       customerAge: completedAge(caseView.customer.dateOfBirth, calculationDate) ?? caseView.customer.ageAtSubmission,
       customerGender: caseView.customer.gender,
@@ -178,7 +206,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       user.id,
       kind === "binding" ? "binding_offer_calculated" : "offer_calculated",
       `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${model === "sale_and_leaseback" ? "Rückmietverkauf" : "Wohnrecht"} wurde berechnet.`,
-      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, kind, expertOpinionValue } }
+      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, kind, manualMarketValue, expertOpinionValue } }
     );
     return json({ offer }, { status: 201 });
   } catch (err) {

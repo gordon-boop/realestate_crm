@@ -537,11 +537,24 @@ export const residentStatusUpdateSchema = z.object({
 });
 
 export const objectRatingScoreUpdateSchema = z.object({
-  analystScore: z.coerce.number().int().min(1).max(6).optional(),
-  finalScore: z.coerce.number().int().min(1).max(6).optional(),
-  comment: z.string().trim().min(1, "Kommentar ist erforderlich.")
+  analystScore: z.coerce.number().int().min(1).max(6).nullable().optional(),
+  finalScore: z.coerce.number().int().min(1).max(6).nullable().optional(),
+  comment: z.string().trim().nullable().optional()
+});
+
+export const objectRatingScoresBatchUpdateSchema = z.object({
+  scores: z.array(z.object({
+    scoreId: z.string().min(1),
+    analystScore: z.coerce.number().int().min(1).max(6).nullable().optional(),
+    finalScore: z.coerce.number().int().min(1).max(6).nullable().optional(),
+    comment: z.string().trim().nullable().optional()
+  })).min(1, "Keine Rating-Änderungen vorhanden.")
 });
 
 export const objectRatingReturnUpdateSchema = z.object({
   finalTargetReturn: z.coerce.number().finite()
+});
+
+export const objectRatingUnlockSchema = z.object({
+  reason: z.string().trim().min(1, "Bitte geben Sie einen Grund für die Freischaltung an.")
 });

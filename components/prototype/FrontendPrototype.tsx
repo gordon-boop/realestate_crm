@@ -553,7 +553,6 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
       {[
         { icon: BookOpen, label: 'Broschüre', screen: 'knowledge_brochure' },
         { icon: MapPin, label: 'Postbank Wohnatlas', screen: 'knowledge_atlas' },
-        { icon: FileText, label: 'Leitfaden', screen: 'knowledge_guide' },
         { icon: HelpCircle, label: 'FAQs', screen: 'knowledge_faq' },
       ].map((item, i) => (
         <div key={i} onClick={() => onNavigate(item.screen)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 6, background: currentScreen === item.screen ? `${theme.aubergine}12` : 'transparent', fontSize: 12.5, color: currentScreen === item.screen ? theme.aubergine : `${theme.ink}cc`, cursor: 'pointer' }}>
@@ -851,6 +850,26 @@ function rentBackMetricRows(offer) {
     ['Mietfaktor p.a.', formatPercent(metrics.annualRentRate)],
     ['Jahresmiete', formatEuroCents(metrics.annualRent)],
     ['Monatliche Miete', formatEuroCents(metrics.monthlyRent)],
+  ];
+}
+
+function offerWeightedIrrLabel(offer) {
+  const weightedIrr = offer?.assumptions?.components?.weightedAnnualIrr;
+  return Number.isFinite(Number(weightedIrr)) ? formatPercent(Number(weightedIrr)) : '–';
+}
+
+function residentialRightMetricRows(offer) {
+  const components = offer?.assumptions?.components || {};
+  const quote = offer?.payoutAmount && offer?.marketValue ? offer.payoutAmount / offer.marketValue : undefined;
+
+  return [
+    ['Verkehrswert', formatEuro(offer?.marketValue)],
+    ['Wohnrecht', offer?.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
+    ['Instandhaltung', Number.isFinite(Number(components.maintenanceCost)) ? formatEuro(components.maintenanceCost) : '-'],
+    ['Interne Verzinsung', Number.isFinite(Number(components.interestDiscount)) ? formatEuro(components.interestDiscount) : '-'],
+    ['Auszahlungsbetrag', formatEuro(offer?.payoutAmount)],
+    ['Quote', Number.isFinite(Number(quote)) ? formatPercent(quote) : '-'],
+    ['Gewichteter IRR mit 2 % Indexierung', offerWeightedIrrLabel(offer)],
   ];
 }
 
@@ -1194,7 +1213,6 @@ const appScreenKeys = [
   'other',
   'knowledge_brochure',
   'knowledge_atlas',
-  'knowledge_guide',
   'knowledge_faq',
   'erfassung',
 ];
@@ -1260,24 +1278,51 @@ function readLeadCreateFromUrl() {
   return params.get('createLead') === '1' || params.get('mode') === 'create';
 }
 
+const leadDraftUrlFields = ['assignedPartnerId', 'region', 'routingReason', 'source'];
+
+function readLeadDraftFromUrl() {
+  if (typeof window === 'undefined') return {};
+  const params = new URLSearchParams(window.location.search);
+  return leadDraftUrlFields.reduce((draft, field) => {
+    const value = params.get(field);
+    if (value) draft[field] = value;
+    return draft;
+  }, {});
+}
+
 function readLeadIdFromUrl() {
   if (typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
   return params.get('lead') || params.get('leadId');
 }
 
-function updateLeadCreateUrl(role, open = true, mode = 'replace') {
+function updateLeadCreateUrl(role, open = true, mode = 'replace', draft = {}) {
   if (typeof window === 'undefined') return;
+  const writeDraftParams = (params) => {
+    leadDraftUrlFields.forEach((field) => {
+      const value = draft?.[field];
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        params.set(field, String(value));
+      } else {
+        params.delete(field);
+      }
+    });
+  };
   if (open && role === 'admin') {
-    window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', '/admin/leads/new');
+    const params = new URLSearchParams();
+    writeDraftParams(params);
+    const query = params.toString();
+    window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', `/admin/leads/new${query ? `?${query}` : ''}`);
     return;
   }
   const params = new URLSearchParams(window.location.search);
   params.set('screen', 'leads');
   if (open) {
     params.set('createLead', '1');
+    writeDraftParams(params);
   } else {
     params.delete('createLead');
+    leadDraftUrlFields.forEach((field) => params.delete(field));
     if (params.get('screen') !== 'leads') params.set('screen', 'leads');
   }
   const query = params.toString();
@@ -3788,7 +3833,7 @@ const PartnerDetailTable = ({ columns, rows, emptyText, renderRow }) => (
   )
 );
 
-const PartnerDetail = ({ partnerId, canManagePartnerStatus = false, onBack, onOpenLead, onOpenCase, onUpdated }) => {
+const PartnerDetail = ({ partnerId, canManagePartnerStatus = false, onBack, onOpenLead, onOpenCase, onCreateLeadForPartner, onUpdated }) => {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -3883,10 +3928,34 @@ const PartnerDetail = ({ partnerId, canManagePartnerStatus = false, onBack, onOp
             {details.region && <span style={{ fontSize: 11, fontWeight: 800, color: theme.aubergine, background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 10, padding: '3px 9px' }}>{details.region}</span>}
           </div>
         </div>
-        <button onClick={() => setEditOpen(true)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '10px 14px', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-          <Save size={15} />
-          Partner bearbeiten
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => onCreateLeadForPartner?.(partner)}
+            disabled={!statusActive}
+            title={statusActive ? 'Lead erfassen und diesem Partner zuweisen' : 'Nur aktive Partner können neue Leads erhalten.'}
+            style={{
+              background: statusActive ? theme.aubergine : `${theme.ink}18`,
+              color: statusActive ? 'white' : `${theme.ink}88`,
+              border: 'none',
+              padding: '10px 14px',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 800,
+              cursor: statusActive ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+            }}
+          >
+            <Plus size={15} />
+            Lead für Partner erfassen
+          </button>
+          <button onClick={() => setEditOpen(true)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, padding: '10px 14px', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <Save size={15} />
+            Partner bearbeiten
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(300px, 0.9fr)', gap: 16 }}>
@@ -4152,6 +4221,43 @@ const CustomerBrochureScreen = () => (
         <iframe
           title="WohnKapital Kundenbroschüre"
           src={customerBrochurePdfUrl}
+          style={{ display: 'block', width: '100%', height: 'calc(100vh - 230px)', minHeight: 640, border: 'none', background: 'white' }}
+        />
+      </div>
+    </div>
+  </div>
+);
+
+const brokerFaqPdfUrl = '/documents/WohnKapital_Makler_FAQ.pdf';
+
+const BrokerFaqScreen = () => (
+  <div style={{ padding: '20px 28px' }}>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Wissen</div>
+      <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0 }}>FAQs</h1>
+      <div style={{ fontSize: 13.5, color: `${theme.ink}99`, marginTop: 6 }}>WohnKapital Makler-FAQ als PDF.</div>
+    </div>
+
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
+      <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 800 }}>WohnKapital Makler-FAQ</div>
+          <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>PDF wird direkt im CRM angezeigt.</div>
+        </div>
+        <a
+          href={brokerFaqPdfUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+        >
+          PDF öffnen
+          <ChevronRight size={14} />
+        </a>
+      </div>
+      <div style={{ background: theme.mintLighter, minHeight: 'calc(100vh - 230px)' }}>
+        <iframe
+          title="WohnKapital Makler-FAQ"
+          src={brokerFaqPdfUrl}
           style={{ display: 'block', width: '100%', height: 'calc(100vh - 230px)', minHeight: 640, border: 'none', background: 'white' }}
         />
       </div>
@@ -4783,6 +4889,31 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const ratingOpenChecks = ratingScores.filter((score) => !ratingScoreValue(score) || Number(score.confidence || 0) < 0.65);
   const ratingReadOnly = objectRating?.status === 'approved' || !canManageRating;
   const ratingReturnPercent = ratingReturnInput || (objectRating?.finalTargetReturn ? String((Number(objectRating.finalTargetReturn) * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 })) : '');
+  const canUnlockRating = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
+  const ratingInputHas = (input, key) => Object.prototype.hasOwnProperty.call(input || {}, key);
+  const ratingCommentValue = (score) => {
+    const input = ratingScoreInputs[score.id] || {};
+    return ratingInputHas(input, 'comment') ? input.comment || '' : score.comment || '';
+  };
+  const ratingFinalValueForSave = (score) => {
+    const input = ratingScoreInputs[score.id] || {};
+    if (input.cleared) return null;
+    if (ratingInputHas(input, 'analystScore')) {
+      return input.analystScore === '' ? null : Number(input.analystScore);
+    }
+    return ratingScoreValue(score) ?? null;
+  };
+  const ratingManualChange = (score) => {
+    const finalValue = ratingFinalValueForSave(score);
+    if (finalValue === null || finalValue === '') return false;
+    const autoValue = score.prefilledScore;
+    return autoValue === undefined || autoValue === null || Number(finalValue) !== Number(autoValue);
+  };
+  const ratingInputDirty = (score) => {
+    const input = ratingScoreInputs[score.id] || {};
+    return input.cleared || ratingInputHas(input, 'analystScore') || ratingInputHas(input, 'comment');
+  };
+  const ratingDirtyCount = ratingScores.filter((score) => ratingInputDirty(score)).length;
   async function runCaseAction(label, action) {
     if (!c.propertyId) {
       setNotice?.('Dieser Mock-Fall ist noch nicht mit einer API-ID verbunden.');
@@ -4805,12 +4936,27 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const generateObjectRating = () => runCaseAction('Objektrating erzeugen', async () => {
     await postJson(`/api/properties/${c.propertyId}/rating`, {});
   });
-  const saveRatingScore = (score) => runCaseAction('Rating-Kriterium speichern', async () => {
-    const input = ratingScoreInputs[score.id] || {};
-    const analystScore = Number(input.analystScore || score.analystScore || score.finalScore || score.prefilledScore);
-    const comment = String(input.comment || '').trim();
-    if (!comment) throw new Error('Bitte einen Kommentar zur Scoreänderung hinterlegen.');
-    await patchJson(`/api/properties/${c.propertyId}/rating/scores/${score.id}`, { analystScore, comment });
+  const saveRatingChanges = () => runCaseAction('Rating-Änderungen speichern', async () => {
+    const updates = ratingScores
+      .filter((score) => ratingInputDirty(score))
+      .map((score) => {
+        const finalScore = ratingFinalValueForSave(score);
+        const comment = String(ratingCommentValue(score) || '').trim();
+        if (ratingManualChange(score) && !comment) {
+          throw new Error('Bitte begründen Sie die manuelle Änderung.');
+        }
+        return {
+          scoreId: score.id,
+          analystScore: finalScore,
+          finalScore,
+          comment
+        };
+      });
+    if (!updates.length) {
+      throw new Error('Es gibt keine Rating-Änderungen zum Speichern.');
+    }
+    await patchJson(`/api/properties/${c.propertyId}/rating`, { scores: updates });
+    setRatingScoreInputs({});
   });
   const saveRatingReturn = () => runCaseAction('Zielrendite speichern', async () => {
     const parsed = parseGermanNumberInput(ratingReturnPercent);
@@ -4821,11 +4967,41 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const approveRating = () => runCaseAction('Objektrating freigeben', async () => {
     await postJson(`/api/properties/${c.propertyId}/rating/approve`, {});
   });
-  const startValuationAndOffer = (model) => runCaseAction(model === 'sale_and_leaseback' ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation', async () => {
-    await postJson(`/api/properties/${c.propertyId}/valuation`, { provider: 'sprengnetter' });
-    await postJson(`/api/properties/${c.propertyId}/offer/calculate`, { model });
-    await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
-  });
+  const unlockRating = () => {
+    const reason = window.prompt('Bitte geben Sie einen Grund für die Freischaltung an.');
+    if (!reason || !reason.trim()) {
+      setNotice?.('Bitte geben Sie einen Grund für die Freischaltung an.');
+      return;
+    }
+    runCaseAction('Objektrating freischalten', async () => {
+      await postJson(`/api/properties/${c.propertyId}/rating/unlock`, { reason: reason.trim() });
+    });
+  };
+  const startValuationAndOffer = (modelRequest, index = 0) => {
+    const model = typeof modelRequest === 'string' ? modelRequest : modelRequest.model;
+    const key = typeof modelRequest === 'string' ? `${model}-${index}` : `${modelRequest.key}-${index}`;
+    const params = calculationParams[key] || {};
+    const manualMarketValue = params.manualMarketValue ?? params.marketValue ?? '';
+    return runCaseAction(model === 'sale_and_leaseback' ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation', async () => {
+      if (!manualMarketValue && !latestValuation?.marketValue) {
+        await postJson(`/api/properties/${c.propertyId}/valuation`, { provider: 'sprengnetter' });
+      }
+      await postJson(`/api/properties/${c.propertyId}/offer/calculate`, {
+        model,
+        inputs: {
+          ...params,
+          manualMarketValue,
+          safetyDiscount: params.safetyDiscount ?? '',
+          residentialMonthlyRent: params.residentialMonthlyRent ?? '',
+          garageMonthlyRent: params.garageMonthlyRent ?? '',
+          residentialRightYears: modelRequest?.residentialRightYears || property?.desiredResidentialRightYears,
+          livingAreaSqm: property?.livingAreaSqm,
+          garageCount: property?.parkingAvailable ? property?.parkingCount : 0,
+        }
+      });
+      await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
+    });
+  };
   const calculateBindingOffer = (modelRequest, index) => runCaseAction('VA-Kalkulation', async () => {
     if (!canPrepareBindingOffer) {
       throw new Error('Bitte zuerst das Gutachten als eingegangen markieren.');
@@ -4841,6 +5017,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       model: modelRequest.model,
       inputs: {
         ...params,
+        safetyDiscount: params.safetyDiscount ?? '',
+        residentialMonthlyRent: params.residentialMonthlyRent ?? '',
+        garageMonthlyRent: params.garageMonthlyRent ?? '',
         expertOpinionValue: parsedExpertOpinionValue,
         residentialRightYears: modelRequest.residentialRightYears || property?.desiredResidentialRightYears,
         livingAreaSqm: property?.livingAreaSqm,
@@ -5270,6 +5449,39 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       ))}
     </div>
   );
+  const renderMarketDataBox = () => {
+    const raw = latestValuation?.rawResponseJson || {};
+    const rentHint = Number.isFinite(Number(raw.residentialMonthlyRent))
+      ? formatEuroCents(raw.residentialMonthlyRent)
+      : Number.isFinite(Number(raw.monthlyRentPerSqm))
+        ? `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(Number(raw.monthlyRentPerSqm))} €/m²`
+        : '–';
+    const sourceParts = [
+      latestValuation?.sourceLabel || latestValuation?.provider || 'Marktdaten',
+      latestValuation?.completedAt || latestValuation?.createdAt ? dateLabel(latestValuation.completedAt || latestValuation.createdAt) : null,
+    ].filter(Boolean);
+
+    return (
+      <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 10, padding: '13px 15px', marginBottom: 16 }}>
+        <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>Marktdaten Sprengnetter</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+          {[
+            ['Geschätzter Verkehrswert', latestValuation?.marketValue ? formatEuro(latestValuation.marketValue) : '–'],
+            ['Mietansatz', rentHint],
+            ['Quelle / Zeitpunkt', sourceParts.join(' · ') || '–'],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, marginBottom: 3 }}>{label}</div>
+              <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 750 }}>{value}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 9, fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
+          Marktdaten sind Vorschlagswerte. Ein manuell eingetragener Verkehrswert wird für die Berechnung verwendet.
+        </div>
+      </div>
+    );
+  };
   const renderIndicativeOfferCard = (modelRequest, index) => {
     const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
     const key = `${modelRequest.key}-${index}`;
@@ -5282,17 +5494,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const payoutValue = rentBackMetrics?.payoutAmount ?? offer?.payoutAmount;
     const calculationActionLabel = isRentBack ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation';
     const offerMeta = offer ? `Version ${offer.currentVersion || 1} · zuletzt berechnet` : 'Entwurf';
-    const maintenanceValue = offer ? (params.maintenance || offer.companyMargin || offer.assumptions?.components?.maintenancePledge) : null;
-    const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer) : [
-      ['Verkehrswert', formatEuro(offer.marketValue)],
-      ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
-      ['Risikoabschlag', offer.riskDiscount ? formatEuro(offer.riskDiscount) : '-'],
-      ['Marge', offer.companyMargin ? formatEuro(offer.companyMargin) : '-'],
-      ['Auszahlungsbetrag', formatEuro(offer.payoutAmount)],
-      ['Quote', quote ? `${quote}%` : '-'],
-    ]) : [];
+    const visibleManualMarketValue = params.manualMarketValue ?? params.marketValue ?? (offer?.marketValue ? formatGermanIntegerInput(offer.marketValue) : '');
+    const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer) : residentialRightMetricRows(offer)) : [];
     const chipRows = [
-      ['Verkehrswert', offer ? formatEuro(offer.marketValue) : params.marketValue ? `${params.marketValue} €` : '-'],
+      ['Verkehrswert', offer ? formatEuro(offer.marketValue) : visibleManualMarketValue ? `${visibleManualMarketValue} €` : '-'],
       ['Modell', labelFrom(productModelLabels, modelRequest.model)],
       isRentBack
         ? ['Info', 'Miete ab Tag 1']
@@ -5353,20 +5558,28 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         {canManageOffers && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
             <div style={offerSectionTitleStyle}>Berechnungs-Eingabe</div>
+            {renderMarketDataBox()}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               {[
-                ['marketValue', 'Verkehrswert (€)'],
+                ['manualMarketValue', 'Verkehrswert (€)'],
                 ['maintenance', 'Instandhaltung (€)'],
                 ['interestRate', 'Interne Verzinsung (%)'],
                 ['safetyDiscount', 'Sicherheitsabschlag (%)'],
+                ['residentialMonthlyRent', 'Miete Wohnen (€ / Monat)'],
+                ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
               ].map(([field, label]) => (
                 <Field key={field} label={label}>
-                  <Input type="number" value={params[field] || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })} />
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={field === 'manualMarketValue' ? visibleManualMarketValue : params[field] || ''}
+                    onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: field === 'manualMarketValue' ? formatGermanIntegerInput(event.target.value) : event.target.value } })}
+                  />
                 </Field>
               ))}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <button onClick={() => startValuationAndOffer(modelRequest.model)} disabled={Boolean(busyAction)} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction), busy: busyAction === calculationActionLabel })}>
+              <button onClick={() => startValuationAndOffer(modelRequest, index)} disabled={Boolean(busyAction)} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction), busy: busyAction === calculationActionLabel })}>
                 {busyAction === calculationActionLabel ? 'Berechnet...' : offer ? 'Neu berechnen' : 'Unverbindliches Angebot berechnen'}
               </button>
               <OfferSuccessHint action={calculationActionLabel} />
@@ -5664,11 +5877,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
       ['Δ Auszahlung vs. UVA', deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuroCents(deltaPayout)}` : '-'],
     ] : [
-      ['UVA-Marktwert', indicativeOffer ? formatEuro(indicativeOffer.marketValue) : '-'],
-      ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
-      ['Wohnrechtswert', bindingOffer.residentialRightValue ? formatEuro(bindingOffer.residentialRightValue) : '-'],
-      ['Risikoabschlag', bindingOffer.riskDiscount ? formatEuro(bindingOffer.riskDiscount) : '-'],
-      ['Marge', bindingOffer.companyMargin ? formatEuro(bindingOffer.companyMargin) : '-'],
+      ...residentialRightMetricRows(bindingOffer),
       ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
       ['Δ Auszahlung vs. UVA', deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuro(deltaPayout)}` : '-'],
     ]) : [];
@@ -5679,6 +5888,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         ? ['Info', 'Miete ab Tag 1']
         : ['Laufzeit', `${modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
     ];
+    const bindingParamKey = `binding-${modelRequest.key}-${index}`;
+    const bindingParams = calculationParams[bindingParamKey] || {};
 
     return (
       <div key={`binding-offer-card-${modelRequest.key}-${index}`} style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
@@ -5729,10 +5940,29 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         {canManageOffers && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
             <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Berechnungs-Eingabe</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 300px) max-content auto', gap: 14, alignItems: 'end' }}>
+            {renderMarketDataBox()}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               <Field label="Gutachtenwert (€)" required>
                 <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder="z.B. 650.000" inputMode="numeric" />
               </Field>
+              {[
+                ['maintenance', 'Instandhaltung (€)'],
+                ['interestRate', 'Interne Verzinsung (%)'],
+                ['safetyDiscount', 'Sicherheitsabschlag (%)'],
+                ['residentialMonthlyRent', 'Miete Wohnen (€ / Monat)'],
+                ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
+              ].map(([field, label]) => (
+                <Field key={field} label={label}>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={bindingParams[field] || ''}
+                    onChange={(event) => setCalculationParams({ ...calculationParams, [bindingParamKey]: { ...bindingParams, [field]: event.target.value } })}
+                  />
+                </Field>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction) || !canPrepareBindingOffer} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canPrepareBindingOffer, busy: busyAction === 'VA-Kalkulation' })}>
                 {busyAction === 'VA-Kalkulation' ? 'Berechnet...' : 'Neu berechnen'}
               </button>
@@ -6206,8 +6436,18 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       {objectRating ? 'Rating neu berechnen' : 'Vorläufiges Rating erzeugen'}
                     </button>
                     {objectRating && canManageRating && objectRating.status !== 'approved' && (
+                      <button onClick={saveRatingChanges} disabled={Boolean(busyAction) || ratingDirtyCount === 0} style={{ background: ratingDirtyCount ? theme.aubergine : 'white', color: ratingDirtyCount ? 'white' : `${theme.ink}66`, border: ratingDirtyCount ? 'none' : `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : ratingDirtyCount ? 'pointer' : 'default', opacity: busyAction ? 0.65 : 1 }}>
+                        Änderungen speichern{ratingDirtyCount ? ` (${ratingDirtyCount})` : ''}
+                      </button>
+                    )}
+                    {objectRating && canManageRating && objectRating.status !== 'approved' && (
                       <button onClick={approveRating} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
                         Rating freigeben
+                      </button>
+                    )}
+                    {objectRating?.status === 'approved' && canUnlockRating && (
+                      <button onClick={unlockRating} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                        Rating wieder freischalten
                       </button>
                     )}
                   </div>
@@ -6278,9 +6518,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                 const disabledByRoofChoice = isRoofPair && selectedRoofCriterionId && selectedRoofCriterionId !== score.criterionId;
                                 const effectiveWeight = ratingEffectiveCriterionWeight(score.criterion);
                                 const hasInfo = score.criterion?.category?.name === 'Mikrolage' && Boolean(score.criterion?.description);
+                                const manuallyChanged = !disabledByRoofChoice && ratingManualChange(score);
+                                const missingManualComment = manuallyChanged && !String(ratingCommentValue(score) || '').trim();
                                 return (
-                                  <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '12px 14px', background: disabledByRoofChoice ? theme.mintLighter : Number(score.confidence || 0) < 0.65 ? theme.goldSoft : 'white', opacity: disabledByRoofChoice ? 0.62 : 1 }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: canManageRating && objectRating.status !== 'approved' ? '1.25fr 0.65fr 0.45fr 0.95fr 0.55fr 1.1fr auto' : '1.35fr 0.75fr 0.45fr 0.9fr 0.55fr 1.1fr', gap: 10, alignItems: 'center' }}>
+                                  <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '12px 14px', background: disabledByRoofChoice ? theme.mintLighter : missingManualComment ? '#FFF4F4' : manuallyChanged ? theme.goldSoft : Number(score.confidence || 0) < 0.65 ? theme.goldSoft : 'white', opacity: disabledByRoofChoice ? 0.62 : 1 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 0.75fr 0.45fr 0.9fr 0.55fr 1.1fr', gap: 10, alignItems: 'center' }}>
                                       <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                           <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{score.criterion?.name || score.criterionId}</div>
@@ -6291,6 +6533,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                         <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>
                                           Gewichtung {formatPercent(effectiveWeight)}
                                           {disabledByRoofChoice ? ' · ausgegraut, wird nicht mitgerechnet' : ''}
+                                          {!disabledByRoofChoice && manuallyChanged ? ' · manuell geändert' : ''}
                                         </div>
                                         {hasInfo && openRatingInfo === score.id && (
                                           <div style={{ marginTop: 8, border: `1px solid ${theme.borderSoft}`, background: 'white', borderRadius: 6, padding: '9px 10px', fontSize: 11.5, color: `${theme.ink}99`, lineHeight: 1.45, whiteSpace: 'pre-line' }}>{score.criterion.description}</div>
@@ -6308,11 +6551,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                         <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Final</div>
                                         {canManageRating && objectRating.status !== 'approved' ? (
                                           <select value={effectiveScore} disabled={disabledByRoofChoice} onChange={(event) => {
-                                            const nextInputs = { ...ratingScoreInputs, [score.id]: { ...input, analystScore: event.target.value, cleared: false } };
-                                            if (score.criterionId === ratingRoofCriterionId && flatRoofScore) nextInputs[flatRoofScore.id] = { ...(nextInputs[flatRoofScore.id] || {}), analystScore: '', cleared: true };
-                                            if (score.criterionId === ratingFlatRoofCriterionId && roofScore) nextInputs[roofScore.id] = { ...(nextInputs[roofScore.id] || {}), analystScore: '', cleared: true };
+                                            const nextInputs = { ...ratingScoreInputs, [score.id]: { ...input, analystScore: event.target.value, comment: input.comment ?? score.comment ?? '', cleared: false } };
+                                            if (score.criterionId === ratingRoofCriterionId && flatRoofScore) nextInputs[flatRoofScore.id] = { ...(nextInputs[flatRoofScore.id] || {}), analystScore: '', comment: '', cleared: true };
+                                            if (score.criterionId === ratingFlatRoofCriterionId && roofScore) nextInputs[roofScore.id] = { ...(nextInputs[roofScore.id] || {}), analystScore: '', comment: '', cleared: true };
                                             setRatingScoreInputs(nextInputs);
-                                          }} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, background: disabledByRoofChoice ? theme.mintLighter : 'white' }}>
+                                          }} style={{ width: '100%', border: `1px solid ${manuallyChanged ? theme.gold : theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, background: disabledByRoofChoice ? theme.mintLighter : 'white' }}>
                                             <option value="">-</option>
                                             {ratingScoreDefinitions(score.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {definition.label}</option>)}
                                           </select>
@@ -6332,14 +6575,14 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                       <div>
                                         <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Kommentar</div>
                                         {canManageRating && objectRating.status !== 'approved' ? (
-                                          <input value={input.comment ?? ''} disabled={disabledByRoofChoice} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder="Pflicht bei Änderung" style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
+                                          <>
+                                            <input value={ratingCommentValue(score)} disabled={disabledByRoofChoice} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder={manuallyChanged ? 'Pflicht: Änderung begründen' : 'Optional'} style={{ width: '100%', border: `1px solid ${missingManualComment ? '#B42318' : theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
+                                            {missingManualComment && <div style={{ fontSize: 10.5, color: '#B42318', marginTop: 4, fontWeight: 700 }}>Bitte begründen Sie die manuelle Änderung.</div>}
+                                          </>
                                         ) : (
                                           <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : score.comment || '-'}</div>
                                         )}
                                       </div>
-                                      {canManageRating && objectRating.status !== 'approved' && (
-                                        <button onClick={() => saveRatingScore(score)} disabled={Boolean(busyAction) || disabledByRoofChoice} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 800, cursor: busyAction || disabledByRoofChoice ? 'default' : 'pointer', opacity: busyAction || disabledByRoofChoice ? 0.5 : 1 }}>Speichern</button>
-                                      )}
                                     </div>
                                   </div>
                                 );
@@ -8936,14 +9179,14 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, s
   );
 };
 
-const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', initialCreateOpen = false, initialSelectedLeadId = null, onCreate, onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
+const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', initialCreateOpen = false, initialSelectedLeadId = null, initialDraft = {}, onCreate, onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
   const [partnerSelection, setPartnerSelection] = useState({});
   const [partnerFilter, setPartnerFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [activeBucket, setActiveBucket] = useState(() => readLeadBucketFromUrl(role));
   const [selectedLeadId, setSelectedLeadId] = useState(initialSelectedLeadId || readLeadIdFromUrl());
   const [createOpen, setCreateOpen] = useState(() => Boolean(initialCreateOpen) || readLeadCreateFromUrl());
-  const [leadDraft, setLeadDraft] = useState(emptyLeadDraft);
+  const [leadDraft, setLeadDraft] = useState(() => ({ ...emptyLeadDraft, ...readLeadDraftFromUrl(), ...(initialDraft || {}) }));
   const [savingLead, setSavingLead] = useState(false);
   useEffect(() => {
     const allowed = role === 'admin' ? adminLeadBucketKeys : partnerLeadBucketKeys;
@@ -8953,9 +9196,10 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   }, [role, activeBucket]);
   useEffect(() => {
     if (initialCreateOpen) {
+      setLeadDraft({ ...emptyLeadDraft, ...readLeadDraftFromUrl(), ...(initialDraft || {}) });
       setCreateOpen(true);
     }
-  }, [initialCreateOpen]);
+  }, [initialCreateOpen, initialDraft]);
   useEffect(() => {
     const nextLeadId = initialSelectedLeadId || readLeadIdFromUrl();
     if (nextLeadId) {
@@ -9013,9 +9257,11 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
     setSelectedLeadId(null);
     writeLeadBucketToUrl(bucket);
   };
-  const openCreateForm = () => {
+  const openCreateForm = (prefill = {}) => {
+    const nextDraft = { ...emptyLeadDraft, ...prefill };
+    setLeadDraft(nextDraft);
     setCreateOpen(true);
-    updateLeadCreateUrl(role, true);
+    updateLeadCreateUrl(role, true, 'replace', nextDraft);
   };
   const closeCreateForm = () => {
     setCreateOpen(false);
@@ -9304,6 +9550,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const [notice, setNotice] = useState('');
   const [quickActionModal, setQuickActionModal] = useState(null);
   const [quickActionSaving, setQuickActionSaving] = useState(false);
+  const [leadCreatePrefill, setLeadCreatePrefill] = useState(() => readLeadDraftFromUrl());
   const [loadingCases, setLoadingCases] = useState(false);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [loadingStaff, setLoadingStaff] = useState(false);
@@ -9574,11 +9821,38 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       setNotice('Lead-Erfassung ist nur für interne Nutzer verfügbar.');
       return;
     }
+    setLeadCreatePrefill({});
     setCaseId(null);
     setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('leads');
     updateLeadCreateUrl(role, true, 'push');
+  };
+  const handleCreateLeadForPartner = (partner) => {
+    if (role !== 'admin') {
+      setNotice('Lead-Erfassung ist nur für interne Nutzer verfügbar.');
+      return;
+    }
+    if (!partner || partner.status !== 'active') {
+      setNotice('Nur aktive Partner können neue Leads erhalten.');
+      return;
+    }
+    const details = partner.details || {};
+    const partnerName = partner.contactName || partner.companyName || 'Partner';
+    const prefill = {
+      source: 'phone',
+      assignedPartnerId: partner.id,
+      region: details.region || '',
+      routingReason: details.region ? `Region ${details.region}` : `Direkte Zuweisung an ${partnerName}`,
+    };
+    setLeadCreatePrefill(prefill);
+    setCaseId(null);
+    setCaseInitialTab('kunde');
+    setCaseReturnTab('');
+    setPartnerDetailId(null);
+    setEditingCaseId(null);
+    setScreen('leads');
+    updateLeadCreateUrl(role, true, 'push', prefill);
   };
   const handleSidebarQuickAction = (item) => {
     if (!item) return;
@@ -9822,7 +10096,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} user={user} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} onShowAllCases={() => handleNavigate('in_progress')} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onNewLead={handleNewLead} onOpenLeads={() => handleNavigate('leads')} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
-          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} initialSelectedLeadId={readLeadIdFromUrl()} onCreate={handleCreateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
+          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} initialSelectedLeadId={readLeadIdFromUrl()} initialDraft={leadCreatePrefill} onCreate={handleCreateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && (
@@ -9845,6 +10119,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
               onBack={() => handleNavigate('partners')}
               onOpenLead={handleOpenLead}
               onOpenCase={handleOpenCase}
+              onCreateLeadForPartner={handleCreateLeadForPartner}
               onUpdated={() => loadLeads('admin')}
             />
           )}
@@ -9852,8 +10127,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           {screen === 'other' && <SimpleMenuScreen title="Sonstiges" text="Hier bündeln wir später Sonderfälle, interne Notizen, nicht zuordenbare Vorgänge und administrative Ablagen. Für das MVP ist die Ansicht als sauberer Sammelpunkt vorbereitet." />}
           {screen === 'knowledge_brochure' && <CustomerBrochureScreen />}
           {screen === 'knowledge_atlas' && <PostbankWohnatlasScreen />}
-          {screen === 'knowledge_guide' && <SimpleMenuScreen title="Leitfaden" eyebrow="Wissen" text="Hier entsteht der interne Leitfaden für Makler: Datenerfassung, Pflichtunterlagen, Rückfragen und strukturierte Einreichung an WohnKapital." />}
-          {screen === 'knowledge_faq' && <SimpleMenuScreen title="FAQs" eyebrow="Wissen" text="Hier sammeln wir die häufigsten Fragen von Maklern, Kunden und internen Mitarbeitern mit kurzen, freigegebenen Antworten." />}
+          {screen === 'knowledge_faq' && <BrokerFaqScreen />}
           {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} returnTab={caseReturnTab} onTabChange={handleCaseTabChange} onReturnToTab={handleReturnToCaseTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
           {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} role={role} internalRole={currentInternalRole} user={user} />}
         </div>

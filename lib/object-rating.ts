@@ -319,7 +319,246 @@ export async function summarizeObjectRating(ratingId: string) {
   return { rating, categoryScores: computed.categoryScores, openChecks };
 }
 
-export async function updateObjectRatingScore(ratingId: string, scoreId: string, userId: string, input: { analystScore?: number; finalScore?: number; comment: string }) {
+export async function updateObjectRatingScore(ratingId: string, scoreId: string, userId: string, input: { analystScore?: number | null; finalScore?: number | null; comment?: string | null }) {
+  const updated = await updateObjectRatingScores(ratingId, userId, [{
+    scoreId,
+    analystScore: input.analystScore,
+    finalScore: input.finalScore,
+    comment: input.comment
+  }]);
+  return updated[0];
+}
+
+function scoreNeedsComment(prefilledScore: unknown, finalScore: number | null | undefined): boolean {
+  if (finalScore === null || finalScore === undefined) return false;
+  const autoScore = toNumber(prefilledScore);
+  return autoScore === undefined || Number(finalScore) !== autoScore;
+}
+
+function normalizedScoreValue(value: unknown): number | null | undefined {
+  if (value === null) return null;
+  if (value === undefined || value === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 6) throw new Error("Score required");
+  return parsed;
+}
+
+export async function updateObjectRatingScores(
+  ratingId: string,
+  userId: string,
+  updates: Array<{ scoreId: string; analystScore?: number | null; finalScore?: number | null; comment?: string | null }>
+) {
+  const rating = await prisma.objectRating.findUnique({ where: { id: ratingId }, include: ratingInclude });
+  if (!rating) throw new Error("Rating not found");
+  if (rating.status === "approved") throw new Error("Freigegebene Ratings sind schreibgeschützt.");
+
+  const byId = new Map(rating.scores.map((score) => [score.id, score]));
+  const expandedUpdates = [...updates];
+  for (const update of updates) {
+    const current = byId.get(update.scoreId);
+    if (!current) throw new Error("Rating score not found");
+    const requestedScore = normalizedScoreValue(update.finalScore ?? update.analystScore);
+    if (requestedScore === undefined || requestedScore === null) continue;
+    const mutuallyExcludedCriterionId = current.criterionId === roofCriterionId
+      ? flatRoofCriterionId
+      : current.criterionId === flatRoofCriterionId
+        ? roofCriterionId
+        : undefined;
+    if (!mutuallyExcludedCriterionId) continue;
+    const excluded = rating.scores.find((score) => score.criterionId === mutuallyExcludedCriterionId);
+    if (excluded && !expandedUpdates.some((item) => item.scoreId === excluded.id)) {
+      expandedUpdates.push({ scoreId: excluded.id, analystScore: null, finalScore: null, comment: null });
+    }
+  }
+
+  const updatedScores = [];
+  for (const update of expandedUpdates) {
+    const current = byId.get(update.scoreId);
+    if (!current) throw new Error("Rating score not found");
+    const requestedScore = normalizedScoreValue(update.finalScore ?? update.analystScore);
+    const finalScore = requestedScore === undefined
+      ? toNumber(current.finalScore ?? current.analystScore ?? current.prefilledScore) ?? null
+      : requestedScore;
+    const comment = String(update.comment ?? current.comment ?? "").trim();
+    if (scoreNeedsComment(current.prefilledScore, finalScore) && !comment) {
+      throw new Error("Bitte begründen Sie die manuelle Änderung.");
+    }
+    const nextData = finalScore === null
+      ? {
+          analystScore: null,
+          finalScore: null,
+          comment: null,
+          changedByUserId: userId,
+          changedAt: new Date(),
+          confidence: 0.2
+        }
+      : {
+          analystScore: finalScore,
+          finalScore,
+          comment: comment || null,
+          changedByUserId: userId,
+          changedAt: new Date(),
+          confidence: scoreNeedsComment(current.prefilledScore, finalScore) ? 1 : current.confidence
+        };
+    const updated = await prisma.objectRatingScore.update({
+      where: { id: update.scoreId },
+      data: nextData
+    });
+    updatedScores.push(updated);
+    const changed =
+      toNumber(current.finalScore) !== toNumber(finalScore) ||
+      (current.comment ?? "") !== (nextData.comment ?? "");
+    if (changed) {
+      await prisma.ratingAuditLog.create({
+        data: {
+          objectRatingId: ratingId,
+          entityType: "score",
+          entityId: update.scoreId,
+          action: "score_changed",
+          oldValue: { finalScore: current.finalScore, analystScore: current.analystScore, comment: current.comment },
+          newValue: { finalScore, analystScore: finalScore, comment: nextData.comment },
+          comment: nextData.comment,
+          userId
+        }
+      });
+    }
+  }
+
+  await recalculateObjectRating(ratingId);
+  return updatedScores;
+}
+
+export async function updateObjectRatingReturn(ratingId: string, userId: string, finalTargetReturn: number) {
+  const rating = await prisma.objectRating.findUnique({ where: { id: ratingId } });
+  if (!rating) throw new Error("Rating not found");
+  if (rating.status === "approved") throw new Error("Freigegebene Ratings sind schreibgeschützt.");
+  const lower = toNumber(rating.lowerReturnBound);
+  const upper = toNumber(rating.upperReturnBound);
+  if (lower !== undefined && finalTargetReturn < lower || upper !== undefined && finalTargetReturn > upper) {
+    throw new Error("Finale Zielrendite muss innerhalb des zulässigen Korridors liegen.");
+  }
+  const updated = await prisma.objectRating.update({ where: { id: ratingId }, data: { finalTargetReturn } });
+  await prisma.ratingAuditLog.create({
+    data: {
+      objectRatingId: ratingId,
+      entityType: "rating",
+      action: "target_return_changed",
+      oldValue: { finalTargetReturn: rating.finalTargetReturn },
+      newValue: { finalTargetReturn },
+      userId
+    }
+  });
+  return updated;
+}
+
+function scoreIsRequiredForApproval(scores: Array<{ criterionId: string; finalScore?: number | null }>, score: { criterionId: string }) {
+  const roofMode = resolveRoofCriterionMode(scores);
+  if (score.criterionId === roofCriterionId && roofMode === "flat_roof") return false;
+  if (score.criterionId === flatRoofCriterionId && roofMode === "roof") return false;
+  return true;
+}
+
+function formatReturnForActivity(value: unknown) {
+  const parsed = toNumber(value);
+  if (parsed === undefined) return "-";
+  return `${(parsed * 100).toLocaleString("de-DE", { maximumFractionDigits: 2 })} %`;
+}
+
+export async function approveObjectRating(ratingId: string, userId: string) {
+  const rating = await prisma.objectRating.findUnique({ where: { id: ratingId }, include: { scores: true } });
+  if (!rating) throw new Error("Rating not found");
+  const missingFinalScore = rating.scores.some((score) => scoreIsRequiredForApproval(rating.scores, score) && !score.finalScore);
+  if (missingFinalScore) {
+    throw new Error("Alle aktiven Kriterien benötigen einen finalen Score.");
+  }
+  const missingManualComment = rating.scores.some((score) =>
+    scoreIsRequiredForApproval(rating.scores, score) &&
+    scoreNeedsComment(score.prefilledScore, score.finalScore) &&
+    !String(score.comment ?? "").trim()
+  );
+  if (missingManualComment) {
+    throw new Error("Bitte begründen Sie die manuelle Änderung.");
+  }
+  const updated = await prisma.objectRating.update({
+    where: { id: ratingId },
+    data: { status: "approved", approvedAt: new Date(), approvedByUserId: userId }
+  });
+  await prisma.ratingAuditLog.create({
+    data: {
+      objectRatingId: ratingId,
+      entityType: "rating",
+      action: "rating_approved",
+      newValue: { status: "approved", finalTargetReturn: rating.finalTargetReturn },
+      userId,
+      comment: `Objektrating freigegeben. Finale Zielrendite: ${formatReturnForActivity(rating.finalTargetReturn)}.`
+    }
+  });
+  await addDbActivity(rating.objectId, userId, "object_rating_approved", `Objektrating wurde freigegeben. Finale Zielrendite: ${formatReturnForActivity(rating.finalTargetReturn)}.`, {
+    source: "admin",
+    entityType: "rating",
+    entityId: ratingId,
+    metadata: { visibility: "internal", finalTargetReturn: toNumber(rating.finalTargetReturn) }
+  });
+  return updated;
+}
+
+export async function unlockObjectRating(ratingId: string, userId: string, reason: string) {
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) throw new Error("Bitte geben Sie einen Grund für die Freischaltung an.");
+  const rating = await prisma.objectRating.findUnique({ where: { id: ratingId } });
+  if (!rating) throw new Error("Rating not found");
+  if (rating.status !== "approved") return rating;
+  const updated = await prisma.objectRating.update({
+    where: { id: ratingId },
+    data: {
+      status: "analyst_review",
+      approvedAt: null,
+      approvedByUserId: null
+    }
+  });
+  await prisma.ratingAuditLog.create({
+    data: {
+      objectRatingId: ratingId,
+      entityType: "rating",
+      action: "rating_unlocked",
+      oldValue: { status: rating.status, approvedAt: rating.approvedAt, approvedByUserId: rating.approvedByUserId },
+      newValue: { status: "analyst_review" },
+      userId,
+      comment: `Objektrating wurde durch Admin wieder freigeschaltet. Grund: ${trimmedReason}`
+    }
+  });
+  await addDbActivity(rating.objectId, userId, "object_rating_unlocked", `Objektrating wurde durch Admin wieder freigeschaltet. Grund: ${trimmedReason}`, {
+    source: "admin",
+    entityType: "rating",
+    entityId: ratingId,
+    metadata: { visibility: "internal", reason: trimmedReason }
+  });
+  return updated;
+}
+
+export async function recalculateObjectRating(ratingId: string) {
+  const rating = await prisma.objectRating.findUnique({
+    where: { id: ratingId },
+    include: { scores: true, configVersion: { include: ratingConfigInclude } }
+  });
+  if (!rating) throw new Error("Rating not found");
+  const property = await prisma.property.findUnique({ where: { id: rating.objectId }, select: { propertyType: true } });
+  const computed = calculateRating(rating.configVersion, rating.scores.map((score) => ({ criterionId: score.criterionId, finalScore: score.finalScore ?? undefined })), { propertyType: property?.propertyType });
+  return prisma.objectRating.update({
+    where: { id: ratingId },
+    data: {
+      totalScore: computed.totalScore,
+      ratingClass: computed.curve?.ratingClass,
+      baseTargetReturn: computed.targetReturn ?? computed.curve?.baseTargetReturn,
+      lowerReturnBound: computed.returnBounds.lower ?? computed.curve?.lowerReturnBound,
+      upperReturnBound: computed.returnBounds.upper ?? computed.curve?.upperReturnBound,
+      finalTargetReturn: computed.targetReturn ?? computed.curve?.baseTargetReturn,
+      status: "analyst_review"
+    }
+  });
+}
+
+async function updateObjectRatingScoreLegacy(ratingId: string, scoreId: string, userId: string, input: { analystScore?: number; finalScore?: number; comment: string }) {
   const rating = await prisma.objectRating.findUnique({ where: { id: ratingId }, include: ratingInclude });
   if (!rating) throw new Error("Rating not found");
   if (rating.status === "approved") throw new Error("Freigegebene Ratings sind schreibgeschützt.");
@@ -372,7 +611,7 @@ export async function updateObjectRatingScore(ratingId: string, scoreId: string,
   return updated;
 }
 
-export async function updateObjectRatingReturn(ratingId: string, userId: string, finalTargetReturn: number) {
+async function updateObjectRatingReturnLegacy(ratingId: string, userId: string, finalTargetReturn: number) {
   const rating = await prisma.objectRating.findUnique({ where: { id: ratingId } });
   if (!rating) throw new Error("Rating not found");
   if (rating.status === "approved") throw new Error("Freigegebene Ratings sind schreibgeschützt.");
@@ -395,7 +634,7 @@ export async function updateObjectRatingReturn(ratingId: string, userId: string,
   return updated;
 }
 
-export async function approveObjectRating(ratingId: string, userId: string) {
+async function approveObjectRatingLegacy(ratingId: string, userId: string) {
   const rating = await prisma.objectRating.findUnique({ where: { id: ratingId }, include: { scores: true } });
   if (!rating) throw new Error("Rating not found");
   if (rating.scores.some((score) => !score.finalScore)) {
@@ -418,7 +657,7 @@ export async function approveObjectRating(ratingId: string, userId: string) {
   return updated;
 }
 
-async function recalculateObjectRating(ratingId: string) {
+async function recalculateObjectRatingLegacy(ratingId: string) {
   const rating = await prisma.objectRating.findUnique({
     where: { id: ratingId },
     include: { scores: true, configVersion: { include: ratingConfigInclude } }

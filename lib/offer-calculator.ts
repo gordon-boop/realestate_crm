@@ -10,9 +10,12 @@ export type OfferCalculationInput = {
   propertyType?: PropertyType;
   energyClass?: string;
   monthlyRentPerSqm?: number;
+  residentialMonthlyRent?: number;
   garageCount?: number;
   garageRentMonthly?: number;
+  garageMonthlyRent?: number;
   interestRate?: number;
+  safetyDiscountRate?: number;
   targetReturn?: number;
   customerAge?: number;
   customerGender?: Gender;
@@ -177,9 +180,15 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
   const durationYears = input.residentialRightYears ?? 10;
   const livingAreaSqm = input.livingAreaSqm ?? 0;
   const monthlyRentPerSqm = input.monthlyRentPerSqm ?? 6.2;
+  const residentialMonthlyRent = input.residentialMonthlyRent !== undefined
+    ? Math.max(0, input.residentialMonthlyRent)
+    : money(monthlyRentPerSqm * livingAreaSqm);
   const garageCount = input.garageCount ?? 0;
-  const garageRentMonthly = input.garageRentMonthly ?? 30;
+  const garageRentMonthly = input.garageMonthlyRent !== undefined
+    ? Math.max(0, input.garageMonthlyRent)
+    : input.garageRentMonthly ?? 30;
   const interestRate = rate(input.interestRate, 0.032);
+  const safetyDiscountRate = rate(input.safetyDiscountRate, 0);
   const targetReturn = input.targetReturn === undefined ? undefined : rate(input.targetReturn, 0);
   const acquisitionCostRate = rate(input.acquisitionCostRate, 0.08);
   const salesCostRate = rate(input.salesCostRate, 0.015);
@@ -196,14 +205,13 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
       ? 15
       : 10;
 
-  const residentialRightValue = money(
-    monthlyRentPerSqm * livingAreaSqm * 12 * durationYears + durationYears * garageCount * garageRentMonthly * 12
-  );
+  const residentialRightValue = money(residentialMonthlyRent * 12 * durationYears + durationYears * garageCount * garageRentMonthly * 12);
   const maintenanceCost = money(livingAreaSqm * Math.round(durationYears + 1) * maintenanceRatePerSqmYear);
+  const safetyDiscount = money(marketValue * safetyDiscountRate);
   const mortalityBasis = selectMortalityBasis(input);
-  const baseAfterUsageAndMaintenance = marketValue - residentialRightValue - maintenanceCost;
+  const baseAfterUsageAndMaintenance = marketValue - residentialRightValue - maintenanceCost - safetyDiscount;
   const interestDiscount = money(baseAfterUsageAndMaintenance * (Math.pow(1 + interestRate, durationYears) - 1));
-  const legacyPayoutAmount = money(Math.max(0, marketValue - residentialRightValue - maintenanceCost - interestDiscount));
+  const legacyPayoutAmount = money(Math.max(0, marketValue - residentialRightValue - maintenanceCost - safetyDiscount - interestDiscount));
   const targetIrrCalculation = targetReturn && targetReturn > 0 && mortalityBasis
     ? solvePayoutForTargetWeightedIrr({
         marketValue,
@@ -222,7 +230,7 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
   const payoutAmount = targetIrrCalculation ? money(Math.max(0, targetIrrCalculation.payoutAmount)) : legacyPayoutAmount;
   const riskDiscount = targetIrrCalculation
     ? money(marketValue - residentialRightValue - maintenanceCost - payoutAmount)
-    : interestDiscount;
+    : money(interestDiscount + safetyDiscount);
   const acquisitionCost = money(marketValue * acquisitionCostRate);
   const salesCost = money(marketValue * salesCostRate);
   const profitNoIndex = money(marketValue - payoutAmount - maintenanceCost - acquisitionCost - salesCost);
@@ -232,6 +240,8 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
     residentialRightValue,
     maintenanceCost,
     interestDiscount,
+    safetyDiscountRate,
+    safetyDiscount,
     riskDiscount,
     acquisitionCost,
     salesCost,
@@ -282,9 +292,11 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
         durationYears,
         livingAreaSqm,
         monthlyRentPerSqm,
+        residentialMonthlyRent,
         garageCount,
         garageRentMonthly,
         interestRate,
+        safetyDiscountRate,
         targetReturn: targetReturn ?? null,
         mortalityAge: mortalityBasis?.age ?? null,
         mortalityGender: mortalityBasis?.gender ?? null,
