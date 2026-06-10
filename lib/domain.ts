@@ -83,7 +83,7 @@ export type LeadStatus =
   | "CLOSED"
   | "REJECTED";
 export type ActivitySource = "system" | "user" | "partner" | "admin";
-export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead" | "chat" | "rating";
+export type ActivityEntityType = "property" | "customer" | "document" | "valuation" | "offer" | "reminder" | "lead" | "chat" | "rating" | "precheck";
 export type ChatMessageVisibility = "shared" | "internal";
 
 export type Partner = {
@@ -224,6 +224,7 @@ export type Property = {
   remainingDebtAmount?: number;
   modernization?: Record<string, unknown>;
   buildingCondition?: Record<string, unknown>;
+  acquisitionPrecheck?: Record<string, unknown>;
   generalPropertyNotes?: string;
   followUpRequired?: boolean;
   followUpReason?: string;
@@ -488,6 +489,8 @@ export type OfferAssumptions = {
   sourceCells?: Record<string, string>;
   inputs?: Record<string, unknown>;
   components?: Record<string, number>;
+  termStatus?: string;
+  termWarning?: string;
 };
 
 export type Offer = {

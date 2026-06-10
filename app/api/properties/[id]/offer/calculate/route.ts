@@ -1,6 +1,9 @@
 import { canCalculateOffer } from "@/lib/access-control";
+import { assertAcquisitionPrecheckAllowsOffer } from "@/lib/acquisition-precheck";
 import { handleApiError, json, requireRole } from "@/lib/api";
+import type { FixedResidentialRightIndexationScenario } from "@/lib/calculations/fixedResidentialRight";
 import type { DesiredModel } from "@/lib/domain";
+import { assertRatingAllowsOffer } from "@/lib/object-rating";
 import { calculateOffer } from "@/lib/offer-calculator";
 import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, toPrismaJson, updateDbPropertyStatus } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +27,13 @@ function readNumber(input: Record<string, number | string | null | undefined> | 
   if (!normalized) return undefined;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readIndexationScenario(input: Record<string, number | string | null | undefined> | undefined): FixedResidentialRightIndexationScenario | undefined {
+  const value = readNumber(input, "selectedIndexationScenario");
+  const normalized = value && value > 1 ? value / 100 : value;
+  if (normalized === 0.01 || normalized === 0.02 || normalized === 0.03) return normalized;
+  return undefined;
 }
 
 function completedAge(dateOfBirth: string | undefined, at: Date): number | undefined {
@@ -51,13 +61,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const manualMarketValue = readNumber(body.inputs, "manualMarketValue") ?? readNumber(body.inputs, "marketValue");
     const expertOpinionValue = readNumber(body.inputs, "expertOpinionValue");
     const leadingMarketValue = kind === "binding" ? expertOpinionValue : manualMarketValue;
-    const approvedRating = caseView.objectRatings.find((rating) => rating.status === "approved" && rating.finalTargetReturn !== undefined);
-    const latestRatingWithFinalReturn = caseView.objectRatings.find((rating) => rating.finalTargetReturn !== undefined);
-    const latestRatingWithBaseReturn = caseView.objectRatings.find((rating) => rating.baseTargetReturn !== undefined);
+    assertAcquisitionPrecheckAllowsOffer(caseView, { marketValueOverride: leadingMarketValue });
+    const ratingGate = assertRatingAllowsOffer(caseView.objectRatings, caseView.property, kind === "binding" ? "binding" : "indicative");
+    const approvedRating = ratingGate.rating;
     const ratingTargetReturn = readNumber(body.inputs, "targetReturn")
-      ?? approvedRating?.finalTargetReturn
-      ?? latestRatingWithFinalReturn?.finalTargetReturn
-      ?? latestRatingWithBaseReturn?.baseTargetReturn;
+      ?? approvedRating?.finalTargetReturn;
     const calculationDate = new Date();
 
     if (kind === "binding" && !caseView.property.expertOpinionReceivedAt) {
@@ -119,6 +127,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       interestRate: readNumber(body.inputs, "interestRate"),
       safetyDiscountRate: readNumber(body.inputs, "safetyDiscountRate") ?? readNumber(body.inputs, "safetyDiscount"),
       targetReturn: ratingTargetReturn,
+      primaryDateOfBirth: caseView.customer.dateOfBirth,
+      primaryGender: caseView.customer.gender,
+      secondDateOfBirth: caseView.customer.spouseDateOfBirth,
+      secondGender: caseView.customer.spouseGender,
       customerAge: completedAge(caseView.customer.dateOfBirth, calculationDate) ?? caseView.customer.ageAtSubmission,
       customerGender: caseView.customer.gender,
       spouseAge: completedAge(caseView.customer.spouseDateOfBirth, calculationDate),
@@ -128,6 +140,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       calculationDate,
       acquisitionCostRate: readNumber(body.inputs, "acquisitionCostRate"),
       salesCostRate: readNumber(body.inputs, "salesCostRate"),
+      selectedIndexationScenario: readIndexationScenario(body.inputs),
       exitValueGrowthRate: readNumber(body.inputs, "exitValueGrowthRate"),
       maintenanceUsageRate: readNumber(body.inputs, "maintenanceUsageRate"),
       saleAndLeasebackPayoutRate: kind === "binding" ? undefined : readNumber(body.inputs, "saleAndLeasebackPayoutRate"),

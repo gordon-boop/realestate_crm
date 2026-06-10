@@ -518,6 +518,7 @@ model Property {
   remainingDebtAmount          Decimal?          @map("remaining_debt_amount") @db.Decimal(14, 2)
   modernizationJson            Json?             @map("modernization_json")
   buildingConditionJson        Json?             @map("building_condition_json")
+  acquisitionPrecheckJson      Json?             @map("acquisition_precheck_json")
   generalPropertyNotes         String?           @map("general_property_notes")
   followUpRequired             Boolean           @default(false) @map("follow_up_required")
   followUpReason               String?           @map("follow_up_reason")

@@ -10,6 +10,7 @@ type FrontendPrototypeProps = {
   initialCaseId?: string | null;
   initialTab?: string;
   initialReturnTab?: string;
+  initialReturnUrl?: string;
   initialScreen?: string;
   initialLeadCreate?: boolean;
   initialPartnerId?: string | null;
@@ -32,6 +33,7 @@ export function FrontendPrototypeClient({
   initialCaseId,
   initialTab,
   initialReturnTab,
+  initialReturnUrl,
   initialScreen,
   initialLeadCreate,
   initialPartnerId
@@ -43,6 +45,7 @@ export function FrontendPrototypeClient({
       initialCaseId={initialCaseId}
       initialTab={initialTab}
       initialReturnTab={initialReturnTab}
+      initialReturnUrl={initialReturnUrl}
       initialScreen={initialScreen}
       initialLeadCreate={initialLeadCreate}
       initialPartnerId={initialPartnerId}

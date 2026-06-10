@@ -18,6 +18,7 @@ import {
   modernizationScopeLabels,
 } from '@/lib/property-labels';
 import { isInventoryCase } from '@/lib/acquisition-workflow';
+import { evaluateAcquisitionPrecheck } from '@/lib/acquisition-precheck';
 import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 
 // =====================================================================
@@ -1230,13 +1231,38 @@ function parseAppLocation(fallbackScreen = 'dashboard') {
 }
 
 function parseCaseLocation(fallbackTab = 'kunde') {
-  if (typeof window === 'undefined') return { caseId: null, tab: fallbackTab, returnTab: '' };
+  if (typeof window === 'undefined') return { caseId: null, tab: fallbackTab, returnTab: '', returnUrl: '' };
   const params = new URLSearchParams(window.location.search);
   return {
     caseId: params.get('case') || params.get('caseId'),
     tab: normalizeCaseTab(params.get('tab'), fallbackTab),
     returnTab: normalizeCaseTab(params.get('returnTab'), ''),
+    returnUrl: sanitizeInternalReturnUrl(params.get('returnUrl')),
   };
+}
+
+function sanitizeInternalReturnUrl(value) {
+  if (!value || typeof value !== 'string') return '';
+  if (!value.startsWith('/') || value.startsWith('//') || /^https?:\/\//i.test(value)) return '';
+  try {
+    const parsed = new URL(value, typeof window === 'undefined' ? 'http://localhost' : window.location.origin);
+    if (typeof window !== 'undefined' && parsed.origin !== window.location.origin) return '';
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return '';
+  }
+}
+
+function currentReturnUrl(role) {
+  if (typeof window === 'undefined') return basePathForRole(role);
+  const parsed = new URL(window.location.href);
+  parsed.searchParams.delete('case');
+  parsed.searchParams.delete('caseId');
+  parsed.searchParams.delete('tab');
+  parsed.searchParams.delete('returnTab');
+  parsed.searchParams.delete('returnUrl');
+  const query = parsed.searchParams.toString();
+  return sanitizeInternalReturnUrl(`${parsed.pathname}${query ? `?${query}` : ''}`) || basePathForRole(role);
 }
 
 function readPartnerIdFromUrl() {
@@ -1250,13 +1276,17 @@ function updatePartnerUrl(partnerId, mode = 'push') {
   window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', `/admin/partners/${encodeURIComponent(partnerId)}`);
 }
 
-function updateCaseUrl(role, caseId, tab = 'kunde', returnTab = '', mode = 'replace') {
+function updateCaseUrl(role, caseId, tab = 'kunde', returnTab = '', mode = 'replace', returnUrl = '') {
   if (typeof window === 'undefined' || !caseId) return;
   const params = new URLSearchParams();
   params.set('case', String(caseId));
   params.set('tab', normalizeCaseTab(tab));
   if (returnTab && normalizeCaseTab(returnTab) !== normalizeCaseTab(tab)) {
     params.set('returnTab', normalizeCaseTab(returnTab));
+  }
+  const safeReturnUrl = sanitizeInternalReturnUrl(returnUrl);
+  if (safeReturnUrl) {
+    params.set('returnUrl', safeReturnUrl);
   }
   const url = `${basePathForRole(role)}?${params.toString()}`;
   window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
@@ -1269,6 +1299,38 @@ function updateScreenUrl(role, screen = 'dashboard', mode = 'replace') {
     ? basePathForRole(role)
     : `${basePathForRole(role)}?screen=${encodeURIComponent(nextScreen)}`;
   window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
+}
+
+function screenFromInternalUrl(value, fallback = 'dashboard') {
+  const safeUrl = sanitizeInternalReturnUrl(value);
+  if (!safeUrl) return normalizeAppScreen(fallback);
+  try {
+    const parsed = new URL(safeUrl, typeof window === 'undefined' ? 'http://localhost' : window.location.origin);
+    if (/^\/admin\/partners\/[^/?#]+/.test(parsed.pathname)) return 'partner_detail';
+    return normalizeAppScreen(parsed.searchParams.get('screen') || parsed.searchParams.get('view'), fallback);
+  } catch {
+    return normalizeAppScreen(fallback);
+  }
+}
+
+function partnerIdFromInternalUrl(value) {
+  const safeUrl = sanitizeInternalReturnUrl(value);
+  if (!safeUrl) return null;
+  try {
+    const parsed = new URL(safeUrl, typeof window === 'undefined' ? 'http://localhost' : window.location.origin);
+    const match = parsed.pathname.match(/^\/admin\/partners\/([^/?#]+)/);
+    return match?.[1] ? decodeURIComponent(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function fallbackScreenForCaseStatus(status) {
+  if (['DRAFT'].includes(status)) return 'drafts';
+  if (['IN_PORTFOLIO', 'PURCHASED', 'WON'].includes(status)) return 'portfolio';
+  if (['SOLD', 'EXIT_COMPLETED'].includes(status)) return 'sold';
+  if (['REJECTED', 'LOST'].includes(status)) return 'rejected';
+  return 'in_progress';
 }
 
 function readLeadCreateFromUrl() {
@@ -1423,6 +1485,108 @@ const objectRatingCriterionOrder = [
 ];
 const ratingRoofCriterionId = 'rating_crit_maintenance_roof_v1';
 const ratingFlatRoofCriterionId = 'rating_crit_maintenance_flat_roof_v1';
+const ratingInvestmentThreshold = 2.5;
+
+function ratingScoreNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function ratingScoreBand(score) {
+  if (score === undefined) return undefined;
+  if (score >= 5.5) return 6;
+  if (score >= 4.5) return 5;
+  if (score >= 3.5) return 4;
+  if (score >= 2.5) return 3;
+  if (score >= 1.5) return 2;
+  return 1;
+}
+
+function formatRatingScore(value) {
+  const score = ratingScoreNumber(value);
+  return score === undefined ? '-' : score.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+}
+
+function deriveRatingInvestmentFilter(rating) {
+  const score = ratingScoreNumber(rating?.totalScore);
+  const band = ratingScoreBand(score);
+  if (!rating || score === undefined) {
+    return {
+      scoreBandLabel: 'Nicht bewertet',
+      treatmentLabel: 'Rating erforderlich',
+      targetReturnLabel: 'Noch nicht final parametrisiert',
+      acquisitionThresholdPassed: false,
+      nextAction: 'Objektrating abschließen',
+      warning: 'Bitte schließen Sie zuerst das Objektrating ab.',
+    };
+  }
+  if (score < ratingInvestmentThreshold) {
+    return {
+      scoreBandLabel: band === 1 ? '1 · Ungeeignet' : '2 · Unter Schwelle',
+      treatmentLabel: band === 1 ? 'Nicht ankauffähig' : 'Unterhalb der Ankaufsschwelle',
+      targetReturnLabel: 'Kein Angebot',
+      acquisitionThresholdPassed: false,
+      nextAction: 'Ablehnung vorbereiten oder zurückstellen',
+      warning: 'Objekt liegt unterhalb der Ankaufsschwelle.',
+    };
+  }
+  if (band === 3) {
+    return {
+      scoreBandLabel: '3 · Grenzfall',
+      treatmentLabel: 'Zusätzliche Prüfung erforderlich',
+      targetReturnLabel: 'Erhöhte Zielrendite aus Ratingkurve',
+      acquisitionThresholdPassed: true,
+      nextAction: rating.status === 'approved' ? 'Angebotsstrecke mit erhöhter Prüfung fortsetzen' : 'Rating intern prüfen und freigeben',
+    };
+  }
+  return {
+    scoreBandLabel: band === 6 ? '6 · Top-Objekt' : band === 5 ? '5 · Starkes Objekt' : '4 · Solides Objekt',
+    treatmentLabel: 'Standardfreigabe',
+    targetReturnLabel: band === 6 ? 'Niedrigste Zielrendite aus Ratingkurve' : band === 5 ? 'Reduzierte Zielrendite aus Ratingkurve' : 'Normale Zielrendite aus Ratingkurve',
+    acquisitionThresholdPassed: true,
+    nextAction: rating.status === 'approved' ? 'Angebotsstrecke fortsetzen' : 'Rating freigeben',
+  };
+}
+
+function ratingReviewAfterAppraisalUi(rating, property) {
+  const appraisalReceivedAt = property?.expertOpinionReceivedAt ? new Date(property.expertOpinionReceivedAt) : undefined;
+  if (!appraisalReceivedAt || Number.isNaN(appraisalReceivedAt.getTime())) {
+    return { label: 'Noch nicht erforderlich', required: false, satisfied: true };
+  }
+  if (!rating) return { label: 'Erforderlich', required: true, satisfied: false };
+  if (rating.status !== 'approved') return { label: 'In Prüfung', required: true, satisfied: false };
+  const approvedAt = rating.approvedAt ? new Date(rating.approvedAt) : undefined;
+  if (!approvedAt || Number.isNaN(approvedAt.getTime()) || approvedAt < appraisalReceivedAt) {
+    return { label: 'Erforderlich', required: true, satisfied: false };
+  }
+  const adjustedAfterAppraisal = rating.auditLogs?.some((entry) => {
+    const changedAt = entry?.timestamp ? new Date(entry.timestamp) : undefined;
+    return entry?.action === 'score_changed' && changedAt && !Number.isNaN(changedAt.getTime()) && changedAt >= appraisalReceivedAt;
+  });
+  return { label: adjustedAfterAppraisal ? 'Angepasst' : 'Bestätigt', required: true, satisfied: true };
+}
+
+const acquisitionPrecheckStatusLabels = {
+  passed: 'Bestanden',
+  exception_required: 'Ausnahmeprüfung',
+  failed: 'Nicht bestanden',
+  unknown: 'Noch nicht bewertet',
+};
+
+const acquisitionPrecheckStatusStyles = {
+  passed: { background: '#EAF7E6', color: '#2F6B1F', border: '#2F6B1F33' },
+  exception_required: { background: theme.goldSoft, color: '#7A5600', border: `${theme.gold}55` },
+  failed: { background: '#FFF4F4', color: '#9B2C2C', border: '#9B2C2C33' },
+  unknown: { background: theme.mintLighter, color: `${theme.ink}88`, border: theme.borderSoft },
+};
+
+const postbankRegionLabels = {
+  green: 'Grün',
+  yellow: 'Gelb',
+  orange: 'Orange',
+  red: 'Rot',
+};
+
 const recipientLabels = { one_person: 'eine Person', both: 'beide Personen' };
 const basementLabels = { none: 'kein Keller', partial: 'teilunterkellert', full: 'vollunterkellert' };
 const parkingLabels = { garage: 'Garage', carport: 'Carport', outdoor_space: 'Stellplatz', duplex: 'Doppelparker' };
@@ -4566,6 +4730,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [ratingScoreInputs, setRatingScoreInputs] = useState({});
   const [ratingReturnInput, setRatingReturnInput] = useState('');
   const [openRatingInfo, setOpenRatingInfo] = useState('');
+  const [precheckDraft, setPrecheckDraft] = useState({});
   const [chatInput, setChatInput] = useState('');
   const [chatVisibility, setChatVisibility] = useState('shared');
   const [chatAttachmentFiles, setChatAttachmentFiles] = useState([]);
@@ -4581,6 +4746,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const canEditOfferDates = canManageWorkflow;
   const canManagePortfolio = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
   const canManageRating = role === 'admin' && ['advisor', 'admin', 'super_admin'].includes(internalRole);
+  const canManagePrecheck = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
+  const canApprovePrecheckException = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
   const canReviewDocuments = canManageOffers;
   const canEditCaseData = role === 'admin' || property?.status === 'DRAFT';
   const canDeleteDocuments = role === 'admin' || property?.status === 'DRAFT';
@@ -4598,6 +4765,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   useEffect(() => {
     setExitProcessForm(exitProcessFormFromProperty(property || {}));
   }, [property?.id, property?.updatedAt, property?.exitProcess?.updatedAt]);
+
+  useEffect(() => {
+    setPrecheckDraft(property?.acquisitionPrecheck || {});
+  }, [property?.id, property?.updatedAt]);
 
   useEffect(() => {
     setIndicativeOfferSentDate(dateInputValue(property?.indicativeOfferSentAt));
@@ -4825,6 +4996,17 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   ];
   const chatMessages = caseView?.chatMessages?.length ? caseView.chatMessages : [];
   const objectRating = caseView?.objectRatings?.[0];
+  const ratingInvestmentFilter = deriveRatingInvestmentFilter(objectRating);
+  const ratingReviewAfterAppraisal = ratingReviewAfterAppraisalUi(objectRating, property);
+  const ratingCompactLabel = objectRating
+    ? `Rating ${formatRatingScore(objectRating.totalScore)} · ${ratingInvestmentFilter.treatmentLabel}`
+    : '';
+  const precheckView = caseView && property
+    ? evaluateAcquisitionPrecheck({
+        ...caseView,
+        property: { ...property, acquisitionPrecheck: precheckDraft }
+      })
+    : null;
   const ratingStatusLabels = { draft: 'Entwurf', analyst_review: 'Analystenprüfung', approved: 'Freigegeben' };
   const ratingSourceLabels = { questionnaire: 'Fragebogen', api: 'API / Marktdaten', analyst: 'Analyst', document: 'Dokument' };
   const ratingScores = (objectRating?.scores || [])
@@ -4977,6 +5159,18 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       await postJson(`/api/properties/${c.propertyId}/rating/unlock`, { reason: reason.trim() });
     });
   };
+  const saveAcquisitionPrecheck = (action = 'save') => runCaseAction(
+    action === 'approve_exception'
+      ? 'Ausnahme freigeben'
+      : action === 'reject_exception'
+        ? 'Ausnahme ablehnen'
+        : action === 'request_exception'
+          ? 'Ausnahmeprüfung beantragen'
+          : 'Vorprüfung speichern',
+    async () => {
+      await patchJson(`/api/properties/${c.propertyId}/precheck`, { ...precheckDraft, action });
+    }
+  );
   const startValuationAndOffer = (modelRequest, index = 0) => {
     const model = typeof modelRequest === 'string' ? modelRequest : modelRequest.model;
     const key = typeof modelRequest === 'string' ? `${model}-${index}` : `${modelRequest.key}-${index}`;
@@ -4991,10 +5185,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         inputs: {
           ...params,
           manualMarketValue,
-          safetyDiscount: params.safetyDiscount ?? '',
-          residentialMonthlyRent: params.residentialMonthlyRent ?? '',
+          monthlyRentPerSqm: params.monthlyRentPerSqm ?? '',
           garageMonthlyRent: params.garageMonthlyRent ?? '',
-          residentialRightYears: modelRequest?.residentialRightYears || property?.desiredResidentialRightYears,
+          residentialRightYears: params.residentialRightYears || modelRequest?.residentialRightYears || property?.desiredResidentialRightYears,
           livingAreaSqm: property?.livingAreaSqm,
           garageCount: property?.parkingAvailable ? property?.parkingCount : 0,
         }
@@ -5017,11 +5210,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       model: modelRequest.model,
       inputs: {
         ...params,
-        safetyDiscount: params.safetyDiscount ?? '',
-        residentialMonthlyRent: params.residentialMonthlyRent ?? '',
+        monthlyRentPerSqm: params.monthlyRentPerSqm ?? '',
         garageMonthlyRent: params.garageMonthlyRent ?? '',
         expertOpinionValue: parsedExpertOpinionValue,
-        residentialRightYears: modelRequest.residentialRightYears || property?.desiredResidentialRightYears,
+        residentialRightYears: params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears,
         livingAreaSqm: property?.livingAreaSqm,
         garageCount: property?.parkingAvailable ? property?.parkingCount : 0,
       }
@@ -5496,12 +5688,13 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const offerMeta = offer ? `Version ${offer.currentVersion || 1} · zuletzt berechnet` : 'Entwurf';
     const visibleManualMarketValue = params.manualMarketValue ?? params.marketValue ?? (offer?.marketValue ? formatGermanIntegerInput(offer.marketValue) : '');
     const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer) : residentialRightMetricRows(offer)) : [];
+    const termWarning = !isRentBack ? offer?.assumptions?.termWarning : null;
     const chipRows = [
       ['Verkehrswert', offer ? formatEuro(offer.marketValue) : visibleManualMarketValue ? `${visibleManualMarketValue} €` : '-'],
       ['Modell', labelFrom(productModelLabels, modelRequest.model)],
       isRentBack
         ? ['Info', 'Miete ab Tag 1']
-        : ['Laufzeit', `${modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
+        : ['Laufzeit', `${params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
     ];
     const statusSent = workflowActionState('indicative_offer_sent');
     const statusAccepted = workflowActionState('offer_accepted');
@@ -5555,6 +5748,14 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           {renderOfferBreakdown(breakdownRows, 'Noch keine UVA-Kalkulation vorhanden.')}
         </div>
 
+        {termWarning && (
+          <div style={{ padding: '0 24px 18px', background: '#FEFCF8' }}>
+            <div style={{ border: `1px solid ${theme.gold}`, background: '#FFF8E1', color: theme.ink, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 650 }}>
+              {termWarning}
+            </div>
+          </div>
+        )}
+
         {canManageOffers && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
             <div style={offerSectionTitleStyle}>Berechnungs-Eingabe</div>
@@ -5562,11 +5763,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               {[
                 ['manualMarketValue', 'Verkehrswert (€)'],
-                ['maintenance', 'Instandhaltung (€)'],
-                ['interestRate', 'Interne Verzinsung (%)'],
-                ['safetyDiscount', 'Sicherheitsabschlag (%)'],
-                ['residentialMonthlyRent', 'Miete Wohnen (€ / Monat)'],
+                ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
                 ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
+                ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
+                ['interestRate', 'Interne Verzinsung (%)'],
+                ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
+                ['salesCostRate', 'Verkaufskosten (%)'],
               ].map(([field, label]) => (
                 <Field key={field} label={label}>
                   <Input
@@ -5872,6 +6074,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             action: 'binding_offer_accepted',
             state: statusAccepted,
           };
+    const bindingParamKey = `binding-${modelRequest.key}-${index}`;
+    const bindingParams = calculationParams[bindingParamKey] || {};
     const breakdownRows = bindingOffer ? (isRentBack ? [
       ...rentBackMetricRows(bindingOffer),
       ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
@@ -5886,10 +6090,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       ['Modell', labelFrom(productModelLabels, modelRequest.model)],
       isRentBack
         ? ['Info', 'Miete ab Tag 1']
-        : ['Laufzeit', `${modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
+        : ['Laufzeit', `${bindingParams.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
     ];
-    const bindingParamKey = `binding-${modelRequest.key}-${index}`;
-    const bindingParams = calculationParams[bindingParamKey] || {};
+    const termWarning = !isRentBack ? bindingOffer?.assumptions?.termWarning : null;
 
     return (
       <div key={`binding-offer-card-${modelRequest.key}-${index}`} style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
@@ -5937,6 +6140,14 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           </div>
         </div>
 
+        {termWarning && (
+          <div style={{ padding: '0 24px 18px', background: '#FEFCF8' }}>
+            <div style={{ border: `1px solid ${theme.gold}`, background: '#FFF8E1', color: theme.ink, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 650 }}>
+              {termWarning}
+            </div>
+          </div>
+        )}
+
         {canManageOffers && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
             <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Berechnungs-Eingabe</div>
@@ -5946,11 +6157,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder="z.B. 650.000" inputMode="numeric" />
               </Field>
               {[
-                ['maintenance', 'Instandhaltung (€)'],
-                ['interestRate', 'Interne Verzinsung (%)'],
-                ['safetyDiscount', 'Sicherheitsabschlag (%)'],
-                ['residentialMonthlyRent', 'Miete Wohnen (€ / Monat)'],
+                ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
                 ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
+                ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
+                ['interestRate', 'Interne Verzinsung (%)'],
+                ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
+                ['salesCostRate', 'Verkaufskosten (%)'],
               ].map(([field, label]) => (
                 <Field key={field} label={label}>
                   <Input
@@ -6038,6 +6250,23 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13, color: theme.aubergine, fontWeight: 700 }}>{c.id}</span>
             <StatusBadge status={c.status} size="lg" />
+            {objectRating && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: ratingInvestmentFilter.acquisitionThresholdPassed ? theme.mintLighter : '#FFF4F4',
+                color: ratingInvestmentFilter.acquisitionThresholdPassed ? theme.aubergine : '#9B2C2C',
+                border: `1px solid ${ratingInvestmentFilter.acquisitionThresholdPassed ? theme.borderSoft : '#9B2C2C33'}`,
+                fontSize: 11.5,
+                fontWeight: 800,
+                padding: '4px 10px',
+                borderRadius: 999,
+                whiteSpace: 'nowrap'
+              }}>
+                {ratingCompactLabel}
+              </span>
+            )}
             {c.followUp && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: theme.goldSoft, color: '#A87308', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10 }}>
                 <AlertCircle size={12} /> Rückfrage offen
@@ -6453,19 +6682,136 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   </div>
                 </div>
 
+                {precheckView && (
+                  <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', marginBottom: 18, background: 'white' }}>
+                    <div style={{ padding: '15px 16px', background: precheckView.result === 'not_acquirable' ? '#FFF4F4' : precheckView.result === 'exception_required' ? theme.goldSoft : theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Ankaufsfähigkeit / Vorprüfung</div>
+                        <div style={{ fontSize: 17, color: precheckView.result === 'not_acquirable' ? '#9B2C2C' : theme.aubergine, fontWeight: 900 }}>
+                          Vorprüfung: {precheckView.resultLabel}
+                        </div>
+                        <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 4, lineHeight: 1.45 }}>
+                          {precheckView.reason}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {precheckView.exceptionApproved && (
+                          <span style={{ background: '#EAF7E6', color: '#2F6B1F', border: '1px solid #2F6B1F33', borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850 }}>
+                            Ausnahme freigegeben
+                          </span>
+                        )}
+                        {canManagePrecheck && (
+                          <>
+                            <button type="button" onClick={() => saveAcquisitionPrecheck('save')} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
+                              Vorprüfung speichern
+                            </button>
+                            {precheckView.hasExceptionRequired && !precheckView.exceptionApproved && (
+                              <button type="button" onClick={() => saveAcquisitionPrecheck('request_exception')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
+                                Ausnahme beantragen
+                              </button>
+                            )}
+                            {precheckView.hasExceptionRequired && !precheckView.hasHardKo && canApprovePrecheckException && (
+                              <button type="button" onClick={() => saveAcquisitionPrecheck('approve_exception')} disabled={Boolean(busyAction)} style={{ background: '#2F6B1F', color: 'white', border: 'none', borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
+                                Ausnahme freigeben
+                              </button>
+                            )}
+                            {precheckView.hasExceptionRequired && canApprovePrecheckException && (
+                              <button type="button" onClick={() => saveAcquisitionPrecheck('reject_exception')} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', color: '#9B2C2C', border: '1px solid #9B2C2C44', borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
+                                Ausnahme ablehnen
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                        <thead>
+                          <tr style={{ background: theme.mintLight, color: theme.aubergine, textAlign: 'left' }}>
+                            {['Kriterium', 'Anforderung', 'Aktueller Wert', 'Status', 'Hinweis'].map((label) => (
+                              <th key={label} style={{ padding: '9px 11px', fontSize: 10.5, letterSpacing: '0.09em', textTransform: 'uppercase' }}>{label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {precheckView.criteria.map((item) => {
+                            const statusStyle = acquisitionPrecheckStatusStyles[item.status] || acquisitionPrecheckStatusStyles.unknown;
+                            return (
+                              <tr key={item.key} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+                                <td style={{ padding: '10px 11px', color: theme.ink, fontWeight: 800, minWidth: 160 }}>{item.label}</td>
+                                <td style={{ padding: '10px 11px', color: `${theme.ink}99`, minWidth: 230 }}>{item.requirement}</td>
+                                <td style={{ padding: '10px 11px', color: theme.ink, fontWeight: 650, minWidth: 150 }}>{item.currentValue}</td>
+                                <td style={{ padding: '10px 11px' }}>
+                                  <span style={{ background: statusStyle.background, color: statusStyle.color, border: `1px solid ${statusStyle.border}`, borderRadius: 999, padding: '3px 8px', fontSize: 11, fontWeight: 850, whiteSpace: 'nowrap' }}>
+                                    {acquisitionPrecheckStatusLabels[item.status]}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '10px 11px', color: `${theme.ink}88`, minWidth: 220 }}>{item.comment || '-'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {canManagePrecheck && (
+                      <div style={{ padding: '14px 16px', borderTop: `1px solid ${theme.borderSoft}`, background: '#FEFCF8' }}>
+                        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Manuelle Vorprüfungswerte</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+                          <Field label="Postbank-Wohnatlas-Kategorie">
+                            <select value={precheckDraft.postbankRegionCategory || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, postbankRegionCategory: event.target.value || undefined })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, background: 'white' }}>
+                              <option value="">Nicht erfasst</option>
+                              {Object.entries(postbankRegionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Bodenrichtwert (€/m²)">
+                            <Input value={precheckDraft.landValuePerSqm ?? ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, landValuePerSqm: event.target.value })} placeholder="z.B. 420" />
+                          </Field>
+                          <Field label="Restnutzungsdauer (Jahre)">
+                            <Input value={precheckDraft.remainingUsefulLifeYears ?? ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, remainingUsefulLifeYears: event.target.value })} placeholder="z.B. 48" />
+                          </Field>
+                          <Field label="Interner Kommentar">
+                            <Input value={precheckDraft.comment || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, comment: event.target.value })} placeholder="kurzer Hinweis" />
+                          </Field>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 12, fontSize: 12.5, color: theme.ink }}>
+                          {[
+                            ['developmentPotential', 'Entwicklungspotenzial vorhanden'],
+                            ['renovationPlanAvailable', 'Sanierungs-/Modernisierungsplan vorhanden'],
+                            ['apartmentManagementAvailable', 'WEG-/Hausverwaltung vorhanden'],
+                          ].map(([field, label]) => (
+                            <label key={field} style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                              <input type="checkbox" checked={Boolean(precheckDraft[field])} onChange={(event) => setPrecheckDraft({ ...precheckDraft, [field]: event.target.checked })} style={{ accentColor: theme.aubergine }} />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                        <Field label="Begründung Ausnahmeprüfung">
+                          <textarea value={precheckDraft.exceptionReason || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, exceptionReason: event.target.value })} rows={2} placeholder="Warum soll der Fall trotz gelber Kriterien weiter geprüft werden?" style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
+                        </Field>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {!objectRating ? (
                   <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', fontSize: 13, color: `${theme.ink}99`, lineHeight: 1.5 }}>
                     Für diesen Fall wurde noch kein Objektrating erzeugt. Bei Einreichung eines Objekts passiert das automatisch; für bestehende Demo-Fälle kann es hier manuell erzeugt werden.
                   </div>
                 ) : (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
                       {[
                         ['Gesamtscore', objectRating.totalScore ? Number(objectRating.totalScore).toFixed(2).replace('.', ',') : '-'],
                         ['Ratingklasse', objectRating.ratingClass || '-'],
                         ['Status', labelFrom(ratingStatusLabels, objectRating.status)],
+                        ['Investment-Behandlung', ratingInvestmentFilter.treatmentLabel],
                         ['Zielrendite', formatPercent(objectRating.finalTargetReturn)],
                         ['Korridor', `${formatPercent(objectRating.lowerReturnBound)} - ${formatPercent(objectRating.upperReturnBound)}`],
+                        ['Ankaufsschwelle', ratingInvestmentFilter.acquisitionThresholdPassed ? 'Bestanden' : 'Nicht bestanden'],
+                        ['Rating-Review nach Gutachten', ratingReviewAfterAppraisal.label],
+                        ['Nächste Aktion', ratingReviewAfterAppraisal.required && !ratingReviewAfterAppraisal.satisfied ? 'Rating nach Gutachten prüfen' : ratingInvestmentFilter.nextAction],
                       ].map(([label, value]) => (
                         <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 13px' }}>
                           <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
@@ -6473,6 +6819,17 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         </div>
                       ))}
                     </div>
+
+                    {ratingInvestmentFilter.warning && (
+                      <div style={{ background: '#FFF4F4', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 8, padding: '11px 13px', fontSize: 12.5, fontWeight: 750, marginBottom: 12 }}>
+                        {ratingInvestmentFilter.warning}
+                      </div>
+                    )}
+                    {ratingReviewAfterAppraisal.required && !ratingReviewAfterAppraisal.satisfied && (
+                      <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, color: '#7A5600', borderRadius: 8, padding: '11px 13px', fontSize: 12.5, fontWeight: 750, marginBottom: 12 }}>
+                        Rating-Review nach Gutachten erforderlich. Das verbindliche Angebot kann erst nach erneuter Bestätigung oder Freigabe erstellt werden.
+                      </div>
+                    )}
 
                     <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -6652,9 +7009,37 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
                   <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Notar und Kaufvertrag</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Gutachten beauftragt am"><Input type="date" value={expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)} onChange={(event) => setExpertOpinionOrderedDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
-                    <Field label="Gutachtenfirma"><Input value={expertOpinionCompany || property?.expertOpinionCompany || ''} onChange={(event) => setExpertOpinionCompany(event.target.value)} readOnly={!canManageWorkflow} /></Field>
-                    <Field label="Gutachten eingegangen am"><Input type="date" value={expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)} onChange={(event) => setExpertOpinionReceivedDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
+                    {[
+                      ['Gutachten beauftragt am', property?.expertOpinionOrderedAt ? formatDate(property.expertOpinionOrderedAt) : 'Noch nicht erfasst'],
+                      ['Gutachterfirma', property?.expertOpinionCompany || 'Noch nicht erfasst'],
+                      ['Gutachten eingegangen am', property?.expertOpinionReceivedAt ? formatDate(property.expertOpinionReceivedAt) : 'Noch nicht erfasst'],
+                    ].map(([label, value]) => (
+                      <div key={label} style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: theme.ink }}>{label}</div>
+                        <div
+                          title="Diese Angaben werden aus der Gutachtenbeauftragung übernommen."
+                          aria-readonly="true"
+                          style={{
+                            minHeight: 37,
+                            border: `1px solid ${theme.borderSoft}`,
+                            borderRadius: 6,
+                            background: theme.mintLighter,
+                            color: value === 'Noch nicht erfasst' ? `${theme.ink}88` : theme.ink,
+                            fontSize: 13,
+                            fontWeight: value === 'Noch nicht erfasst' ? 500 : 700,
+                            padding: '9px 10px',
+                            boxSizing: 'border-box',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          {value || 'Noch nicht erfasst'}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: `${theme.ink}77`, lineHeight: 1.35 }}>
+                          Wird aus der Gutachtenbeauftragung übernommen.
+                        </div>
+                      </div>
+                    ))}
                     <Field label="Kaufvertragsnummer"><Input value={portfolioForm.purchaseContractNumber} onChange={(event) => updatePortfolioForm({ purchaseContractNumber: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Verbindliches Angebot abgegeben am"><Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
                     <Field label="Verbindliches Angebot angenommen am"><Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
@@ -7348,9 +7733,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
                             {[
                               ['marketValue', 'Verkehrswert (€)'],
-                              ['maintenance', 'Instandhaltung (€)'],
+                              ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
+                              ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
+                              ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
                               ['interestRate', 'Interne Verzinsung (%)'],
-                              ['safetyDiscount', 'Sicherheitsabschlag (%)'],
+                              ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
+                              ['salesCostRate', 'Verkaufskosten (%)'],
                             ].map(([field, label]) => (
                               <Field key={field} label={label}>
                                 <Input type="number" value={params[field] || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })} />
@@ -8074,9 +8462,11 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
               Zurück
             </button>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer' }}>
-                {saving === 'draft' ? 'Speichert...' : editMode ? 'Änderungen speichern' : 'Entwurf speichern'}
-              </button>
+              {!(step === 5 && !canSubmitCase) && (
+                <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer' }}>
+                  {saving === 'draft' ? 'Speichert...' : editMode ? 'Änderungen speichern' : 'Entwurf speichern'}
+                </button>
+              )}
               {step < 5 ? (
                 <button onClick={() => goToStep(Math.min(5, step + 1))} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   Weiter <ChevronRight size={15} />
@@ -9525,12 +9915,13 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 // =====================================================================
 // MAIN APP
 // =====================================================================
-export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialScreen, initialLeadCreate = false, initialPartnerId = null } = {}) {
+export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialReturnUrl, initialScreen, initialLeadCreate = false, initialPartnerId = null } = {}) {
   const urlCaseLocation = parseCaseLocation('kunde');
   const initialCaseLocation = {
     caseId: initialCaseId || urlCaseLocation.caseId,
     tab: normalizeCaseTab(initialTab || urlCaseLocation.tab),
     returnTab: normalizeCaseTab(initialReturnTab || urlCaseLocation.returnTab, ''),
+    returnUrl: sanitizeInternalReturnUrl(initialReturnUrl || urlCaseLocation.returnUrl),
   };
   const initialPartnerDetailId = initialPartnerId || readPartnerIdFromUrl();
   const initialAppScreen = normalizeAppScreen(initialScreen || parseAppLocation('dashboard'));
@@ -9540,6 +9931,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const [partnerDetailId, setPartnerDetailId] = useState(initialPartnerDetailId);
   const [caseInitialTab, setCaseInitialTab] = useState(initialCaseLocation.tab);
   const [caseReturnTab, setCaseReturnTab] = useState(initialCaseLocation.returnTab);
+  const [caseReturnUrl, setCaseReturnUrl] = useState(initialCaseLocation.returnUrl);
   const [editingCaseId, setEditingCaseId] = useState(null);
   const [cases, setCases] = useState(mockCases);
   const [leads, setLeads] = useState([]);
@@ -9650,6 +10042,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         setCaseId(locationState.caseId);
         setCaseInitialTab(locationState.tab);
         setCaseReturnTab(locationState.returnTab);
+        setCaseReturnUrl(locationState.returnUrl);
         setPartnerDetailId(null);
         setEditingCaseId(null);
         setScreen('case');
@@ -9657,6 +10050,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         setCaseId(null);
         setCaseInitialTab('kunde');
         setCaseReturnTab('');
+        setCaseReturnUrl('');
         setPartnerDetailId(partnerIdFromUrl);
         setEditingCaseId(null);
         setScreen('partner_detail');
@@ -9664,6 +10058,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         setCaseId(null);
         setCaseInitialTab('kunde');
         setCaseReturnTab('');
+        setCaseReturnUrl('');
         setPartnerDetailId(null);
         setScreen(parseAppLocation('dashboard'));
       }
@@ -9700,6 +10095,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setCaseId(null);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setCaseReturnUrl('');
     setPartnerDetailId(null);
     setEditingCaseId(null);
     updateScreenUrl(role, nextScreen, 'push');
@@ -9709,18 +10105,21 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const handleOpenCase = (id, tab = 'kunde', options = {}) => {
     const nextTab = normalizeCaseTab(tab);
     const nextReturnTab = options.returnTab ? normalizeCaseTab(options.returnTab, '') : '';
+    const nextReturnUrl = sanitizeInternalReturnUrl(options.returnUrl || (screen === 'case' ? caseReturnUrl : currentReturnUrl(role)));
     setCaseId(id);
     setCaseInitialTab(nextTab);
     setCaseReturnTab(nextReturnTab);
+    setCaseReturnUrl(nextReturnUrl);
     setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('case');
-    updateCaseUrl(role, id, nextTab, nextReturnTab, options.replace ? 'replace' : 'push');
+    updateCaseUrl(role, id, nextTab, nextReturnTab, options.replace ? 'replace' : 'push', nextReturnUrl);
   };
   const handleOpenLead = (id) => {
     setCaseId(null);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setCaseReturnUrl('');
     setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('leads');
@@ -9741,6 +10140,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setCaseId(null);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setCaseReturnUrl('');
     setPartnerDetailId(id);
     setEditingCaseId(null);
     setScreen('partner_detail');
@@ -9750,13 +10150,13 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     const nextTab = normalizeCaseTab(tab);
     setCaseInitialTab(nextTab);
     setCaseReturnTab('');
-    if (caseId) updateCaseUrl(role, caseId, nextTab, '', 'replace');
+    if (caseId) updateCaseUrl(role, caseId, nextTab, '', 'replace', caseReturnUrl);
   };
   const handleReturnToCaseTab = (tab) => {
     const nextTab = normalizeCaseTab(tab);
     setCaseInitialTab(nextTab);
     setCaseReturnTab('');
-    if (caseId) updateCaseUrl(role, caseId, nextTab, '', 'push');
+    if (caseId) updateCaseUrl(role, caseId, nextTab, '', 'push', caseReturnUrl);
   };
   const handleOpenCurrentCaseChat = ({ caseId: currentCaseId, tab }) => {
     const sourceTab = normalizeCaseTab(tab || caseInitialTab);
@@ -9787,6 +10187,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const handleNewCase = () => {
     setPartnerDetailId(null);
     setEditingCaseId(null);
+    setCaseReturnUrl('');
     setScreen('erfassung');
     updateScreenUrl(role, 'erfassung', 'push');
   };
@@ -9794,27 +10195,46 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setEditingCaseId(id);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setCaseReturnUrl(currentReturnUrl(role));
     setPartnerDetailId(null);
     setScreen('erfassung');
     updateScreenUrl(role, 'erfassung', 'push');
   };
   const handleBack = () => {
+    const safeReturnUrl = sanitizeInternalReturnUrl(caseReturnUrl);
+    if (safeReturnUrl) {
+      const partnerIdFromReturn = partnerIdFromInternalUrl(safeReturnUrl);
+      window.history.pushState({}, '', safeReturnUrl);
+      setCaseId(null);
+      setCaseInitialTab('kunde');
+      setCaseReturnTab('');
+      setCaseReturnUrl('');
+      setPartnerDetailId(partnerIdFromReturn);
+      setEditingCaseId(null);
+      setScreen(partnerIdFromReturn ? 'partner_detail' : screenFromInternalUrl(safeReturnUrl, 'dashboard'));
+      return;
+    }
+    const currentCase = cases.find((item) => item.propertyId === caseId || item.id === caseId);
+    const fallbackScreen = fallbackScreenForCaseStatus(currentCase?.status);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setCaseReturnUrl('');
     setPartnerDetailId(null);
     setEditingCaseId(null);
-    setScreen('dashboard');
-    updateScreenUrl(role, 'dashboard', 'push');
+    setCaseId(null);
+    setScreen(fallbackScreen);
+    updateScreenUrl(role, fallbackScreen, 'push');
   };
   const handleSavedCase = async (id) => {
     await loadCases(role);
     setCaseId(id);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setCaseReturnUrl(currentReturnUrl(role));
     setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('case');
-    updateCaseUrl(role, id, 'kunde', '', 'push');
+    updateCaseUrl(role, id, 'kunde', '', 'push', currentReturnUrl(role));
   };
   const handleNewLead = () => {
     if (role !== 'admin') {
@@ -9823,6 +10243,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     }
     setLeadCreatePrefill({});
     setCaseId(null);
+    setCaseReturnUrl('');
     setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('leads');
@@ -9849,6 +10270,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setCaseId(null);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setCaseReturnUrl('');
     setPartnerDetailId(null);
     setEditingCaseId(null);
     setScreen('leads');
@@ -9896,6 +10318,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setPartnerDetailId(null);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
+    setCaseReturnUrl('');
     setEditingCaseId(null);
     setProfileOpen(false);
     updateScreenUrl(nextRole, 'dashboard');
@@ -9965,8 +10388,10 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       setCaseId(payload.case?.property?.caseNumber || payload.case?.property?.id || null);
       setCaseInitialTab('kunde');
       setCaseReturnTab('');
+      const returnUrl = currentReturnUrl(role);
+      setCaseReturnUrl(returnUrl);
       setScreen('case');
-      updateCaseUrl(role, payload.case?.property?.caseNumber || payload.case?.property?.id || null, 'kunde', '', 'push');
+      updateCaseUrl(role, payload.case?.property?.caseNumber || payload.case?.property?.id || null, 'kunde', '', 'push', returnUrl);
       setNotice('Lead wurde in einen Kundenfall umgewandelt.');
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Lead konnte nicht umgewandelt werden');

@@ -19,6 +19,7 @@ export default function Page({ searchParams }: { searchParams?: Record<string, s
       initialCaseId={searchParam(searchParams?.case) ?? searchParam(searchParams?.caseId)}
       initialTab={searchParam(searchParams?.tab)}
       initialReturnTab={searchParam(searchParams?.returnTab)}
+      initialReturnUrl={searchParam(searchParams?.returnUrl)}
       initialScreen={searchParam(searchParams?.screen) ?? searchParam(searchParams?.view)}
     />
   );

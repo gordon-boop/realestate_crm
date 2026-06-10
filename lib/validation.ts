@@ -205,6 +205,19 @@ export const propertyUpdateSchema = propertyBaseSchema.partial().superRefine((va
   requireObjectConditionFields(value, ctx, false);
 });
 
+export const acquisitionPrecheckUpdateSchema = z.object({
+  action: z.enum(["save", "request_exception", "approve_exception", "reject_exception"]).default("save"),
+  postbankRegionCategory: optionalEnum(["green", "yellow", "orange", "red"]),
+  landValuePerSqm: optionalNumber,
+  remainingUsefulLifeYears: optionalNumber,
+  developmentPotential: optionalBoolean,
+  renovationPlanAvailable: optionalBoolean,
+  apartmentManagementAvailable: optionalBoolean,
+  exceptionRequested: optionalBoolean,
+  exceptionReason: optionalString,
+  comment: optionalString
+});
+
 export const documentCreateSchema = z.object({
   fileName: z.string().trim().min(1).default("upload-placeholder.pdf"),
   displayName: optionalString,

@@ -1,5 +1,7 @@
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { addDbActivity, toJsonSnapshot, updateDbPropertyStatus } from "@/lib/persistence";
+import { assertAcquisitionPrecheckAllowsOffer } from "@/lib/acquisition-precheck";
+import { assertRatingAllowsOffer } from "@/lib/object-rating";
+import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, updateDbPropertyStatus } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
@@ -9,6 +11,10 @@ export async function POST(_request: Request, { params }: { params: { id: string
     const offer = existing;
     if (!offer) throw new Error("Offer not found");
     if (offer.status !== "approved" && offer.status !== "sent") throw new Error("Offer must be approved before sending");
+    const caseView = await getDbCaseByPropertyId(offer.propertyId);
+    if (!caseView) throw new Error("Property not found");
+    assertAcquisitionPrecheckAllowsOffer(caseView);
+    assertRatingAllowsOffer(caseView.objectRatings, caseView.property, offer.kind === "binding" ? "binding" : "indicative");
     const updated = await prisma.offer.update({
       where: { id: params.id },
       data: {

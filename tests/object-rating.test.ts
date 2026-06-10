@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateRating, scoreFromRule } from "../lib/object-rating.ts";
+import { calculateRating, deriveInvestmentFilter, evaluateRatingGate, ratingReviewAfterAppraisalStatus, scoreFromRule } from "../lib/object-rating.ts";
 
 test("object rating range mapping derives score from configured rule", () => {
   const score = scoreFromRule(1978, {
@@ -123,4 +123,80 @@ test("object rating excludes flat roof when roof is selected", () => {
 
   assert.equal(roofResult.totalScore, 5);
   assert.equal(conflictingResult.totalScore, 4);
+});
+
+test("object rating below acquisition threshold blocks offers", () => {
+  const rating = {
+    totalScore: 2.3,
+    status: "approved",
+    approvedAt: "2026-06-01T10:00:00.000Z",
+    scores: [{ criterionId: "crit", finalScore: 2 }],
+    auditLogs: []
+  } as any;
+
+  const investment = deriveInvestmentFilter(rating);
+  const gate = evaluateRatingGate([rating], { expertOpinionReceivedAt: undefined } as any, "indicative");
+
+  assert.equal(investment.acquisitionThresholdPassed, false);
+  assert.equal(investment.treatmentLabel, "Unterhalb der Ankaufsschwelle");
+  assert.equal(gate.allowed, false);
+  assert.equal(gate.reason, "Objekt liegt unterhalb der Ankaufsschwelle.");
+});
+
+test("object rating 3 is a review case but can proceed after approval", () => {
+  const rating = {
+    totalScore: 3.1,
+    status: "approved",
+    approvedAt: "2026-06-01T10:00:00.000Z",
+    scores: [{ criterionId: "crit", finalScore: 3 }],
+    auditLogs: []
+  } as any;
+
+  const investment = deriveInvestmentFilter(rating);
+  const gate = evaluateRatingGate([rating], { expertOpinionReceivedAt: undefined } as any, "indicative");
+
+  assert.equal(investment.treatmentLabel, "Zusätzliche Prüfung erforderlich");
+  assert.equal(investment.acquisitionThresholdPassed, true);
+  assert.equal(gate.allowed, true);
+});
+
+test("object rating 4 to 6 receives standard approval after rating approval", () => {
+  const rating = {
+    totalScore: 4.2,
+    status: "approved",
+    approvedAt: "2026-06-01T10:00:00.000Z",
+    scores: [{ criterionId: "crit", finalScore: 4 }],
+    auditLogs: []
+  } as any;
+
+  const investment = deriveInvestmentFilter(rating);
+  const gate = evaluateRatingGate([rating], { expertOpinionReceivedAt: undefined } as any, "indicative");
+
+  assert.equal(investment.treatmentLabel, "Standardfreigabe");
+  assert.equal(investment.scoreBandLabel, "4 · Solides Objekt");
+  assert.equal(gate.allowed, true);
+});
+
+test("binding offer requires rating approval after appraisal receipt", () => {
+  const staleRating = {
+    totalScore: 4.2,
+    status: "approved",
+    approvedAt: "2026-06-01T10:00:00.000Z",
+    scores: [{ criterionId: "crit", finalScore: 4 }],
+    auditLogs: []
+  } as any;
+  const refreshedRating = {
+    ...staleRating,
+    approvedAt: "2026-06-03T10:00:00.000Z"
+  } as any;
+  const property = { expertOpinionReceivedAt: "2026-06-02T10:00:00.000Z" } as any;
+
+  const staleReview = ratingReviewAfterAppraisalStatus(staleRating, property);
+  const staleGate = evaluateRatingGate([staleRating], property, "binding");
+  const refreshedGate = evaluateRatingGate([refreshedRating], property, "binding");
+
+  assert.equal(staleReview.label, "Erforderlich");
+  assert.equal(staleGate.allowed, false);
+  assert.equal(staleGate.reason, "Bitte schließen Sie zuerst das Rating-Review nach Gutachten ab.");
+  assert.equal(refreshedGate.allowed, true);
 });

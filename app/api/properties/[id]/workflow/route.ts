@@ -1,7 +1,9 @@
 import { canAcceptCustomerOffer, canAdvanceAcquisition, canEditAcquisitionDates, canSeeProperty } from "@/lib/access-control";
+import { assertAcquisitionPrecheckAllowsOffer } from "@/lib/acquisition-precheck";
 import { isAcquisitionActionReached, validateAcquisitionOfferDates, validateAcquisitionTransition, type AcquisitionWorkflowAction } from "@/lib/acquisition-workflow";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import type { CaseView, DesiredModel, OfferKind, User } from "@/lib/domain";
+import { assertRatingAllowsOffer } from "@/lib/object-rating";
 import { advanceDbAcquisitionWorkflow, getDbCaseByPropertyId, updateDbAcquisitionWorkflowDate } from "@/lib/persistence";
 import { acquisitionWorkflowSchema } from "@/lib/validation";
 
@@ -20,6 +22,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
       }
     } else if (workflowDataActions.includes(body.action) ? !canEditAcquisitionDates(user, caseView.property) : !canAdvanceAcquisition(user, caseView.property)) {
       throw new Error("Forbidden");
+    }
+    if (body.action === "indicative_offer_sent" || body.action === "offer_accepted") {
+      assertAcquisitionPrecheckAllowsOffer(caseView);
+      assertRatingAllowsOffer(caseView.objectRatings, caseView.property, "indicative");
+    }
+    if (body.action === "binding_offer_sent" || body.action === "binding_offer_accepted") {
+      assertAcquisitionPrecheckAllowsOffer(caseView);
+      assertRatingAllowsOffer(caseView.objectRatings, caseView.property, "binding");
     }
     const acceptedOfferSelection = resolveAcceptedOfferSelection(caseView, body.action, body.acceptedOfferModel, body.acceptedOfferId, body.acceptedOfferNote, user);
     const workflowOptions = {

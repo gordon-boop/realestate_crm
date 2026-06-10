@@ -100,6 +100,7 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     energyCarriers: jsonArray(property.energyCarriersJson),
     modernization: property.modernizationJson as Record<string, unknown> | undefined,
     buildingCondition: property.buildingConditionJson as Record<string, unknown> | undefined,
+    acquisitionPrecheck: property.acquisitionPrecheckJson as Record<string, unknown> | undefined,
     followUpDueAt: iso(property.followUpDueAt),
     customerFeedbackReceivedAt: iso(property.customerFeedbackReceivedAt),
     rejectedAt: iso(property.rejectedAt),

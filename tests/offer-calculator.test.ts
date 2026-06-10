@@ -1,86 +1,98 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { calculateFixedResidentialRightOffer } from "../lib/calculations/fixedResidentialRight.ts";
 import { calculateOffer, getResidentialRightRate } from "../lib/offer-calculator.ts";
-import { calculateMortalityWeightedIrr } from "../lib/residential-right-irr.ts";
 
 function assertApprox(actual: number, expected: number, tolerance = 0.00000001) {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} is not within ${tolerance} of ${expected}`);
 }
 
-test("calculates fixed residential right payout from the Excel core formula", () => {
+const excelResidentialRightInput = {
+  calculationDate: "2026-06-05",
+  marketValue: 500000,
+  livingAreaSqm: 100,
+  monthlyRentPerSqm: 8,
+  garageCount: 1,
+  monthlyGarageRent: 50,
+  energyClass: "E",
+  propertyType: "APARTMENT" as const,
+  fixedTermYears: 10,
+  internalInterestRate: 0.032,
+  acquisitionCostRate: 0.09,
+  salesCommissionRate: 0.015,
+  primaryDateOfBirth: "18.06.1950",
+  primaryGender: "male" as const
+};
+
+test("matches the Excel master for the fixed residential-right core calculation", () => {
+  const result = calculateFixedResidentialRightOffer(excelResidentialRightInput);
+
+  assert.equal(result.marketValue, 500000);
+  assert.equal(result.residentialRightValue, 102000);
+  assert.equal(result.maintenanceReserve, 18700);
+  assertApprox(result.steeringParameter, 140432.43, 0.01);
+  assertApprox(result.payoutAmount, 238867.57, 0.01);
+  assertApprox(result.payoutRatio, 0.4777351422, 0.0001);
+  assertApprox(result.weightedIrr2Percent, 0.1180407868, 0.0001);
+  assert.equal(result.termStatus, "OK");
+  assert.equal(result.relevantAge, 75);
+  assert.equal(result.relevantGender, "male");
+});
+
+test("maps the fixed residential-right core result into the CRM offer shape", () => {
   const result = calculateOffer({
     valuation: { marketValue: 500000 },
     condition: "good",
     model: "fixed_residential_right",
-    residentialRightYears: 7,
-    livingAreaSqm: 160,
-    propertyType: "house",
+    residentialRightYears: 10,
+    livingAreaSqm: 100,
+    propertyType: "apartment",
     energyClass: "E",
-    monthlyRentPerSqm: 6.2,
+    monthlyRentPerSqm: 8,
     garageCount: 1,
-    garageRentMonthly: 30,
-    interestRate: 0.032
+    garageMonthlyRent: 50,
+    interestRate: 0.032,
+    acquisitionCostRate: 0.09,
+    salesCostRate: 0.015,
+    primaryDateOfBirth: "18.06.1950",
+    primaryGender: "male",
+    calculationDate: "2026-06-05"
   });
 
   assert.equal(result.marketValue, 500000);
   assert.equal(result.adjustedMarketValue, 500000);
-  assert.equal(result.residentialRightValue, 85848);
-  assert.equal(result.companyMargin, 12800);
-  assert.equal(result.riskDiscount, 99008.84);
-  assert.equal(result.payoutAmount, 302343.16);
+  assert.equal(result.residentialRightValue, 102000);
+  assert.equal(result.companyMargin, 18700);
+  assertApprox(result.riskDiscount, 140432.43, 0.01);
+  assertApprox(result.payoutAmount, 238867.57, 0.01);
+  assert.equal(result.calculationMode, undefined);
   assert.equal(result.assumptions.productModel, "fixed_residential_right");
-  assert.equal(result.assumptions.sourceCells?.payoutAmount, "Auszahlungstool_Master!T10");
+  assert.equal(result.assumptions.sourceWorkbook, "Calculation_Investor_Cockpit_eng_wohnkapital_final_vers_2026.xlsx");
+  assert.equal(result.assumptions.components?.maintenanceCost, 18700);
+  assertApprox(result.assumptions.components?.weightedAnnualIrr ?? 0, 0.118041, 0.000001);
 });
 
-test("matches Excel AG-AI mortality-weighted annual IRR side calculation", () => {
-  const result = calculateMortalityWeightedIrr({
-    marketValue: 500000,
-    payoutAmount: 302343.1604872882,
-    maintenanceCost: 12800,
-    durationYears: 7,
-    mortalityAge: 79,
-    mortalityGender: "male",
-    acquisitionCostRate: 0.08,
-    salesCostRate: 0.015,
-    exitValueGrowthRate: 0.02,
-    maintenanceUsageRate: 0.7,
-    calculationDate: "2025-04-01"
+test("treats energy classes F, G and H as higher maintenance risk", () => {
+  const houseResult = calculateFixedResidentialRightOffer({
+    ...excelResidentialRightInput,
+    propertyType: "HOUSE",
+    energyClass: "G",
+    garageCount: 0,
+    monthlyGarageRent: 0
+  });
+  const apartmentResult = calculateFixedResidentialRightOffer({
+    ...excelResidentialRightInput,
+    propertyType: "APARTMENT",
+    energyClass: "H",
+    garageCount: 0,
+    monthlyGarageRent: 0
   });
 
-  assertApprox(result.survivalProbability, 0.577439989748);
-  assertApprox(result.scenarioIrrs[6], 0.069563084864);
-  assertApprox(result.weightedIrr, 0.103763646970);
+  assert.equal(houseResult.maintenanceReserve, 16500);
+  assert.equal(apartmentResult.maintenanceReserve, 24200);
 });
 
-test("solves fixed residential right payout backwards from object-rating target return", () => {
-  const result = calculateOffer({
-    valuation: { marketValue: 500000 },
-    condition: "good",
-    model: "fixed_residential_right",
-    residentialRightYears: 7,
-    livingAreaSqm: 160,
-    propertyType: "house",
-    energyClass: "E",
-    monthlyRentPerSqm: 6.2,
-    garageCount: 1,
-    garageRentMonthly: 30,
-    targetReturn: 0.103763646970,
-    customerAge: 79,
-    customerGender: "male",
-    acquisitionCostRate: 0.08,
-    salesCostRate: 0.015,
-    exitValueGrowthRate: 0.02,
-    maintenanceUsageRate: 0.7,
-    calculationDate: "2025-04-01"
-  });
-
-  assert.equal(result.calculationMode, "RATING_TARGET_RETURN_IRR");
-  assert.equal(result.payoutAmount, 302343.16);
-  assert.equal(result.assumptions.components?.targetReturn, 0.103764);
-  assert.equal(result.assumptions.components?.weightedAnnualIrr, 0.103764);
-});
-
-test("calculates Rückmietverkauf demo payout and rent for 500000 market value", () => {
+test("calculates Rueckmietverkauf demo payout and rent for 500000 market value", () => {
   const result = calculateOffer({
     valuation: { marketValue: 500000 },
     condition: "good",
@@ -103,7 +115,7 @@ test("calculates Rückmietverkauf demo payout and rent for 500000 market value",
   assert.equal(result.assumptions.components?.monthlyRent, 1458.33);
 });
 
-test("calculates Rückmietverkauf demo payout and rent for 800000 market value", () => {
+test("calculates Rueckmietverkauf demo payout and rent for 800000 market value", () => {
   const result = calculateOffer({
     valuation: { marketValue: 800000 },
     condition: "good",
@@ -117,7 +129,7 @@ test("calculates Rückmietverkauf demo payout and rent for 800000 market value",
   assert.equal(result.assumptions.components?.monthlyRent, 2333.33);
 });
 
-test("calculates Rückmietverkauf demo payout and rent for 544276 market value", () => {
+test("calculates Rueckmietverkauf demo payout and rent for 544276 market value", () => {
   const result = calculateOffer({
     valuation: { marketValue: 544276 },
     condition: "good",

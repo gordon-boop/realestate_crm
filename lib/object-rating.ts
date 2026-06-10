@@ -1,4 +1,4 @@
-import type { ObjectRating } from "./domain.ts";
+import type { ObjectRating, Property } from "./domain.ts";
 import { addDbActivity } from "./persistence.ts";
 import { prisma } from "./prisma.ts";
 
@@ -33,11 +33,219 @@ const ratingCategoryOrder = [
 
 const roofCriterionId = "rating_crit_maintenance_roof_v1";
 const flatRoofCriterionId = "rating_crit_maintenance_flat_roof_v1";
+const investmentThreshold = 2.5;
+
+export type InvestmentTreatmentKey =
+  | "standard_approval"
+  | "additional_review"
+  | "below_acquisition_threshold"
+  | "not_acquirable";
+
+export type RatingReviewAfterAppraisalStatus =
+  | "not_required"
+  | "required"
+  | "in_review"
+  | "confirmed"
+  | "adjusted"
+  | "approved";
+
+export type RatingInvestmentFilter = {
+  score?: number;
+  scoreBand?: 1 | 2 | 3 | 4 | 5 | 6;
+  scoreBandLabel: string;
+  treatmentKey: InvestmentTreatmentKey;
+  treatmentLabel: string;
+  targetReturnLabel: string;
+  acquisitionThresholdPassed: boolean;
+  nextAction: string;
+  canProceedToOffer: boolean;
+  blockReason?: string;
+};
+
+export type RatingGateStage = "indicative" | "binding";
 
 function toNumber(value: unknown): number | undefined {
   if (value === null || value === undefined) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function latestRating(ratings: ObjectRating[] | undefined): ObjectRating | undefined {
+  return ratings?.[0];
+}
+
+function scoreBand(score: number | undefined): RatingInvestmentFilter["scoreBand"] | undefined {
+  if (score === undefined) return undefined;
+  if (score >= 5.5) return 6;
+  if (score >= 4.5) return 5;
+  if (score >= 3.5) return 4;
+  if (score >= 2.5) return 3;
+  if (score >= 1.5) return 2;
+  return 1;
+}
+
+export function deriveInvestmentFilter(rating?: Pick<ObjectRating, "totalScore" | "status"> | null): RatingInvestmentFilter {
+  const score = toNumber(rating?.totalScore);
+  const band = scoreBand(score);
+
+  if (score === undefined || !rating) {
+    return {
+      scoreBandLabel: "Nicht bewertet",
+      treatmentKey: "additional_review",
+      treatmentLabel: "Rating erforderlich",
+      targetReturnLabel: "Noch nicht final parametrisiert",
+      acquisitionThresholdPassed: false,
+      nextAction: "Objektrating abschließen",
+      canProceedToOffer: false,
+      blockReason: "Bitte schließen Sie zuerst das Objektrating ab."
+    };
+  }
+
+  if (score < investmentThreshold) {
+    return {
+      score,
+      scoreBand: band,
+      scoreBandLabel: band === 1 ? "1 · Ungeeignet" : "2 · Unter Schwelle",
+      treatmentKey: band === 1 ? "not_acquirable" : "below_acquisition_threshold",
+      treatmentLabel: band === 1 ? "Nicht ankauffähig" : "Unterhalb der Ankaufsschwelle",
+      targetReturnLabel: "Kein Angebot",
+      acquisitionThresholdPassed: false,
+      nextAction: "Ablehnung vorbereiten oder zurückstellen",
+      canProceedToOffer: false,
+      blockReason: "Objekt liegt unterhalb der Ankaufsschwelle."
+    };
+  }
+
+  if (band === 3) {
+    return {
+      score,
+      scoreBand: band,
+      scoreBandLabel: "3 · Grenzfall",
+      treatmentKey: "additional_review",
+      treatmentLabel: "Zusätzliche Prüfung erforderlich",
+      targetReturnLabel: "Erhöhte Zielrendite aus Ratingkurve",
+      acquisitionThresholdPassed: true,
+      nextAction: rating.status === "approved" ? "Angebotsstrecke mit erhöhter Prüfung fortsetzen" : "Rating intern prüfen und freigeben",
+      canProceedToOffer: rating.status === "approved"
+    };
+  }
+
+  const scoreBandLabel = band === 6
+    ? "6 · Top-Objekt"
+    : band === 5
+      ? "5 · Starkes Objekt"
+      : "4 · Solides Objekt";
+  const targetReturnLabel = band === 6
+    ? "Niedrigste Zielrendite aus Ratingkurve"
+    : band === 5
+      ? "Reduzierte Zielrendite aus Ratingkurve"
+      : "Normale Zielrendite aus Ratingkurve";
+
+  return {
+    score,
+    scoreBand: band,
+    scoreBandLabel,
+    treatmentKey: "standard_approval",
+    treatmentLabel: "Standardfreigabe",
+    targetReturnLabel,
+    acquisitionThresholdPassed: true,
+    nextAction: rating.status === "approved" ? "Angebotsstrecke fortsetzen" : "Rating freigeben",
+    canProceedToOffer: rating.status === "approved"
+  };
+}
+
+export function isObjectRatingComplete(rating?: ObjectRating | null): boolean {
+  if (!rating) return false;
+  return !rating.scores.some((score) => scoreIsRequiredForApproval(rating.scores, score) && !score.finalScore);
+}
+
+function asDate(value: unknown): Date | undefined {
+  if (!value) return undefined;
+  const parsed = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+export function ratingReviewAfterAppraisalStatus(
+  rating: ObjectRating | undefined,
+  property: Pick<Property, "expertOpinionReceivedAt">
+): { status: RatingReviewAfterAppraisalStatus; label: string; required: boolean; satisfied: boolean } {
+  const appraisalReceivedAt = asDate(property.expertOpinionReceivedAt);
+  if (!appraisalReceivedAt) {
+    return { status: "not_required", label: "Noch nicht erforderlich", required: false, satisfied: true };
+  }
+  if (!rating) {
+    return { status: "required", label: "Erforderlich", required: true, satisfied: false };
+  }
+  if (rating.status !== "approved") {
+    return { status: "in_review", label: "In Prüfung", required: true, satisfied: false };
+  }
+  const approvedAt = asDate(rating.approvedAt);
+  if (!approvedAt || approvedAt < appraisalReceivedAt) {
+    return { status: "required", label: "Erforderlich", required: true, satisfied: false };
+  }
+  const adjustedAfterAppraisal = rating.auditLogs?.some((entry) =>
+    entry.action === "score_changed" && asDate(entry.timestamp) && asDate(entry.timestamp)! >= appraisalReceivedAt
+  );
+  return {
+    status: adjustedAfterAppraisal ? "adjusted" : "confirmed",
+    label: adjustedAfterAppraisal ? "Angepasst" : "Bestätigt",
+    required: true,
+    satisfied: true
+  };
+}
+
+export function evaluateRatingGate(
+  ratings: ObjectRating[] | undefined,
+  property: Pick<Property, "expertOpinionReceivedAt">,
+  stage: RatingGateStage
+) {
+  const rating = latestRating(ratings);
+  const investment = deriveInvestmentFilter(rating);
+  const complete = isObjectRatingComplete(rating);
+  const approved = rating?.status === "approved";
+  const review = ratingReviewAfterAppraisalStatus(rating, property);
+
+  if (!rating || !complete || !approved) {
+    return {
+      allowed: false,
+      rating,
+      investment,
+      review,
+      reason: "Bitte schließen Sie zuerst das Objektrating ab."
+    };
+  }
+
+  if (!investment.acquisitionThresholdPassed) {
+    return {
+      allowed: false,
+      rating,
+      investment,
+      review,
+      reason: investment.blockReason ?? "Objekt liegt unterhalb der Ankaufsschwelle."
+    };
+  }
+
+  if (stage === "binding" && !review.satisfied) {
+    return {
+      allowed: false,
+      rating,
+      investment,
+      review,
+      reason: "Bitte schließen Sie zuerst das Rating-Review nach Gutachten ab."
+    };
+  }
+
+  return { allowed: true, rating, investment, review };
+}
+
+export function assertRatingAllowsOffer(
+  ratings: ObjectRating[] | undefined,
+  property: Pick<Property, "expertOpinionReceivedAt">,
+  stage: RatingGateStage
+) {
+  const gate = evaluateRatingGate(ratings, property, stage);
+  if (!gate.allowed) throw new Error(gate.reason);
+  return gate;
 }
 
 function getPathValue(source: unknown, path: string): unknown {
@@ -308,7 +516,7 @@ export async function getLatestObjectRating(propertyId: string) {
 export async function summarizeObjectRating(ratingId: string) {
   const rating = await prisma.objectRating.findUnique({
     where: { id: ratingId },
-    include: { ...ratingInclude, object: { select: { propertyType: true } }, configVersion: { include: ratingConfigInclude } }
+    include: { ...ratingInclude, object: { select: { propertyType: true, expertOpinionReceivedAt: true } }, configVersion: { include: ratingConfigInclude } }
   });
   if (!rating) return undefined;
   const computed = calculateRating(rating.configVersion, rating.scores.map((score) => ({
@@ -316,7 +524,9 @@ export async function summarizeObjectRating(ratingId: string) {
     finalScore: score.finalScore ?? undefined
   })), { propertyType: rating.object.propertyType });
   const openChecks = rating.scores.filter((score) => !score.finalScore || Number(score.confidence ?? 0) < 0.65);
-  return { rating, categoryScores: computed.categoryScores, openChecks };
+  const investment = deriveInvestmentFilter(rating as unknown as ObjectRating);
+  const reviewAfterAppraisal = ratingReviewAfterAppraisalStatus(rating as unknown as ObjectRating, { expertOpinionReceivedAt: rating.object.expertOpinionReceivedAt?.toISOString() });
+  return { rating, categoryScores: computed.categoryScores, openChecks, investment, reviewAfterAppraisal };
 }
 
 export async function updateObjectRatingScore(ratingId: string, scoreId: string, userId: string, input: { analystScore?: number | null; finalScore?: number | null; comment?: string | null }) {
@@ -479,6 +689,7 @@ export async function approveObjectRating(ratingId: string, userId: string) {
   if (missingManualComment) {
     throw new Error("Bitte begründen Sie die manuelle Änderung.");
   }
+  const investment = deriveInvestmentFilter(rating as unknown as ObjectRating);
   const updated = await prisma.objectRating.update({
     where: { id: ratingId },
     data: { status: "approved", approvedAt: new Date(), approvedByUserId: userId }
@@ -488,16 +699,28 @@ export async function approveObjectRating(ratingId: string, userId: string) {
       objectRatingId: ratingId,
       entityType: "rating",
       action: "rating_approved",
-      newValue: { status: "approved", finalTargetReturn: rating.finalTargetReturn },
+      newValue: {
+        status: "approved",
+        finalTargetReturn: rating.finalTargetReturn,
+        investmentTreatment: investment.treatmentKey,
+        investmentTreatmentLabel: investment.treatmentLabel,
+        acquisitionThresholdPassed: investment.acquisitionThresholdPassed
+      },
       userId,
-      comment: `Objektrating freigegeben. Finale Zielrendite: ${formatReturnForActivity(rating.finalTargetReturn)}.`
+      comment: `Objektrating freigegeben. Rating: ${toNumber(rating.totalScore)?.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 2 }) ?? "-"}. Behandlung: ${investment.treatmentLabel}.`
     }
   });
-  await addDbActivity(rating.objectId, userId, "object_rating_approved", `Objektrating wurde freigegeben. Finale Zielrendite: ${formatReturnForActivity(rating.finalTargetReturn)}.`, {
+  await addDbActivity(rating.objectId, userId, "object_rating_approved", `Objektrating freigegeben. Rating: ${toNumber(rating.totalScore)?.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 2 }) ?? "-"}. Behandlung: ${investment.treatmentLabel}.`, {
     source: "admin",
     entityType: "rating",
     entityId: ratingId,
-    metadata: { visibility: "internal", finalTargetReturn: toNumber(rating.finalTargetReturn) }
+    metadata: {
+      visibility: "internal",
+      finalTargetReturn: toNumber(rating.finalTargetReturn),
+      investmentTreatment: investment.treatmentKey,
+      investmentTreatmentLabel: investment.treatmentLabel,
+      acquisitionThresholdPassed: investment.acquisitionThresholdPassed
+    }
   });
   return updated;
 }
