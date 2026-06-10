@@ -204,6 +204,114 @@ export function createIndicativeOfferDocx(template: Buffer, data: IndicativeOffe
   return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
+export type BindingOfferPdfData = IndicativeOfferPdfData & {
+  salutationLine: string;
+  customerShortName: string;
+  propertyAddress: string;
+  appraisalValue: string;
+  appraiserName: string;
+  appraisalDate: string;
+  bindingPayoutAmount: string;
+  bindingPayoutRate: string;
+  residentialRightValue: string;
+  annualRentRate: string;
+};
+
+export function buildBindingOfferPdfData(caseView: CaseView, offer: Offer, advisor?: Pick<User, "name" | "email">): BindingOfferPdfData {
+  const base = buildIndicativeOfferPdfData(caseView, offer, advisor);
+  const offerDate = caseView.property.bindingOfferSentAt || offer.sentAt || offer.updatedAt || new Date().toISOString();
+  const validUntil = new Date(offerDate);
+  validUntil.setDate(validUntil.getDate() + 28);
+  const isRentBack = offer.model === "sale_and_leaseback";
+  const rentBack = isRentBack ? rentBackMetrics(offer) : null;
+  const marketValue = rentBack?.marketValue ?? Number(offer.marketValue || 0);
+  const payoutAmount = rentBack?.payoutAmount ?? Number(offer.payoutAmount || 0);
+  const payoutRate = rentBack?.payoutRate ?? (marketValue > 0 ? payoutAmount / marketValue : 0);
+  const lastName = caseView.customer.lastName || caseView.customer.displayName || caseView.customer.firstName || "";
+
+  return {
+    ...base,
+    offerDate: formatDate(offerDate),
+    offerValidUntil: formatDate(validUntil),
+    marketValue: formatEuroCents(marketValue),
+    payoutAmount: formatEuroCents(payoutAmount),
+    payoutRate: formatPercentValue(payoutRate),
+    modelLabel: modelLabels[offer.model] ?? "Nutzungsmodell",
+    salutationLine: customerGreeting(caseView),
+    customerShortName: valueOrDash(lastName),
+    propertyAddress: base.propertyAddressBlock.replace(/\n/g, ", "),
+    appraisalValue: formatEuroCents(marketValue),
+    appraiserName: valueOrDash(caseView.property.expertOpinionCompany),
+    appraisalDate: caseView.property.expertOpinionReceivedAt ? formatDate(caseView.property.expertOpinionReceivedAt) : "-",
+    bindingPayoutAmount: formatEuroCents(payoutAmount),
+    bindingPayoutRate: formatPercentValue(payoutRate),
+    residentialRightValue: offer.residentialRightValue ? formatEuroCents(Number(offer.residentialRightValue)) : "-",
+    residentialRightYears: offer.residentialRightYears ? String(offer.residentialRightYears) : "-",
+    annualRentRate: rentBack ? formatPercentValue(rentBack.annualRentRate) : "-",
+    annualRent: rentBack ? formatEuroCents(rentBack.annualRent) : "-",
+    monthlyRent: rentBack ? formatEuroCents(rentBack.monthlyRent) : "-"
+  };
+}
+
+export function getBindingOfferTemplateFileName(model: DesiredModel): string {
+  return model === "sale_and_leaseback"
+    ? "binding-offer-rueckmietverkauf-template.docx"
+    : "binding-offer-wohnrecht-template.docx";
+}
+
+export function getFallbackBindingOfferTemplateFileName(): string {
+  return "binding-offer-wohnrecht-template.docx";
+}
+
+export function createBindingOfferDocx(template: Buffer, data: BindingOfferPdfData): Buffer {
+  const zip = new PizZip(template);
+  prepareBindingOfferTemplate(zip, data);
+  const doc = new Docxtemplater(zip, {
+    delimiters: { start: "{{", end: "}}" },
+    paragraphLoop: true,
+    linebreaks: true,
+    nullGetter: () => "-"
+  });
+  doc.render(data);
+  return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
+}
+
+function prepareBindingOfferTemplate(zip: PizZip, data: BindingOfferPdfData): void {
+  const xmlPaths = [
+    "word/document.xml",
+    "word/header1.xml",
+    "word/header2.xml",
+    "word/header3.xml",
+    "word/footer1.xml",
+    "word/footer2.xml",
+    "word/footer3.xml"
+  ];
+
+  for (const path of xmlPaths) {
+    const file = zip.file(path);
+    if (!file) continue;
+    const xml = file.asText();
+    zip.file(path, data.modelLabel === "RÃ¼ckmietverkauf" ? prepareRentBackBindingOfferXml(xml) : prepareBindingOfferXml(xml));
+  }
+}
+
+function prepareBindingOfferXml(xml: string): string {
+  return xml
+    .replace(/Modell Wohnrecht/g, "Modell {{modelLabel}}")
+    .replace(/Modellbeschreibung Wohnrecht/g, "Modellbeschreibung {{modelLabel}}");
+}
+
+function prepareRentBackBindingOfferXml(xml: string): string {
+  return prepareBindingOfferXml(xml)
+    .replace(/Wohnrechtslaufzeit/g, "Mietfaktor p.a.")
+    .replace(/\{\{residentialRightYears\}\} Jahre/g, "{{annualRentRate}}")
+    .replace(/Wohnrechtswert/g, "Jahresmiete")
+    .replace(/\{\{residentialRightValue\}\}/g, "{{annualRent}}")
+    .replace(/Wohnrechtslaufzeit/g, "Mietfaktor p.a.")
+    .replace(/Wohnrechts/g, "RÃ¼ckmietverkaufs")
+    .replace(/Wohnrecht/g, "RÃ¼ckmietverkauf");
+}
+
 function prepareIndicativeOfferTemplate(zip: PizZip, kind: IndicativeOfferTemplateKind): void {
   const xmlPaths = [
     "word/document.xml",
