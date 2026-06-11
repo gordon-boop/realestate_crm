@@ -2,9 +2,19 @@ import type { CaseView, ObjectRating, Property } from "./domain.ts";
 
 export type PostbankRegionCategory = "green" | "yellow" | "orange" | "red";
 export type AcquisitionPrecheckCriterionStatus = "passed" | "exception_required" | "failed" | "unknown";
-export type AcquisitionPrecheckResult = "acquirable" | "exception_required" | "not_acquirable";
+export type AcquisitionPrecheckResult = "acquirable" | "incomplete" | "exception_required" | "not_acquirable";
+export type PreliminaryMarketValueSource =
+  | "manual_estimate"
+  | "broker_statement"
+  | "market_data"
+  | "internal_initial_estimate"
+  | "other";
 
 export type AcquisitionPrecheckData = {
+  preliminaryMarketValue?: number;
+  preliminaryMarketValueSource?: PreliminaryMarketValueSource;
+  preliminaryMarketValueDate?: string;
+  preliminaryMarketValueComment?: string;
   postbankRegionCategory?: PostbankRegionCategory;
   landValuePerSqm?: number;
   remainingUsefulLifeYears?: number;
@@ -92,11 +102,22 @@ export function getAcquisitionPrecheckData(property?: Pick<Property, "acquisitio
   return raw && typeof raw === "object" && !Array.isArray(raw) ? raw as AcquisitionPrecheckData : {};
 }
 
-export function getPrecheckMarketValue(caseView: Pick<CaseView, "valuation" | "offers">, override?: number): number | undefined {
+export function getPreliminaryMarketValue(caseView: Pick<CaseView, "property">, override?: number): number | undefined {
+  return toNumber(override) ?? toNumber(getAcquisitionPrecheckData(caseView.property).preliminaryMarketValue);
+}
+
+export function getAppraisalMarketValue(caseView: Pick<CaseView, "valuation" | "offers">, override?: number): number | undefined {
+  const bindingOffer = caseView.offers?.find((offer) => offer.kind === "binding");
   return toNumber(override)
-    ?? toNumber(caseView.valuation?.marketValue)
-    ?? toNumber(caseView.offers?.find((offer) => offer.kind === "binding")?.marketValue)
-    ?? toNumber(caseView.offers?.find((offer) => offer.kind !== "binding")?.marketValue);
+    ?? toNumber(bindingOffer?.marketValue)
+    ?? toNumber(caseView.valuation?.marketValue);
+}
+
+export function getPrecheckMarketValue(
+  caseView: Pick<CaseView, "property" | "valuation" | "offers">,
+  override?: number
+): number | undefined {
+  return getPreliminaryMarketValue(caseView, override);
 }
 
 function criterion(input: AcquisitionPrecheckCriterion): AcquisitionPrecheckCriterion {
@@ -105,11 +126,14 @@ function criterion(input: AcquisitionPrecheckCriterion): AcquisitionPrecheckCrit
 
 export function evaluateAcquisitionPrecheck(
   caseView: Pick<CaseView, "property" | "valuation" | "offers" | "objectRatings">,
-  options: { marketValueOverride?: number } = {}
+  options: { marketValueOverride?: number; marketValueMode?: "preliminary" | "appraisal" } = {}
 ): AcquisitionPrecheckSummary {
   const property = caseView.property;
   const data = getAcquisitionPrecheckData(property);
-  const marketValue = getPrecheckMarketValue(caseView, options.marketValueOverride);
+  const marketValueMode = options.marketValueMode ?? "preliminary";
+  const marketValue = marketValueMode === "appraisal"
+    ? getAppraisalMarketValue(caseView, options.marketValueOverride)
+    : getPreliminaryMarketValue(caseView, options.marketValueOverride);
   const rating = caseView.objectRatings?.[0] as ObjectRating | undefined;
   const ratingScore = toNumber(rating?.totalScore);
   const energyClass = normalizeEnergyClass(property.energyClass);
@@ -129,12 +153,20 @@ export function evaluateAcquisitionPrecheck(
 
   criteria.push(criterion({
     key: "market_value",
-    label: "Verkehrswert",
+    label: marketValueMode === "appraisal" ? "Gutachtenwert" : "Vorläufiger Verkehrswert",
     requirement: "Mindestens 250.000 € und maximal 1.000.000 €.",
     currentValue: formatEuro(marketValue),
     status: marketValue === undefined ? "unknown" : marketValue >= 250000 && marketValue <= 1000000 ? "passed" : "failed",
     hardKo: marketValue !== undefined && (marketValue < 250000 || marketValue > 1000000),
-    comment: marketValue !== undefined && marketValue < 250000 ? "Verkehrswert liegt unter 250.000 €." : marketValue !== undefined && marketValue > 1000000 ? "Verkehrswert liegt über 1.000.000 €." : undefined
+    comment: marketValue === undefined
+      ? marketValueMode === "appraisal"
+        ? "Bitte erfassen Sie zuerst den Gutachtenwert."
+        : "Bitte erfassen Sie zuerst einen vorläufigen Verkehrswert."
+      : marketValue < 250000
+        ? `${marketValueMode === "appraisal" ? "Gutachtenwert" : "Verkehrswert"} liegt unter 250.000 €.`
+        : marketValue > 1000000
+          ? `${marketValueMode === "appraisal" ? "Gutachtenwert" : "Verkehrswert"} liegt über 1.000.000 €.`
+          : "Verkehrswert innerhalb Ankaufskorridor."
   }));
 
   const landValue = toNumber(data.landValuePerSqm);
@@ -236,9 +268,10 @@ export function evaluateAcquisitionPrecheck(
   const exceptionItems = criteria.filter((item) => item.status === "exception_required");
   const unknownItems = criteria.filter((item) => item.status === "unknown" && item.key !== "rating_threshold");
   const hasHardKo = hardKoItems.length > 0 || failedItems.length > 0;
-  const hasExceptionRequired = exceptionItems.length > 0 || unknownItems.length > 0;
+  const hasExceptionRequired = exceptionItems.length > 0;
 
   if (hasHardKo) {
+    const marketFailure = failedItems.find((item) => item.key === "market_value");
     return {
       result: "not_acquirable",
       resultLabel: "Nicht ankaufsfähig",
@@ -249,7 +282,23 @@ export function evaluateAcquisitionPrecheck(
       hasExceptionRequired,
       hasUnknown: unknownItems.length > 0,
       blocksOffer: true,
-      blockReason: "Der Fall erfüllt die Ankaufskriterien nicht."
+      blockReason: marketFailure?.comment ?? "Der Fall erfüllt die Ankaufskriterien nicht."
+    };
+  }
+
+  if (unknownItems.length > 0) {
+    const marketUnknown = unknownItems.find((item) => item.key === "market_value");
+    return {
+      result: "incomplete",
+      resultLabel: "Prüfung unvollständig",
+      reason: marketUnknown?.comment ?? "Bitte vervollständigen Sie die Vorprüfung.",
+      criteria,
+      exceptionApproved,
+      hasHardKo: false,
+      hasExceptionRequired,
+      hasUnknown: true,
+      blocksOffer: true,
+      blockReason: marketUnknown?.comment ?? "Bitte vervollständigen Sie die Vorprüfung."
     };
   }
 
@@ -284,7 +333,7 @@ export function evaluateAcquisitionPrecheck(
 
 export function assertAcquisitionPrecheckAllowsOffer(
   caseView: Pick<CaseView, "property" | "valuation" | "offers" | "objectRatings">,
-  options: { marketValueOverride?: number } = {}
+  options: { marketValueOverride?: number; marketValueMode?: "preliminary" | "appraisal" } = {}
 ) {
   const precheck = evaluateAcquisitionPrecheck(caseView, options);
   if (precheck.blocksOffer) throw new Error(precheck.blockReason);

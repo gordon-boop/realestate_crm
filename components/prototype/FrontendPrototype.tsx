@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 "use client";
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -1570,7 +1570,7 @@ const acquisitionPrecheckStatusLabels = {
   passed: 'Bestanden',
   exception_required: 'Ausnahmeprüfung',
   failed: 'Nicht bestanden',
-  unknown: 'Noch nicht bewertet',
+  unknown: 'Wertprüfung offen',
 };
 
 const acquisitionPrecheckStatusStyles = {
@@ -1585,6 +1585,14 @@ const postbankRegionLabels = {
   yellow: 'Gelb',
   orange: 'Orange',
   red: 'Rot',
+};
+
+const preliminaryMarketValueSourceLabels = {
+  manual_estimate: 'Manuelle Einschätzung',
+  broker_statement: 'Maklerangabe',
+  market_data: 'Marktdaten',
+  internal_initial_estimate: 'Interne Ersteinschätzung',
+  other: 'Sonstige',
 };
 
 const recipientLabels = { one_person: 'eine Person', both: 'beide Personen' };
@@ -4545,6 +4553,21 @@ function buildAcquisitionTimelineSteps(property = {}) {
   }));
 }
 
+function buildAcquisitionCompletedSummary(property = {}) {
+  const parts = [];
+  const purchaseContractDate = firstProcessDate(property?.purchaseContractSignedAt, property?.purchasedAt);
+  const purchasePricePaidDate = firstProcessDate(property?.purchasePricePaidAt, property?.payoutPaidAt);
+  const landRegisterDate = firstProcessDate(property?.landRegisterEntryAt, property?.residentialRightRegisteredAt);
+  const portfolioDate = property?.portfolioEnteredAt;
+
+  if (purchaseContractDate) parts.push(`Kaufvertrag abgeschlossen am ${formatDate(purchaseContractDate)}`);
+  if (purchasePricePaidDate) parts.push(`Kaufpreis gezahlt am ${formatDate(purchasePricePaidDate)}`);
+  if (landRegisterDate) parts.push(`Grundbucheintragung abgeschlossen am ${formatDate(landRegisterDate)}`);
+  if (portfolioDate) parts.push(`Im Bestand seit ${formatDate(portfolioDate)}`);
+
+  return parts.length ? parts.join(' · ') : 'Objekt befindet sich im Bestand';
+}
+
 const AcquisitionProcessStepper = ({ property }) => {
   const steps = buildAcquisitionTimelineSteps(property);
   const currentIndex = Math.max(0, steps.findIndex((step) => step.current));
@@ -4552,8 +4575,16 @@ const AcquisitionProcessStepper = ({ property }) => {
   const completedLineWidth = currentIndex === 0
     ? '0%'
     : `calc((100% - ${100 / steps.length}%) * ${currentIndex / (steps.length - 1)})`;
+  const acquisitionCompleted = Boolean(isInventoryCase(property) || (
+    property?.purchaseContractSignedAt && (property?.purchasePricePaidAt || property?.payoutPaidAt) && property?.landRegisterEntryAt
+  ));
+  const [showCompletedDetails, setShowCompletedDetails] = useState(false);
 
-  return (
+  useEffect(() => {
+    setShowCompletedDetails(false);
+  }, [property?.id, acquisitionCompleted]);
+
+  const fullStepper = (
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '18px 20px 16px', boxShadow: '0 10px 26px rgba(68, 0, 92, 0.04)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>ANKAUFSPROZESS</div>
@@ -4602,6 +4633,35 @@ const AcquisitionProcessStepper = ({ property }) => {
           </div>
         </div>
       </div>
+    </div>
+  );
+
+  if (!acquisitionCompleted) return fullStepper;
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 16px', boxShadow: '0 8px 20px rgba(68, 0, 92, 0.035)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0, flex: 1 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#EAF6E8', border: '1px solid #BFE3B8', color: '#2F7D32', borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
+            <CheckCircle size={14} /> Im Bestand
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 850 }}>Ankaufsprozess abgeschlossen</div>
+            <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 2, lineHeight: 1.35 }}>
+              {buildAcquisitionCompletedSummary(property)}
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCompletedDetails((value) => !value)}
+          style={{ background: 'white', border: `1px solid ${theme.aubergine}33`, color: theme.aubergine, borderRadius: 6, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          {showCompletedDetails ? 'Details ausblenden' : 'Details anzeigen'}
+          <ChevronDown size={14} style={{ transform: showCompletedDetails ? 'rotate(180deg)' : 'none', transition: 'transform 160ms ease' }} />
+        </button>
+      </div>
+      {showCompletedDetails && fullStepper}
     </div>
   );
 };
@@ -4696,6 +4756,7 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
 // =====================================================================
 const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde', returnTab = '', onTabChange, onReturnToTab }) => {
   const [activeTab, setActiveTab] = useState(normalizeCaseTab(initialTab));
+  const [showAcquisitionHistory, setShowAcquisitionHistory] = useState(false);
   const [busyAction, setBusyAction] = useState('');
   const [recentSuccessAction, setRecentSuccessAction] = useState('');
   const [openCalculation, setOpenCalculation] = useState('');
@@ -4802,6 +4863,19 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     property?.residentStaysInProperty === false ||
     ['MOVE_OUT_PLANNED', 'MOVED_OUT', 'DECEASED'].includes(property?.residentStatus)
   ));
+  const acquisitionHistoryTabs = [
+    ...(role === 'admin' ? [{ id: 'rating', label: 'Objektrating' }] : []),
+    { id: 'indag', label: 'Unverbindliches Angebot' },
+    { id: 'verbag', label: 'Verbindliches Angebot' },
+    ...(role === 'admin' ? [{ id: 'kvabwicklung', label: 'KV-Abwicklung' }] : []),
+  ];
+  const acquisitionHistoryTabIds = acquisitionHistoryTabs.map((tab) => tab.id);
+  const activeTabIsAcquisitionHistory = inventoryCase && acquisitionHistoryTabIds.includes(activeTab);
+  useEffect(() => {
+    if (activeTabIsAcquisitionHistory) {
+      setShowAcquisitionHistory(true);
+    }
+  }, [activeTabIsAcquisitionHistory]);
   useEffect(() => {
     const existingExpertOpinionValue = bindingOffers[0]?.marketValue;
     setExpertOpinionValue(existingExpertOpinionValue ? formatGermanIntegerInput(existingExpertOpinionValue) : '');
@@ -5007,6 +5081,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         property: { ...property, acquisitionPrecheck: precheckDraft }
       })
     : null;
+  const preliminaryMarketValue = Number.isFinite(parseGermanNumberInput(precheckDraft.preliminaryMarketValue))
+    ? parseGermanNumberInput(precheckDraft.preliminaryMarketValue)
+    : undefined;
+  const preliminaryMarketValueLabel = preliminaryMarketValue
+    ? formatEuro(preliminaryMarketValue)
+    : 'Nicht erfasst';
   const ratingStatusLabels = { draft: 'Entwurf', analyst_review: 'Analystenprüfung', approved: 'Freigegeben' };
   const ratingSourceLabels = { questionnaire: 'Fragebogen', api: 'API / Marktdaten', analyst: 'Analyst', document: 'Dokument' };
   const ratingScores = (objectRating?.scores || [])
@@ -5175,16 +5255,15 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const model = typeof modelRequest === 'string' ? modelRequest : modelRequest.model;
     const key = typeof modelRequest === 'string' ? `${model}-${index}` : `${modelRequest.key}-${index}`;
     const params = calculationParams[key] || {};
-    const manualMarketValue = params.manualMarketValue ?? params.marketValue ?? '';
     return runCaseAction(model === 'sale_and_leaseback' ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation', async () => {
-      if (!manualMarketValue && !latestValuation?.marketValue) {
-        await postJson(`/api/properties/${c.propertyId}/valuation`, { provider: 'sprengnetter' });
+      if (!preliminaryMarketValue) {
+        throw new Error('Bitte erfassen Sie zuerst einen vorläufigen Verkehrswert in der Vorabprüfung oder im Objektbereich.');
       }
       await postJson(`/api/properties/${c.propertyId}/offer/calculate`, {
         model,
         inputs: {
           ...params,
-          manualMarketValue,
+          manualMarketValue: preliminaryMarketValue,
           monthlyRentPerSqm: params.monthlyRentPerSqm ?? '',
           garageMonthlyRent: params.garageMonthlyRent ?? '',
           residentialRightYears: params.residentialRightYears || modelRequest?.residentialRightYears || property?.desiredResidentialRightYears,
@@ -5663,18 +5742,18 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         ? `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(Number(raw.monthlyRentPerSqm))} €/m²`
         : '–';
     const sourceParts = [
-      latestValuation?.sourceLabel || latestValuation?.provider || 'Marktdaten',
-      latestValuation?.completedAt || latestValuation?.createdAt ? dateLabel(latestValuation.completedAt || latestValuation.createdAt) : null,
+      labelFrom(preliminaryMarketValueSourceLabels, precheckDraft.preliminaryMarketValueSource, 'Nicht erfasst'),
+      precheckDraft.preliminaryMarketValueDate ? dateLabel(precheckDraft.preliminaryMarketValueDate) : null,
     ].filter(Boolean);
 
     return (
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 10, padding: '13px 15px', marginBottom: 16 }}>
-        <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>Marktdaten Sprengnetter</div>
+        <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>Marktdaten / vorläufiger Verkehrswert</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
           {[
-            ['Geschätzter Verkehrswert', latestValuation?.marketValue ? formatEuro(latestValuation.marketValue) : '–'],
-            ['Mietansatz', rentHint],
+            ['Vorläufiger Verkehrswert', preliminaryMarketValueLabel],
             ['Quelle / Zeitpunkt', sourceParts.join(' · ') || '–'],
+            ['Mietansatz aus Marktdaten', rentHint],
           ].map(([label, value]) => (
             <div key={label}>
               <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, marginBottom: 3 }}>{label}</div>
@@ -5683,7 +5762,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           ))}
         </div>
         <div style={{ marginTop: 9, fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
-          Marktdaten sind Vorschlagswerte. Ein manuell eingetragener Verkehrswert wird für die Berechnung verwendet.
+          Die UVA verwendet ausschließlich diesen zentralen vorläufigen Verkehrswert. Gutachtenwerte werden später separat im verbindlichen Angebot genutzt.
+          {canManagePrecheck && (
+            <button type="button" onClick={() => changeTab('rating')} style={{ marginLeft: 8, border: 'none', background: 'transparent', color: theme.aubergine, fontWeight: 850, cursor: 'pointer', padding: 0 }}>
+              Vorläufigen Verkehrswert bearbeiten
+            </button>
+          )}
         </div>
       </div>
     );
@@ -5700,11 +5784,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const payoutValue = rentBackMetrics?.payoutAmount ?? offer?.payoutAmount;
     const calculationActionLabel = isRentBack ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation';
     const offerMeta = offer ? `Version ${offer.currentVersion || 1} · zuletzt berechnet` : 'Entwurf';
-    const visibleManualMarketValue = params.manualMarketValue ?? params.marketValue ?? (offer?.marketValue ? formatGermanIntegerInput(offer.marketValue) : '');
     const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer) : residentialRightMetricRows(offer)) : [];
     const termWarning = !isRentBack ? offer?.assumptions?.termWarning : null;
     const chipRows = [
-      ['Verkehrswert', offer ? formatEuro(offer.marketValue) : visibleManualMarketValue ? `${visibleManualMarketValue} €` : '-'],
+      ['Vorläufiger Verkehrswert', offer ? formatEuro(offer.marketValue) : preliminaryMarketValueLabel],
       ['Modell', labelFrom(productModelLabels, modelRequest.model)],
       isRentBack
         ? ['Info', 'Miete ab Tag 1']
@@ -5776,7 +5859,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             {renderMarketDataBox()}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               {[
-                ['manualMarketValue', 'Verkehrswert (€)'],
                 ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
                 ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
                 ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
@@ -5788,8 +5870,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={field === 'manualMarketValue' ? visibleManualMarketValue : params[field] || ''}
-                    onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: field === 'manualMarketValue' ? formatGermanIntegerInput(event.target.value) : event.target.value } })}
+                    value={params[field] || ''}
+                    onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })}
                   />
                 </Field>
               ))}
@@ -6031,7 +6113,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   });
   const openTaskCount = taskRows.length;
   const unreadCommunicationCount = chatMessages.filter((message) => !message.readByCurrentUser).length;
-  const tabs = [
+  const acquisitionTabs = [
     { id: 'kunde', label: 'Kunde' },
     { id: 'objekt', label: 'Objekt' },
     ...(role === 'admin' ? [{ id: 'rating', label: 'Objektrating' }] : []),
@@ -6046,6 +6128,16 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben', tool: true, icon: ClipboardList, badge: openTaskCount }] : []),
     { id: 'chat', label: 'Kommunikation', tool: true, icon: MessageSquare, badge: unreadCommunicationCount },
   ];
+  const inventoryTabs = [
+    { id: 'kunde', label: 'Kunde' },
+    { id: 'objekt', label: 'Objekt' },
+    ...(role === 'admin' ? [{ id: 'bestand', label: 'Bestandsverwaltung' }] : []),
+    ...(role === 'admin' && salesProcessActive ? [{ id: 'verwertung', label: 'Verkaufsprozess' }] : []),
+    { id: 'doks', label: 'Objektunterlagen' },
+    ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben', tool: true, icon: ClipboardList, badge: openTaskCount }] : []),
+    { id: 'chat', label: 'Kommunikation', tool: true, icon: MessageSquare, badge: unreadCommunicationCount },
+  ];
+  const tabs = inventoryCase ? inventoryTabs : acquisitionTabs;
   const renderBindingOfferCard = (modelRequest, index) => {
     const bindingOffer = bindingOffers.find((item) => item.model === modelRequest.model);
     const indicativeOffer = indicativeOffers.find((item) => item.model === modelRequest.model);
@@ -6053,6 +6145,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const bindingRentBackMetrics = isRentBack && bindingOffer ? rentBackCalculationFromOffer(bindingOffer) : null;
     const indicativeRentBackMetrics = isRentBack && indicativeOffer ? rentBackCalculationFromOffer(indicativeOffer) : null;
     const deltaMarket = bindingOffer && indicativeOffer ? bindingOffer.marketValue - indicativeOffer.marketValue : undefined;
+    const appraisalDeviationWarning = preliminaryMarketValue && parseGermanNumberInput(expertOpinionValue) && Math.abs(parseGermanNumberInput(expertOpinionValue) - preliminaryMarketValue) / preliminaryMarketValue >= 0.1
+      ? 'Der Gutachtenwert weicht vom vorläufigen Verkehrswert ab. Bitte Rating-Review durchführen.'
+      : '';
     const deltaPayout = bindingOffer && indicativeOffer
       ? (bindingRentBackMetrics?.payoutAmount ?? bindingOffer.payoutAmount) - (indicativeRentBackMetrics?.payoutAmount ?? indicativeOffer.payoutAmount)
       : undefined;
@@ -6165,7 +6260,19 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         {canManageOffers && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
             <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Berechnungs-Eingabe</div>
-            {renderMarketDataBox()}
+            <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 10, padding: '10px 12px', marginBottom: 14, fontSize: 12.5, color: theme.ink, fontWeight: 750 }}>
+              Grundlage: Gutachtenwert
+              {preliminaryMarketValue && (
+                <span style={{ marginLeft: 10, color: `${theme.ink}88`, fontWeight: 650 }}>
+                  Vorläufiger Verkehrswert: {preliminaryMarketValueLabel}
+                </span>
+              )}
+            </div>
+            {appraisalDeviationWarning && (
+              <div style={{ border: `1px solid ${theme.gold}66`, background: theme.goldSoft, color: '#7A5600', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 750, marginBottom: 14 }}>
+                {appraisalDeviationWarning}
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               <Field label="Gutachtenwert (€)" required>
                 <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder="z.B. 650.000" inputMode="numeric" />
@@ -6555,6 +6662,55 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         ))}
       </div>
 
+      {inventoryCase && acquisitionHistoryTabs.length > 0 && (
+        <div style={{ background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, padding: '10px 28px', display: 'grid', gap: showAcquisitionHistory ? 10 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Abgeschlossener Ankauf</div>
+              <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 2 }}>
+                Angebots-, Rating- und KV-Daten sind als Ankaufshistorie weiterhin erreichbar.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAcquisitionHistory((value) => !value)}
+              style={{ background: 'white', border: `1px solid ${theme.aubergine}33`, color: theme.aubergine, borderRadius: 6, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              {showAcquisitionHistory ? 'Ankaufshistorie ausblenden' : 'Ankaufshistorie anzeigen'}
+              <ChevronDown size={14} style={{ transform: showAcquisitionHistory ? 'rotate(180deg)' : 'none', transition: 'transform 160ms ease' }} />
+            </button>
+          </div>
+          {showAcquisitionHistory && (
+            <div className="case-tabs-strip" style={{ display: 'flex', gap: 6, alignItems: 'center', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              {acquisitionHistoryTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => changeTab(tab.id)}
+                  style={{
+                    background: activeTab === tab.id ? `${theme.aubergine}12` : 'white',
+                    border: `1px solid ${activeTab === tab.id ? `${theme.aubergine}55` : theme.borderSoft}`,
+                    color: activeTab === tab.id ? theme.aubergine : `${theme.ink}88`,
+                    borderRadius: 999,
+                    padding: '7px 12px',
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+              {activeTabIsAcquisitionHistory && (
+                <span style={{ marginLeft: 4, fontSize: 11.5, color: `${theme.ink}77`, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  Historische Ankaufsdaten
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tab Content */}
       <div style={{ padding: '20px 28px', display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20 }}>
         <div>
@@ -6718,7 +6874,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
                 {precheckView && (
                   <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', marginBottom: 18, background: 'white' }}>
-                    <div style={{ padding: '15px 16px', background: precheckView.result === 'not_acquirable' ? '#FFF4F4' : precheckView.result === 'exception_required' ? theme.goldSoft : theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ padding: '15px 16px', background: precheckView.result === 'not_acquirable' ? '#FFF4F4' : ['exception_required', 'incomplete'].includes(precheckView.result) ? theme.goldSoft : theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                       <div>
                         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Ankaufsfähigkeit / Vorprüfung</div>
                         <div style={{ fontSize: 17, color: precheckView.result === 'not_acquirable' ? '#9B2C2C' : theme.aubergine, fontWeight: 900 }}>
@@ -6793,6 +6949,21 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       <div style={{ padding: '14px 16px', borderTop: `1px solid ${theme.borderSoft}`, background: '#FEFCF8' }}>
                         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Manuelle Vorprüfungswerte</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+                          <Field label="Vorläufiger Verkehrswert (€)">
+                            <Input value={precheckDraft.preliminaryMarketValue ? formatGermanIntegerInput(precheckDraft.preliminaryMarketValue) : ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValue: formatGermanIntegerInput(event.target.value) })} placeholder="z.B. 520.000" inputMode="numeric" />
+                          </Field>
+                          <Field label="Quelle">
+                            <select value={precheckDraft.preliminaryMarketValueSource || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValueSource: event.target.value || undefined })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, background: 'white' }}>
+                              <option value="">Nicht erfasst</option>
+                              {Object.entries(preliminaryMarketValueSourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Bewertungsdatum">
+                            <Input type="date" value={precheckDraft.preliminaryMarketValueDate || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValueDate: event.target.value })} />
+                          </Field>
+                          <Field label="Kommentar Verkehrswert">
+                            <Input value={precheckDraft.preliminaryMarketValueComment || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValueComment: event.target.value })} placeholder="z.B. interne Ersteinschätzung" />
+                          </Field>
                           <Field label="Postbank-Wohnatlas-Kategorie">
                             <select value={precheckDraft.postbankRegionCategory || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, postbankRegionCategory: event.target.value || undefined })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, background: 'white' }}>
                               <option value="">Nicht erfasst</option>

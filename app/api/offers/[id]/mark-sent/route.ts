@@ -13,7 +13,10 @@ export async function POST(_request: Request, { params }: { params: { id: string
     if (offer.status !== "approved" && offer.status !== "sent") throw new Error("Offer must be approved before sending");
     const caseView = await getDbCaseByPropertyId(offer.propertyId);
     if (!caseView) throw new Error("Property not found");
-    assertAcquisitionPrecheckAllowsOffer(caseView);
+    assertAcquisitionPrecheckAllowsOffer(caseView, {
+      marketValueOverride: offer.kind === "binding" ? offer.marketValue : undefined,
+      marketValueMode: offer.kind === "binding" ? "appraisal" : "preliminary"
+    });
     assertRatingAllowsOffer(caseView.objectRatings, caseView.property, offer.kind === "binding" ? "binding" : "indicative");
     const updated = await prisma.offer.update({
       where: { id: params.id },

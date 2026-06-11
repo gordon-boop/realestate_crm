@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import test from "node:test";
 import { evaluateAcquisitionPrecheck } from "../lib/acquisition-precheck.ts";
 
@@ -12,6 +12,7 @@ function caseView(overrides: any = {}) {
       leasehold: false,
       monumentProtection: false,
       acquisitionPrecheck: {
+        preliminaryMarketValue: 500000,
         postbankRegionCategory: "green",
         landValuePerSqm: 420,
         remainingUsefulLifeYears: 55,
@@ -19,7 +20,7 @@ function caseView(overrides: any = {}) {
       },
       ...overrides.property
     },
-    valuation: overrides.valuation ?? { marketValue: 500000 },
+    valuation: overrides.valuation,
     offers: overrides.offers ?? [],
     objectRatings: overrides.objectRatings ?? [{
       totalScore: 4.2,
@@ -38,12 +39,22 @@ test("acquisition precheck passes with green region and complete core data", () 
 });
 
 test("acquisition precheck blocks market values below and above thresholds", () => {
-  const tooLow = evaluateAcquisitionPrecheck(caseView({ valuation: { marketValue: 240000 } }));
-  const tooHigh = evaluateAcquisitionPrecheck(caseView({ valuation: { marketValue: 1100000 } }));
+  const tooLow = evaluateAcquisitionPrecheck(caseView({ acquisitionPrecheck: { preliminaryMarketValue: 240000 } }));
+  const tooHigh = evaluateAcquisitionPrecheck(caseView({ acquisitionPrecheck: { preliminaryMarketValue: 1100000 } }));
 
   assert.equal(tooLow.result, "not_acquirable");
-  assert.equal(tooLow.blockReason, "Der Fall erfüllt die Ankaufskriterien nicht.");
+  assert.match(tooLow.blockReason ?? "", /250\.000/);
   assert.equal(tooHigh.result, "not_acquirable");
+});
+
+test("acquisition precheck is incomplete without preliminary market value", () => {
+  const result = evaluateAcquisitionPrecheck(caseView({
+    acquisitionPrecheck: { preliminaryMarketValue: undefined }
+  }));
+
+  assert.equal(result.result, "incomplete");
+  assert.equal(result.blocksOffer, true);
+  assert.equal(result.criteria.find((item) => item.key === "market_value")?.status, "unknown");
 });
 
 test("acquisition precheck blocks leasehold and monument protection", () => {

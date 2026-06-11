@@ -28,7 +28,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       assertRatingAllowsOffer(caseView.objectRatings, caseView.property, "indicative");
     }
     if (body.action === "binding_offer_sent" || body.action === "binding_offer_accepted") {
-      assertAcquisitionPrecheckAllowsOffer(caseView);
+      const bindingMarketValue = caseView.offers.find((offer) => offer.kind === "binding")?.marketValue;
+      assertAcquisitionPrecheckAllowsOffer(caseView, { marketValueOverride: bindingMarketValue, marketValueMode: "appraisal" });
       assertRatingAllowsOffer(caseView.objectRatings, caseView.property, "binding");
     }
     const acceptedOfferSelection = resolveAcceptedOfferSelection(caseView, body.action, body.acceptedOfferModel, body.acceptedOfferId, body.acceptedOfferNote, user);

@@ -3,6 +3,12 @@ import { z } from "zod";
 const emptyToUndefined = (value: unknown) => value === "" || value === null ? undefined : value;
 const optionalString = z.preprocess(emptyToUndefined, z.string().trim().min(1).optional());
 const optionalNumber = z.preprocess(emptyToUndefined, z.coerce.number().finite().optional());
+const optionalGermanNumber = z.preprocess((value) => {
+  const normalized = emptyToUndefined(value);
+  if (typeof normalized !== "string") return normalized;
+  const parsed = normalized.trim().replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  return parsed || undefined;
+}, z.coerce.number().finite().optional());
 const optionalBoolean = z.preprocess((value) => value === "on" ? true : value === "yes" ? true : value === "no" ? false : value, z.boolean().optional());
 const optionalEnum = <T extends [string, ...string[]]>(values: T) => z.preprocess(emptyToUndefined, z.enum(values).optional());
 
@@ -207,6 +213,10 @@ export const propertyUpdateSchema = propertyBaseSchema.partial().superRefine((va
 
 export const acquisitionPrecheckUpdateSchema = z.object({
   action: z.enum(["save", "request_exception", "approve_exception", "reject_exception"]).default("save"),
+  preliminaryMarketValue: optionalGermanNumber,
+  preliminaryMarketValueSource: optionalEnum(["manual_estimate", "broker_statement", "market_data", "internal_initial_estimate", "other"]),
+  preliminaryMarketValueDate: optionalString,
+  preliminaryMarketValueComment: optionalString,
   postbankRegionCategory: optionalEnum(["green", "yellow", "orange", "red"]),
   landValuePerSqm: optionalNumber,
   remainingUsefulLifeYears: optionalNumber,

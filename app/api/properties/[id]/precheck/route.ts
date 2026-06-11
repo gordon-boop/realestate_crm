@@ -4,6 +4,11 @@ import { addDbActivity, getDbCaseByPropertyId, toPrismaJson } from "@/lib/persis
 import { prisma } from "@/lib/prisma";
 import { acquisitionPrecheckUpdateSchema } from "@/lib/validation";
 
+function formatEuro(value: number | undefined): string {
+  if (value === undefined) return "nicht erfasst";
+  return `${value.toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
+}
+
 export async function PATCH(request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
     const user = requireRole("admin");
@@ -20,6 +25,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const current = getAcquisitionPrecheckData(caseView.property);
     const next = {
       ...current,
+      preliminaryMarketValue: input.preliminaryMarketValue ?? current.preliminaryMarketValue,
+      preliminaryMarketValueSource: input.preliminaryMarketValueSource ?? current.preliminaryMarketValueSource,
+      preliminaryMarketValueDate: input.preliminaryMarketValueDate ?? current.preliminaryMarketValueDate,
+      preliminaryMarketValueComment: input.preliminaryMarketValueComment ?? current.preliminaryMarketValueComment,
       postbankRegionCategory: input.postbankRegionCategory ?? current.postbankRegionCategory,
       landValuePerSqm: input.landValuePerSqm ?? current.landValuePerSqm,
       remainingUsefulLifeYears: input.remainingUsefulLifeYears ?? current.remainingUsefulLifeYears,
@@ -77,6 +86,18 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       entityType: "precheck",
       metadata: { visibility: "internal", result: precheck.result, action: input.action }
     });
+
+    if (input.preliminaryMarketValue !== undefined && input.preliminaryMarketValue !== current.preliminaryMarketValue) {
+      await addDbActivity(
+        params.id,
+        user.id,
+        "preliminary_market_value_saved",
+        current.preliminaryMarketValue === undefined
+          ? `Vorläufiger Verkehrswert gespeichert: ${formatEuro(input.preliminaryMarketValue)}.`
+          : `Vorläufiger Verkehrswert geändert: ${formatEuro(current.preliminaryMarketValue)} auf ${formatEuro(input.preliminaryMarketValue)}.`,
+        { source: "admin", entityType: "precheck", metadata: { visibility: "internal" } }
+      );
+    }
 
     for (const message of koCriteriaMessages(precheck)) {
       await addDbActivity(params.id, user.id, "acquisition_precheck_ko", `KO-Kriterium festgestellt: ${message}`, {

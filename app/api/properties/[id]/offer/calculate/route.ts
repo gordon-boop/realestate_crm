@@ -1,5 +1,5 @@
 import { canCalculateOffer } from "@/lib/access-control";
-import { assertAcquisitionPrecheckAllowsOffer } from "@/lib/acquisition-precheck";
+import { assertAcquisitionPrecheckAllowsOffer, getAcquisitionPrecheckData } from "@/lib/acquisition-precheck";
 import { handleApiError, json, requireRole } from "@/lib/api";
 import type { FixedResidentialRightIndexationScenario } from "@/lib/calculations/fixedResidentialRight";
 import type { DesiredModel } from "@/lib/domain";
@@ -60,20 +60,24 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const residentialRightYears = readNumber(body.inputs, "residentialRightYears") ?? caseView.property.desiredResidentialRightYears;
     const manualMarketValue = readNumber(body.inputs, "manualMarketValue") ?? readNumber(body.inputs, "marketValue");
     const expertOpinionValue = readNumber(body.inputs, "expertOpinionValue");
-    const leadingMarketValue = kind === "binding" ? expertOpinionValue : manualMarketValue;
-    assertAcquisitionPrecheckAllowsOffer(caseView, { marketValueOverride: leadingMarketValue });
+    const preliminaryMarketValue = readNumber(getAcquisitionPrecheckData(caseView.property) as Record<string, number | string | null | undefined>, "preliminaryMarketValue");
+    const leadingMarketValue = kind === "binding" ? expertOpinionValue : preliminaryMarketValue;
+    if (kind === "indicative" && !preliminaryMarketValue) {
+      throw new Error("Bitte erfassen Sie zuerst einen vorläufigen Verkehrswert in der Vorabprüfung oder im Objektbereich.");
+    }
+    if (kind === "binding" && !caseView.property.expertOpinionReceivedAt) {
+      throw new Error("Gutachteneingang required before binding offer calculation");
+    }
+    if (kind === "binding" && !expertOpinionValue) {
+      throw new Error("Bitte erfassen Sie zuerst den Gutachtenwert.");
+    }
+    assertAcquisitionPrecheckAllowsOffer(caseView, { marketValueOverride: leadingMarketValue, marketValueMode: kind === "binding" ? "appraisal" : "preliminary" });
     const ratingGate = assertRatingAllowsOffer(caseView.objectRatings, caseView.property, kind === "binding" ? "binding" : "indicative");
     const approvedRating = ratingGate.rating;
     const ratingTargetReturn = readNumber(body.inputs, "targetReturn")
       ?? approvedRating?.finalTargetReturn;
     const calculationDate = new Date();
 
-    if (kind === "binding" && !caseView.property.expertOpinionReceivedAt) {
-      throw new Error("Gutachteneingang required before binding offer calculation");
-    }
-    if (kind === "binding" && !expertOpinionValue) {
-      throw new Error("Gutachtenwert required before binding offer calculation");
-    }
     if (!leadingMarketValue && !caseView.valuation) {
       throw new Error("Bitte geben Sie einen Verkehrswert ein.");
     }
@@ -84,16 +88,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
             propertyId: params.id,
             provider: "other",
             status: "completed",
-            sourceLabel: kind === "binding" ? "Gutachtenwert" : "Manuell eingegebener Verkehrswert",
+            sourceLabel: kind === "binding" ? "Gutachtenwert" : "Vorläufiger Verkehrswert",
             marketValue: leadingMarketValue,
             valueMin: leadingMarketValue,
             valueMax: leadingMarketValue,
             confidenceScore: 1,
             rawResponseJson: toPrismaJson({
-              source: kind === "binding" ? "manual_expert_opinion" : "manual_market_value",
-              manualMarketValue: kind === "indicative" ? leadingMarketValue : undefined,
+              source: kind === "binding" ? "manual_expert_opinion" : "preliminary_market_value",
+              preliminaryMarketValue: kind === "indicative" ? leadingMarketValue : undefined,
               expertOpinionValue: kind === "binding" ? leadingMarketValue : undefined,
-              note: "Gutachtenwert wurde manuell für die VA-Kalkulation hinterlegt."
+              note: kind === "binding"
+                ? "Gutachtenwert wurde manuell für die VA-Kalkulation hinterlegt."
+                : "Vorläufiger Verkehrswert wurde für die UVA-Kalkulation verwendet."
             }),
             completedAt: new Date()
           }
@@ -219,8 +225,26 @@ export async function POST(request: Request, { params }: { params: { id: string 
       user.id,
       kind === "binding" ? "binding_offer_calculated" : "offer_calculated",
       `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${model === "sale_and_leaseback" ? "Rückmietverkauf" : "Wohnrecht"} wurde berechnet.`,
-      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, kind, manualMarketValue, expertOpinionValue } }
+      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, kind, manualMarketValue, preliminaryMarketValue, expertOpinionValue } }
     );
+    if (kind === "binding" && expertOpinionValue) {
+      await addDbActivity(
+        params.id,
+        user.id,
+        "appraisal_value_saved",
+        `Gutachtenwert gespeichert: ${expertOpinionValue.toLocaleString("de-DE", { maximumFractionDigits: 0 })} €.`,
+        { source: "admin", entityType: "valuation", entityId: calculationValuation.id, metadata: { visibility: "internal", preliminaryMarketValue, expertOpinionValue } }
+      );
+      if (preliminaryMarketValue && Math.abs(expertOpinionValue - preliminaryMarketValue) / preliminaryMarketValue >= 0.1) {
+        await addDbActivity(
+          params.id,
+          user.id,
+          "appraisal_value_deviation",
+          "Gutachtenwert weicht deutlich vom vorläufigen Verkehrswert ab. Bitte Rating-Review durchführen.",
+          { source: "admin", entityType: "valuation", entityId: calculationValuation.id, metadata: { visibility: "internal", preliminaryMarketValue, expertOpinionValue } }
+        );
+      }
+    }
     return json({ offer }, { status: 201 });
   } catch (err) {
     return handleApiError(err);
