@@ -11,9 +11,12 @@
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "admin:create": "tsx scripts/create-real-admin.ts",
     "db:clear-test-cases": "tsx scripts/clear-test-cases.ts",
+    "db:bootstrap": "tsx prisma/bootstrap.ts",
+    "db:seed:demo": "tsx prisma/seed.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/bootstrap.ts",
+    "seed": "tsx prisma/bootstrap.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -45,6 +48,6 @@
     "typescript": "^5.7.2"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/bootstrap.ts"
   }
 }

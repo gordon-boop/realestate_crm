@@ -21,10 +21,111 @@ import {
   ValuationStatus
 } from "@prisma/client";
 import { hashPassword } from "../lib/password.ts";
+import { pathToFileURL } from "node:url";
 
 const prisma = new PrismaClient();
 
+export async function bootstrapBaseData() {
+  const demoPasswordHash = await hashPassword("demo1234");
+
+  const partner = await prisma.partner.upsert({
+    where: { email: "kontakt@heimwert.local" },
+    update: {
+      companyName: "Heimwert Makler GmbH",
+      contactName: "Mara Seidel",
+      status: PartnerStatus.active
+    },
+    create: {
+      id: "partner_heimwert",
+      companyName: "Heimwert Makler GmbH",
+      contactName: "Mara Seidel",
+      email: "kontakt@heimwert.local",
+      phone: "+49 30 123456",
+      address: "Friedrichstrasse 12, 10117 Berlin",
+      status: PartnerStatus.active
+    }
+  });
+
+  await prisma.partner.upsert({
+    where: { email: "team@nordlage.local" },
+    update: { status: PartnerStatus.active },
+    create: {
+      id: "partner_nord",
+      companyName: "Nordlage Immobilien",
+      contactName: "Tobias Brandt",
+      email: "team@nordlage.local",
+      phone: "+49 40 888888",
+      address: "Hafenstrasse 2, 20457 Hamburg",
+      status: PartnerStatus.active
+    }
+  });
+
+  const admin = await prisma.user.upsert({
+    where: { email: "admin@demo.local" },
+    update: { name: "Admin Demo", passwordHash: demoPasswordHash, role: UserRole.admin, internalRole: InternalUserRole.super_admin },
+    create: {
+      id: "user_admin",
+      name: "Admin Demo",
+      email: "admin@demo.local",
+      passwordHash: demoPasswordHash,
+      role: UserRole.admin,
+      internalRole: InternalUserRole.super_admin
+    }
+  });
+
+  await prisma.user.upsert({
+    where: { email: "mitarbeiter@demo.local" },
+    update: { name: "Mitarbeiter Demo", passwordHash: demoPasswordHash, role: UserRole.admin, internalRole: InternalUserRole.employee },
+    create: {
+      id: "user_employee",
+      name: "Mitarbeiter Demo",
+      email: "mitarbeiter@demo.local",
+      passwordHash: demoPasswordHash,
+      role: UserRole.admin,
+      internalRole: InternalUserRole.employee
+    }
+  });
+
+  await prisma.user.upsert({
+    where: { email: "berater@demo.local" },
+    update: { name: "Kundenberater Demo", passwordHash: demoPasswordHash, role: UserRole.admin, internalRole: InternalUserRole.advisor },
+    create: {
+      id: "user_advisor",
+      name: "Kundenberater Demo",
+      email: "berater@demo.local",
+      passwordHash: demoPasswordHash,
+      role: UserRole.admin,
+      internalRole: InternalUserRole.advisor
+    }
+  });
+
+  const partnerUser = await prisma.user.upsert({
+    where: { email: "makler@demo.local" },
+    update: { partnerId: partner.id, name: "Mara Seidel", passwordHash: demoPasswordHash, role: UserRole.partner },
+    create: {
+      id: "user_partner",
+      partnerId: partner.id,
+      name: "Mara Seidel",
+      email: "makler@demo.local",
+      passwordHash: demoPasswordHash,
+      role: UserRole.partner
+    }
+  });
+
+  await seedObjectRatingConfig(admin.id);
+
+  return { partnerId: partner.id, adminId: admin.id, partnerUserId: partnerUser.id };
+}
+
+export async function disconnectSeedPrisma() {
+  await prisma.$disconnect();
+}
+
 async function main() {
+  if (process.env.ALLOW_DEMO_SEED !== "true") {
+    throw new Error("Abbruch: Demo-Seed darf nur mit ALLOW_DEMO_SEED=true ausgeführt werden.");
+  }
+
   const demoPasswordHash = await hashPassword("demo1234");
 
   await prisma.$executeRawUnsafe(`
@@ -2147,12 +2248,16 @@ async function seedObjectRatingConfig(createdByUserId: string) {
   }
 }
 
-main()
-  .finally(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+const isDirectRun = Boolean(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href);
+
+if (isDirectRun) {
+  main()
+    .finally(async () => {
+      await prisma.$disconnect();
+    })
+    .catch(async (error) => {
+      console.error(error);
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+}
