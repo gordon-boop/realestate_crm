@@ -54,7 +54,7 @@ const propertyBaseSchema = z.object({
   yearBuilt: optionalNumber,
   condition: z.enum(["very_good", "good", "average", "renovation_needed"]).default("average"),
   occupancyStatus: optionalString,
-  desiredModel: z.preprocess(emptyToUndefined, z.enum(["fixed_residential_right", "sale_and_leaseback"], {
+  desiredModel: z.preprocess(emptyToUndefined, z.enum(["fixed_residential_right", "sale_and_leaseback", "other"], {
     required_error: "Bitte wählen Sie ein Wunschmodell aus.",
     invalid_type_error: "Bitte wählen Sie ein Wunschmodell aus."
   })),

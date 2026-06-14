@@ -2191,6 +2191,40 @@ function validationMessageFor(step, fields) {
   return `${intro} ${labels.join(', ')}.`;
 }
 
+function validationSectionFor(field) {
+  if (field.startsWith('document:')) return 'Dokumente';
+  const label = validationFieldLabels[field] || field;
+  const [section] = label.split(':');
+  if (section === 'Zweites Angebot') return 'Wunschmodell';
+  if (section === 'Kunde 2') return 'Persönliche Daten';
+  if (section === 'Zustand') return ['knownMajorMaintenanceOrSpecialAssessments', 'knownMajorMaintenanceOrSpecialAssessmentsDescription'].includes(field)
+    ? 'Ausschlusskriterien'
+    : 'Modernisierungen / Zustand';
+  if (section === 'Modernisierungen') return 'Modernisierungen / Zustand';
+  return section || 'Weitere Angaben';
+}
+
+function submissionMessageFor(fields) {
+  if (!fields.length) return '';
+  return 'Einreichung noch nicht möglich. Bitte ergänzen Sie die folgenden Angaben:';
+}
+
+function submissionGroupsFor(fields) {
+  const groups = new Map();
+  fields.forEach((field) => {
+    const section = validationSectionFor(field);
+    const label = validationFieldLabels[field] || field;
+    const cleanLabel = label.includes(':') ? label.split(':').slice(1).join(':').trim() : label;
+    if (!groups.has(section)) groups.set(section, []);
+    groups.get(section).push({
+      field,
+      label: cleanLabel,
+      message: field === 'desiredModel' ? 'Bitte wählen Sie ein Wunschmodell aus.' : `${cleanLabel} fehlt.`
+    });
+  });
+  return Array.from(groups.entries()).map(([section, items]) => ({ section, items }));
+}
+
 function validateCaseStep(step, draft) {
   const fields = [];
   const checked = [];
@@ -2222,7 +2256,7 @@ function validateCaseStep(step, draft) {
   }
 
   if (step === 2) {
-    add('desiredModel', hasValue(draft.desiredModel));
+    add('desiredModel', draft.desiredModel === 'fixed_residential_right' || draft.desiredModel === 'sale_and_leaseback');
     if (draft.desiredModel === 'fixed_residential_right') {
       add('residentialRightRecipients', hasValue(draft.residentialRightRecipients));
       if (draft.maritalStatus === 'married' && draft.residentialRightRecipients === 'one_person') {
@@ -2324,7 +2358,7 @@ function validateCaseStep(step, draft) {
   };
 }
 
-function validateCaseDraft(draft) {
+function validateCaseSubmission(draft) {
   const allFields = [];
   let firstInvalidStep = 5;
   for (const currentStep of [1, 2, 3, 4, 5]) {
@@ -2335,19 +2369,19 @@ function validateCaseDraft(draft) {
     }
   }
   if (allFields.length) {
-    const labels = allFields.map((field) => validationFieldLabels[field] || field);
     return {
       valid: false,
       fields: allFields,
       step: firstInvalidStep,
-      message: `Bitte ergänzen Sie folgende Pflichtfelder: ${labels.join(', ')}.`
+      message: submissionMessageFor(allFields),
+      groups: submissionGroupsFor(allFields)
     };
   }
-  return { valid: true, fields: [], step: 5, message: '' };
+  return { valid: true, fields: [], step: 5, message: '', groups: [] };
 }
 
 function validateForNavigation(step, draft, options = {}) {
-  return options.allowIncomplete ? { valid: true, fields: [], message: '' } : validateCaseStep(step, draft);
+  return { valid: true, fields: [], message: '' };
 }
 
 function validateForDraftSave(_draft, _options = {}) {
@@ -2355,7 +2389,7 @@ function validateForDraftSave(_draft, _options = {}) {
 }
 
 function validateForSubmit(draft) {
-  return validateCaseDraft(draft);
+  return validateCaseSubmission(draft);
 }
 
 // =====================================================================
@@ -8443,7 +8477,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState('');
   const [draft, setDraft] = useState(() => draftFromCaseView(initialCase));
-  const [validation, setValidation] = useState({ fields: [], message: '' });
+  const [validation, setValidation] = useState({ fields: [], message: '', groups: [] });
   const [internalIntakeSource, setInternalIntakeSource] = useState('phone');
   const editMode = Boolean(initialCase?.property?.id);
   const canSubmitCase = !editMode || initialCase?.property?.status === 'DRAFT';
@@ -8476,37 +8510,23 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
   const stepProgress = Math.round((step / steps.length) * 100);
   useEffect(() => {
     setDraft(draftFromCaseView(initialCase));
-    setValidation({ fields: [], message: '' });
+    setValidation({ fields: [], message: '', groups: [] });
     setStep(1);
   }, [initialCase?.property?.id]);
 
   function goToStep(nextStep) {
-    if (nextStep <= step) {
-      setValidation({ fields: [], message: '' });
-      setStep(nextStep);
-      return;
-    }
-    for (let currentStep = step; currentStep < nextStep; currentStep += 1) {
-      const result = validateForNavigation(currentStep, draft, { allowIncomplete: canNavigateWithIncompleteRequiredFields });
-      if (!result.valid) {
-        setValidation({ fields: result.fields, message: result.message });
-        setStep(currentStep);
-        setNotice?.(result.message);
-        return;
-      }
-    }
-    setValidation({ fields: [], message: '' });
+    validateForNavigation(step, draft);
     setStep(nextStep);
   }
   async function saveCase(submit = false) {
-    if (draft.leasehold || draft.monumentProtection) {
+    if (submit && (draft.leasehold || draft.monumentProtection)) {
       setNotice?.('Erbbaurecht oder Denkmalschutz ist ein Ausschlusskriterium. Der Fall kann so nicht eingereicht werden.');
       return;
     }
     if (submit) {
       const result = validateForSubmit(draft);
       if (!result.valid) {
-        setValidation({ fields: result.fields, message: result.message });
+        setValidation({ fields: result.fields, message: result.message, groups: result.groups || [] });
         setStep(result.step);
         setNotice?.(result.message);
         return;
@@ -8514,19 +8534,19 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
     } else {
       const result = validateForDraftSave(draft, { allowIncomplete: canNavigateWithIncompleteRequiredFields });
       if (!result.valid) {
-        setValidation({ fields: result.fields, message: result.message });
+        setValidation({ fields: result.fields, message: result.message, groups: [] });
         setNotice?.(result.message);
         return;
       }
     }
-    setValidation({ fields: [], message: '' });
+    setValidation({ fields: [], message: '', groups: [] });
     setSaving(submit ? 'submit' : 'draft');
     try {
-      const incompleteDraftSave = !submit && canNavigateWithIncompleteRequiredFields;
+      const incompleteDraftSave = !submit;
       const payloadPropertyType = draft.propertyType || (incompleteDraftSave ? 'single_family' : '');
       const payloadDesiredModel = modelLockedForPortfolio
         ? (initialCase?.property?.desiredModel || 'fixed_residential_right')
-        : draft.desiredModel || (incompleteDraftSave ? 'fixed_residential_right' : '');
+        : draft.desiredModel || (incompleteDraftSave ? 'other' : '');
       const payloadStreet = draft.street || (incompleteDraftSave ? 'Noch offen' : '');
       const payloadPostalCode = draft.postalCode || (incompleteDraftSave ? '00000' : '');
       const payloadCity = draft.city || (incompleteDraftSave ? 'Ort offen' : '');
@@ -8649,7 +8669,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
       if (submit) {
         await postJson(`/api/properties/${propertyResult.property.id}/submit`);
       }
-      setNotice?.(submit ? 'Fall wurde gespeichert und eingereicht.' : editMode ? 'Entwurf wurde aktualisiert.' : 'Entwurf wurde angelegt.');
+      setNotice?.(submit ? 'Fall wurde gespeichert und eingereicht.' : 'Entwurf gespeichert. Sie können die Angaben später vervollständigen.');
       await onSaved?.(propertyResult.property.id);
     } catch (err) {
       setNotice?.(err instanceof Error ? err.message : 'Fall konnte nicht gespeichert werden');
@@ -8722,8 +8742,22 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
             </div>
           )}
           {validation.message && (
-            <div style={{ background: '#fff7f5', border: '1px solid #efc0b9', borderLeft: '4px solid #9B2C2C', borderRadius: 8, padding: '11px 13px', marginBottom: 18, fontSize: 12.5, color: '#7A1D1D', fontWeight: 650 }}>
-              {validation.message}
+            <div style={{ background: '#fff7f5', border: '1px solid #efc0b9', borderLeft: '4px solid #9B2C2C', borderRadius: 8, padding: '12px 14px', marginBottom: 18, fontSize: 12.5, color: '#7A1D1D', fontWeight: 650 }}>
+              <div>{validation.message}</div>
+              {validation.groups?.length ? (
+                <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+                  {validation.groups.map((group) => (
+                    <div key={group.section}>
+                      <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7A1D1D', marginBottom: 4 }}>{group.section}</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 3 }}>
+                        {group.items.map((item) => (
+                          <li key={item.field} style={{ fontWeight: 600 }}>{item.message}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
           {step === 1 && <FormStep1 draft={draft} setDraft={setDraft} errors={validation.fields} />}
@@ -8768,7 +8802,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
           <div style={{ background: theme.mintLight, borderRadius: 8, padding: '16px 18px', marginBottom: 12 }}>
             <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>Hinweis</div>
             <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.55 }}>
-              Pflichtfelder sind mit <span style={{ color: theme.gold, fontWeight: 700 }}>*</span> markiert. Du kannst den Fall jederzeit als Entwurf speichern und später fortsetzen.
+              Sie können den Fall jederzeit als Entwurf speichern. Die vollständige Prüfung erfolgt erst beim Einreichen.
             </div>
           </div>
           <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
@@ -9652,7 +9686,10 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
   return (
     <div>
       <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Dokumente</h2>
-      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte lade die Unterlagen direkt in der jeweiligen Zeile hoch. Pro Unterlage sind beliebig viele Dateien möglich.</div>
+      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 12 }}>Bitte lade die Unterlagen direkt in der jeweiligen Zeile hoch. Pro Unterlage sind beliebig viele Dateien möglich.</div>
+      <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', marginBottom: 16, fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
+        Vor dem Einreichen prüfen wir automatisch, ob alle erforderlichen Angaben und Dokumente vorhanden sind.
+      </div>
 
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 18 }}>
         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Pflichtdokumente</div>
