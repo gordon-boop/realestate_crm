@@ -30,7 +30,7 @@ export function NewCaseForm() {
   const [error, setError] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [maritalStatus, setMaritalStatus] = useState("");
-  const [desiredModel, setDesiredModel] = useState("fixed_residential_right");
+  const [desiredModel, setDesiredModel] = useState("");
   const [additionalOfferRequested, setAdditionalOfferRequested] = useState(false);
   const [additionalOfferModel, setAdditionalOfferModel] = useState("sale_and_leaseback");
   const [propertyType, setPropertyType] = useState("single_family");
@@ -234,7 +234,7 @@ export function NewCaseForm() {
 
       <section className="panel panel-pad grid two">
         <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>2. Schritt - Wunschmodell</h2>
-        <label className="field"><span>Modell</span><select name="desiredModel" value={desiredModel} onChange={(event) => setDesiredModel(event.target.value)}><option value="fixed_residential_right">Wohnrecht</option><option value="sale_and_leaseback">Rückmietverkauf</option></select></label>
+        <label className="field"><span>Modell</span><select name="desiredModel" value={desiredModel} onChange={(event) => setDesiredModel(event.target.value)} required><option value="">Bitte wählen</option><option value="fixed_residential_right">Wohnrecht</option><option value="sale_and_leaseback">Rückmietverkauf</option></select></label>
         <label className="field"><span>Wer soll das Wohnrecht bekommen?</span><select name="residentialRightRecipients"><option value="one_person">Eine Person</option><option value="both">Beide Personen</option></select></label>
 
         {desiredModel === "fixed_residential_right" ? (

@@ -542,7 +542,7 @@ export async function updateObjectRatingScore(ratingId: string, scoreId: string,
 function scoreNeedsComment(prefilledScore: unknown, finalScore: number | null | undefined): boolean {
   if (finalScore === null || finalScore === undefined) return false;
   const autoScore = toNumber(prefilledScore);
-  return autoScore === undefined || Number(finalScore) !== autoScore;
+  return autoScore !== undefined && Number(finalScore) !== autoScore;
 }
 
 function normalizedScoreValue(value: unknown): number | null | undefined {

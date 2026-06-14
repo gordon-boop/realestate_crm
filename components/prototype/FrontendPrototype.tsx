@@ -1888,9 +1888,10 @@ const defaultDraft = {
   energyCertificateAvailable: false,
   energyCertificateType: '',
   energyClass: '',
-  parkingAvailable: false,
+  parkingAvailable: '',
   parkingType: '',
   parkingCount: '',
+  parkingEntries: [],
   basementType: '',
   windowMaterial: '',
   windowInstallationYear: '',
@@ -1938,6 +1939,33 @@ const defaultDraft = {
   documentUploads: {},
   existingDocumentCategories: [],
 };
+
+const newParkingEntry = () => ({
+  id: `parking-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  type: 'garage',
+  count: '1',
+  monthlyRent: '',
+  comment: '',
+});
+
+const parkingEntryTypeLabels = {
+  garage: 'Garage',
+  carport: 'Carport',
+  outdoor_space: 'Außenstellplatz',
+  duplex: 'Tiefgaragenstellplatz',
+  other: 'Sonstiges',
+};
+
+const normalizedParkingEntries = (draft) => {
+  if (Array.isArray(draft.parkingEntries) && draft.parkingEntries.length) return draft.parkingEntries;
+  if (draft.parkingType && draft.parkingType !== 'none') {
+    return [{ ...newParkingEntry(), type: draft.parkingType, count: draft.parkingCount || '1' }];
+  }
+  return [];
+};
+
+const primaryParkingType = (entries) => entries.find((entry) => entry.type && entry.type !== 'other')?.type;
+const parkingCountTotal = (entries) => entries.reduce((sum, entry) => sum + (Number(entry.count) > 0 ? Number(entry.count) : 0), 0);
 
 function draftFromCaseView(caseView) {
   if (!caseView) return { ...defaultDraft };
@@ -2001,6 +2029,7 @@ function draftFromCaseView(caseView) {
     parkingAvailable: Boolean(property.parkingAvailable),
     parkingType: property.parkingAvailable ? property.parkingType || '' : 'none',
     parkingCount: property.parkingCount || '',
+    parkingEntries: property.parkingAvailable ? [{ ...newParkingEntry(), type: property.parkingType || 'garage', count: property.parkingCount || '1', monthlyRent: '', comment: '' }] : [],
     basementType: property.basementType || '',
     windowMaterial: property.windowMaterial || '',
     windowInstallationYear: property.windowInstallationYear || '',
@@ -2119,6 +2148,7 @@ const validationFieldLabels = {
   windowInstallationYear: 'Immobiliendaten: Fensterjahr',
   asbestosRoofKnown: 'Immobiliendaten: Asbest im Dach',
   parkingType: 'Immobiliendaten: Parkplatz',
+  parkingAvailable: 'Immobiliendaten: Stellplätze / Garagen',
   parkingCount: 'Immobiliendaten: Anzahl Parkplätze',
   hasElevator: 'Immobiliendaten: Aufzug vorhanden',
   knownMajorMaintenanceOrSpecialAssessments: 'Zustand: Instandhaltungen oder Sonderumlagen',
@@ -2241,13 +2271,19 @@ function validateCaseStep(step, draft) {
     add('windowMaterial', hasValue(draft.windowMaterial));
     add('windowInstallationYear', hasValue(draft.windowInstallationYear));
     add('asbestosRoofKnown', draft.asbestosRoofKnown === 'yes' || draft.asbestosRoofKnown === 'no');
-    add('parkingType', hasValue(draft.parkingType));
-    if (draft.parkingType && draft.parkingType !== 'none') {
-      add('parkingCount', hasValue(draft.parkingCount));
+    add('parkingAvailable', draft.parkingAvailable === true || draft.parkingAvailable === false);
+    if (draft.parkingAvailable === true) {
+      const entries = normalizedParkingEntries(draft);
+      add('parkingType', entries.some((entry) => hasValue(entry.type)));
+      add('parkingCount', entries.length > 0 && entries.every((entry) => Number(entry.count) > 0));
     }
     add('remainingDebtKnown', draft.remainingDebtKnown === true || draft.remainingDebtKnown === false);
     if (draft.remainingDebtKnown) {
       add('remainingDebtAmount', hasValue(draft.remainingDebtAmount));
+    }
+    add('knownMajorMaintenanceOrSpecialAssessments', draft.knownMajorMaintenanceOrSpecialAssessments === true || draft.knownMajorMaintenanceOrSpecialAssessments === false);
+    if (draft.knownMajorMaintenanceOrSpecialAssessments === true) {
+      add('knownMajorMaintenanceOrSpecialAssessmentsDescription', hasValue(draft.knownMajorMaintenanceOrSpecialAssessmentsDescription));
     }
   }
 
@@ -2267,10 +2303,6 @@ function validateCaseStep(step, draft) {
     add('buildingConditionSanitary', hasValue(buildingConditionRating(draft.buildingCondition?.sanitary)));
     add('buildingConditionInterior', hasValue(buildingConditionRating(draft.buildingCondition?.interior)));
     add('buildingConditionOutdoor', hasValue(buildingConditionRating(draft.buildingCondition?.outdoor)));
-    add('knownMajorMaintenanceOrSpecialAssessments', draft.knownMajorMaintenanceOrSpecialAssessments === true || draft.knownMajorMaintenanceOrSpecialAssessments === false);
-    if (draft.knownMajorMaintenanceOrSpecialAssessments === true) {
-      add('knownMajorMaintenanceOrSpecialAssessmentsDescription', hasValue(draft.knownMajorMaintenanceOrSpecialAssessmentsDescription));
-    }
     add('moistureDamageStatus', hasValue(draft.moistureDamageStatus));
     if (draft.moistureDamageStatus === 'MINOR' || draft.moistureDamageStatus === 'SIGNIFICANT') {
       add('moistureDamageDescription', hasValue(draft.moistureDamageDescription));
@@ -4984,6 +5016,16 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ['Monatl. Einkünfte', '1.000 - 2.000 €'],
     ['Einwilligung', 'erteilt am 18.05.2026'],
   ];
+  const spouseDetails = customer?.maritalStatus === 'married' ? [
+    ['Name', [customer.spouseTitle, customer.spouseFirstName, customer.spouseLastName].filter(Boolean).join(' ') || '-'],
+    ['Geschlecht', labelFrom(genderLabels, customer.spouseGender)],
+    ['Geburtsdatum', formatDate(customer.spouseDateOfBirth)],
+    ['Adresse', customer.addressText || `${customer.street || '-'}, ${customer.postalCode || ''} ${customer.city || ''}`],
+    ['Telefon', customer.phone || '-'],
+    ['Mobil', customer.mobile || '-'],
+    ['E-Mail', customer.email || '-'],
+    ['Beteiligung / Eigentum', labelFrom({ customer_1: 'Kunde 1', customer_2: 'Kunde 2', both: 'Beide Personen' }, customer.propertyOwnership)],
+  ] : [];
   const modelDetails = property ? [
     ['Wohnrechtsberechtigte', labelFrom(recipientLabels, property.residentialRightRecipients)],
     ['Person mit Wohnrecht', property.residentialRightPerson ? labelFrom({ customer_1: 'Kunde 1', customer_2: 'Kunde 2' }, property.residentialRightPerson) : '-'],
@@ -5147,7 +5189,19 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     category,
     score: weightedScore(ratingScores.filter((score) => score.criterion?.categoryId === category.id))
   }));
-  const ratingScoreDefinitions = (criterion) => (criterion?.scoreDefinitions?.length ? criterion.scoreDefinitions : [1, 2, 3, 4, 5, 6].map((value) => ({ scoreValue: value, label: String(value) })));
+  const ratingScoreDefinitions = (criterion) => {
+    if (criterion?.id === 'rating_crit_micro_infrastructure_v1') {
+      return [
+        { scoreValue: 1, label: 'sehr schlecht' },
+        { scoreValue: 2, label: 'schlecht' },
+        { scoreValue: 3, label: 'durchschnittlich' },
+        { scoreValue: 4, label: 'gut' },
+        { scoreValue: 5, label: 'sehr gut' },
+        { scoreValue: 6, label: 'exzellent' },
+      ];
+    }
+    return criterion?.scoreDefinitions?.length ? criterion.scoreDefinitions : [1, 2, 3, 4, 5, 6].map((value) => ({ scoreValue: value, label: String(value) }));
+  };
   const ratingOpenChecks = ratingScores.filter((score) => !ratingScoreValue(score) || Number(score.confidence || 0) < 0.65);
   const ratingReadOnly = objectRating?.status === 'approved' || !canManageRating;
   const ratingReturnPercent = ratingReturnInput || (objectRating?.finalTargetReturn ? String((Number(objectRating.finalTargetReturn) * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 })) : '');
@@ -5169,7 +5223,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const finalValue = ratingFinalValueForSave(score);
     if (finalValue === null || finalValue === '') return false;
     const autoValue = score.prefilledScore;
-    return autoValue === undefined || autoValue === null || Number(finalValue) !== Number(autoValue);
+    return autoValue !== undefined && autoValue !== null && Number(finalValue) !== Number(autoValue);
   };
   const ratingInputDirty = (score) => {
     const input = ratingScoreInputs[score.id] || {};
@@ -5265,7 +5319,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           ...params,
           manualMarketValue: preliminaryMarketValue,
           monthlyRentPerSqm: params.monthlyRentPerSqm ?? '',
-          garageMonthlyRent: params.garageMonthlyRent ?? '',
+          ...(property?.parkingAvailable ? { garageMonthlyRent: params.garageMonthlyRent ?? '' } : {}),
           residentialRightYears: params.residentialRightYears || modelRequest?.residentialRightYears || property?.desiredResidentialRightYears,
           livingAreaSqm: property?.livingAreaSqm,
           garageCount: property?.parkingAvailable ? property?.parkingCount : 0,
@@ -5290,7 +5344,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       inputs: {
         ...params,
         monthlyRentPerSqm: params.monthlyRentPerSqm ?? '',
-        garageMonthlyRent: params.garageMonthlyRent ?? '',
+        ...(property?.parkingAvailable ? { garageMonthlyRent: params.garageMonthlyRent ?? '' } : {}),
         expertOpinionValue: parsedExpertOpinionValue,
         residentialRightYears: params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears,
         livingAreaSqm: property?.livingAreaSqm,
@@ -5860,7 +5914,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               {[
                 ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
-                ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
+                ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Miete Garage (€ / Monat)']] : []),
                 ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
                 ['interestRate', 'Interne Verzinsung (%)'],
                 ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
@@ -6279,7 +6333,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               </Field>
               {[
                 ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
-                ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
+                ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Miete Garage (€ / Monat)']] : []),
                 ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
                 ['interestRate', 'Interne Verzinsung (%)'],
                 ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
@@ -6633,7 +6687,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         {tabs.map(t => (
           <button key={t.id} onClick={() => {
             if (t.disabled) {
-              setNotice?.('Der Verkaufsprozess beginnt erst nach Ende des Wohnrechts oder Rückmietverkaufs.');
               return;
             }
             changeTab(t.id);
@@ -6725,6 +6778,21 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   </div>
                 ))}
               </div>
+
+              {spouseDetails.length > 0 && (
+                <>
+                  <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Kunde 2 / Ehepartner</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
+                    {spouseDetails.map(([k, v], i) => (
+                      <div key={i}>
+                        <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
+                        <div style={{ fontSize: 13.5, color: theme.ink }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
 
               <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Wunschmodell</div>
@@ -6851,8 +6919,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <button onClick={generateObjectRating} disabled={Boolean(busyAction) || objectRating?.status === 'approved'} style={{ background: objectRating ? 'white' : theme.aubergine, color: objectRating ? theme.aubergine : 'white', border: objectRating ? `1px solid ${theme.border}` : 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction || objectRating?.status === 'approved' ? 'default' : 'pointer', opacity: busyAction || objectRating?.status === 'approved' ? 0.6 : 1 }}>
-                      {objectRating ? 'Rating neu berechnen' : 'Vorläufiges Rating erzeugen'}
+                    <button onClick={generateObjectRating} disabled={Boolean(busyAction) || objectRating?.status === 'approved'} title="Automatisch ableitbare Kriterien aus Fragebogen, Dokumenten und Konfiguration initialisieren." style={{ background: !objectRating ? theme.aubergine : 'white', color: !objectRating ? 'white' : theme.aubergine, border: !objectRating ? 'none' : `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction || objectRating?.status === 'approved' ? 'default' : 'pointer', opacity: busyAction || objectRating?.status === 'approved' ? 0.6 : 1 }}>
+                      Automatische Vorschläge übernehmen / initialisieren
+                    </button>
+                    <button type="button" onClick={() => setNotice?.(ratingOpenChecks.length ? `Bitte prüfen Sie ${ratingOpenChecks.length} offene Rating-Kriterien.` : 'Rating geprüft. Es sind keine offenen Rating-Kriterien markiert.')} disabled={!objectRating || Boolean(busyAction)} title="Zeigt, ob offene Kriterien oder niedrige Confidence vorhanden sind." style={{ background: 'white', color: objectRating ? theme.aubergine : `${theme.ink}66`, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: !objectRating || busyAction ? 'default' : 'pointer', opacity: !objectRating || busyAction ? 0.6 : 1 }}>
+                      Rating prüfen
                     </button>
                     {objectRating && canManageRating && objectRating.status !== 'approved' && (
                       <button onClick={saveRatingChanges} disabled={Boolean(busyAction) || ratingDirtyCount === 0} style={{ background: ratingDirtyCount ? theme.aubergine : 'white', color: ratingDirtyCount ? 'white' : `${theme.ink}66`, border: ratingDirtyCount ? 'none' : `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : ratingDirtyCount ? 'pointer' : 'default', opacity: busyAction ? 0.65 : 1 }}>
@@ -6860,7 +6931,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       </button>
                     )}
                     {objectRating && canManageRating && objectRating.status !== 'approved' && (
-                      <button onClick={approveRating} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                      <button onClick={approveRating} disabled={Boolean(busyAction) || ratingDirtyCount > 0} title={ratingDirtyCount > 0 ? 'Bitte speichern Sie zuerst die Änderungen.' : 'Rating final freigeben.'} style={{ background: ratingDirtyCount === 0 ? theme.aubergine : 'white', color: ratingDirtyCount === 0 ? 'white' : `${theme.ink}66`, border: ratingDirtyCount === 0 ? 'none' : `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction || ratingDirtyCount > 0 ? 'default' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
                         Rating freigeben
                       </button>
                     )}
@@ -7939,7 +8010,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                             {[
                               ['marketValue', 'Verkehrswert (€)'],
                               ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
-                              ['garageMonthlyRent', 'Miete Garage (€ / Monat)'],
+                              ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Miete Garage (€ / Monat)']] : []),
                               ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
                               ['interestRate', 'Interne Verzinsung (%)'],
                               ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
@@ -8491,6 +8562,9 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
       const customerResult = editMode
         ? await patchJson(`/api/customers/${initialCase.customer.id}`, customerPayload)
         : await postJson('/api/customers', customerPayload);
+      const parkingEntries = draft.parkingAvailable === true ? normalizedParkingEntries(draft) : [];
+      const payloadParkingType = primaryParkingType(parkingEntries);
+      const payloadParkingCount = parkingCountTotal(parkingEntries);
       const propertyPayload = {
         customerId: customerResult.customer.id,
         caseSource: isInternalCase ? 'INTERNAL' : 'PARTNER',
@@ -8522,9 +8596,9 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         usableAreaSqm: Number(draft.usableAreaSqm) || undefined,
         coOwnershipShares: payloadPropertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
         hasElevator: payloadPropertyType === 'apartment' && (draft.hasElevator === true || draft.hasElevator === false) ? draft.hasElevator : undefined,
-        parkingAvailable: Boolean(draft.parkingType && draft.parkingType !== 'none'),
-        parkingType: draft.parkingType && draft.parkingType !== 'none' ? draft.parkingType || undefined : undefined,
-        parkingCount: draft.parkingType && draft.parkingType !== 'none' ? Number(draft.parkingCount) || undefined : undefined,
+        parkingAvailable: draft.parkingAvailable === true,
+        parkingType: draft.parkingAvailable === true ? payloadParkingType || undefined : undefined,
+        parkingCount: draft.parkingAvailable === true ? payloadParkingCount || undefined : undefined,
         basementType: draft.basementType || undefined,
         heatingType: draft.heatingType,
         heatingEnergySource: draft.heatingEnergySource,
@@ -8754,14 +8828,20 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
 };
 
 // Form-Felder als wiederverwendbare Komponenten
-const Field = ({ label, required, children, hint, width = '100%', invalid = false }) => (
+const fieldErrorMessages = {
+  desiredModel: 'Bitte wählen Sie ein Wunschmodell aus.',
+  knownMajorMaintenanceOrSpecialAssessments: 'Bitte wählen Sie aus, ob größere Instandhaltungen, Sanierungsmaßnahmen oder Sonderumlagen bekannt oder absehbar sind.',
+  knownMajorMaintenanceOrSpecialAssessmentsDescription: 'Bitte kurz erläutern.',
+};
+
+const Field = ({ label, required, children, hint, width = '100%', invalid = false, errorMessage }) => (
   <div style={{ width, border: invalid ? '1px solid #9B2C2C55' : 'none', background: invalid ? '#9B2C2C08' : 'transparent', borderRadius: 6, padding: invalid ? 7 : 0, boxSizing: 'border-box' }}>
     <label style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: theme.ink, marginBottom: 6, letterSpacing: '0.01em' }}>
       {label}{required && <span style={{ color: theme.gold, marginLeft: 2 }}>*</span>}
     </label>
     {children}
     {hint && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 4 }}>{hint}</div>}
-    {invalid && <div style={{ fontSize: 11, color: '#9B2C2C', fontWeight: 700, marginTop: 5 }}>Bitte ausfüllen.</div>}
+    {invalid && <div style={{ fontSize: 11, color: '#9B2C2C', fontWeight: 700, marginTop: 5 }}>{errorMessage || 'Bitte ausfüllen.'}</div>}
   </div>
 );
 const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly, disabled, inputRef, inputMode }) => (
@@ -8930,7 +9010,7 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
       </div>
     )}
 
-    <Field label="Hauptmodell" required invalid={errors.includes('desiredModel')}>
+    <Field label="Hauptmodell" required invalid={errors.includes('desiredModel')} errorMessage={fieldErrorMessages.desiredModel}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
         {[
           { value: 'fixed_residential_right', title: 'Wohnrecht', text: 'Kunde verkauft und behält ein vertraglich geregeltes Wohnrecht.' },
@@ -8968,8 +9048,8 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
     </Field>
 
     {!draft.desiredModel && (
-      <div style={{ background: theme.mintLight, borderRadius: 6, padding: '12px 14px', fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 18 }}>
-        Bitte wähle ein Modell, damit die passenden Angaben geöffnet werden.
+      <div style={{ background: errors.includes('desiredModel') ? '#FFF4F4' : theme.mintLight, border: `1px solid ${errors.includes('desiredModel') ? '#9B2C2C55' : 'transparent'}`, borderRadius: 6, padding: '12px 14px', fontSize: 12.5, color: errors.includes('desiredModel') ? '#9B2C2C' : `${theme.ink}99`, marginBottom: 18, fontWeight: errors.includes('desiredModel') ? 750 : 500 }}>
+        {errors.includes('desiredModel') ? fieldErrorMessages.desiredModel : 'Bitte wähle ein Modell, damit die passenden Angaben geöffnet werden.'}
       </div>
     )}
 
@@ -9245,20 +9325,69 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
       </Field>
     </div>
 
-    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Außenbereich</div>
-    <div style={{ display: 'grid', gridTemplateColumns: draft.parkingType && draft.parkingType !== 'none' ? '1fr 1fr 1fr' : '1fr 2fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Parkplatz" required invalid={errors.includes('parkingType')}>
-        <Select value={draft.parkingType} onChange={(event) => setDraft({ ...draft, parkingType: event.target.value, parkingAvailable: Boolean(event.target.value && event.target.value !== 'none'), parkingCount: event.target.value && event.target.value !== 'none' ? draft.parkingCount : '' })}>
-          <option value="">Bitte wählen</option>
-          <option value="none">kein Parkplatz</option>
-          <option value="garage">Garage</option>
-          <option value="carport">Carport</option>
-          <option value="outdoor_space">Stellplatz</option>
-          <option value="duplex">Doppelparker</option>
-        </Select>
+    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Stellplätze / Garagen</div>
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+      <Field label="Sind Stellplätze, Garagen oder Carports vorhanden?" required invalid={errors.includes('parkingAvailable')}>
+        <RadioGroup name="parkingAvailable" value={draft.parkingAvailable === true ? 'yes' : draft.parkingAvailable === false ? 'no' : ''} onChange={(value) => {
+          const yes = value === 'yes';
+          setDraft({
+            ...draft,
+            parkingAvailable: yes,
+            parkingEntries: yes ? (normalizedParkingEntries(draft).length ? normalizedParkingEntries(draft) : [newParkingEntry()]) : [],
+            parkingType: yes ? (primaryParkingType(normalizedParkingEntries(draft)) || 'garage') : 'none',
+            parkingCount: yes ? (parkingCountTotal(normalizedParkingEntries(draft)) || '1') : '',
+          });
+        }} options={[
+          { value: 'no', label: 'Nein' },
+          { value: 'yes', label: 'Ja' },
+        ]} />
       </Field>
-      {draft.parkingType && draft.parkingType !== 'none' && (
-        <Field label="Anzahl Parkplätze" required invalid={errors.includes('parkingCount')}><Input type="number" value={draft.parkingCount} onChange={(event) => setDraft({ ...draft, parkingCount: event.target.value })} /></Field>
+      {draft.parkingAvailable === true && (
+        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+          {normalizedParkingEntries(draft).map((entry, index) => (
+            <div key={entry.id || index} style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.55fr 1fr 1.4fr auto', gap: 10, alignItems: 'end', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>
+              <Field label="Typ" required invalid={errors.includes('parkingType') && !entry.type}>
+                <Select value={entry.type || ''} onChange={(event) => {
+                  const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, type: event.target.value } : item);
+                  setDraft({ ...draft, parkingEntries: entries, parkingType: primaryParkingType(entries) || '' });
+                }}>
+                  <option value="">Bitte wählen</option>
+                  {Object.entries(parkingEntryTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+              </Field>
+              <Field label="Anzahl" required invalid={errors.includes('parkingCount') && !(Number(entry.count) > 0)}>
+                <Input type="number" value={entry.count || ''} onChange={(event) => {
+                  const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, count: event.target.value } : item);
+                  setDraft({ ...draft, parkingEntries: entries, parkingCount: parkingCountTotal(entries) || '' });
+                }} />
+              </Field>
+              <Field label="Miete je Einheit optional">
+                <Input type="number" value={entry.monthlyRent || ''} onChange={(event) => {
+                  const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, monthlyRent: event.target.value } : item);
+                  setDraft({ ...draft, parkingEntries: entries });
+                }} />
+              </Field>
+              <Field label="Kommentar optional">
+                <Input value={entry.comment || ''} onChange={(event) => {
+                  const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, comment: event.target.value } : item);
+                  setDraft({ ...draft, parkingEntries: entries });
+                }} />
+              </Field>
+              <button type="button" onClick={() => {
+                const entries = normalizedParkingEntries(draft).filter((_, itemIndex) => itemIndex !== index);
+                setDraft({ ...draft, parkingEntries: entries, parkingAvailable: entries.length ? true : false, parkingType: entries.length ? primaryParkingType(entries) || '' : 'none', parkingCount: parkingCountTotal(entries) || '' });
+              }} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+                Entfernen
+              </button>
+            </div>
+          ))}
+          <button type="button" onClick={() => {
+            const entries = [...normalizedParkingEntries(draft), newParkingEntry()];
+            setDraft({ ...draft, parkingEntries: entries, parkingAvailable: true, parkingType: primaryParkingType(entries) || 'garage', parkingCount: parkingCountTotal(entries) || '1' });
+          }} style={{ justifySelf: 'start', background: 'white', border: `1px solid ${theme.aubergine}44`, color: theme.aubergine, borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
+            Stellplatz / Garage hinzufügen
+          </button>
+        </div>
       )}
     </div>
 
@@ -9279,19 +9408,12 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
       </div>
     </div>
 
-    <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderLeft: `4px solid ${theme.oliv}`, borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.ink, marginBottom: 4 }}>Allgemeiner Hinweis</div>
-      <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>
-        Bitte Besonderheiten früh dokumentieren, zum Beispiel Wohnungsbindung, größere Schäden, laufende Teilungserklärungsänderungen oder absehbare Instandhaltungen.
-      </div>
-    </div>
-
     <div style={{ background: '#9B2C2C0A', border: `1px solid #9B2C2C33`, borderLeft: `3px solid #9B2C2C`, borderRadius: 6, padding: '12px 14px', marginTop: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <AlertTriangle size={16} style={{ color: '#9B2C2C' }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.ink, marginBottom: 6 }}>Ausschlusskriterien</div>
-          <div style={{ display: 'flex', gap: 20, fontSize: 12.5, color: theme.ink }}>
+          <div style={{ display: 'flex', gap: 20, fontSize: 12.5, color: theme.ink, flexWrap: 'wrap', marginBottom: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="checkbox" checked={draft.leasehold} onChange={(event) => setDraft({ ...draft, leasehold: event.target.checked })} style={{ accentColor: '#9B2C2C' }} /> Erbbaurecht
             </label>
@@ -9299,8 +9421,28 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
               <input type="checkbox" checked={draft.monumentProtection} onChange={(event) => setDraft({ ...draft, monumentProtection: event.target.checked })} style={{ accentColor: '#9B2C2C' }} /> Denkmalschutz
             </label>
           </div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <Field label="Sind größere Instandhaltungen, Sanierungsmaßnahmen oder Sonderumlagen bekannt oder absehbar?" required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessments')} errorMessage={fieldErrorMessages.knownMajorMaintenanceOrSpecialAssessments}>
+              <RadioGroup name="knownMajorMaintenanceOrSpecialAssessments" value={draft.knownMajorMaintenanceOrSpecialAssessments === true ? 'yes' : draft.knownMajorMaintenanceOrSpecialAssessments === false ? 'no' : ''} onChange={(value) => setDraft({ ...draft, knownMajorMaintenanceOrSpecialAssessments: value === 'yes', knownMajorMaintenanceOrSpecialAssessmentsDescription: value === 'yes' ? draft.knownMajorMaintenanceOrSpecialAssessmentsDescription : '' })} options={[
+                { value: 'no', label: 'Nein' },
+                { value: 'yes', label: 'Ja' },
+              ]} />
+            </Field>
+            {draft.knownMajorMaintenanceOrSpecialAssessments === true && (
+              <Field label="Bitte kurz erläutern" required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessmentsDescription')} errorMessage={fieldErrorMessages.knownMajorMaintenanceOrSpecialAssessmentsDescription}>
+                <textarea value={draft.knownMajorMaintenanceOrSpecialAssessmentsDescription || ''} onChange={(event) => setDraft({ ...draft, knownMajorMaintenanceOrSpecialAssessmentsDescription: event.target.value })} rows={2} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+              </Field>
+            )}
+          </div>
           <div style={{ fontSize: 11, color: '#9B2C2Cdd', marginTop: 6 }}>Wenn aktiviert, kann der Fall nicht eingereicht werden.</div>
         </div>
+      </div>
+    </div>
+
+    <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderLeft: `4px solid ${theme.oliv}`, borderRadius: 8, padding: '12px 14px', marginTop: 12, marginBottom: 16 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.ink, marginBottom: 4 }}>Hinweis zur Vorprüfung</div>
+      <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>
+        Bitte prüfen Sie die folgenden Ausschlusskriterien sorgfältig. Wenn eines der Kriterien zutrifft, kann der Fall möglicherweise nicht weiterbearbeitet werden oder erfordert eine interne Prüfung.
       </div>
     </div>
 
@@ -9411,13 +9553,7 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
 
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 20 }}>
         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Objektprüfung</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-          <Field label="Sind größere Instandhaltungen oder Sonderumlagen bekannt?" required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessments')}>
-            <RadioGroup name="knownMajorMaintenanceOrSpecialAssessments" value={draft.knownMajorMaintenanceOrSpecialAssessments === true ? 'yes' : draft.knownMajorMaintenanceOrSpecialAssessments === false ? 'no' : ''} onChange={(value) => setDraft({ ...draft, knownMajorMaintenanceOrSpecialAssessments: value === 'yes', knownMajorMaintenanceOrSpecialAssessmentsDescription: value === 'yes' ? draft.knownMajorMaintenanceOrSpecialAssessmentsDescription : '' })} options={[
-              { value: 'no', label: 'Nein' },
-              { value: 'yes', label: 'Ja' },
-            ]} />
-          </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 16 }}>
           <Field label="Sind Feuchtigkeit, Schimmel oder Wasserschäden bekannt?" required invalid={errors.includes('moistureDamageStatus')}>
             <Select value={draft.moistureDamageStatus || ''} onChange={(event) => setDraft({ ...draft, moistureDamageStatus: event.target.value, moistureDamageDescription: event.target.value === 'NONE' ? '' : draft.moistureDamageDescription })}>
               <option value="">Bitte wählen</option>
@@ -9427,13 +9563,6 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
             </Select>
           </Field>
         </div>
-        {draft.knownMajorMaintenanceOrSpecialAssessments === true && (
-          <div style={{ marginBottom: 16 }}>
-            <Field label="Bitte bekannte Instandhaltungen oder Sonderumlagen beschreiben" required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessmentsDescription')}>
-              <textarea value={draft.knownMajorMaintenanceOrSpecialAssessmentsDescription || ''} onChange={(event) => setDraft({ ...draft, knownMajorMaintenanceOrSpecialAssessmentsDescription: event.target.value })} rows={3} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
-            </Field>
-          </div>
-        )}
         {(draft.moistureDamageStatus === 'MINOR' || draft.moistureDamageStatus === 'SIGNIFICANT') && (
           <div style={{ marginBottom: 16 }}>
             <Field label="Bitte Feuchtigkeit, Schimmel oder Wasserschäden beschreiben" required invalid={errors.includes('moistureDamageDescription')}>

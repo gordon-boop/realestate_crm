@@ -95,6 +95,24 @@ test("property validation treats empty optional offer enums as absent", () => {
   assert.equal(parsed.additionalOfferResidentialRightRecipients, undefined);
 });
 
+test("property validation requires explicit desired model", () => {
+  assert.throws(() => propertyCreateSchema.parse({
+    customerId: "customer_schmidt",
+    propertyType: "apartment",
+    street: "Hauptstraße 14",
+    postalCode: "70563",
+    city: "Stuttgart",
+    livingAreaSqm: 78,
+    plotAreaSqm: 0,
+    condition: "average",
+    desiredModel: "",
+    knownMajorMaintenanceOrSpecialAssessments: false,
+    moistureDamageStatus: "NONE",
+    accessibilityAssessment: "LOW_BARRIER",
+    hasElevator: true
+  }), /Bitte wählen Sie ein Wunschmodell aus/);
+});
+
 test("property validation requires modernization year when modernization is selected", () => {
   assert.throws(() => propertyCreateSchema.parse({
     customerId: "customer_schmidt",

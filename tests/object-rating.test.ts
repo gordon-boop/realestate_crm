@@ -58,6 +58,37 @@ test("object rating target return follows Excel linear curve", () => {
   assert.equal(result.returnBounds.upper, 0.091);
 });
 
+test("object rating total score rounds mathematically to two decimals", () => {
+  const config = {
+    categories: [{ id: "cat", weight: 1 }],
+    criteria: [{ id: "crit", categoryId: "cat", weight: 1, weightOverrides: null }],
+    returnCurves: []
+  } as any;
+
+  for (const value of [2.49, 2.5, 3.49, 3.5, 4.49, 4.5]) {
+    const result = calculateRating(config, [{ criterionId: "crit", finalScore: value }]);
+    assert.equal(result.totalScore, value);
+  }
+});
+
+test("object rating weighted rounding uses standard half-up behaviour", () => {
+  const config = {
+    categories: [{ id: "cat", weight: 1 }],
+    criteria: [
+      { id: "a", categoryId: "cat", weight: 1, weightOverrides: null },
+      { id: "b", categoryId: "cat", weight: 1, weightOverrides: null }
+    ],
+    returnCurves: []
+  } as any;
+
+  const result = calculateRating(config, [
+    { criterionId: "a", finalScore: 2.49 },
+    { criterionId: "b", finalScore: 2.5 }
+  ]);
+
+  assert.equal(result.totalScore, 2.5);
+});
+
 test("object rating uses apartment-specific maintenance weights", () => {
   const config = {
     categories: [{ id: "maintenance", weight: 1 }],
