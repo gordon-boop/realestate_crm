@@ -20,6 +20,7 @@ import {
 import { isInventoryCase } from '@/lib/acquisition-workflow';
 import { evaluateAcquisitionPrecheck } from '@/lib/acquisition-precheck';
 import { getLifetimeResidentialRightEligibility } from '@/lib/residential-right-eligibility';
+import { parseGermanNumberInput as parseGermanNumberValue, parseGermanPercentInput } from '@/lib/utils/numberParsing';
 import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 
 // =====================================================================
@@ -804,9 +805,7 @@ function formatGermanIntegerInput(value) {
 }
 
 function parseGermanNumberInput(value) {
-  const normalized = String(value ?? '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : NaN;
+  return parseGermanNumberValue(value) ?? NaN;
 }
 
 function formatPercent(value) {
@@ -2077,7 +2076,10 @@ const normalizedParkingEntries = (draft) => {
 };
 
 const primaryParkingType = (entries) => entries.find((entry) => entry.type && entry.type !== 'other')?.type;
-const parkingCountTotal = (entries) => entries.reduce((sum, entry) => sum + (Number(entry.count) > 0 ? Number(entry.count) : 0), 0);
+const parkingCountTotal = (entries) => entries.reduce((sum, entry) => {
+  const count = parseGermanNumberValue(entry.count);
+  return sum + (count && count > 0 ? count : 0);
+}, 0);
 
 function draftFromCaseView(caseView) {
   if (!caseView) return { ...defaultDraft };
@@ -3342,7 +3344,7 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
               )}
               {action.key === 'billing' && (
                 <Field label="Betrag (€)">
-                  <Input type="number" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                  <Input type="text" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
                 </Field>
               )}
             </div>
@@ -3354,7 +3356,7 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
                 <Input value={vendor} onChange={(event) => setVendor(event.target.value)} />
               </Field>
               <Field label="Kostenschätzung (€)">
-                <Input type="number" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                <Input type="text" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
               </Field>
             </div>
           )}
@@ -5447,9 +5449,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     setRatingScoreInputs({});
   });
   const saveRatingReturn = () => runCaseAction('Zielrendite speichern', async () => {
-    const parsed = parseGermanNumberInput(ratingReturnPercent);
+    const parsed = parseGermanPercentInput(ratingReturnPercent);
     if (!Number.isFinite(parsed)) throw new Error('Bitte eine gültige Zielrendite eingeben.');
-    await patchJson(`/api/properties/${c.propertyId}/rating/final-return`, { finalTargetReturn: parsed / 100 });
+    await patchJson(`/api/properties/${c.propertyId}/rating/final-return`, { finalTargetReturn: parsed });
     setRatingReturnInput('');
   });
   const approveRating = () => runCaseAction('Objektrating freigeben', async () => {
@@ -6409,7 +6411,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       maintenancePlan: {
         nextReviewDate: portfolioForm.maintenanceNextReviewDate,
         responsible: portfolioForm.maintenanceResponsible,
-        annualBudget: portfolioForm.maintenanceBudget,
+        annualBudget: parseGermanNumberValue(portfolioForm.maintenanceBudget),
         notes: portfolioForm.maintenanceNotes,
       },
       portfolioTasks: {
@@ -7644,7 +7646,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <Field label="Notartermin bestätigt für"><Input type="date" value={notaryAppointmentDate || portfolioForm.notaryAppointmentAt} onChange={(event) => setNotaryAppointmentDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
                     <Field label="Kaufvertragsentwurf erhalten am"><Input type="date" value={portfolioForm.purchaseContractDraftReceivedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Kaufvertragsentwurf geprüft am"><Input type="date" value={portfolioForm.purchaseContractDraftReviewedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReviewedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Kaufpreis (€)"><Input type="number" value={portfolioForm.purchasePrice} onChange={(event) => updatePortfolioForm({ purchasePrice: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Kaufpreis (€)"><Input type="text" inputMode="decimal" value={portfolioForm.purchasePrice} onChange={(event) => updatePortfolioForm({ purchasePrice: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Frist / Wiedervorlage"><Input type="date" value={portfolioForm.nextPortfolioReviewAt} onChange={(event) => updatePortfolioForm({ nextPortfolioReviewAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
                 </div>
@@ -7777,7 +7779,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <Field label="Bewohnername"><Input value={portfolioForm.residentName} onChange={(event) => updatePortfolioForm({ residentName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Wohnrecht / Nutzungsrecht aktiv ab"><Input type="date" value={portfolioForm.usageRightStartsAt} onChange={(event) => updatePortfolioForm({ usageRightStartsAt: event.target.value, residentialRightStartAt: event.target.value, rentStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Wohnrecht / Nutzungsrecht befristet bis"><Input type="date" value={portfolioForm.usageRightEndsAt} onChange={(event) => updatePortfolioForm({ usageRightEndsAt: event.target.value, residentialRightEndAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Monatliches Nutzungsentgelt / Miete (€)"><Input type="number" value={portfolioForm.monthlyUsageFee} onChange={(event) => updatePortfolioForm({ monthlyUsageFee: event.target.value, monthlyRent: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Monatliches Nutzungsentgelt / Miete (€)"><Input type="text" inputMode="decimal" value={portfolioForm.monthlyUsageFee} onChange={(event) => updatePortfolioForm({ monthlyUsageFee: event.target.value, monthlyRent: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Ansprechpartner Bewohner"><Input value={portfolioForm.residentContactName} onChange={(event) => updatePortfolioForm({ residentContactName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Notfallkontakt / Angehöriger"><Input value={portfolioForm.residentEmergencyContact} onChange={(event) => updatePortfolioForm({ residentEmergencyContact: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Verwalter / WEG-Verwaltung"><Input value={portfolioForm.propertyManagerName} onChange={(event) => updatePortfolioForm({ propertyManagerName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
@@ -7800,7 +7802,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                     <Field label="Nächste Objektprüfung"><Input type="date" value={portfolioForm.maintenanceNextReviewDate} onChange={(event) => updatePortfolioForm({ maintenanceNextReviewDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Zuständig"><Input value={portfolioForm.maintenanceResponsible} onChange={(event) => updatePortfolioForm({ maintenanceResponsible: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Jahresbudget (€)"><Input type="number" value={portfolioForm.maintenanceBudget} onChange={(event) => updatePortfolioForm({ maintenanceBudget: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Jahresbudget (€)"><Input type="text" inputMode="decimal" value={portfolioForm.maintenanceBudget} onChange={(event) => updatePortfolioForm({ maintenanceBudget: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Nächster Termin"><Input type="date" value={portfolioForm.nextAppointmentDate} onChange={(event) => updatePortfolioForm({ nextAppointmentDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Terminart"><Input value={portfolioForm.nextAppointmentType} onChange={(event) => updatePortfolioForm({ nextAppointmentType: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Terminnotiz"><Input value={portfolioForm.nextAppointmentNote} onChange={(event) => updatePortfolioForm({ nextAppointmentNote: event.target.value })} readOnly={!canManagePortfolio} /></Field>
@@ -7905,8 +7907,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <Field label="Verkaufsvorbereitung gestartet am"><Input type="date" value={exitProcessForm.salesPreparationStartedAt} onChange={(event) => updateExitProcessForm({ salesPreparationStartedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Makler beauftragt am"><Input type="date" value={exitProcessForm.brokerMandatedAt} onChange={(event) => updateExitProcessForm({ brokerMandatedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Vermarktungsstart am"><Input type="date" value={exitProcessForm.marketingStartedAt} onChange={(event) => updateExitProcessForm({ marketingStartedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verkaufspreisindikation (€)"><Input type="number" value={exitProcessForm.salePriceIndication} onChange={(event) => updateExitProcessForm({ salePriceIndication: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verkaufspreis festgelegt (€)"><Input type="number" value={exitProcessForm.salePriceFinal} onChange={(event) => updateExitProcessForm({ salePriceFinal: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verkaufspreisindikation (€)"><Input type="text" inputMode="decimal" value={exitProcessForm.salePriceIndication} onChange={(event) => updateExitProcessForm({ salePriceIndication: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label="Verkaufspreis festgelegt (€)"><Input type="text" inputMode="decimal" value={exitProcessForm.salePriceFinal} onChange={(event) => updateExitProcessForm({ salePriceFinal: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                     <Field label="Verkaufsstatus">
                       <Select value={exitProcessForm.salesStatus} onChange={(event) => updateExitProcessForm({ salesStatus: event.target.value })}>
                         {Object.entries(exitSalesStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -8338,7 +8340,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               ['salesCostRate', 'Verkaufskosten (%)'],
                             ].map(([field, label]) => (
                               <Field key={field} label={label}>
-                                <Input type="number" value={params[field] || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })} />
+                                <Input type="text" inputMode="decimal" value={params[field] || ''} onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })} />
                               </Field>
                             ))}
                           </div>
@@ -8837,8 +8839,8 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
       const payloadStreet = draft.street || (incompleteDraftSave ? 'Noch offen' : '');
       const payloadPostalCode = draft.postalCode || (incompleteDraftSave ? '00000' : '');
       const payloadCity = draft.city || (incompleteDraftSave ? 'Ort offen' : '');
-      const payloadLivingAreaSqm = Number(draft.livingAreaSqm) || (incompleteDraftSave ? 1 : 0);
-      const payloadPlotAreaSqm = Number(draft.plotAreaSqm) || 0;
+      const payloadLivingAreaSqm = parseGermanNumberValue(draft.livingAreaSqm) || (incompleteDraftSave ? 1 : 0);
+      const payloadPlotAreaSqm = parseGermanNumberValue(draft.plotAreaSqm) || 0;
       const customerPayload = {
         partnerId: isInternalCase ? undefined : 'partner_heimwert',
         assignedAdvisorUserId: isInternalCase ? user?.id : undefined,
@@ -8846,7 +8848,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         firstName: draft.firstName || (incompleteDraftSave ? 'Entwurf' : ''),
         lastName: draft.lastName || (incompleteDraftSave ? 'Neukunde' : ''),
         displayName: [draft.title, draft.firstName || (incompleteDraftSave ? 'Entwurf' : ''), draft.lastName || (incompleteDraftSave ? 'Neukunde' : '')].filter(Boolean).join(' '),
-        ageAtSubmission: Number(draft.ageAtSubmission) || undefined,
+        ageAtSubmission: parseGermanNumberValue(draft.ageAtSubmission) || undefined,
         gender: draft.gender,
         dateOfBirth: draft.dateOfBirth,
         maritalStatus: draft.maritalStatus,
@@ -8882,26 +8884,26 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         city: payloadCity,
         livingAreaSqm: payloadLivingAreaSqm,
         plotAreaSqm: payloadPlotAreaSqm,
-        yearBuilt: Number(draft.yearBuilt) || undefined,
+        yearBuilt: parseGermanNumberValue(draft.yearBuilt) || undefined,
         condition: draft.condition || 'average',
         desiredModel: payloadDesiredModel,
         usageModel: residentialRightUsageModelFromDraft({ ...draft, desiredModel: payloadDesiredModel }),
         residentialRightRecipients: payloadDesiredModel === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : undefined,
         residentialRightPerson: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
-        desiredResidentialRightYears: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightVariant !== 'lifetime' ? Number(draft.desiredResidentialRightYears) || undefined : undefined,
+        desiredResidentialRightYears: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightVariant !== 'lifetime' ? parseGermanNumberValue(draft.desiredResidentialRightYears) || undefined : undefined,
         rentalModelDisclosureAccepted: Boolean(draft.rentalModelDisclosureAccepted),
         additionalOfferRequested: Boolean(draft.additionalOfferRequested),
         additionalOfferModel: draft.additionalOfferRequested ? draft.additionalOfferModel : undefined,
         additionalOfferResidentialRightRecipients: draft.additionalOfferRequested ? draft.additionalOfferResidentialRightRecipients || undefined : undefined,
         additionalOfferResidentialRightPerson: draft.additionalOfferRequested && draft.additionalOfferResidentialRightRecipients === 'one_person' ? draft.additionalOfferResidentialRightPerson || undefined : undefined,
-        additionalOfferResidentialRightYears: draft.additionalOfferRequested ? Number(draft.additionalOfferResidentialRightYears) || undefined : undefined,
+        additionalOfferResidentialRightYears: draft.additionalOfferRequested ? parseGermanNumberValue(draft.additionalOfferResidentialRightYears) || undefined : undefined,
         additionalOfferReason: draft.additionalOfferRequested ? draft.additionalOfferReason : undefined,
         additionalOfferRentalModelDisclosureAccepted: draft.additionalOfferRequested ? Boolean(draft.additionalOfferRentalModelDisclosureAccepted) : false,
         secondResidentialRightWanted: false,
         secondResidentialRightYears: undefined,
         fixedTermReason: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightVariant !== 'lifetime' ? draft.fixedTermReason : undefined,
         rentalOptionDeselected: false,
-        usableAreaSqm: Number(draft.usableAreaSqm) || undefined,
+        usableAreaSqm: parseGermanNumberValue(draft.usableAreaSqm) || undefined,
         coOwnershipShares: payloadPropertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
         hasElevator: payloadPropertyType === 'apartment' && (draft.hasElevator === true || draft.hasElevator === false) ? draft.hasElevator : undefined,
         parkingAvailable: draft.parkingAvailable === true,
@@ -8911,10 +8913,10 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         heatingType: draft.heatingType,
         heatingEnergySource: draft.heatingEnergySource,
         heatingEnergySourceOther: draft.heatingEnergySource === 'other' ? draft.heatingEnergySourceOther : undefined,
-        heatingYear: Number(draft.heatingYear) || undefined,
+        heatingYear: parseGermanNumberValue(draft.heatingYear) || undefined,
         energyCarriers: draft.energyCarriers,
         windowMaterial: draft.windowMaterial,
-        windowInstallationYear: Number(draft.windowInstallationYear) || undefined,
+        windowInstallationYear: parseGermanNumberValue(draft.windowInstallationYear) || undefined,
         asbestosRoofKnown: draft.asbestosRoofKnown === 'yes',
         energyCertificateAvailable: draft.energyCertificateAvailable === true,
         energyCertificateType: draft.energyCertificateAvailable ? draft.energyCertificateType : undefined,
@@ -8930,7 +8932,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         moistureDamageDescription: draft.moistureDamageStatus === 'MINOR' || draft.moistureDamageStatus === 'SIGNIFICANT' ? draft.moistureDamageDescription : undefined,
         accessibilityAssessment: draft.accessibilityAssessment,
         remainingDebtKnown: draft.remainingDebtKnown === true,
-        remainingDebtAmount: draft.remainingDebtKnown ? Number(draft.remainingDebtAmount) || undefined : undefined,
+        remainingDebtAmount: draft.remainingDebtKnown ? parseGermanNumberValue(draft.remainingDebtAmount) || undefined : undefined,
         modernization: draft.modernization,
         buildingCondition: draft.buildingCondition,
         generalPropertyNotes: draft.generalPropertyNotes,
@@ -9563,13 +9565,13 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
       <Field label="Immobilientyp" required invalid={errors.includes('propertyType')}>
         <Select value={draft.propertyType} onChange={(event) => setDraft({ ...draft, propertyType: event.target.value, hasElevator: event.target.value === 'apartment' ? draft.hasElevator : '' })}><option value="">Bitte wählen</option><option value="single_family">Einfamilienhaus</option><option value="semi_detached">Doppelhaushälfte</option><option value="row_house">Reihenhaus</option><option value="apartment">Eigentumswohnung</option></Select>
       </Field>
-      <Field label="Baujahr" required invalid={errors.includes('yearBuilt')}><Input type="number" placeholder="z.B. 1978" value={draft.yearBuilt} onChange={(event) => setDraft({ ...draft, yearBuilt: event.target.value })} /></Field>
-      <Field label="Wohnfläche (m²)" required invalid={errors.includes('livingAreaSqm')}><Input type="number" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
+      <Field label="Baujahr" required invalid={errors.includes('yearBuilt')}><Input type="text" inputMode="numeric" placeholder="z.B. 1978" value={draft.yearBuilt} onChange={(event) => setDraft({ ...draft, yearBuilt: event.target.value })} /></Field>
+      <Field label="Wohnfläche (m²)" required invalid={errors.includes('livingAreaSqm')}><Input type="text" inputMode="decimal" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: draft.propertyType === 'apartment' ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Grundstück (m²)" required invalid={errors.includes('plotAreaSqm')}><Input type="number" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
-      <Field label="Nutzfläche (m²)" invalid={errors.includes('usableAreaSqm')}><Input type="number" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
+      <Field label="Grundstück (m²)" required invalid={errors.includes('plotAreaSqm')}><Input type="text" inputMode="decimal" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
+      <Field label="Nutzfläche (m²)" invalid={errors.includes('usableAreaSqm')}><Input type="text" inputMode="decimal" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
       {draft.propertyType === 'apartment' && (
         <>
           <Field label="Miteigentumsanteile" required hint="Nur bei Eigentumswohnungen" invalid={errors.includes('coOwnershipShares')}><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
@@ -9626,7 +9628,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
           <option value="other">Sonstige</option>
         </Select>
       </Field>
-      <Field label="Heizungsjahr" required invalid={errors.includes('heatingYear')}><Input type="number" value={draft.heatingYear} onChange={(event) => setDraft({ ...draft, heatingYear: event.target.value })} /></Field>
+      <Field label="Heizungsjahr" required invalid={errors.includes('heatingYear')}><Input type="text" inputMode="numeric" value={draft.heatingYear} onChange={(event) => setDraft({ ...draft, heatingYear: event.target.value })} /></Field>
     </div>
     {draft.heatingEnergySource === 'other' && (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -9704,7 +9706,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
           <option value="plastic">Kunststoff</option>
         </Select>
       </Field>
-      <Field label="Fensterjahr" required invalid={errors.includes('windowInstallationYear')}><Input type="number" value={draft.windowInstallationYear} onChange={(event) => setDraft({ ...draft, windowInstallationYear: event.target.value })} /></Field>
+      <Field label="Fensterjahr" required invalid={errors.includes('windowInstallationYear')}><Input type="text" inputMode="numeric" value={draft.windowInstallationYear} onChange={(event) => setDraft({ ...draft, windowInstallationYear: event.target.value })} /></Field>
       <Field label="Asbest im Dach bekannt?" required invalid={errors.includes('asbestosRoofKnown')}>
         <Select value={draft.asbestosRoofKnown || ''} onChange={(event) => setDraft({ ...draft, asbestosRoofKnown: event.target.value })}>
           <option value="">Bitte wählen</option>
@@ -9745,13 +9747,13 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
                 </Select>
               </Field>
               <Field label="Anzahl" required invalid={errors.includes('parkingCount') && !(Number(entry.count) > 0)}>
-                <Input type="number" value={entry.count || ''} onChange={(event) => {
+                <Input type="text" inputMode="numeric" value={entry.count || ''} onChange={(event) => {
                   const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, count: event.target.value } : item);
                   setDraft({ ...draft, parkingEntries: entries, parkingCount: parkingCountTotal(entries) || '' });
                 }} />
               </Field>
               <Field label="Miete je Einheit optional">
-                <Input type="number" value={entry.monthlyRent || ''} onChange={(event) => {
+                <Input type="text" inputMode="decimal" value={entry.monthlyRent || ''} onChange={(event) => {
                   const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, monthlyRent: event.target.value } : item);
                   setDraft({ ...draft, parkingEntries: entries });
                 }} />
@@ -9791,7 +9793,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
         </Field>
         {draft.remainingDebtKnown === true && (
           <Field label="Restschuld (€)" required invalid={errors.includes('remainingDebtAmount')}>
-            <Input type="number" value={draft.remainingDebtAmount} onChange={(event) => setDraft({ ...draft, remainingDebtAmount: event.target.value })} />
+            <Input type="text" inputMode="decimal" value={draft.remainingDebtAmount} onChange={(event) => setDraft({ ...draft, remainingDebtAmount: event.target.value })} />
           </Field>
         )}
       </div>
@@ -10238,9 +10240,9 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, s
                 <option value="apartment">Eigentumswohnung</option>
               </select>
             </label>
-            {field('Wohnfläche', 'livingAreaSqm', { type: 'number' })}
-            {field('Grundstücksfläche', 'plotAreaSqm', { type: 'number' })}
-            {field('Baujahr', 'yearBuilt', { type: 'number' })}
+            {field('Wohnfläche', 'livingAreaSqm', { type: 'text', inputMode: 'decimal' })}
+            {field('Grundstücksfläche', 'plotAreaSqm', { type: 'text', inputMode: 'decimal' })}
+            {field('Baujahr', 'yearBuilt', { type: 'text', inputMode: 'numeric' })}
             <label style={{ display: 'grid', gap: 5 }}>
               <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Gewünschtes Modell</span>
               <select value={draft.productInterest || ''} onChange={(event) => set('productInterest', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>

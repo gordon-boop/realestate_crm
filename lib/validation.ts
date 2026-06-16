@@ -1,14 +1,28 @@
 import { z } from "zod";
+import { parseGermanNumberInput, parseGermanPercentInput } from "./utils/numberParsing.ts";
 
 const emptyToUndefined = (value: unknown) => value === "" || value === null ? undefined : value;
 const optionalString = z.preprocess(emptyToUndefined, z.string().trim().min(1).optional());
-const optionalNumber = z.preprocess(emptyToUndefined, z.coerce.number().finite().optional());
-const optionalGermanNumber = z.preprocess((value) => {
+const germanNumberPreprocess = (value: unknown) => {
   const normalized = emptyToUndefined(value);
-  if (typeof normalized !== "string") return normalized;
-  const parsed = normalized.trim().replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-  return parsed || undefined;
-}, z.coerce.number().finite().optional());
+  if (normalized === undefined) return undefined;
+  if (typeof normalized === "number") return Number.isFinite(normalized) ? normalized : Number.NaN;
+  const parsed = parseGermanNumberInput(normalized);
+  return parsed ?? Number.NaN;
+};
+const optionalNumber = z.preprocess(germanNumberPreprocess, z.number().finite("Bitte geben Sie eine gültige Zahl ein.").optional());
+const optionalGermanNumber = optionalNumber;
+const requiredGermanNumber = (message: string, schema = z.number({
+  required_error: message,
+  invalid_type_error: "Bitte geben Sie eine gültige Zahl ein."
+}).finite("Bitte geben Sie eine gültige Zahl ein.")) => z.preprocess(germanNumberPreprocess, schema);
+const optionalPercent = z.preprocess((value) => {
+  const normalized = emptyToUndefined(value);
+  if (normalized === undefined) return undefined;
+  if (typeof normalized === "number") return Number.isFinite(normalized) ? (Math.abs(normalized) > 1 ? normalized / 100 : normalized) : Number.NaN;
+  const parsed = parseGermanPercentInput(normalized);
+  return parsed ?? Number.NaN;
+}, z.number().finite("Bitte geben Sie eine gültige Zahl ein.").optional());
 const optionalBoolean = z.preprocess((value) => value === "on" ? true : value === "yes" ? true : value === "no" ? false : value, z.boolean().optional());
 const optionalEnum = <T extends [string, ...string[]]>(values: T) => z.preprocess(emptyToUndefined, z.enum(values).optional());
 
@@ -49,8 +63,14 @@ const propertyBaseSchema = z.object({
   street: z.string().trim().min(1, "Straße ist erforderlich"),
   postalCode: z.string().trim().min(1, "PLZ ist erforderlich"),
   city: z.string().trim().min(1, "Ort ist erforderlich"),
-  livingAreaSqm: z.coerce.number().positive("Wohnfläche ist erforderlich"),
-  plotAreaSqm: z.coerce.number().nonnegative("Grundstück ist erforderlich"),
+  livingAreaSqm: requiredGermanNumber(
+    "Wohnfläche ist erforderlich",
+    z.number({ required_error: "Wohnfläche ist erforderlich", invalid_type_error: "Bitte geben Sie eine gültige Zahl ein." }).finite("Bitte geben Sie eine gültige Zahl ein.").positive("Wohnfläche ist erforderlich")
+  ),
+  plotAreaSqm: requiredGermanNumber(
+    "Grundstück ist erforderlich",
+    z.number({ required_error: "Grundstück ist erforderlich", invalid_type_error: "Bitte geben Sie eine gültige Zahl ein." }).finite("Bitte geben Sie eine gültige Zahl ein.").nonnegative("Grundstück ist erforderlich")
+  ),
   yearBuilt: optionalNumber,
   condition: z.enum(["very_good", "good", "average", "renovation_needed"]).default("average"),
   occupancyStatus: optionalString,
@@ -579,7 +599,7 @@ export const objectRatingScoresBatchUpdateSchema = z.object({
 });
 
 export const objectRatingReturnUpdateSchema = z.object({
-  finalTargetReturn: z.coerce.number().finite()
+  finalTargetReturn: optionalPercent.refine((value) => value !== undefined, "Bitte geben Sie eine gültige Zahl ein.")
 });
 
 export const objectRatingUnlockSchema = z.object({

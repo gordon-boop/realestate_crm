@@ -9,6 +9,7 @@ import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, toPrismaJson, upd
 import { prisma } from "@/lib/prisma";
 import { getLifetimeResidentialRightEligibility } from "@/lib/residential-right-eligibility";
 import { nextSequenceValue } from "@/lib/sequence";
+import { parseGermanNumberInput, parseGermanPercentInput } from "@/lib/utils/numberParsing";
 
 type CalculateOfferBody = {
   model?: DesiredModel;
@@ -23,16 +24,17 @@ function hasInput(input: Record<string, number | string | null | undefined> | un
 function readNumber(input: Record<string, number | string | null | undefined> | undefined, key: string): number | undefined {
   const value = input?.[key];
   if (value === undefined || value === null || value === "") return undefined;
-  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-  const normalized = String(value).trim().replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-  if (!normalized) return undefined;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return parseGermanNumberInput(value) ?? undefined;
+}
+
+function readPercent(input: Record<string, number | string | null | undefined> | undefined, key: string): number | undefined {
+  const value = input?.[key];
+  if (value === undefined || value === null || value === "") return undefined;
+  return parseGermanPercentInput(value) ?? undefined;
 }
 
 function readIndexationScenario(input: Record<string, number | string | null | undefined> | undefined): FixedResidentialRightIndexationScenario | undefined {
-  const value = readNumber(input, "selectedIndexationScenario");
-  const normalized = value && value > 1 ? value / 100 : value;
+  const normalized = readPercent(input, "selectedIndexationScenario");
   if (normalized === 0.01 || normalized === 0.02 || normalized === 0.03) return normalized;
   return undefined;
 }
@@ -75,7 +77,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     assertAcquisitionPrecheckAllowsOffer(caseView, { marketValueOverride: leadingMarketValue, marketValueMode: kind === "binding" ? "appraisal" : "preliminary" });
     const ratingGate = assertRatingAllowsOffer(caseView.objectRatings, caseView.property, kind === "binding" ? "binding" : "indicative");
     const approvedRating = ratingGate.rating;
-    const ratingTargetReturn = readNumber(body.inputs, "targetReturn")
+    const ratingTargetReturn = readPercent(body.inputs, "targetReturn")
       ?? approvedRating?.finalTargetReturn;
     const calculationDate = new Date();
     const residentialRightVariant = model === "fixed_residential_right" && caseView.property.usageModel === "lifelong_residential_right"
@@ -146,8 +148,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       garageRentMonthly: readNumber(body.inputs, "garageRentMonthly"),
       residentialMonthlyRent,
       garageMonthlyRent,
-      interestRate: readNumber(body.inputs, "interestRate"),
-      safetyDiscountRate: readNumber(body.inputs, "safetyDiscountRate") ?? readNumber(body.inputs, "safetyDiscount"),
+      interestRate: readPercent(body.inputs, "interestRate"),
+      safetyDiscountRate: readPercent(body.inputs, "safetyDiscountRate") ?? readPercent(body.inputs, "safetyDiscount"),
       targetReturn: ratingTargetReturn,
       primaryDateOfBirth: caseView.customer.dateOfBirth,
       primaryGender: caseView.customer.gender,
@@ -160,17 +162,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
       residentialRightRecipients: caseView.property.residentialRightRecipients,
       residentialRightPerson: caseView.property.residentialRightPerson,
       calculationDate,
-      acquisitionCostRate: readNumber(body.inputs, "acquisitionCostRate"),
-      salesCostRate: readNumber(body.inputs, "salesCostRate"),
+      acquisitionCostRate: readPercent(body.inputs, "acquisitionCostRate"),
+      salesCostRate: readPercent(body.inputs, "salesCostRate"),
       selectedIndexationScenario: readIndexationScenario(body.inputs),
-      exitValueGrowthRate: readNumber(body.inputs, "exitValueGrowthRate"),
-      maintenanceUsageRate: readNumber(body.inputs, "maintenanceUsageRate"),
-      saleAndLeasebackPayoutRate: kind === "binding" ? undefined : readNumber(body.inputs, "saleAndLeasebackPayoutRate"),
+      exitValueGrowthRate: readPercent(body.inputs, "exitValueGrowthRate"),
+      maintenanceUsageRate: readPercent(body.inputs, "maintenanceUsageRate"),
+      saleAndLeasebackPayoutRate: kind === "binding" ? undefined : readPercent(body.inputs, "saleAndLeasebackPayoutRate"),
       maintenancePledge: readNumber(body.inputs, "maintenancePledge"),
-      bankDisbursementRate: readNumber(body.inputs, "bankDisbursementRate"),
-      brokerageFeeRate: readNumber(body.inputs, "brokerageFeeRate"),
-      transferTaxNotaryRate: readNumber(body.inputs, "transferTaxNotaryRate"),
-      sellingCostRate: readNumber(body.inputs, "sellingCostRate"),
+      bankDisbursementRate: readPercent(body.inputs, "bankDisbursementRate"),
+      brokerageFeeRate: readPercent(body.inputs, "brokerageFeeRate"),
+      transferTaxNotaryRate: readPercent(body.inputs, "transferTaxNotaryRate"),
+      sellingCostRate: readPercent(body.inputs, "sellingCostRate"),
       serviceChargeMonthly: readNumber(body.inputs, "serviceChargeMonthly"),
       insuranceAnnual: readNumber(body.inputs, "insuranceAnnual"),
       propertyTaxAnnual: readNumber(body.inputs, "propertyTaxAnnual"),
