@@ -54,6 +54,7 @@ export async function POST(request: Request): Promise<Response> {
         condition: body.condition as never,
         occupancyStatus: body.occupancyStatus,
         desiredModel: body.desiredModel as never,
+        usageModel: body.usageModel as never,
         preferredValuationProvider: body.preferredValuationProvider as never,
         residentialRightRecipients: body.residentialRightRecipients as never,
         residentialRightPerson: body.residentialRightPerson,

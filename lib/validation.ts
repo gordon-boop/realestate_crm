@@ -58,6 +58,7 @@ const propertyBaseSchema = z.object({
     required_error: "Bitte wählen Sie ein Wunschmodell aus.",
     invalid_type_error: "Bitte wählen Sie ein Wunschmodell aus."
   })),
+  usageModel: optionalEnum(["fixed_residential_right", "lifelong_residential_right", "usufruct", "sale_and_leaseback", "other"]),
   preferredValuationProvider: z.enum(["mock", "pricehubble", "sprengnetter", "other"]).default("sprengnetter"),
   residentialRightRecipients: optionalEnum(["one_person", "both"]),
   residentialRightPerson: optionalString,

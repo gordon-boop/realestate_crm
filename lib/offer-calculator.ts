@@ -1,13 +1,15 @@
-import type { DesiredModel, Gender, OfferAssumptions, PropertyCondition, PropertyType, ResidentialRightRecipients, Valuation } from "./domain.ts";
+import type { DesiredModel, Gender, OfferAssumptions, PropertyCondition, PropertyType, ResidentialRightRecipients, UsageModel, Valuation } from "./domain.ts";
 import {
   calculateFixedResidentialRightOffer as calculateFixedResidentialRightCore,
   type FixedResidentialRightIndexationScenario
 } from "./calculations/fixedResidentialRight.ts";
+import { calculateLifetimeResidentialRightOffer as calculateLifetimeResidentialRightCore } from "./calculations/lifetimeResidentialRight.ts";
 
 export type OfferCalculationInput = {
   valuation: Pick<Valuation, "marketValue">;
   condition: PropertyCondition;
   model: DesiredModel;
+  usageModel?: UsageModel;
   residentialRightYears?: number;
   livingAreaSqm?: number;
   propertyType?: PropertyType;
@@ -115,6 +117,9 @@ export function getResidentialRightRate(years?: number): number {
 
 export function calculateOffer(input: OfferCalculationInput): OfferCalculationResult {
   if (input.model === "fixed_residential_right") {
+    if (input.usageModel === "lifelong_residential_right") {
+      return calculateLifetimeResidentialRightOffer(input);
+    }
     return calculateFixedResidentialRightOffer(input);
   }
 
@@ -123,6 +128,120 @@ export function calculateOffer(input: OfferCalculationInput): OfferCalculationRe
   }
 
   return calculateLegacyMvpOffer(input);
+}
+
+function calculateLifetimeResidentialRightOffer(input: OfferCalculationInput): OfferCalculationResult {
+  const marketValue = money(input.valuation.marketValue);
+  const calculationDate = input.calculationDate ?? new Date();
+  const livingAreaSqm = input.livingAreaSqm ?? 0;
+  const monthlyRentPerSqm = input.monthlyRentPerSqm
+    ?? (input.residentialMonthlyRent !== undefined && livingAreaSqm > 0 ? input.residentialMonthlyRent / livingAreaSqm : 0);
+  const garageCount = input.garageCount ?? 0;
+  const garageRentMonthly = input.garageMonthlyRent ?? input.garageRentMonthly ?? 0;
+  const acquisitionCostRate = rate(input.acquisitionCostRate, 0.09);
+  const salesCostRate = rate(input.salesCostRate, 0.015);
+  const targetIrr = rate(input.targetReturn, 0.08);
+  const baseIndexationScenario = input.selectedIndexationScenario ?? rate(input.exitValueGrowthRate, 0.02);
+
+  const core = calculateLifetimeResidentialRightCore({
+    calculationDate,
+    marketValue,
+    livingAreaSqm,
+    internalRentProxyPerSqmPerMonth: monthlyRentPerSqm,
+    garageCount,
+    garageRentPerMonth: garageRentMonthly,
+    propertyType: input.propertyType ?? "house",
+    energyEfficiencyClass: input.energyClass,
+    acquisitionCostRate,
+    salesCommissionRate: salesCostRate,
+    targetIrr,
+    baseIndexationScenario,
+    terminalAge: 100,
+    disposalPeriodYears: 1,
+    primaryOccupantDateOfBirth: input.primaryDateOfBirth,
+    primaryOccupantGender: input.primaryGender ?? input.customerGender,
+    primaryOccupantAge: input.customerAge,
+    secondOccupantDateOfBirth: input.secondDateOfBirth,
+    secondOccupantGender: input.secondGender ?? input.spouseGender,
+    secondOccupantAge: input.spouseAge
+  });
+
+  const components: Record<string, number> = {
+    lifetimeRightValue: core.lifetimeRightValue,
+    residentialRightValue: core.lifetimeRightValue,
+    maintenanceReserve: core.maintenanceReserve,
+    maintenanceCost: core.maintenanceReserve,
+    targetIrrAdjustment: core.targetIrrAdjustment,
+    riskDiscount: core.targetIrrAdjustment,
+    transactionCosts: core.transactionCosts,
+    acquisitionCost: core.transactionCosts,
+    totalInvestorCommitment: core.totalInvestorCommitment,
+    payoutRatio: precision(core.payoutRatio),
+    weightedAnnualIrr: precision(core.weightedIrr),
+    weightedIrr: precision(core.weightedIrr),
+    expectedSaleYear: precision(core.expectedSaleYear),
+    presentValueFutureExitCashFlows: core.presentValueFutureExitCashFlows,
+    npvCheck: precision(core.npvCheck),
+    relevantLifeExpectancy: core.relevantLifeExpectancy,
+    relevantAge: core.relevantAge ?? 0,
+    maintenanceRate: core.maintenanceRate,
+    targetIrr,
+    baseIndexationScenario,
+    salesCostRate,
+    acquisitionCostRate
+  };
+
+  return {
+    marketValue,
+    adjustedMarketValue: marketValue,
+    residentialRightValue: core.lifetimeRightValue,
+    riskDiscount: core.targetIrrAdjustment,
+    companyMargin: core.maintenanceReserve,
+    payoutAmount: core.maximumCustomerPayout,
+    payoutRate: core.payoutRatio,
+    calculationMode: "RATING_TARGET_RETURN_IRR",
+    assumptions: {
+      productModel: "fixed_residential_right",
+      formula: "maximum_customer_payout = pv_future_exit_cash_flows - transaction_costs - maintenance_reserve",
+      note:
+        "Lebenslanges Wohnrecht. Berechnung nach dem Excel-Master Lifetime Cockpit: interner Wohnrechtswert, Sterbetafel-Exit-Engine und Zielrendite werden deterministisch nachgebildet.",
+      sourceWorkbook: "Calculation_Investor_Cockpit_eng_fix_term_and_lifetime_model_final.xlsx",
+      sourceCells: {
+        maximumCustomerPayout: "Lifetime Cockpit!C37",
+        payoutRatio: "Lifetime Cockpit!D8",
+        weightedIrr: "Lifetime Cockpit!E112",
+        expectedSaleYear: "Lifetime Cockpit!E75/M75",
+        lifetimeRightValue: "Lifetime Cockpit!C34",
+        maintenanceReserve: "Lifetime Cockpit!C35",
+        targetIrrAdjustment: "Lifetime Cockpit!C36",
+        transactionCosts: "Lifetime Cockpit!C38",
+        totalInvestorCommitment: "Lifetime Cockpit!C39"
+      },
+      inputs: {
+        livingAreaSqm,
+        monthlyRentPerSqm,
+        garageCount,
+        garageRentMonthly,
+        targetIrr,
+        baseIndexationScenario,
+        acquisitionCostRate,
+        salesCostRate,
+        terminalAge: 100,
+        disposalPeriodYears: 1,
+        calculationDate: calculationDate instanceof Date ? calculationDate.toISOString() : calculationDate,
+        mortalityTableVersion: "DE_PERIOD_LIFE_TABLE_2021_2023",
+        propertyType: input.propertyType ?? "house",
+        energyClass: input.energyClass ?? null,
+        relevantLifeExpectancy: core.relevantLifeExpectancy,
+        mortalityAge: core.relevantAge ?? null,
+        mortalityGender: core.relevantGender ?? null
+      },
+      components,
+      calculationDetails: {
+        mortalityWeightedExitRows: core.mortalityWeightedExitRows
+      }
+    }
+  };
 }
 
 function calculateLegacyMvpOffer(input: OfferCalculationInput): OfferCalculationResult {

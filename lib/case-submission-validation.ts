@@ -1,4 +1,5 @@
 import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
+import { getLifetimeResidentialRightEligibility } from "@/lib/residential-right-eligibility";
 
 type MissingSubmissionItem = {
   section: string;
@@ -66,8 +67,16 @@ export function validateCaseSubmission(caseView: CaseViewLike) {
   );
   if (property.desiredModel === "fixed_residential_right") {
     add(missingFields, "Wunschmodell", "residentialRightRecipients", "Wohnrechtsberechtigte", hasValue(property.residentialRightRecipients));
-    add(missingFields, "Wunschmodell", "desiredResidentialRightYears", "Dauer Wohnrecht", hasValue(property.desiredResidentialRightYears));
-    add(missingFields, "Wunschmodell", "fixedTermReason", "Grund der Befristung", hasValue(property.fixedTermReason));
+    if (property.usageModel === "lifelong_residential_right") {
+      const eligibility = getLifetimeResidentialRightEligibility(customer, new Date(), {
+        recipients: String(property.residentialRightRecipients || ""),
+        residentialRightPerson: String(property.residentialRightPerson || "")
+      });
+      add(missingFields, "Wunschmodell", "usageModel", "Lebenslanges Wohnrecht", eligibility.eligible, eligibility.message);
+    } else {
+      add(missingFields, "Wunschmodell", "desiredResidentialRightYears", "Dauer Wohnrecht", hasValue(property.desiredResidentialRightYears));
+      add(missingFields, "Wunschmodell", "fixedTermReason", "Grund der Befristung", hasValue(property.fixedTermReason));
+    }
   }
   if (property.desiredModel === "sale_and_leaseback") {
     add(missingFields, "Wunschmodell", "rentalModelDisclosureAccepted", "Belehrung Rückmietverkauf", property.rentalModelDisclosureAccepted === true);

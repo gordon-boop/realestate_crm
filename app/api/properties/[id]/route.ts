@@ -1,6 +1,6 @@
 import { canMutateProperty, canSeeProperty } from "@/lib/access-control";
 import { handleApiError, json, requireRole } from "@/lib/api";
-import { filterCaseViewForUser, getDbCaseByPropertyId, toOptionalPrismaJson } from "@/lib/persistence";
+import { addDbActivity, filterCaseViewForUser, getDbCaseByPropertyId, toOptionalPrismaJson } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { propertyUpdateSchema } from "@/lib/validation";
 
@@ -28,6 +28,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const hasField = (field: string) => Object.prototype.hasOwnProperty.call(rawBody, field);
     const modelChangeRequested =
       (hasField("desiredModel") && body.desiredModel !== caseView.property.desiredModel) ||
+      (hasField("usageModel") && body.usageModel !== caseView.property.usageModel) ||
       (hasField("additionalOfferRequested") && body.additionalOfferRequested !== caseView.property.additionalOfferRequested) ||
       (hasField("additionalOfferModel") && body.additionalOfferModel !== caseView.property.additionalOfferModel);
     if (isPortfolioCustomer && modelChangeRequested) {
@@ -45,6 +46,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         propertyType: body.propertyType as never,
         condition: body.condition as never,
         desiredModel: body.desiredModel as never,
+        usageModel: body.usageModel as never,
         preferredValuationProvider: body.preferredValuationProvider as never,
         residentialRightRecipients: body.residentialRightRecipients as never,
         additionalOfferModel: body.additionalOfferModel as never,
@@ -62,6 +64,20 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         buildingConditionJson: toOptionalPrismaJson(body.buildingCondition)
       }
     });
+    if (hasField("usageModel") && body.usageModel !== caseView.property.usageModel) {
+      const label = body.usageModel === "lifelong_residential_right"
+        ? "Lebenslanges Wohnrecht"
+        : body.usageModel === "fixed_residential_right"
+          ? "Befristetes Wohnrecht"
+          : "Nutzungsmodell";
+      await addDbActivity(
+        params.id,
+        user.id,
+        "offer_model_variant_changed",
+        `Modellvariante geändert: ${label}.`,
+        { source: "admin", entityType: "property", entityId: params.id, metadata: { previousUsageModel: caseView.property.usageModel, usageModel: body.usageModel } }
+      );
+    }
     return json({ property });
   } catch (err) {
     return handleApiError(err);

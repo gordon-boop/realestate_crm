@@ -7,6 +7,7 @@ import { assertRatingAllowsOffer } from "@/lib/object-rating";
 import { calculateOffer } from "@/lib/offer-calculator";
 import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, toPrismaJson, updateDbPropertyStatus } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
+import { getLifetimeResidentialRightEligibility } from "@/lib/residential-right-eligibility";
 import { nextSequenceValue } from "@/lib/sequence";
 
 type CalculateOfferBody = {
@@ -77,6 +78,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const ratingTargetReturn = readNumber(body.inputs, "targetReturn")
       ?? approvedRating?.finalTargetReturn;
     const calculationDate = new Date();
+    const residentialRightVariant = model === "fixed_residential_right" && caseView.property.usageModel === "lifelong_residential_right"
+      ? "lifelong_residential_right"
+      : model === "fixed_residential_right"
+        ? "fixed_residential_right"
+        : undefined;
+    if (residentialRightVariant === "lifelong_residential_right") {
+      const eligibility = getLifetimeResidentialRightEligibility(caseView.customer, calculationDate, {
+        recipients: caseView.property.residentialRightRecipients,
+        residentialRightPerson: caseView.property.residentialRightPerson
+      });
+      if (!eligibility.eligible) {
+        throw new Error(eligibility.message);
+      }
+    }
 
     if (!leadingMarketValue && !caseView.valuation) {
       throw new Error("Bitte geben Sie einen Verkehrswert ein.");
@@ -121,6 +136,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       },
       condition: caseView.property.condition,
       model,
+      usageModel: caseView.property.usageModel,
       residentialRightYears,
       livingAreaSqm: readNumber(body.inputs, "livingAreaSqm") ?? caseView.property.livingAreaSqm,
       propertyType: caseView.property.propertyType,
@@ -162,11 +178,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
       annualRentIncome: readNumber(body.inputs, "annualRentIncome")
     });
     const indicativeReference = kind === "binding"
-      ? caseView.offers.find((offer) => offer.kind === "indicative" && offer.model === model)
+      ? caseView.offers.find((offer) => {
+          const assumptions = offer.assumptions as { residentialRightVariant?: string } | undefined;
+          return offer.kind === "indicative"
+            && offer.model === model
+            && (model !== "fixed_residential_right" || assumptions?.residentialRightVariant === residentialRightVariant);
+        })
       : undefined;
-    const assumptions = kind === "binding"
+    const baseAssumptions = residentialRightVariant
       ? {
           ...calculation.assumptions,
+          residentialRightVariant,
+          residentialRightVariantLabel: residentialRightVariant === "lifelong_residential_right" ? "Lebenslanges Wohnrecht" : "Befristetes Wohnrecht"
+        }
+      : calculation.assumptions;
+    const assumptions = kind === "binding"
+      ? {
+          ...baseAssumptions,
           valuationBasis: "expert_opinion",
           expertOpinionValue,
           indicativeReference: indicativeReference ? {
@@ -181,7 +209,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
             payoutAmount: calculation.payoutAmount - indicativeReference.payoutAmount
           } : undefined
         }
-      : calculation.assumptions;
+      : baseAssumptions;
 
     const year = new Date().getFullYear();
     const offerNumber = `ANG-${year}-${String(await nextSequenceValue(`offer:${year}`)).padStart(4, "0")}`;
@@ -220,12 +248,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (kind === "indicative") {
       await updateDbPropertyStatus(params.id, "OFFER_CALCULATED");
     }
+    const productLabel = model === "sale_and_leaseback"
+      ? "Rückmietverkauf"
+      : residentialRightVariant === "lifelong_residential_right"
+        ? "Lebenslanges Wohnrecht"
+        : residentialRightVariant === "fixed_residential_right"
+          ? "Befristetes Wohnrecht"
+          : "Wohnrecht";
     await addDbActivity(
       params.id,
       user.id,
       kind === "binding" ? "binding_offer_calculated" : "offer_calculated",
-      `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${model === "sale_and_leaseback" ? "Rückmietverkauf" : "Wohnrecht"} wurde berechnet.`,
-      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, kind, manualMarketValue, preliminaryMarketValue, expertOpinionValue } }
+      `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${productLabel} wurde berechnet: Auszahlungsbetrag ${calculation.payoutAmount.toLocaleString("de-DE", { maximumFractionDigits: 0 })} €.`,
+      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, residentialRightVariant, kind, manualMarketValue, preliminaryMarketValue, expertOpinionValue } }
     );
     if (kind === "binding" && expertOpinionValue) {
       await addDbActivity(

@@ -489,6 +489,9 @@ export type OfferAssumptions = {
   sourceCells?: Record<string, string>;
   inputs?: Record<string, unknown>;
   components?: Record<string, number>;
+  calculationDetails?: Record<string, unknown>;
+  residentialRightVariant?: string;
+  residentialRightVariantLabel?: string;
   termStatus?: string;
   termWarning?: string;
 };

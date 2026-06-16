@@ -19,6 +19,7 @@ import {
 } from '@/lib/property-labels';
 import { isInventoryCase } from '@/lib/acquisition-workflow';
 import { evaluateAcquisitionPrecheck } from '@/lib/acquisition-precheck';
+import { getLifetimeResidentialRightEligibility } from '@/lib/residential-right-eligibility';
 import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 
 // =====================================================================
@@ -861,6 +862,9 @@ function offerWeightedIrrLabel(offer) {
 
 function residentialRightMetricRows(offer) {
   const components = offer?.assumptions?.components || {};
+  if (offer?.assumptions?.residentialRightVariant === 'lifelong_residential_right') {
+    return lifetimeResidentialRightMetricRows(offer);
+  }
   const quote = offer?.payoutAmount && offer?.marketValue ? offer.payoutAmount / offer.marketValue : undefined;
 
   return [
@@ -872,6 +876,75 @@ function residentialRightMetricRows(offer) {
     ['Quote', Number.isFinite(Number(quote)) ? formatPercent(quote) : '-'],
     ['Gewichteter IRR mit 2 % Indexierung', offerWeightedIrrLabel(offer)],
   ];
+}
+
+function lifetimeResidentialRightMetricRows(offer) {
+  const components = offer?.assumptions?.components || {};
+  const quote = Number.isFinite(Number(components.payoutRatio))
+    ? Number(components.payoutRatio)
+    : offer?.payoutAmount && offer?.marketValue ? offer.payoutAmount / offer.marketValue : undefined;
+  const expectedSaleYear = Number(components.expectedSaleYear);
+  return [
+    ['Verkehrswert', formatEuro(offer?.marketValue)],
+    ['Lebenslanges Wohnrecht', formatEuro(components.lifetimeRightValue ?? offer?.residentialRightValue)],
+    ['Interner Wohnrechtswert', formatEuro(components.lifetimeRightValue ?? offer?.residentialRightValue)],
+    ['Erwartetes Verkaufsjahr', Number.isFinite(expectedSaleYear) ? expectedSaleYear.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'],
+    ['Instandhaltungsreserve', Number.isFinite(Number(components.maintenanceReserve)) ? formatEuro(components.maintenanceReserve) : '-'],
+    ['Ziel-IRR', Number.isFinite(Number(components.targetIrr)) ? formatPercent(Number(components.targetIrr)) : '-'],
+    ['Maximaler Auszahlungsbetrag', formatEuroCents(offer?.payoutAmount)],
+    ['Auszahlungsquote', Number.isFinite(Number(quote)) ? formatPercent(Number(quote)) : '-'],
+    ['Gewichteter IRR', Number.isFinite(Number(components.weightedIrr)) ? formatPercent(Number(components.weightedIrr)) : offerWeightedIrrLabel(offer)],
+    ['Gesamtankaufskosten', Number.isFinite(Number(components.totalInvestorCommitment)) ? formatEuroCents(components.totalInvestorCommitment) : '-'],
+  ];
+}
+
+function residentialRightCalculationFields(modelRequest, property, binding = false) {
+  const lifetime = modelRequest?.usageModel === 'lifelong_residential_right';
+  if (lifetime) {
+    return [
+      ['livingAreaSqm', 'Wohnfläche (m²)', property?.livingAreaSqm],
+      ['monthlyRentPerSqm', 'Interne Mietannahme (€/m²/Monat)'],
+      ['garageCount', 'Anzahl Garagen / Stellplätze', property?.parkingAvailable ? property?.parkingCount : 0],
+      ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Garagenmiete (optional, €/Monat)']] : []),
+      ['targetReturn', 'Ziel-IRR (%)'],
+      ['acquisitionCostRate', 'Ankaufskosten (%)'],
+      ['salesCostRate', 'Verkaufskosten (%)'],
+      ['selectedIndexationScenario', 'Indexierung (%)'],
+    ];
+  }
+  return [
+    ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
+    ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Miete Garage (€ / Monat)']] : []),
+    ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)', binding ? modelRequest?.residentialRightYears : modelRequest?.residentialRightYears],
+    ['interestRate', 'Interne Verzinsung (%)'],
+    ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
+    ['salesCostRate', 'Verkaufskosten (%)'],
+  ];
+}
+
+function residentialRightOfferComparisonRows(offers = []) {
+  const fixed = offers.find((offer) => residentialRightUsageModelFromOffer(offer) === 'fixed_residential_right');
+  const lifetime = offers.find((offer) => residentialRightUsageModelFromOffer(offer) === 'lifelong_residential_right');
+  if (!fixed || !lifetime) return [];
+  return [fixed, lifetime].map((offer) => {
+    const components = offer?.assumptions?.components || {};
+    const isLifetime = residentialRightUsageModelFromOffer(offer) === 'lifelong_residential_right';
+    const quote = Number.isFinite(Number(components.payoutRatio))
+      ? Number(components.payoutRatio)
+      : offer?.payoutAmount && offer?.marketValue ? offer.payoutAmount / offer.marketValue : undefined;
+    return {
+      model: isLifetime ? 'Lebenslanges Wohnrecht' : 'Befristetes Wohnrecht',
+      payout: formatEuroCents(offer?.payoutAmount),
+      ratio: Number.isFinite(Number(quote)) ? formatPercent(Number(quote)) : '-',
+      targetIrr: Number.isFinite(Number(components.targetIrr)) ? formatPercent(Number(components.targetIrr)) : offerWeightedIrrLabel(offer),
+      exitOrTerm: isLifetime
+        ? Number.isFinite(Number(components.expectedSaleYear)) ? `${Number(components.expectedSaleYear).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Jahre` : '-'
+        : offer?.residentialRightYears ? `${offer.residentialRightYears} Jahre` : '-',
+      maintenance: Number.isFinite(Number(components.maintenanceReserve ?? components.maintenanceCost))
+        ? formatEuro(components.maintenanceReserve ?? components.maintenanceCost)
+        : '-',
+    };
+  });
 }
 
 function dateLabel(value) {
@@ -1642,6 +1715,43 @@ const documentCategoryLabels = {
 };
 const modernizationLabels = modernizationScopeLabels;
 const productModelLabels = { fixed_residential_right: 'Wohnrecht', sale_and_leaseback: 'Rückmietverkauf', other: 'Sonstiges Modell' };
+const residentialRightVariantLabels = {
+  fixed_residential_right: 'Befristetes Wohnrecht',
+  lifelong_residential_right: 'Lebenslanges Wohnrecht',
+};
+const residentialRightUsageModelFromDraft = (draft = {}) => (
+  draft.desiredModel === 'fixed_residential_right'
+    ? (draft.residentialRightVariant === 'lifetime' ? 'lifelong_residential_right' : 'fixed_residential_right')
+    : draft.desiredModel === 'sale_and_leaseback'
+      ? 'sale_and_leaseback'
+      : draft.desiredModel || undefined
+);
+const residentialRightVariantFromUsageModel = (usageModel) => (
+  usageModel === 'lifelong_residential_right' ? 'lifetime' : 'fixed_term'
+);
+const residentialRightVariantLabelFromUsageModel = (usageModel) => labelFrom(
+  residentialRightVariantLabels,
+  usageModel === 'lifelong_residential_right' ? 'lifelong_residential_right' : 'fixed_residential_right'
+);
+const residentialRightUsageModelFromOffer = (offer) => (
+  offer?.model === 'fixed_residential_right'
+    ? (offer?.assumptions?.residentialRightVariant || 'fixed_residential_right')
+    : offer?.model
+);
+const offerMatchesModelRequest = (offer, modelRequest) => (
+  offer?.model === modelRequest?.model
+  && (
+    modelRequest?.model !== 'fixed_residential_right'
+    || residentialRightUsageModelFromOffer(offer) === (modelRequest?.usageModel || 'fixed_residential_right')
+  )
+);
+const lifetimeEligibilityForDraft = (draft = {}) => getLifetimeResidentialRightEligibility({
+  dateOfBirth: draft.dateOfBirth,
+  spouseDateOfBirth: draft.spouseDateOfBirth,
+}, new Date(), {
+  recipients: draft.residentialRightRecipients,
+  residentialRightPerson: draft.residentialRightPerson,
+});
 const residentStatusLabels = {
   ACTIVE: 'Bewohner bleibt im Objekt',
   MOVE_OUT_PLANNED: 'Bewohner zieht aus',
@@ -1865,12 +1975,14 @@ const defaultDraft = {
   condition: 'average',
   occupancyStatus: '',
   desiredModel: '',
+  residentialRightVariant: 'fixed_term',
   residentialRightRecipients: '',
   residentialRightPerson: '',
   desiredResidentialRightYears: '',
   rentalModelDisclosureAccepted: false,
   additionalOfferRequested: false,
   additionalOfferModel: '',
+  additionalOfferResidentialRightVariant: 'fixed_term',
   additionalOfferResidentialRightRecipients: '',
   additionalOfferResidentialRightPerson: '',
   additionalOfferResidentialRightYears: '',
@@ -2006,12 +2118,14 @@ function draftFromCaseView(caseView) {
     condition: property.condition || 'average',
     occupancyStatus: property.occupancyStatus || '',
     desiredModel: property.desiredModel || '',
+    residentialRightVariant: residentialRightVariantFromUsageModel(property.usageModel),
     residentialRightRecipients: property.residentialRightRecipients || '',
     residentialRightPerson: property.residentialRightPerson || '',
     desiredResidentialRightYears: property.desiredResidentialRightYears || '',
     rentalModelDisclosureAccepted: Boolean(property.rentalModelDisclosureAccepted),
     additionalOfferRequested: Boolean(property.additionalOfferRequested),
     additionalOfferModel: property.additionalOfferModel || '',
+    additionalOfferResidentialRightVariant: residentialRightVariantFromUsageModel(property.additionalOfferUsageModel),
     additionalOfferResidentialRightRecipients: property.additionalOfferResidentialRightRecipients || '',
     additionalOfferResidentialRightPerson: property.additionalOfferResidentialRightPerson || '',
     additionalOfferResidentialRightYears: property.additionalOfferResidentialRightYears || '',
@@ -2118,12 +2232,14 @@ const validationFieldLabels = {
   spouseDateOfBirth: 'Kunde 2: Geburtsdatum',
   propertyOwnership: 'Kunde 2: Eigentümer-Auswahl',
   desiredModel: 'Wunschmodell: Hauptmodell',
+  residentialRightVariant: 'Wunschmodell: Wohnrechtsmodell',
   residentialRightRecipients: 'Wunschmodell: Wohnrechtsberechtigte',
   residentialRightPerson: 'Wunschmodell: Person mit Wohnrecht',
   desiredResidentialRightYears: 'Wunschmodell: Dauer Wohnrecht',
   fixedTermReason: 'Wunschmodell: Grund der Befristung',
   rentalModelDisclosureAccepted: 'Wunschmodell: Belehrung Rückmietverkauf',
   additionalOfferModel: 'Zweites Angebot: Modell',
+  additionalOfferResidentialRightVariant: 'Zweites Angebot: Wohnrechtsmodell',
   additionalOfferResidentialRightRecipients: 'Zweites Angebot: Wohnrechtsberechtigte',
   additionalOfferResidentialRightPerson: 'Zweites Angebot: Person mit Wohnrecht',
   additionalOfferResidentialRightYears: 'Zweites Angebot: Laufzeit',
@@ -2262,8 +2378,12 @@ function validateCaseStep(step, draft) {
       if (draft.maritalStatus === 'married' && draft.residentialRightRecipients === 'one_person') {
         add('residentialRightPerson', hasValue(draft.residentialRightPerson));
       }
-      add('desiredResidentialRightYears', hasValue(draft.desiredResidentialRightYears));
-      add('fixedTermReason', hasValue(draft.fixedTermReason));
+      if (draft.residentialRightVariant === 'lifetime') {
+        add('residentialRightVariant', lifetimeEligibilityForDraft(draft).eligible);
+      } else {
+        add('desiredResidentialRightYears', hasValue(draft.desiredResidentialRightYears));
+        add('fixedTermReason', hasValue(draft.fixedTermReason));
+      }
     }
     if (draft.desiredModel === 'sale_and_leaseback') {
       add('rentalModelDisclosureAccepted', draft.rentalModelDisclosureAccepted === true);
@@ -2275,8 +2395,18 @@ function validateCaseStep(step, draft) {
         if (draft.maritalStatus === 'married' && draft.additionalOfferResidentialRightRecipients === 'one_person') {
           add('additionalOfferResidentialRightPerson', hasValue(draft.additionalOfferResidentialRightPerson));
         }
-        add('additionalOfferResidentialRightYears', hasValue(draft.additionalOfferResidentialRightYears));
-        add('additionalOfferReason', hasValue(draft.additionalOfferReason));
+        if (draft.additionalOfferResidentialRightVariant === 'lifetime') {
+          add('additionalOfferResidentialRightVariant', getLifetimeResidentialRightEligibility({
+            dateOfBirth: draft.dateOfBirth,
+            spouseDateOfBirth: draft.spouseDateOfBirth,
+          }, new Date(), {
+            recipients: draft.additionalOfferResidentialRightRecipients,
+            residentialRightPerson: draft.additionalOfferResidentialRightPerson,
+          }).eligible);
+        } else {
+          add('additionalOfferResidentialRightYears', hasValue(draft.additionalOfferResidentialRightYears));
+          add('additionalOfferReason', hasValue(draft.additionalOfferReason));
+        }
       }
       if (draft.additionalOfferModel === 'sale_and_leaseback') {
         add('additionalOfferRentalModelDisclosureAccepted', draft.additionalOfferRentalModelDisclosureAccepted === true);
@@ -4947,11 +5077,18 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     setExpertOpinionValue(existingExpertOpinionValue ? formatGermanIntegerInput(existingExpertOpinionValue) : '');
   }, [property?.id, bindingOffers[0]?.marketValue]);
   const canPrepareBindingOffer = Boolean(property?.expertOpinionReceivedAt) || ['EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT', 'IN_PORTFOLIO', 'WON'].includes(property?.status);
+  const lifetimeEligibility = customer
+    ? getLifetimeResidentialRightEligibility(customer, new Date(), {
+        recipients: property?.residentialRightRecipients,
+        residentialRightPerson: property?.residentialRightPerson
+      })
+    : { eligible: false, eligibleSoon: false, message: 'Bitte Geburtsdatum erfassen.' };
   const requestedOfferModels = property ? [
     {
       key: property.desiredModel || 'fixed_residential_right',
       model: property.desiredModel || 'fixed_residential_right',
       residentialRightYears: property.desiredResidentialRightYears,
+      usageModel: property.usageModel || (property.desiredModel === 'fixed_residential_right' ? 'fixed_residential_right' : property.desiredModel),
       recipient: property.residentialRightRecipients,
       recipientPerson: property.residentialRightPerson,
       reason: property.fixedTermReason,
@@ -4961,6 +5098,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       key: `additional-${property.additionalOfferModel || 'sale_and_leaseback'}`,
       model: property.additionalOfferModel || 'sale_and_leaseback',
       residentialRightYears: property.additionalOfferResidentialRightYears,
+      usageModel: property.additionalOfferModel === 'fixed_residential_right' ? 'fixed_residential_right' : property.additionalOfferModel,
       recipient: property.additionalOfferResidentialRightRecipients,
       recipientPerson: property.additionalOfferResidentialRightPerson,
       reason: property.additionalOfferReason,
@@ -5343,7 +5481,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const model = typeof modelRequest === 'string' ? modelRequest : modelRequest.model;
     const key = typeof modelRequest === 'string' ? `${model}-${index}` : `${modelRequest.key}-${index}`;
     const params = calculationParams[key] || {};
-    return runCaseAction(model === 'sale_and_leaseback' ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation', async () => {
+    const actionLabel = model === 'sale_and_leaseback'
+      ? 'Rückmietverkauf-Kalkulation'
+      : modelRequest?.usageModel === 'lifelong_residential_right'
+        ? 'Lebenslanges Wohnrecht berechnen'
+        : 'Wohnrecht-Kalkulation';
+    return runCaseAction(actionLabel, async () => {
       if (!preliminaryMarketValue) {
         throw new Error('Bitte erfassen Sie zuerst einen vorläufigen Verkehrswert in der Vorabprüfung oder im Objektbereich.');
       }
@@ -5355,12 +5498,98 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           monthlyRentPerSqm: params.monthlyRentPerSqm ?? '',
           ...(property?.parkingAvailable ? { garageMonthlyRent: params.garageMonthlyRent ?? '' } : {}),
           residentialRightYears: params.residentialRightYears || modelRequest?.residentialRightYears || property?.desiredResidentialRightYears,
-          livingAreaSqm: property?.livingAreaSqm,
-          garageCount: property?.parkingAvailable ? property?.parkingCount : 0,
+          livingAreaSqm: params.livingAreaSqm || property?.livingAreaSqm,
+          garageCount: params.garageCount ?? (property?.parkingAvailable ? property?.parkingCount : 0),
         }
       });
       await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
     });
+  };
+  const updateResidentialRightVariant = (usageModel) => runCaseAction('Modellvariante ändern', async () => {
+    await patchJson(`/api/properties/${c.propertyId}`, { usageModel });
+  });
+  const renderResidentialRightProductCards = (modelRequest) => {
+    const activeUsageModel = modelRequest?.usageModel === 'lifelong_residential_right'
+      ? 'lifelong_residential_right'
+      : 'fixed_residential_right';
+    const productCards = [
+      {
+        usageModel: 'fixed_residential_right',
+        title: 'Befristetes Wohnrecht',
+        subtitle: 'Kostenfreie Wohnphase mit fester Laufzeit',
+        hint: 'Für Kunden ab ca. 65 Jahren geeignet',
+        calculation: 'Fix-Term-Kalkulation',
+        disabled: false
+      },
+      {
+        usageModel: 'lifelong_residential_right',
+        title: 'Lebenslanges Wohnrecht',
+        subtitle: 'Lebenslang kostenfrei wohnen bleiben',
+        hint: 'Ab 75 Jahren; bei zwei Personen ist die jüngere Person maßgeblich',
+        calculation: 'Sterbetafelbasierte Lifetime-Kalkulation',
+        disabled: !lifetimeEligibility?.eligible,
+        statusHint: lifetimeEligibility?.eligibleSoon
+          ? 'Die jüngere Person erreicht innerhalb von 3 Monaten das Mindestalter von 75 Jahren.'
+          : lifetimeEligibility?.eligible
+            ? 'Lifetime-Kalkulation ist für diesen Fall möglich.'
+            : 'Das lebenslange Wohnrecht ist erst ab 75 Jahren möglich. Bei zwei Personen ist die jüngere Person maßgeblich.'
+      }
+    ];
+
+    return (
+      <div style={{ padding: '16px 24px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
+          <div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>Wohnrecht-Produkte</div>
+            <div style={{ fontSize: 12, color: `${theme.ink}88` }}>WohnKapital kann beide Wohnrecht-Varianten kalkulieren.</div>
+          </div>
+          {lifetimeEligibility?.eligibleSoon && (
+            <span style={{ border: `1px solid ${theme.gold}`, background: theme.goldSoft, color: '#7A5600', borderRadius: 999, padding: '5px 9px', fontSize: 11.5, fontWeight: 800 }}>
+              Lifetime bald zulässig
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(235px, 1fr))', gap: 12 }}>
+          {productCards.map((card) => {
+            const active = activeUsageModel === card.usageModel;
+            const disabled = Boolean(card.disabled || busyAction);
+            return (
+              <button
+                key={card.usageModel}
+                type="button"
+                onClick={() => !disabled && updateResidentialRightVariant(card.usageModel)}
+                disabled={disabled}
+                aria-pressed={active}
+                style={{
+                  textAlign: 'left',
+                  border: active ? `2px solid ${theme.gold}` : `1px solid ${theme.border}`,
+                  background: active ? theme.aubergine : disabled ? theme.mintLighter : 'white',
+                  color: active ? 'white' : theme.ink,
+                  borderRadius: 10,
+                  padding: '13px 14px',
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  opacity: disabled && !active ? 0.62 : 1,
+                  boxShadow: active ? '0 10px 24px rgba(68, 0, 92, 0.12)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 7 }}>
+                  <span style={{ fontSize: 14, fontWeight: 900, color: active ? 'white' : theme.aubergine }}>{card.title}</span>
+                  {active && <span style={{ width: 8, height: 8, borderRadius: 999, background: theme.gold, flex: '0 0 auto' }} />}
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.35, color: active ? 'rgba(255,255,255,0.92)' : theme.ink }}>{card.subtitle}</div>
+                <div style={{ fontSize: 11.5, lineHeight: 1.4, marginTop: 8, color: active ? 'rgba(255,255,255,0.78)' : `${theme.ink}88` }}>{card.hint}</div>
+                <div style={{ fontSize: 11.5, lineHeight: 1.4, marginTop: 8, fontWeight: 850, color: active ? theme.gold : theme.aubergine }}>Berechnung: {card.calculation}</div>
+                {card.statusHint && (
+                  <div style={{ fontSize: 11.2, lineHeight: 1.35, marginTop: 8, color: active ? 'rgba(255,255,255,0.78)' : card.disabled ? '#8A5A00' : `${theme.ink}88` }}>
+                    {card.statusHint}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
   const calculateBindingOffer = (modelRequest, index) => runCaseAction('VA-Kalkulation', async () => {
     if (!canPrepareBindingOffer) {
@@ -5381,8 +5610,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         ...(property?.parkingAvailable ? { garageMonthlyRent: params.garageMonthlyRent ?? '' } : {}),
         expertOpinionValue: parsedExpertOpinionValue,
         residentialRightYears: params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears,
-        livingAreaSqm: property?.livingAreaSqm,
-        garageCount: property?.parkingAvailable ? property?.parkingCount : 0,
+        livingAreaSqm: params.livingAreaSqm || property?.livingAreaSqm,
+        garageCount: params.garageCount ?? (property?.parkingAvailable ? property?.parkingCount : 0),
       }
     });
     await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
@@ -5861,25 +6090,29 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     );
   };
   const renderIndicativeOfferCard = (modelRequest, index) => {
-    const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
+    const offer = indicativeOffers.find((item) => offerMatchesModelRequest(item, modelRequest));
     const key = `${modelRequest.key}-${index}`;
     const params = calculationParams[key] || {};
     const isRentBack = modelRequest.model === 'sale_and_leaseback';
+    const isResidentialRight = modelRequest.model === 'fixed_residential_right';
+    const isLifetimeResidentialRight = modelRequest.usageModel === 'lifelong_residential_right';
+    const residentialRightVariantLabel = residentialRightVariantLabelFromUsageModel(modelRequest.usageModel);
     const rentBackMetrics = isRentBack && offer ? rentBackCalculationFromOffer(offer) : null;
     const quote = rentBackMetrics
       ? Math.round(rentBackMetrics.payoutRate * 100)
       : offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
     const payoutValue = rentBackMetrics?.payoutAmount ?? offer?.payoutAmount;
-    const calculationActionLabel = isRentBack ? 'Rückmietverkauf-Kalkulation' : 'Wohnrecht-Kalkulation';
+    const calculationActionLabel = isRentBack ? 'Rückmietverkauf-Kalkulation' : isLifetimeResidentialRight ? 'Lebenslanges Wohnrecht berechnen' : 'Wohnrecht-Kalkulation';
     const offerMeta = offer ? `Version ${offer.currentVersion || 1} · zuletzt berechnet` : 'Entwurf';
     const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer) : residentialRightMetricRows(offer)) : [];
+    const residentialRightComparison = isResidentialRight ? residentialRightOfferComparisonRows(indicativeOffers) : [];
     const termWarning = !isRentBack ? offer?.assumptions?.termWarning : null;
     const chipRows = [
       ['Vorläufiger Verkehrswert', offer ? formatEuro(offer.marketValue) : preliminaryMarketValueLabel],
-      ['Modell', labelFrom(productModelLabels, modelRequest.model)],
+      ['Modell', isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)],
       isRentBack
         ? ['Info', 'Miete ab Tag 1']
-        : ['Laufzeit', `${params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
+        : ['Laufzeit', isLifetimeResidentialRight ? 'lebenslang' : `${params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
     ];
     const statusSent = workflowActionState('indicative_offer_sent');
     const statusAccepted = workflowActionState('offer_accepted');
@@ -5911,10 +6144,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       <div key={`indicative-offer-card-${key}`} style={offerShellStyle}>
         <div style={offerHeaderStyle}>
           <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>
-            Unverbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{labelFrom(productModelLabels, modelRequest.model)}</span>
+            Unverbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}</span>
           </div>
           <div style={{ fontSize: 12, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{offerMeta}</div>
         </div>
+        {isResidentialRight && modelRequest.primary && canManageOffers && renderResidentialRightProductCards(modelRequest)}
 
         <div style={offerHeroStyle}>
           <div>
@@ -5933,6 +6167,32 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           {renderOfferBreakdown(breakdownRows, 'Noch keine UVA-Kalkulation vorhanden.')}
         </div>
 
+        {residentialRightComparison.length > 0 && (
+          <div style={{ padding: '18px 24px', borderTop: `1px solid ${theme.borderSoft}`, background: 'white' }}>
+            <div style={offerSectionTitleStyle}>Vergleich Wohnrecht-Produkte</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+                <thead>
+                  <tr>
+                    {['Modell', 'Auszahlungsbetrag', 'Auszahlungsquote', 'Ziel-IRR', 'Erwarteter Exit / Laufzeit', 'Instandhaltungsreserve'].map((label) => (
+                      <th key={label} style={{ textAlign: 'left', padding: '8px 10px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 10.5, color: theme.aubergine, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {residentialRightComparison.map((row) => (
+                    <tr key={row.model}>
+                      {[row.model, row.payout, row.ratio, row.targetIrr, row.exitOrTerm, row.maintenance].map((value, cellIndex) => (
+                        <td key={`${row.model}-${cellIndex}`} style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12.5, color: cellIndex === 0 ? theme.aubergine : theme.ink, fontWeight: cellIndex === 0 ? 850 : 650 }}>{value}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {termWarning && (
           <div style={{ padding: '0 24px 18px', background: '#FEFCF8' }}>
             <div style={{ border: `1px solid ${theme.gold}`, background: '#FFF8E1', color: theme.ink, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 650 }}>
@@ -5945,20 +6205,18 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
             <div style={offerSectionTitleStyle}>Berechnungs-Eingabe</div>
             {renderMarketDataBox()}
+            {isLifetimeResidentialRight && (
+              <div style={{ border: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
+                Beim lebenslangen Wohnrecht wird keine feste Laufzeit verwendet. Die Berechnung basiert auf der Sterbetafel und der Joint-Life-Logik bei zwei Personen.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
-              {[
-                ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
-                ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Miete Garage (€ / Monat)']] : []),
-                ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
-                ['interestRate', 'Interne Verzinsung (%)'],
-                ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
-                ['salesCostRate', 'Verkaufskosten (%)'],
-              ].map(([field, label]) => (
+              {residentialRightCalculationFields(modelRequest, property).map(([field, label, fallbackValue]) => (
                 <Field key={field} label={label}>
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={params[field] || ''}
+                    value={params[field] ?? fallbackValue ?? ''}
                     onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })}
                   />
                 </Field>
@@ -6227,9 +6485,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   ];
   const tabs = inventoryCase ? inventoryTabs : acquisitionTabs;
   const renderBindingOfferCard = (modelRequest, index) => {
-    const bindingOffer = bindingOffers.find((item) => item.model === modelRequest.model);
-    const indicativeOffer = indicativeOffers.find((item) => item.model === modelRequest.model);
+    const bindingOffer = bindingOffers.find((item) => offerMatchesModelRequest(item, modelRequest));
+    const indicativeOffer = indicativeOffers.find((item) => offerMatchesModelRequest(item, modelRequest));
     const isRentBack = modelRequest.model === 'sale_and_leaseback';
+    const isResidentialRight = modelRequest.model === 'fixed_residential_right';
+    const isLifetimeResidentialRight = modelRequest.usageModel === 'lifelong_residential_right';
+    const residentialRightVariantLabel = residentialRightVariantLabelFromUsageModel(modelRequest.usageModel);
     const bindingRentBackMetrics = isRentBack && bindingOffer ? rentBackCalculationFromOffer(bindingOffer) : null;
     const indicativeRentBackMetrics = isRentBack && indicativeOffer ? rentBackCalculationFromOffer(indicativeOffer) : null;
     const deltaMarket = bindingOffer && indicativeOffer ? bindingOffer.marketValue - indicativeOffer.marketValue : undefined;
@@ -6282,12 +6543,13 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
       ['Δ Auszahlung vs. UVA', deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuro(deltaPayout)}` : '-'],
     ]) : [];
+    const residentialRightComparison = isResidentialRight ? residentialRightOfferComparisonRows(bindingOffers) : [];
     const chipRows = [
       ['Gutachtenwert', bindingOffer ? formatEuro(bindingOffer.marketValue) : expertOpinionValue ? `${expertOpinionValue} €` : '-'],
-      ['Modell', labelFrom(productModelLabels, modelRequest.model)],
+      ['Modell', isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)],
       isRentBack
         ? ['Info', 'Miete ab Tag 1']
-        : ['Laufzeit', `${bindingParams.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
+        : ['Laufzeit', isLifetimeResidentialRight ? 'lebenslang' : `${bindingParams.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
     ];
     const termWarning = !isRentBack ? bindingOffer?.assumptions?.termWarning : null;
 
@@ -6295,10 +6557,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       <div key={`binding-offer-card-${modelRequest.key}-${index}`} style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>
-            Verbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{labelFrom(productModelLabels, modelRequest.model)}</span>
+            Verbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}</span>
           </div>
           <div style={{ fontSize: 12, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{offerMeta}</div>
         </div>
+        {isResidentialRight && modelRequest.primary && canManageOffers && renderResidentialRightProductCards(modelRequest)}
 
         <div style={{ background: '#FEFCF8', padding: '28px 26px', display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 416px)', gap: 28, alignItems: 'center' }}>
           <div>
@@ -6337,6 +6600,32 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           </div>
         </div>
 
+        {residentialRightComparison.length > 0 && (
+          <div style={{ padding: '18px 24px', borderTop: `1px solid ${theme.borderSoft}`, background: 'white' }}>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Vergleich Wohnrecht-Produkte</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+                <thead>
+                  <tr>
+                    {['Modell', 'Auszahlungsbetrag', 'Auszahlungsquote', 'Ziel-IRR', 'Erwarteter Exit / Laufzeit', 'Instandhaltungsreserve'].map((label) => (
+                      <th key={label} style={{ textAlign: 'left', padding: '8px 10px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 10.5, color: theme.aubergine, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {residentialRightComparison.map((row) => (
+                    <tr key={row.model}>
+                      {[row.model, row.payout, row.ratio, row.targetIrr, row.exitOrTerm, row.maintenance].map((value, cellIndex) => (
+                        <td key={`${row.model}-${cellIndex}`} style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12.5, color: cellIndex === 0 ? theme.aubergine : theme.ink, fontWeight: cellIndex === 0 ? 850 : 650 }}>{value}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {termWarning && (
           <div style={{ padding: '0 24px 18px', background: '#FEFCF8' }}>
             <div style={{ border: `1px solid ${theme.gold}`, background: '#FFF8E1', color: theme.ink, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 650 }}>
@@ -6361,23 +6650,21 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 {appraisalDeviationWarning}
               </div>
             )}
+            {isLifetimeResidentialRight && (
+              <div style={{ border: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
+                Beim lebenslangen Wohnrecht wird keine feste Laufzeit verwendet. Die Berechnung basiert auf der Sterbetafel und der Joint-Life-Logik bei zwei Personen.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               <Field label="Gutachtenwert (€)" required>
                 <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder="z.B. 650.000" inputMode="numeric" />
               </Field>
-              {[
-                ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
-                ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Miete Garage (€ / Monat)']] : []),
-                ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)'],
-                ['interestRate', 'Interne Verzinsung (%)'],
-                ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
-                ['salesCostRate', 'Verkaufskosten (%)'],
-              ].map(([field, label]) => (
+              {residentialRightCalculationFields(modelRequest, property, true).map(([field, label, fallbackValue]) => (
                 <Field key={field} label={label}>
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={bindingParams[field] || ''}
+                    value={bindingParams[field] ?? fallbackValue ?? ''}
                     onChange={(event) => setCalculationParams({ ...calculationParams, [bindingParamKey]: { ...bindingParams, [field]: event.target.value } })}
                   />
                 </Field>
@@ -8598,9 +8885,10 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         yearBuilt: Number(draft.yearBuilt) || undefined,
         condition: draft.condition || 'average',
         desiredModel: payloadDesiredModel,
+        usageModel: residentialRightUsageModelFromDraft({ ...draft, desiredModel: payloadDesiredModel }),
         residentialRightRecipients: payloadDesiredModel === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : undefined,
         residentialRightPerson: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
-        desiredResidentialRightYears: payloadDesiredModel === 'fixed_residential_right' ? Number(draft.desiredResidentialRightYears) || undefined : undefined,
+        desiredResidentialRightYears: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightVariant !== 'lifetime' ? Number(draft.desiredResidentialRightYears) || undefined : undefined,
         rentalModelDisclosureAccepted: Boolean(draft.rentalModelDisclosureAccepted),
         additionalOfferRequested: Boolean(draft.additionalOfferRequested),
         additionalOfferModel: draft.additionalOfferRequested ? draft.additionalOfferModel : undefined,
@@ -8611,7 +8899,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         additionalOfferRentalModelDisclosureAccepted: draft.additionalOfferRequested ? Boolean(draft.additionalOfferRentalModelDisclosureAccepted) : false,
         secondResidentialRightWanted: false,
         secondResidentialRightYears: undefined,
-        fixedTermReason: draft.fixedTermReason,
+        fixedTermReason: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightVariant !== 'lifetime' ? draft.fixedTermReason : undefined,
         rentalOptionDeselected: false,
         usableAreaSqm: Number(draft.usableAreaSqm) || undefined,
         coOwnershipShares: payloadPropertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
@@ -8913,6 +9201,52 @@ const RadioGroup = ({ options, name, defaultValue, value, onChange }) => (
   </div>
 );
 
+const ResidentialRightVariantSelector = ({ value = 'fixed_term', eligibility, onChange, disabled = false }) => {
+  const lifetimeDisabled = disabled || !eligibility?.eligible;
+  const options = [
+    { value: 'fixed_term', label: 'Befristetes Wohnrecht', disabled },
+    { value: 'lifetime', label: 'Lebenslanges Wohnrecht', disabled: lifetimeDisabled },
+  ];
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {options.map((option) => {
+          const active = value === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              disabled={option.disabled}
+              onClick={() => !option.disabled && onChange?.(option.value)}
+              style={{
+                textAlign: 'left',
+                border: `1px solid ${active ? theme.aubergine : theme.border}`,
+                background: active ? `${theme.aubergine}0D` : option.disabled ? theme.mintLighter : 'white',
+                color: active ? theme.aubergine : theme.ink,
+                borderRadius: 8,
+                padding: '10px 12px',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: option.disabled ? 'not-allowed' : 'pointer',
+                opacity: option.disabled && !active ? 0.58 : 1
+              }}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 8, fontSize: 12, color: eligibility?.eligibleSoon ? theme.oliv : eligibility?.eligible ? `${theme.ink}99` : '#8A5A00', lineHeight: 1.45 }}>
+        {eligibility?.eligibleSoon
+          ? 'Die jüngere Person erreicht innerhalb von 3 Monaten das Mindestalter von 75 Jahren.'
+          : eligibility?.eligible
+            ? 'Das lebenslange Wohnrecht ist auswählbar.'
+            : 'Das lebenslange Wohnrecht ist erst ab 75 Jahren möglich. Bei zwei Personen ist die jüngere Person maßgeblich.'}
+      </div>
+    </div>
+  );
+};
+
 const FormStep1 = ({ draft, setDraft, errors = [] }) => (
   <div>
     <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Persönliche Daten</h2>
@@ -9057,6 +9391,7 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
               setDraft({
               ...draft,
               desiredModel: option.value,
+              residentialRightVariant: option.value === 'fixed_residential_right' ? (draft.residentialRightVariant || 'fixed_term') : 'fixed_term',
               desiredResidentialRightYears: option.value === 'fixed_residential_right' ? (draft.desiredResidentialRightYears || 10) : '',
               residentialRightRecipients: option.value === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : '',
               residentialRightPerson: option.value === 'fixed_residential_right' ? draft.residentialRightPerson : '',
@@ -9121,17 +9456,37 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
     )}
 
     <div style={{ marginBottom: 18 }}>
-      <Field label="Dauer des Wohnrechts" required hint="Zwischen 5 und 15 Jahren wählbar." invalid={errors.includes('desiredResidentialRightYears')}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <input type="range" min="5" max="15" value={draft.desiredResidentialRightYears || 10} onChange={(event) => setDraft({ ...draft, desiredResidentialRightYears: Number(event.target.value) })} style={{ flex: 1, accentColor: theme.aubergine }} />
-          <div style={{ minWidth: 80, padding: '6px 12px', background: theme.aubergine, color: 'white', borderRadius: 5, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>{draft.desiredResidentialRightYears || 10} Jahre</div>
-        </div>
+      <Field label="Wohnrechtsmodell" required invalid={errors.includes('residentialRightVariant')}>
+        <ResidentialRightVariantSelector
+          value={draft.residentialRightVariant || 'fixed_term'}
+          eligibility={lifetimeEligibilityForDraft(draft)}
+          disabled={modelLocked}
+          onChange={(value) => setDraft({
+            ...draft,
+            residentialRightVariant: value,
+            desiredResidentialRightYears: value === 'lifetime' ? '' : (draft.desiredResidentialRightYears || 10),
+            fixedTermReason: value === 'lifetime' ? '' : draft.fixedTermReason,
+          })}
+        />
       </Field>
     </div>
+
+    {(draft.residentialRightVariant || 'fixed_term') !== 'lifetime' && (
+      <>
+        <div style={{ marginBottom: 18 }}>
+          <Field label="Dauer des Wohnrechts" required hint="Zwischen 5 und 15 Jahren wählbar." invalid={errors.includes('desiredResidentialRightYears')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <input type="range" min="5" max="15" value={draft.desiredResidentialRightYears || 10} onChange={(event) => setDraft({ ...draft, desiredResidentialRightYears: Number(event.target.value) })} style={{ flex: 1, accentColor: theme.aubergine }} />
+              <div style={{ minWidth: 80, padding: '6px 12px', background: theme.aubergine, color: 'white', borderRadius: 5, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>{draft.desiredResidentialRightYears || 10} Jahre</div>
+            </div>
+          </Field>
+        </div>
 
         <Field label="Grund der Befristung" required invalid={errors.includes('fixedTermReason')}>
           <Input placeholder="z.B. Familienplanung, gesundheitliche Gründe" value={draft.fixedTermReason} onChange={(event) => setDraft({ ...draft, fixedTermReason: event.target.value })} />
         </Field>
+      </>
+    )}
       </div>
     )}
 

@@ -95,6 +95,28 @@ test("property validation treats empty optional offer enums as absent", () => {
   assert.equal(parsed.additionalOfferResidentialRightRecipients, undefined);
 });
 
+test("property validation accepts lifelong residential right as existing usage model variant", () => {
+  const parsed = propertyCreateSchema.parse({
+    customerId: "customer_schmidt",
+    propertyType: "single_family",
+    street: "HauptstraÃŸe 14",
+    postalCode: "70563",
+    city: "Stuttgart",
+    livingAreaSqm: 142,
+    plotAreaSqm: 380,
+    condition: "average",
+    desiredModel: "fixed_residential_right",
+    usageModel: "lifelong_residential_right",
+    residentialRightRecipients: "one_person",
+    knownMajorMaintenanceOrSpecialAssessments: false,
+    moistureDamageStatus: "NONE",
+    accessibilityAssessment: "LOW_BARRIER"
+  });
+
+  assert.equal(parsed.desiredModel, "fixed_residential_right");
+  assert.equal(parsed.usageModel, "lifelong_residential_right");
+});
+
 test("property validation requires explicit desired model", () => {
   assert.throws(() => propertyCreateSchema.parse({
     customerId: "customer_schmidt",
