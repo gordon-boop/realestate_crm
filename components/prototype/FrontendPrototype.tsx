@@ -10434,7 +10434,7 @@ const germanFederalStates = [
   'Thüringen'
 ];
 
-const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], onSubmit, onCancel, submitting }) => {
+const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'create', onSubmit, onCancel, submitting }) => {
   const activePartners = partners.filter((partner) => partner.status === 'active');
   const advisorOptions = staff.filter((member) => ['employee', 'advisor', 'admin', 'super_admin'].includes(member.internalRole));
   const brokerLead = draft.source === 'partner';
@@ -10499,7 +10499,7 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], onSubmit,
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Interne Lead-Erfassung</div>
-          <h2 style={{ margin: 0, color: theme.aubergine, fontSize: 20 }}>Lead erfassen</h2>
+          <h2 style={{ margin: 0, color: theme.aubergine, fontSize: 20 }}>{mode === 'edit' ? 'Lead bearbeiten' : 'Lead erfassen'}</h2>
           <p style={{ margin: '6px 0 0', color: `${theme.ink}99`, fontSize: 12.5, lineHeight: 1.45 }}>
             Dieser Interessent ist noch kein Kundenfall. Nach Prüfung kann der Lead einem Makler zugewiesen oder in einen Kundenfall umgewandelt werden.
           </p>
@@ -10649,13 +10649,13 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], onSubmit,
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
         <button type="button" onClick={onCancel} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', cursor: 'pointer', fontWeight: 800 }}>Abbrechen</button>
-        <button type="button" disabled={submitting} onClick={() => onSubmit(draft)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 800, opacity: submitting ? 0.6 : 1 }}>Lead speichern</button>
+        <button type="button" disabled={submitting} onClick={() => onSubmit(draft)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 800, opacity: submitting ? 0.6 : 1 }}>{mode === 'edit' ? 'Änderungen speichern' : 'Lead speichern'}</button>
       </div>
     </div>
   );
 };
 
-const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', initialCreateOpen = false, initialSelectedLeadId = null, initialDraft = {}, onCreate, onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
+const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', initialCreateOpen = false, initialSelectedLeadId = null, initialDraft = {}, onCreate, onUpdate, onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
   const [partnerSelection, setPartnerSelection] = useState({});
   const [partnerFilter, setPartnerFilter] = useState('ALL');
   const [search, setSearch] = useState('');
@@ -10663,6 +10663,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   const [selectedLeadId, setSelectedLeadId] = useState(initialSelectedLeadId || readLeadIdFromUrl());
   const [createOpen, setCreateOpen] = useState(() => Boolean(initialCreateOpen) || readLeadCreateFromUrl());
   const [leadDraft, setLeadDraft] = useState(() => ({ ...emptyLeadDraft, ...readLeadDraftFromUrl(), ...(initialDraft || {}) }));
+  const [editingLeadId, setEditingLeadId] = useState(null);
   const [savingLead, setSavingLead] = useState(false);
   useEffect(() => {
     const allowed = role === 'admin' ? adminLeadBucketKeys : partnerLeadBucketKeys;
@@ -10686,11 +10687,19 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   const visibleLeads = role === 'admin'
     ? leads
     : leads.filter((lead) => !['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status));
+  const isClosedLead = (lead) => ['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status);
+  const isAssignedLead = (lead) => Boolean(lead.assignedPartnerId || lead.assignedAdvisorUserId);
+  const needsAssignment = (lead) => !isClosedLead(lead) && !isAssignedLead(lead);
+  const needsQualification = (lead) => !isClosedLead(lead) && (['IN_REVIEW', 'QUALIFIED'].includes(lead.status) || (lead.assignedAdvisorUserId && ['ASSIGNED'].includes(lead.status)));
+  const needsFollowUp = (lead) => ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status) || (lead.assignedPartnerId && ['ASSIGNED_TO_PARTNER'].includes(lead.status));
+  const canConvertLeadToCase = (lead) => role === 'admin'
+    ? isAssignedLead(lead) && !isClosedLead(lead)
+    : ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status);
   const leadStats = {
     new: visibleLeads.filter((lead) => lead.status === 'NEW').length,
-    qualified: visibleLeads.filter((lead) => ['IN_REVIEW', 'QUALIFIED'].includes(lead.status)).length,
-    assigned: visibleLeads.filter((lead) => ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)).length,
-    contacted: visibleLeads.filter((lead) => ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status)).length,
+    qualified: visibleLeads.filter(needsQualification).length,
+    assigned: role === 'admin' ? visibleLeads.filter(needsAssignment).length : visibleLeads.filter((lead) => ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)).length,
+    contacted: visibleLeads.filter(needsFollowUp).length,
     converted: leads.filter((lead) => ['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status)).length,
     rejected: leads.filter((lead) => ['REJECTED', 'CLOSED'].includes(lead.status)).length
   };
@@ -10717,9 +10726,9 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   const rowsByBucket = role === 'admin'
     ? {
         'new-leads': visibleLeads.filter((lead) => lead.status === 'NEW'),
-        qualification: visibleLeads.filter((lead) => ['IN_REVIEW', 'QUALIFIED'].includes(lead.status)),
-        assignment: visibleLeads.filter((lead) => ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)),
-        'follow-up': visibleLeads.filter((lead) => ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status)),
+        qualification: visibleLeads.filter(needsQualification),
+        assignment: visibleLeads.filter(needsAssignment),
+        'follow-up': visibleLeads.filter(needsFollowUp),
         completed: visibleLeads.filter((lead) => ['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status)),
       }
     : {
@@ -10736,11 +10745,19 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   const openCreateForm = (prefill = {}) => {
     const nextDraft = { ...emptyLeadDraft, ...prefill };
     setLeadDraft(nextDraft);
+    setEditingLeadId(null);
     setCreateOpen(true);
     updateLeadCreateUrl(role, true, 'replace', nextDraft);
   };
+  const openEditForm = (lead) => {
+    const nextDraft = { ...emptyLeadDraft, ...lead };
+    setLeadDraft(nextDraft);
+    setEditingLeadId(lead.id);
+    setCreateOpen(true);
+  };
   const closeCreateForm = () => {
     setCreateOpen(false);
+    setEditingLeadId(null);
     updateLeadCreateUrl(role, false);
   };
   const searchNeedle = search.trim().toLowerCase();
@@ -10785,7 +10802,11 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   const submitLead = async (draft) => {
     setSavingLead(true);
     try {
-      await onCreate?.(draft);
+      if (editingLeadId) {
+        await onUpdate?.(editingLeadId, draft);
+      } else {
+        await onCreate?.(draft);
+      }
       setLeadDraft(emptyLeadDraft);
       closeCreateForm();
     } finally {
@@ -10815,6 +10836,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
           setDraft={setLeadDraft}
           partners={partners}
           staff={staff}
+          mode={editingLeadId ? 'edit' : 'create'}
           submitting={savingLead}
           onSubmit={submitLead}
           onCancel={closeCreateForm}
@@ -10869,7 +10891,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                   const currentAssigneeValue = lead.assignedAdvisorUserId ? `advisor:${lead.assignedAdvisorUserId}` : lead.assignedPartnerId ? `partner:${lead.assignedPartnerId}` : '';
                   const selectedAssigneeValue = partnerSelection[lead.id] || currentAssigneeValue || assigneeOptions[0]?.value || '';
                   const assignmentLocked = ['CONVERTED', 'CONVERTED_TO_CASE', 'REJECTED', 'CLOSED'].includes(lead.status);
-                  const canConvertLead = ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status);
+                  const canConvertLead = canConvertLeadToCase(lead);
                   const rowActive = selectedLead?.id === lead.id;
                   return (
                     <tr key={lead.id} onClick={() => setSelectedLeadId(lead.id)} style={{ borderTop: `1px solid ${theme.borderSoft}`, background: rowActive ? `${theme.aubergine}08` : 'white', cursor: 'pointer' }}>
@@ -10908,7 +10930,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                               disabled={!selectedAssigneeValue || assignmentLocked}
                               style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: !selectedAssigneeValue || assignmentLocked ? 'not-allowed' : 'pointer', opacity: !selectedAssigneeValue || assignmentLocked ? 0.45 : 1 }}
                             >
-                              {['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status) ? 'Umgewandelt' : lead.status === 'REJECTED' ? 'Abgelehnt' : assignedPartner || assignedAdvisor ? 'Neu zuweisen' : 'Zuweisen'}
+                              {['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status) ? 'Umgewandelt' : lead.status === 'REJECTED' ? 'Abgelehnt' : assignedPartner || assignedAdvisor ? 'Zuweisung ändern' : 'Zuweisen'}
                             </button>
                           </div>
                         ) : (
@@ -10917,7 +10939,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                               Kontaktiert
                             </button>
                             <button onClick={() => onConvert(lead.id)} disabled={!canConvertLead} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: canConvertLead ? 'pointer' : 'not-allowed', opacity: canConvertLead ? 1 : 0.45 }}>
-                              {['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status) ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}
+                              {role === 'admin' ? 'Kundenfall anlegen' : ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status) ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}
                             </button>
                           </div>
                         )}
@@ -10943,6 +10965,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
               </div>
               <div style={{ display: 'grid', gap: 12, fontSize: 12.5 }}>
                 {[
+                  ['Lead-Typ', selectedLead.assignedPartnerId ? `Makler-Lead · Partner: ${assigneeName(selectedLead)}` : selectedLead.assignedAdvisorUserId ? `Direkt-Lead · zugewiesen an ${assigneeName(selectedLead)}` : 'Nicht zugewiesen'],
                   ['Quelle', leadSourceLabels[selectedLead.source] || selectedLead.source || 'Homepage'],
                   ['Erfasst', formatDate(selectedLead.createdAt)],
                   ['Kontakt', [selectedLead.email, selectedLead.phone, selectedLead.mobilePhone].filter(Boolean).join(' · ') || 'offen'],
@@ -10967,9 +10990,11 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 
               {role === 'admin' && canAssignLeads ? (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
-                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 'not-allowed' : 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Kontaktiert markieren</button>
-                  <button disabled={!['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status)} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 'pointer' : 'not-allowed', opacity: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 1 : 0.45 }}>{['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}</button>
+                  <button disabled={isClosedLead(selectedLead)} onClick={() => openEditForm(selectedLead)} style={{ background: canConvertLeadToCase(selectedLead) ? 'white' : theme.aubergine, border: canConvertLeadToCase(selectedLead) ? `1px solid ${theme.border}` : 'none', color: canConvertLeadToCase(selectedLead) ? theme.aubergine : 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 800, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>Qualifizierung fortsetzen</button>
+                  <button disabled={!canConvertLeadToCase(selectedLead)} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 800, cursor: canConvertLeadToCase(selectedLead) ? 'pointer' : 'not-allowed', opacity: canConvertLeadToCase(selectedLead) ? 1 : 0.45 }}>Kundenfall anlegen</button>
                   <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'IN_REVIEW')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>In Prüfung markieren</button>
+                  <button disabled={isClosedLead(selectedLead)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>Nachfassen planen</button>
+                  <button disabled={isClosedLead(selectedLead)} onClick={() => openEditForm(selectedLead)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>Lead bearbeiten</button>
                   <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Lead ablehnen</button>
                 </div>
               ) : (
@@ -11454,6 +11479,17 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       throw err;
     }
   };
+  const handleUpdateLead = async (leadId, leadDraft) => {
+    try {
+      const payload = Object.fromEntries(Object.entries(leadDraft).map(([key, value]) => [key, value === '' ? undefined : value]));
+      await patchJson(`/api/leads/${leadId}`, payload);
+      setNotice('Lead wurde bearbeitet.');
+      await loadLeads(role);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht bearbeitet werden');
+      throw err;
+    }
+  };
   const handleMarkLeadContacted = async (leadId) => {
     try {
       const lead = leads.find((item) => item.id === leadId);
@@ -11614,7 +11650,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} user={user} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} onShowAllCases={() => handleNavigate('in_progress')} />}
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onNewLead={handleNewLead} onOpenLeads={() => handleNavigate('leads')} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
-          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} initialSelectedLeadId={readLeadIdFromUrl()} initialDraft={leadCreatePrefill} onCreate={handleCreateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
+          {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} initialSelectedLeadId={readLeadIdFromUrl()} initialDraft={leadCreatePrefill} onCreate={handleCreateLead} onUpdate={handleUpdateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
           {screen === 'partners' && role === 'admin' && (

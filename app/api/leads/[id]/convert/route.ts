@@ -17,7 +17,6 @@ export async function POST(_request: Request, { params }: { params: { id: string
     if (user.role === "partner" && lead.assignedPartnerId !== user.partnerId) throw new Error("Forbidden");
     if (user.role === "admin" && !isInternalAdmin(user) && lead.assignedAdvisorUserId !== user.id) throw new Error("Forbidden");
     if (user.role === "partner" && !["CONTACTED", "PARTNER_CONTACT_PENDING"].includes(lead.status)) throw new Error("Lead must be marked as contacted before conversion");
-    if (user.role === "admin" && !isInternalAdmin(user) && !["CONTACTED", "PARTNER_CONTACT_PENDING"].includes(lead.status)) throw new Error("Lead must be marked as contacted before conversion");
 
     const convertedCase = await convertDbLeadToCase(params.id, assignment, user.id, user.role);
     return json({ case: convertedCase }, { status: 201 });

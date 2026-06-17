@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { leadCreateSchema } from "../lib/validation.ts";
+import { leadCreateSchema, leadUpdateSchema } from "../lib/validation.ts";
 import { convertLeadToCase, store } from "../lib/store.ts";
 
 test("homepage lead schema stores property interest without customer conversion", () => {
@@ -41,6 +41,18 @@ test("broker lead schema requires partner assignment", () => {
     postalCode: "70563",
     routingReason: "Region Stuttgart"
   }), /Makler oder Partner/);
+});
+
+test("lead update schema allows incomplete qualification drafts", () => {
+  const lead = leadUpdateSchema.parse({
+    source: "internal",
+    internalNote: "Telefonische Qualifizierung läuft.",
+    city: "Stuttgart"
+  });
+
+  assert.equal(lead.source, "internal");
+  assert.equal(lead.internalNote, "Telefonische Qualifizierung läuft.");
+  assert.equal(lead.city, "Stuttgart");
 });
 
 test("assigned lead can be converted into a draft customer case", () => {

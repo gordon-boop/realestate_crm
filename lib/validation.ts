@@ -380,6 +380,37 @@ export const leadAssignSchema = z.object({
   message: "Partner oder Kundenberater ist erforderlich"
 });
 
+export const leadUpdateSchema = z.object({
+  source: z.enum(["homepage", "admin", "internal", "partner", "phone", "website", "referral", "other"]).optional(),
+  firstName: optionalString,
+  lastName: optionalString,
+  name: optionalString,
+  email: optionalString,
+  phone: optionalString,
+  mobilePhone: optionalString,
+  street: optionalString,
+  postalCode: optionalString,
+  city: optionalString,
+  federalState: optionalString,
+  preferredContactMethod: optionalString,
+  contactConsent: optionalBoolean,
+  propertyStreet: optionalString,
+  propertyPostalCode: optionalString,
+  propertyCity: optionalString,
+  propertyType: z.enum(["house", "single_family", "semi_detached", "row_house", "apartment"]).optional(),
+  livingAreaSqm: optionalNumber,
+  plotAreaSqm: optionalNumber,
+  yearBuilt: optionalNumber,
+  propertyNote: optionalString,
+  estimatedPropertyValueRange: optionalString,
+  youngestOwnerAgeRange: optionalString,
+  message: optionalString,
+  productInterest: z.enum(["fixed_residential_right", "sale_and_leaseback", "other"]).optional(),
+  region: optionalString,
+  routingReason: optionalString,
+  internalNote: optionalString
+});
+
 export const leadStatusSchema = z.object({
   status: z.enum(["NEW", "QUALIFIED", "ASSIGNED", "CONTACTED", "CONVERTED", "IN_REVIEW", "ASSIGNED_TO_PARTNER", "PARTNER_CONTACT_PENDING", "CONVERTED_TO_CASE", "CLOSED", "REJECTED"])
 });

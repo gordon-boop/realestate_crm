@@ -845,13 +845,13 @@ export async function assignDbLead(leadId: string, assignment: { partnerId?: str
     ? (await prisma.partner.findUnique({ where: { id: assignment.partnerId } }))?.contactName || "Makler"
     : (await prisma.user.findUnique({ where: { id: assignment.advisorUserId || "" } }))?.name || "Kundenberater";
   await prisma.activity.create({
-    data: {
-      userId,
-      type: "lead_assigned",
-      message: `Lead wurde an ${targetLabel} weitergeleitet.`,
-      source: "admin",
-      entityType: "lead",
-      entityId: lead.id
+      data: {
+        userId,
+        type: "lead_assigned",
+        message: assignment.partnerId ? `Lead wurde an ${targetLabel} weitergeleitet.` : `Lead wurde intern an ${targetLabel} zugewiesen.`,
+        source: "admin",
+        entityType: "lead",
+        entityId: lead.id
     }
   });
   return mapLead(lead);
@@ -870,6 +870,73 @@ export async function updateDbLeadStatus(leadId: string, status: Lead["status"])
       ? { status, assignedPartnerId: null, assignedAdvisorUserId: null, assignedByUserId: null, assignedAt: null }
       : { status }
   });
+  const message = status === "CONTACTED" || status === "PARTNER_CONTACT_PENDING"
+    ? `Nachfassen für Lead ${lead.leadNumber} wurde geplant.`
+    : status === "REJECTED"
+      ? `Lead ${lead.leadNumber} wurde abgelehnt.`
+      : `Lead ${lead.leadNumber} wurde auf ${status} gesetzt.`;
+  await prisma.activity.create({
+    data: {
+      type: "lead_status_updated",
+      message,
+      source: "admin",
+      entityType: "lead",
+      entityId: lead.id
+    }
+  });
+  return mapLead(lead);
+}
+
+export async function updateDbLead(leadId: string, input: Partial<Lead>, userId: string): Promise<Lead> {
+  const existing = await prisma.lead.findUnique({ where: { id: leadId } });
+  if (!existing) throw new Error("Lead not found");
+  if (["CONVERTED", "CONVERTED_TO_CASE"].includes(existing.status)) throw new Error("Converted leads cannot be changed");
+
+  const lead = await prisma.lead.update({
+    where: { id: leadId },
+    data: {
+      source: input.source as never,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      mobilePhone: input.mobilePhone,
+      street: input.street,
+      postalCode: input.postalCode,
+      city: input.city,
+      federalState: input.federalState,
+      preferredContactMethod: input.preferredContactMethod,
+      contactConsent: input.contactConsent,
+      propertyStreet: input.propertyStreet,
+      propertyPostalCode: input.propertyPostalCode,
+      propertyCity: input.propertyCity,
+      propertyType: input.propertyType as never,
+      livingAreaSqm: input.livingAreaSqm,
+      plotAreaSqm: input.plotAreaSqm,
+      yearBuilt: input.yearBuilt,
+      propertyNote: input.propertyNote,
+      estimatedPropertyValueRange: input.estimatedPropertyValueRange,
+      youngestOwnerAgeRange: input.youngestOwnerAgeRange,
+      message: input.message,
+      productInterest: input.productInterest as never,
+      region: input.region,
+      routingReason: input.routingReason,
+      internalNote: input.internalNote
+    }
+  });
+
+  await prisma.activity.create({
+    data: {
+      userId,
+      type: "lead_updated",
+      message: `Lead ${lead.leadNumber} wurde bearbeitet.`,
+      source: "admin",
+      entityType: "lead",
+      entityId: lead.id
+    }
+  });
+
   return mapLead(lead);
 }
 
