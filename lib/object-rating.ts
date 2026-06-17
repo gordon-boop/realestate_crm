@@ -159,6 +159,25 @@ export function isObjectRatingComplete(rating?: ObjectRating | null): boolean {
   return !rating.scores.some((score) => scoreIsRequiredForApproval(rating.scores, score) && !score.finalScore);
 }
 
+export function missingObjectRatingCriteria(rating?: ObjectRating | null): string[] {
+  if (!rating) return [];
+  return rating.scores
+    .filter((score) => scoreIsRequiredForApproval(rating.scores, score) && !score.finalScore)
+    .map((score) => score.criterion?.name || score.criterionId);
+}
+
+function objectRatingGateReason(rating: ObjectRating | undefined, complete: boolean, approved: boolean): string {
+  if (!rating) return "Bitte erstellen Sie zuerst das Objektrating.";
+  if (!complete) {
+    const missing = missingObjectRatingCriteria(rating);
+    return missing.length
+      ? `Bitte schließen Sie zuerst das Objektrating ab. Fehlende Kriterien: ${missing.slice(0, 5).join(", ")}.`
+      : "Bitte schließen Sie zuerst das Objektrating ab.";
+  }
+  if (!approved) return "Bitte geben Sie zuerst das Objektrating frei.";
+  return "Bitte schließen Sie zuerst das Objektrating ab.";
+}
+
 function asDate(value: unknown): Date | undefined {
   if (!value) return undefined;
   const parsed = value instanceof Date ? value : new Date(String(value));
@@ -211,7 +230,7 @@ export function evaluateRatingGate(
       rating,
       investment,
       review,
-      reason: "Bitte schließen Sie zuerst das Objektrating ab."
+      reason: objectRatingGateReason(rating, complete, approved)
     };
   }
 

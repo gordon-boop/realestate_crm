@@ -4,6 +4,7 @@ import { canSeeProperty, isInternalAdmin } from "./access-control.ts";
 import { acquisitionStatusLabel } from "./acquisition-workflow.ts";
 import type { CaseNotification, CaseView, DesiredModel, Lead, OfferAssumptions, PropertyStatus, User } from "./domain.ts";
 import { sendCaseNotificationEmailStub } from "./email.ts";
+import { enrichGermanPostalLocation, findOpenPlzPostalCode } from "./openplz.ts";
 import { prisma } from "./prisma.ts";
 import { nextSequenceValue } from "./sequence.ts";
 
@@ -738,6 +739,12 @@ export async function getDbLeads(user: User): Promise<Lead[]> {
 export async function createDbLead(input: Partial<Lead>, user?: User): Promise<Lead> {
   const now = new Date();
   const leadNumber = `LEAD-${String(await nextSequenceValue("lead")).padStart(3, "0")}`;
+  const location = enrichGermanPostalLocation({
+    postalCode: input.postalCode,
+    city: input.city,
+    federalState: input.federalState
+  });
+  const propertyLocation = findOpenPlzPostalCode(input.propertyPostalCode, input.propertyCity);
   const assignedPartnerId = user?.role === "partner" ? user.partnerId : user?.role === "admin" ? input.assignedPartnerId : undefined;
   const assignedAdvisorUserId = user?.role === "admin" && !isInternalAdmin(user) ? user.id : user?.role === "admin" ? input.assignedAdvisorUserId : undefined;
   const assigned = Boolean(assignedPartnerId || assignedAdvisorUserId);
@@ -762,9 +769,9 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
       phone: input.phone,
       mobilePhone: input.mobilePhone,
       street: input.street,
-      postalCode: input.postalCode,
-      city: input.city,
-      federalState: input.federalState,
+      postalCode: location.postalCode,
+      city: location.city,
+      federalState: location.federalState,
       preferredContactMethod: input.preferredContactMethod,
       contactConsent: input.contactConsent,
       propertyStreet: input.propertyStreet,
@@ -779,7 +786,7 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
       youngestOwnerAgeRange: input.youngestOwnerAgeRange,
       message: input.message,
       productInterest: input.productInterest as never,
-      region: input.region,
+      region: input.region || propertyLocation?.federalState || location.federalState,
       routingReason: input.routingReason,
       internalNote: input.internalNote,
       createdByUserId: user?.id

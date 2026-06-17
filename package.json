@@ -13,6 +13,7 @@
     "db:clear-test-cases": "tsx scripts/clear-test-cases.ts",
     "db:bootstrap": "tsx prisma/bootstrap.ts",
     "db:seed:demo": "tsx prisma/seed.ts",
+    "db:import-openplz": "tsx scripts/import-openplz.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/bootstrap.ts",

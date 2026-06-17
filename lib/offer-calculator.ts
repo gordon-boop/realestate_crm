@@ -107,6 +107,36 @@ function rate(value: number | undefined, fallback: number): number {
   return value;
 }
 
+function selectedLifetimeOccupants(input: OfferCalculationInput) {
+  const useSecondAsPrimary = input.residentialRightRecipients !== "both" && input.residentialRightPerson === "customer_2";
+  return {
+    primaryDateOfBirth: useSecondAsPrimary ? input.secondDateOfBirth : input.primaryDateOfBirth,
+    primaryGender: useSecondAsPrimary ? input.secondGender ?? input.spouseGender : input.primaryGender ?? input.customerGender,
+    primaryAge: useSecondAsPrimary ? input.spouseAge : input.customerAge,
+    secondDateOfBirth: input.residentialRightRecipients === "both" ? input.secondDateOfBirth : undefined,
+    secondGender: input.residentialRightRecipients === "both" ? input.secondGender ?? input.spouseGender : undefined,
+    secondAge: input.residentialRightRecipients === "both" ? input.spouseAge : undefined
+  };
+}
+
+function assertLifetimeResidentialRightInput(input: OfferCalculationInput, livingAreaSqm: number, monthlyRentPerSqm: number) {
+  const missing: string[] = [];
+  const occupants = selectedLifetimeOccupants(input);
+  if (!input.valuation.marketValue || input.valuation.marketValue <= 0) missing.push("Verkehrswert fehlt.");
+  if (!livingAreaSqm || livingAreaSqm <= 0) missing.push("Wohnfläche fehlt.");
+  if (!monthlyRentPerSqm || monthlyRentPerSqm <= 0) missing.push("Interne Mietannahme €/m²/Monat fehlt.");
+  if (!occupants.primaryDateOfBirth) missing.push("Geburtsdatum der berechtigten Person fehlt.");
+  if (!occupants.primaryGender) missing.push("Geschlecht der berechtigten Person fehlt.");
+  if (input.residentialRightRecipients === "both") {
+    if (!occupants.secondDateOfBirth) missing.push("Geburtsdatum der zweiten berechtigten Person fehlt.");
+    if (!occupants.secondGender) missing.push("Geschlecht der zweiten berechtigten Person fehlt.");
+  }
+  if (missing.length) {
+    throw new Error(missing.join(" "));
+  }
+  return occupants;
+}
+
 export function getResidentialRightRate(years?: number): number {
   if (!years) {
     return 0;
@@ -136,6 +166,7 @@ function calculateLifetimeResidentialRightOffer(input: OfferCalculationInput): O
   const livingAreaSqm = input.livingAreaSqm ?? 0;
   const monthlyRentPerSqm = input.monthlyRentPerSqm
     ?? (input.residentialMonthlyRent !== undefined && livingAreaSqm > 0 ? input.residentialMonthlyRent / livingAreaSqm : 0);
+  const occupants = assertLifetimeResidentialRightInput(input, livingAreaSqm, monthlyRentPerSqm);
   const garageCount = input.garageCount ?? 0;
   const garageRentMonthly = input.garageMonthlyRent ?? input.garageRentMonthly ?? 0;
   const acquisitionCostRate = rate(input.acquisitionCostRate, 0.09);
@@ -158,12 +189,12 @@ function calculateLifetimeResidentialRightOffer(input: OfferCalculationInput): O
     baseIndexationScenario,
     terminalAge: 100,
     disposalPeriodYears: 1,
-    primaryOccupantDateOfBirth: input.primaryDateOfBirth,
-    primaryOccupantGender: input.primaryGender ?? input.customerGender,
-    primaryOccupantAge: input.customerAge,
-    secondOccupantDateOfBirth: input.secondDateOfBirth,
-    secondOccupantGender: input.secondGender ?? input.spouseGender,
-    secondOccupantAge: input.spouseAge
+    primaryOccupantDateOfBirth: occupants.primaryDateOfBirth,
+    primaryOccupantGender: occupants.primaryGender,
+    primaryOccupantAge: occupants.primaryAge,
+    secondOccupantDateOfBirth: occupants.secondDateOfBirth,
+    secondOccupantGender: occupants.secondGender,
+    secondOccupantAge: occupants.secondAge
   });
 
   const components: Record<string, number> = {

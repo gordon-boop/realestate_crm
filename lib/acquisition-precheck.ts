@@ -1,4 +1,5 @@
 import type { CaseView, ObjectRating, Property } from "./domain.ts";
+import { parseGermanNumberInput } from "./utils/numberParsing.ts";
 
 export type PostbankRegionCategory = "green" | "yellow" | "orange" | "red";
 export type AcquisitionPrecheckCriterionStatus = "passed" | "exception_required" | "failed" | "unknown";
@@ -72,7 +73,7 @@ const propertyTypeLabels: Record<string, string> = {
 
 function toNumber(value: unknown): number | undefined {
   if (value === null || value === undefined || value === "") return undefined;
-  const parsed = Number(value);
+  const parsed = parseGermanNumberInput(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 

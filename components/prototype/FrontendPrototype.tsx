@@ -902,7 +902,7 @@ function residentialRightCalculationFields(modelRequest, property, binding = fal
   if (lifetime) {
     return [
       ['livingAreaSqm', 'Wohnfläche (m²)', property?.livingAreaSqm],
-      ['monthlyRentPerSqm', 'Interne Mietannahme (€/m²/Monat)'],
+      ['monthlyRentPerSqm', 'Mietansatz (€/m²)'],
       ['garageCount', 'Anzahl Garagen / Stellplätze', property?.parkingAvailable ? property?.parkingCount : 0],
       ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Garagenmiete (optional, €/Monat)']] : []),
       ['targetReturn', 'Ziel-IRR (%)'],
@@ -4989,6 +4989,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   const [ratingScoreInputs, setRatingScoreInputs] = useState({});
   const [ratingReturnInput, setRatingReturnInput] = useState('');
   const [openRatingInfo, setOpenRatingInfo] = useState('');
+  const [openRatingCategoryIds, setOpenRatingCategoryIds] = useState({});
+  const [activeRatingScoreId, setActiveRatingScoreId] = useState('');
   const [precheckDraft, setPrecheckDraft] = useState({});
   const [chatInput, setChatInput] = useState('');
   const [chatVisibility, setChatVisibility] = useState('shared');
@@ -5404,6 +5406,48 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     return input.cleared || ratingInputHas(input, 'analystScore') || ratingInputHas(input, 'comment');
   };
   const ratingDirtyCount = ratingScores.filter((score) => ratingInputDirty(score)).length;
+  const ratingScoreDisabledByRoofChoice = (score) => {
+    const isRoofPair = score?.criterionId === ratingRoofCriterionId || score?.criterionId === ratingFlatRoofCriterionId;
+    return Boolean(isRoofPair && selectedRoofCriterionId && selectedRoofCriterionId !== score.criterionId);
+  };
+  const ratingScoreManuallyChanged = (score) => !ratingScoreDisabledByRoofChoice(score) && ratingManualChange(score);
+  const ratingMissingCommentScores = ratingScores.filter((score) => ratingScoreManuallyChanged(score) && !String(ratingCommentValue(score) || '').trim());
+  const ratingOpenScores = ratingScores.filter((score) => !ratingScoreDisabledByRoofChoice(score) && (!ratingScoreValue(score) || Number(score.confidence || 0) < 0.65));
+  const ratingIncompleteScores = ratingScores.filter((score) => !ratingScoreDisabledByRoofChoice(score) && !ratingScoreValue(score));
+  const ratingManualChangeCount = ratingScores.filter(ratingScoreManuallyChanged).length;
+  const ratingApproved = objectRating?.status === 'approved';
+  const ratingCanApprove = Boolean(objectRating && objectRating.status !== 'approved' && ratingDirtyCount === 0 && ratingIncompleteScores.length === 0 && ratingMissingCommentScores.length === 0);
+  const ratingLastAudit = objectRating?.auditLogs?.[0];
+  const ratingStatusChipLabel = ratingApproved ? 'Freigegeben' : objectRating ? 'In Prüfung' : 'Nicht initialisiert';
+  const ratingCategorySummaries = ratingCategoryRows.map(({ category, score }) => {
+    const scores = ratingScores.filter((item) => item.criterion?.categoryId === category.id);
+    const openCount = scores.filter((item) => !ratingScoreDisabledByRoofChoice(item) && (!ratingScoreValue(item) || Number(item.confidence || 0) < 0.65)).length;
+    const manualCount = scores.filter(ratingScoreManuallyChanged).length;
+    const missingCommentCount = scores.filter((item) => ratingScoreManuallyChanged(item) && !String(ratingCommentValue(item) || '').trim()).length;
+    const status = ratingApproved
+      ? 'Freigegeben'
+      : missingCommentCount
+        ? 'Kommentar erforderlich'
+        : openCount
+          ? 'Offen'
+          : 'Vollständig';
+    return { category, score, scores, openCount, manualCount, missingCommentCount, status };
+  });
+  const ratingDefaultOpenCategoryIds = Object.fromEntries(
+    ratingCategorySummaries
+      .filter((row) => !ratingApproved && (row.openCount > 0 || row.missingCommentCount > 0))
+      .map((row) => [row.category.id, true])
+  );
+  const ratingOpenTasks = objectRating ? [
+    ...ratingIncompleteScores.slice(0, 8).map((score) => `${score.criterion?.category?.name || 'Rating'}: ${score.criterion?.name || score.criterionId} noch nicht bewertet`),
+    ...ratingScores
+      .filter((score) => !ratingScoreDisabledByRoofChoice(score) && ratingScoreValue(score) && Number(score.confidence || 0) < 0.65)
+      .slice(0, 5)
+      .map((score) => `${score.criterion?.category?.name || 'Rating'}: ${score.criterion?.name || score.criterionId} mit niedriger Confidence prüfen`),
+    ...ratingMissingCommentScores.slice(0, 5).map((score) => `Kommentar erforderlich bei ${score.criterion?.name || score.criterionId}`),
+    ...(ratingApproved ? [] : ['Rating noch nicht freigegeben'])
+  ] : ['Rating noch nicht initialisiert'];
+  const activeRatingScore = ratingScores.find((score) => score.id === activeRatingScoreId);
   async function runCaseAction(label, action) {
     if (!c.propertyId) {
       setNotice?.('Dieser Mock-Fall ist noch nicht mit einer API-ID verbunden.');
@@ -5467,6 +5511,18 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       await postJson(`/api/properties/${c.propertyId}/rating/unlock`, { reason: reason.trim() });
     });
   };
+  const ratingPrimaryAction = !objectRating
+    ? { label: 'Rating initialisieren', onClick: generateObjectRating, disabled: Boolean(busyAction), helper: 'Übernimmt automatisch ableitbare Werte aus Fragebogen und Marktdaten. Nicht ableitbare Kriterien bleiben offen.' }
+    : ratingApproved
+      ? null
+      : ratingCanApprove
+        ? { label: 'Rating freigeben', onClick: approveRating, disabled: Boolean(busyAction), helper: 'Alle Pflichtwerte sind vorhanden. Das Rating kann revisionssicher freigegeben werden.' }
+        : { label: 'Änderungen speichern', onClick: saveRatingChanges, disabled: Boolean(busyAction) || ratingDirtyCount === 0, helper: ratingDirtyCount ? `${ratingDirtyCount} Änderung(en) vor der Freigabe speichern.` : 'Bearbeiten Sie offene Kriterien oder prüfen Sie die offenen Punkte.' };
+  useEffect(() => {
+    setOpenRatingCategoryIds(ratingDefaultOpenCategoryIds);
+    setActiveRatingScoreId('');
+    setOpenRatingInfo('');
+  }, [objectRating?.id, objectRating?.status]);
   const saveAcquisitionPrecheck = (action = 'save') => runCaseAction(
     action === 'approve_exception'
       ? 'Ausnahme freigeben'
@@ -7241,27 +7297,32 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       Das Rating wird aus versionierten Kriterien, Gewichtungen und Mapping-Regeln erzeugt. Freigegebene Ratings bleiben revisionssicher nachvollziehbar.
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <button onClick={generateObjectRating} disabled={Boolean(busyAction) || objectRating?.status === 'approved'} title="Automatisch ableitbare Kriterien aus Fragebogen, Dokumenten und Konfiguration initialisieren." style={{ background: !objectRating ? theme.aubergine : 'white', color: !objectRating ? 'white' : theme.aubergine, border: !objectRating ? 'none' : `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction || objectRating?.status === 'approved' ? 'default' : 'pointer', opacity: busyAction || objectRating?.status === 'approved' ? 0.6 : 1 }}>
-                      Automatische Vorschläge übernehmen / initialisieren
-                    </button>
-                    <button type="button" onClick={() => setNotice?.(ratingOpenChecks.length ? `Bitte prüfen Sie ${ratingOpenChecks.length} offene Rating-Kriterien.` : 'Rating geprüft. Es sind keine offenen Rating-Kriterien markiert.')} disabled={!objectRating || Boolean(busyAction)} title="Zeigt, ob offene Kriterien oder niedrige Confidence vorhanden sind." style={{ background: 'white', color: objectRating ? theme.aubergine : `${theme.ink}66`, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: !objectRating || busyAction ? 'default' : 'pointer', opacity: !objectRating || busyAction ? 0.6 : 1 }}>
-                      Rating prüfen
-                    </button>
-                    {objectRating && canManageRating && objectRating.status !== 'approved' && (
-                      <button onClick={saveRatingChanges} disabled={Boolean(busyAction) || ratingDirtyCount === 0} style={{ background: ratingDirtyCount ? theme.aubergine : 'white', color: ratingDirtyCount ? 'white' : `${theme.ink}66`, border: ratingDirtyCount ? 'none' : `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : ratingDirtyCount ? 'pointer' : 'default', opacity: busyAction ? 0.65 : 1 }}>
-                        Änderungen speichern{ratingDirtyCount ? ` (${ratingDirtyCount})` : ''}
-                      </button>
-                    )}
-                    {objectRating && canManageRating && objectRating.status !== 'approved' && (
-                      <button onClick={approveRating} disabled={Boolean(busyAction) || ratingDirtyCount > 0} title={ratingDirtyCount > 0 ? 'Bitte speichern Sie zuerst die Änderungen.' : 'Rating final freigeben.'} style={{ background: ratingDirtyCount === 0 ? theme.aubergine : 'white', color: ratingDirtyCount === 0 ? 'white' : `${theme.ink}66`, border: ratingDirtyCount === 0 ? 'none' : `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction || ratingDirtyCount > 0 ? 'default' : 'pointer', opacity: busyAction ? 0.65 : 1 }}>
-                        Rating freigeben
-                      </button>
-                    )}
-                    {objectRating?.status === 'approved' && canUnlockRating && (
-                      <button onClick={unlockRating} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                        Rating wieder freischalten
-                      </button>
+                  <div style={{ display: 'grid', justifyItems: 'end', gap: 7, minWidth: 220 }}>
+                    {ratingApproved ? (
+                      <>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#EAF7E6', color: '#2F6B1F', border: '1px solid #2F6B1F33', borderRadius: 999, padding: '7px 11px', fontSize: 12.5, fontWeight: 850 }}>
+                          <CheckCircle2 size={14} /> Rating freigegeben
+                        </span>
+                        {canUnlockRating && (
+                          <button onClick={unlockRating} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 9px', fontSize: 11.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                            Rating wieder freischalten
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {ratingPrimaryAction && canManageRating && (
+                          <button onClick={ratingPrimaryAction.onClick} disabled={ratingPrimaryAction.disabled} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 850, cursor: ratingPrimaryAction.disabled ? 'not-allowed' : 'pointer', opacity: ratingPrimaryAction.disabled ? 0.58 : 1 }}>
+                            {ratingPrimaryAction.label}
+                          </button>
+                        )}
+                        {objectRating && (
+                          <button type="button" onClick={() => setNotice?.(ratingOpenTasks.length ? `Offene Punkte: ${ratingOpenTasks.slice(0, 3).join(' · ')}` : 'Keine offenen Punkte. Das Rating kann freigegeben werden.')} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 10px', fontSize: 12, fontWeight: 800, cursor: busyAction ? 'default' : 'pointer', opacity: busyAction ? 0.6 : 1 }}>
+                            Rating prüfen
+                          </button>
+                        )}
+                        {ratingPrimaryAction?.helper && <div style={{ maxWidth: 310, textAlign: 'right', fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.35 }}>{ratingPrimaryAction.helper}</div>}
+                      </>
                     )}
                   </div>
                 </div>
@@ -7400,7 +7461,44 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   </div>
                 ) : (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
+                    <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 10, background: '#FEFCF8', padding: '15px 16px', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: 26, lineHeight: 1, color: theme.aubergine, fontWeight: 900 }}>{objectRating.totalScore ? Number(objectRating.totalScore).toFixed(2).replace('.', ',') : '-'}</div>
+                            <span style={{ background: ratingApproved ? '#EAF7E6' : theme.goldSoft, color: ratingApproved ? '#2F6B1F' : '#7A5600', border: `1px solid ${ratingApproved ? '#2F6B1F33' : theme.gold}55`, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850 }}>{ratingStatusChipLabel}</span>
+                          </div>
+                          <div style={{ marginTop: 7, fontSize: 13, color: theme.ink, fontWeight: 800 }}>
+                            Ratingklasse: {ratingInvestmentFilter.scoreBandLabel || objectRating.ratingClass || '-'}
+                          </div>
+                          <div style={{ marginTop: 3, fontSize: 12.5, color: `${theme.ink}99` }}>
+                            Investment-Behandlung: {ratingInvestmentFilter.treatmentLabel} · Zielrendite {formatPercent(objectRating.finalTargetReturn)}
+                          </div>
+                          {ratingApproved && (
+                            <div style={{ marginTop: 8, fontSize: 12, color: `${theme.ink}88`, lineHeight: 1.4 }}>
+                              Dieses Rating ist freigegeben und revisionssicher gesperrt.
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(95px, 1fr))', gap: 8, minWidth: 320 }}>
+                          {[
+                            ['Offene Kriterien', ratingOpenScores.length],
+                            ['Manuell geändert', ratingManualChangeCount],
+                            ['Pflichtkommentare offen', ratingMissingCommentScores.length],
+                            ['Status', labelFrom(ratingStatusLabels, objectRating.status)],
+                            ['Letzte Speicherung', ratingLastAudit ? formatDate(ratingLastAudit.timestamp) : '-'],
+                            ['Korridor', `${formatPercent(objectRating.lowerReturnBound)} - ${formatPercent(objectRating.upperReturnBound)}`],
+                          ].map(([label, value]) => (
+                            <div key={label} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '9px 10px' }}>
+                              <div style={{ fontSize: 10, color: theme.oliv, fontWeight: 850, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                              <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 850 }}>{value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'none', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
                       {[
                         ['Gesamtscore', objectRating.totalScore ? Number(objectRating.totalScore).toFixed(2).replace('.', ',') : '-'],
                         ['Ratingklasse', objectRating.ratingClass || '-'],
@@ -7446,8 +7544,154 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       </div>
                     </div>
 
+                    <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 10, background: ratingOpenTasks.length ? theme.goldSoft : '#EAF7E6', padding: '13px 15px', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: ratingOpenTasks.length ? 8 : 0 }}>
+                        <div style={{ fontSize: 12, color: theme.aubergine, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Offene Punkte</div>
+                        <span style={{ fontSize: 11.5, fontWeight: 850, color: ratingOpenTasks.length ? '#7A5600' : '#2F6B1F' }}>
+                          {ratingOpenTasks.length ? `${ratingOpenTasks.length} offen` : 'bereit'}
+                        </span>
+                      </div>
+                      {ratingOpenTasks.length ? (
+                        <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4, fontSize: 12.5, color: theme.ink, lineHeight: 1.4 }}>
+                          {ratingOpenTasks.slice(0, 7).map((task, index) => <li key={`${task}-${index}`}>{task}</li>)}
+                        </ul>
+                      ) : (
+                        <div style={{ fontSize: 12.5, color: '#2F6B1F', fontWeight: 750 }}>Keine offenen Punkte. Das Rating kann freigegeben werden.</div>
+                      )}
+                    </div>
+
                     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kategorien</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 18 }}>
+                    <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
+                      {ratingCategorySummaries.map(({ category, score, scores, openCount, manualCount, missingCommentCount, status }) => {
+                        const expanded = Boolean(openRatingCategoryIds[category.id]);
+                        const statusColor = status === 'Freigegeben' || status === 'Vollständig' ? '#2F6B1F' : status === 'Kommentar erforderlich' ? '#9B2C2C' : '#7A5600';
+                        const statusBg = status === 'Freigegeben' || status === 'Vollständig' ? '#EAF7E6' : status === 'Kommentar erforderlich' ? '#FFF4F4' : theme.goldSoft;
+                        return (
+                          <div key={category.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 10, overflow: 'hidden', background: 'white' }}>
+                            <button type="button" onClick={() => setOpenRatingCategoryIds((current) => ({ ...current, [category.id]: !current[category.id] }))} style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', background: expanded ? theme.mintLighter : 'white', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left' }}>
+                              <div>
+                                <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 900 }}>
+                                  {category.name} · Score {score ? score.toFixed(2).replace('.', ',') : '-'} · {scores.length} Kriterien{openCount ? ` · ${openCount} offen` : ''}
+                                </div>
+                                <div style={{ marginTop: 4, fontSize: 11.5, color: `${theme.ink}88` }}>
+                                  Gewichtung {formatPercent(category.weight)} · {manualCount} manuelle Änderung(en) · {missingCommentCount} Pflichtkommentar(e) offen
+                                </div>
+                              </div>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ background: statusBg, color: statusColor, border: `1px solid ${statusColor}33`, borderRadius: 999, padding: '4px 9px', fontSize: 11.5, fontWeight: 850 }}>{status}</span>
+                                <ChevronDown size={16} style={{ color: theme.aubergine, transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 160ms ease' }} />
+                              </div>
+                            </button>
+                            {expanded && (
+                              <div style={{ borderTop: `1px solid ${theme.borderSoft}`, overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
+                                  <thead>
+                                    <tr style={{ background: '#FEFCF8' }}>
+                                      {['Kriterium', 'Gewichtung', 'Quelle', 'Auto', 'Final', 'Confidence', 'Status', 'Aktion'].map((label) => (
+                                        <th key={label} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, color: theme.aubergine, letterSpacing: '0.1em', textTransform: 'uppercase', borderBottom: `1px solid ${theme.borderSoft}` }}>{label}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {scores.map((scoreItem) => {
+                                      const disabledByRoofChoice = ratingScoreDisabledByRoofChoice(scoreItem);
+                                      const finalValue = ratingScoreValueWithInput(scoreItem);
+                                      const manuallyChanged = ratingScoreManuallyChanged(scoreItem);
+                                      const missingComment = manuallyChanged && !String(ratingCommentValue(scoreItem) || '').trim();
+                                      const rowStatus = disabledByRoofChoice ? 'ausgeschlossen' : missingComment ? 'Kommentar erforderlich' : !ratingScoreValue(scoreItem) ? 'Offen' : manuallyChanged ? 'manuell geändert' : Number(scoreItem.confidence || 0) < 0.65 ? 'Prüfen' : 'OK';
+                                      const hasInfo = scoreItem.criterion?.category?.name === 'Mikrolage' && Boolean(scoreItem.criterion?.description);
+                                      return (
+                                        <React.Fragment key={scoreItem.id}>
+                                          <tr style={{ opacity: disabledByRoofChoice ? 0.56 : 1, background: activeRatingScoreId === scoreItem.id ? theme.mintLighter : 'white' }}>
+                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.ink, fontWeight: 800 }}>
+                                              <span>{scoreItem.criterion?.name || scoreItem.criterionId}</span>
+                                              {hasInfo && (
+                                                <button type="button" aria-label="Erklärung anzeigen" onClick={() => setOpenRatingInfo(openRatingInfo === scoreItem.id ? '' : scoreItem.id)} style={{ marginLeft: 7, width: 19, height: 19, borderRadius: 999, border: `1px solid ${theme.border}`, background: openRatingInfo === scoreItem.id ? theme.aubergine : 'white', color: openRatingInfo === scoreItem.id ? 'white' : theme.aubergine, fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>i</button>
+                                              )}
+                                            </td>
+                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: `${theme.ink}99` }}>{formatPercent(ratingEffectiveCriterionWeight(scoreItem.criterion))}</td>
+                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: `${theme.ink}99` }}>{labelFrom(ratingSourceLabels, scoreItem.source || scoreItem.criterion?.sourceType)}</td>
+                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.ink }}>{scoreItem.prefilledScore || '-'}</td>
+                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.aubergine, fontWeight: 850 }}>{disabledByRoofChoice ? '-' : finalValue || '-'}</td>
+                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.ink }}>{disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)}</td>
+                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}` }}>
+                                              <span style={{ background: missingComment ? '#FFF4F4' : rowStatus === 'OK' ? '#EAF7E6' : theme.goldSoft, color: missingComment ? '#9B2C2C' : rowStatus === 'OK' ? '#2F6B1F' : '#7A5600', borderRadius: 999, padding: '3px 8px', fontSize: 11, fontWeight: 850, whiteSpace: 'nowrap' }}>{rowStatus}</span>
+                                            </td>
+                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}` }}>
+                                              <button type="button" onClick={() => setActiveRatingScoreId(activeRatingScoreId === scoreItem.id ? '' : scoreItem.id)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 9px', fontSize: 11.5, fontWeight: 850, cursor: 'pointer' }}>
+                                                {activeRatingScoreId === scoreItem.id ? 'Schließen' : ratingReadOnly ? 'Ansehen' : 'Bearbeiten'}
+                                              </button>
+                                            </td>
+                                          </tr>
+                                          {openRatingInfo === scoreItem.id && (
+                                            <tr>
+                                              <td colSpan={8} style={{ padding: '9px 12px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45, whiteSpace: 'pre-line' }}>
+                                                {scoreItem.criterion?.description}
+                                              </td>
+                                            </tr>
+                                          )}
+                                          {activeRatingScoreId === scoreItem.id && (
+                                            <tr>
+                                              <td colSpan={8} style={{ padding: '14px 16px', background: '#FEFCF8', borderBottom: `1px solid ${theme.borderSoft}` }}>
+                                                <div style={{ display: 'grid', gap: 12 }}>
+                                                  <div>
+                                                    <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 900 }}>{scoreItem.criterion?.name || scoreItem.criterionId}</div>
+                                                    <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>{scoreItem.criterion?.description || 'Keine zusätzliche Beschreibung hinterlegt.'}</div>
+                                                  </div>
+                                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                                                    <Field label="Automatische Bewertung"><Input value={scoreItem.prefilledScore || '-'} readOnly /></Field>
+                                                    <Field label="Finale Bewertung">
+                                                      {canManageRating && objectRating.status !== 'approved' ? (
+                                                        <select value={finalValue} disabled={disabledByRoofChoice} onChange={(event) => {
+                                                          const input = ratingScoreInputs[scoreItem.id] || {};
+                                                          const nextInputs = { ...ratingScoreInputs, [scoreItem.id]: { ...input, analystScore: event.target.value, comment: input.comment ?? scoreItem.comment ?? '', cleared: false } };
+                                                          if (scoreItem.criterionId === ratingRoofCriterionId && flatRoofScore) nextInputs[flatRoofScore.id] = { ...(nextInputs[flatRoofScore.id] || {}), analystScore: '', comment: '', cleared: true };
+                                                          if (scoreItem.criterionId === ratingFlatRoofCriterionId && roofScore) nextInputs[roofScore.id] = { ...(nextInputs[roofScore.id] || {}), analystScore: '', comment: '', cleared: true };
+                                                          setRatingScoreInputs(nextInputs);
+                                                        }} style={{ width: '100%', border: `1px solid ${manuallyChanged ? theme.gold : theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, background: disabledByRoofChoice ? theme.mintLighter : 'white' }}>
+                                                          <option value="">-</option>
+                                                          {ratingScoreDefinitions(scoreItem.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {definition.label}</option>)}
+                                                        </select>
+                                                      ) : (
+                                                        <Input value={disabledByRoofChoice ? '-' : scoreItem.finalScore || '-'} readOnly />
+                                                      )}
+                                                    </Field>
+                                                    <Field label="Quelle"><Input value={labelFrom(ratingSourceLabels, scoreItem.source || scoreItem.criterion?.sourceType)} readOnly /></Field>
+                                                    <Field label="Confidence"><Input value={disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)} readOnly /></Field>
+                                                  </div>
+                                                  {missingComment && (
+                                                    <div style={{ border: '1px solid #B4231833', background: '#FFF4F4', color: '#9B2C2C', borderRadius: 7, padding: '8px 10px', fontSize: 12.5, fontWeight: 750 }}>
+                                                      Begründung erforderlich, weil ein automatischer Wert überschrieben wurde.
+                                                    </div>
+                                                  )}
+                                                  <Field label={missingComment ? 'Begründung' : 'Kommentar'}>
+                                                    {canManageRating && objectRating.status !== 'approved' ? (
+                                                      <textarea value={ratingCommentValue(scoreItem)} disabled={disabledByRoofChoice} onChange={(event) => {
+                                                        const input = ratingScoreInputs[scoreItem.id] || {};
+                                                        setRatingScoreInputs({ ...ratingScoreInputs, [scoreItem.id]: { ...input, comment: event.target.value } });
+                                                      }} rows={3} placeholder={missingComment ? 'Pflicht: Änderung begründen' : 'Optional'} style={{ width: '100%', border: `1px solid ${missingComment ? '#B42318' : theme.border}`, borderRadius: 6, padding: '9px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
+                                                    ) : (
+                                                      <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '9px 10px', background: theme.mintLighter, color: theme.ink, fontSize: 13 }}>{scoreItem.comment || '-'}</div>
+                                                    )}
+                                                  </Field>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          )}
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ display: 'none', fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kategorien</div>
+                    <div style={{ display: 'none', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 18 }}>
                       {ratingCategoryRows.map(({ category, score }) => (
                         <div key={category.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', background: 'white' }}>
                           <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 800 }}>{category.name}</div>
@@ -7457,8 +7701,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       ))}
                     </div>
 
-                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kriterien</div>
-                    <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ display: 'none', fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kriterien</div>
+                    <div style={{ display: 'none', gap: 8 }}>
                       {ratingCategoryRows.map(({ category }) => {
                         const categoryScores = ratingScores.filter((score) => score.criterion?.categoryId === category.id);
                         return (
@@ -10170,9 +10414,77 @@ const emptyLeadDraft = {
   internalNote: ''
 };
 
+const germanFederalStates = [
+  'Baden-Württemberg',
+  'Bayern',
+  'Berlin',
+  'Brandenburg',
+  'Bremen',
+  'Hamburg',
+  'Hessen',
+  'Mecklenburg-Vorpommern',
+  'Niedersachsen',
+  'Nordrhein-Westfalen',
+  'Rheinland-Pfalz',
+  'Saarland',
+  'Sachsen',
+  'Sachsen-Anhalt',
+  'Schleswig-Holstein',
+  'Thüringen'
+];
+
 const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, submitting }) => {
   const activePartners = partners.filter((partner) => partner.status === 'active');
+  const [postalLookup, setPostalLookup] = useState({ status: 'idle', entry: null, message: '' });
+  const lastAutoLocation = useRef({ city: '', federalState: '' });
   const set = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+  useEffect(() => {
+    const postalCode = String(draft.postalCode || '').replace(/\D/g, '');
+    if (postalCode.length !== 5) {
+      setPostalLookup({ status: 'idle', entry: null, message: '' });
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setPostalLookup({ status: 'loading', entry: null, message: 'PLZ wird geprüft...' });
+      try {
+        const response = await fetch(`/api/geo/postal-code?postalCode=${encodeURIComponent(postalCode)}`, {
+          signal: controller.signal
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.status !== 'FOUND') {
+          setPostalLookup({ status: 'missing', entry: null, message: 'Bundesland konnte nicht automatisch erkannt werden. Bitte manuell auswählen.' });
+          return;
+        }
+
+        const entry = payload;
+        const previousAutoLocation = lastAutoLocation.current;
+        setDraft((current) => {
+          const next = { ...current };
+          if (!current.city || current.city === previousAutoLocation.city) next.city = entry.city;
+          if (!current.federalState || current.federalState === previousAutoLocation.federalState) next.federalState = entry.federalState;
+          if (!current.region) next.region = entry.federalState;
+          return next;
+        });
+        lastAutoLocation.current = { city: entry.city, federalState: entry.federalState };
+        setPostalLookup({
+          status: 'found',
+          entry,
+          message: `Bundesland automatisch anhand der PLZ erkannt.${entry.city ? ` Ort: ${entry.city}.` : ''}`
+        });
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          setPostalLookup({ status: 'missing', entry: null, message: 'Bundesland konnte nicht automatisch erkannt werden. Bitte manuell auswählen.' });
+        }
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [draft.postalCode, setDraft]);
   const field = (label, key, props = {}) => (
     <label style={{ display: 'grid', gap: 5 }}>
       <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{label}</span>
@@ -10202,9 +10514,15 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, s
             {field('Mobil', 'mobilePhone')}
             {field('E-Mail', 'email', { type: 'email' })}
             {field('Straße', 'street')}
-            {field('PLZ', 'postalCode')}
+            {field('PLZ', 'postalCode', { inputMode: 'numeric', maxLength: 5, autoComplete: 'postal-code' })}
             {field('Ort', 'city')}
-            {field('Bundesland', 'federalState')}
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Bundesland</span>
+              <select value={draft.federalState || ''} onChange={(event) => set('federalState', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+                <option value="">Bitte auswählen</option>
+                {germanFederalStates.map((state) => <option key={state} value={state}>{state}</option>)}
+              </select>
+            </label>
             <label style={{ display: 'grid', gap: 5 }}>
               <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Bevorzugte Kontaktart</span>
               <select value={draft.preferredContactMethod || ''} onChange={(event) => set('preferredContactMethod', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
@@ -10218,6 +10536,19 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, s
               Einwilligung zur Kontaktaufnahme
             </label>
           </div>
+          {postalLookup.message ? (
+            <div style={{
+              marginTop: 8,
+              fontSize: 12,
+              color: postalLookup.status === 'found' ? '#2F6B1F' : `${theme.ink}99`,
+              background: postalLookup.status === 'found' ? '#EAF7E7' : theme.mintLighter,
+              border: `1px solid ${postalLookup.status === 'found' ? '#8BC580' : theme.borderSoft}`,
+              borderRadius: 6,
+              padding: '7px 9px'
+            }}>
+              {postalLookup.message}
+            </div>
+          ) : null}
           <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
             <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Notiz zum Gespräch</span>
             <textarea value={draft.message || ''} onChange={(event) => set('message', event.target.value)} rows={3} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit' }} />

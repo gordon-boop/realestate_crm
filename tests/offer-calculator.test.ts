@@ -72,6 +72,48 @@ test("maps the fixed residential-right core result into the CRM offer shape", ()
   assertApprox(result.assumptions.components?.weightedAnnualIrr ?? 0, 0.118041, 0.000001);
 });
 
+test("maps the lifetime residential-right core result into the CRM offer shape", () => {
+  const result = calculateOffer({
+    valuation: { marketValue: 500000 },
+    condition: "good",
+    model: "fixed_residential_right",
+    usageModel: "lifelong_residential_right",
+    livingAreaSqm: 100,
+    propertyType: "apartment",
+    energyClass: "E",
+    monthlyRentPerSqm: 9,
+    garageCount: 0,
+    targetReturn: 0.08,
+    acquisitionCostRate: 0.09,
+    salesCostRate: 0.015,
+    selectedIndexationScenario: 0.02,
+    primaryDateOfBirth: "1950-01-01",
+    primaryGender: "female",
+    calculationDate: "2026-06-16"
+  });
+
+  assert.equal(result.marketValue, 500000);
+  assert.equal(result.calculationMode, "RATING_TARGET_RETURN_IRR");
+  assert.ok(result.payoutAmount > 0);
+  assert.equal(result.assumptions.productModel, "fixed_residential_right");
+  assert.equal(result.assumptions.sourceWorkbook, "Calculation_Investor_Cockpit_eng_fix_term_and_lifetime_model_final.xlsx");
+});
+
+test("lifetime residential-right calculation reports missing lifetime inputs in German", () => {
+  assert.throws(() => calculateOffer({
+    valuation: { marketValue: 500000 },
+    condition: "good",
+    model: "fixed_residential_right",
+    usageModel: "lifelong_residential_right",
+    livingAreaSqm: 100,
+    propertyType: "apartment",
+    energyClass: "E",
+    monthlyRentPerSqm: 0,
+    primaryDateOfBirth: "1950-01-01",
+    calculationDate: "2026-06-16"
+  }), /Interne Mietannahme .* fehlt.*Geschlecht der berechtigten Person fehlt/s);
+});
+
 test("treats energy classes F, G and H as higher maintenance risk", () => {
   const houseResult = calculateFixedResidentialRightOffer({
     ...excelResidentialRightInput,

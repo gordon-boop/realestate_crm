@@ -208,6 +208,23 @@ test("object rating 4 to 6 receives standard approval after rating approval", ()
   assert.equal(gate.allowed, true);
 });
 
+test("rating gate names missing criteria when rating is incomplete", () => {
+  const rating = {
+    totalScore: 3.95,
+    status: "analyst_review",
+    scores: [
+      { criterionId: "rating_crit_maintenance_roof_v1", criterion: { name: "Dach" }, finalScore: null },
+      { criterionId: "rating_crit_economy_v1", criterion: { name: "Kaufkraft" }, finalScore: 4 }
+    ],
+    auditLogs: []
+  } as any;
+
+  const gate = evaluateRatingGate([rating], { expertOpinionReceivedAt: undefined } as any, "indicative");
+
+  assert.equal(gate.allowed, false);
+  assert.match(gate.reason, /Fehlende Kriterien: Dach/);
+});
+
 test("binding offer requires rating approval after appraisal receipt", () => {
   const staleRating = {
     totalScore: 4.2,

@@ -47,6 +47,23 @@ test("acquisition precheck blocks market values below and above thresholds", () 
   assert.equal(tooHigh.result, "not_acquirable");
 });
 
+test("acquisition precheck parses German preliminary market values before validation and display", () => {
+  const valid = evaluateAcquisitionPrecheck(caseView({ acquisitionPrecheck: { preliminaryMarketValue: "500.000" } }));
+  const lowerFailed = evaluateAcquisitionPrecheck(caseView({ acquisitionPrecheck: { preliminaryMarketValue: "249.999" } }));
+  const lowerPassed = evaluateAcquisitionPrecheck(caseView({ acquisitionPrecheck: { preliminaryMarketValue: "250.000" } }));
+  const upperPassed = evaluateAcquisitionPrecheck(caseView({ acquisitionPrecheck: { preliminaryMarketValue: "1.000.000" } }));
+  const upperFailed = evaluateAcquisitionPrecheck(caseView({ acquisitionPrecheck: { preliminaryMarketValue: "1.000.001" } }));
+  const validMarketValue = valid.criteria.find((item) => item.key === "market_value");
+
+  assert.equal(validMarketValue?.currentValue, "500.000 €");
+  assert.equal(validMarketValue?.status, "passed");
+  assert.equal(valid.result, "acquirable");
+  assert.equal(lowerFailed.result, "not_acquirable");
+  assert.equal(lowerPassed.result, "acquirable");
+  assert.equal(upperPassed.result, "acquirable");
+  assert.equal(upperFailed.result, "not_acquirable");
+});
+
 test("acquisition precheck is incomplete without preliminary market value", () => {
   const result = evaluateAcquisitionPrecheck(caseView({
     acquisitionPrecheck: { preliminaryMarketValue: undefined }
