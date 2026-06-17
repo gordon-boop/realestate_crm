@@ -17,6 +17,32 @@ test("homepage lead schema stores property interest without customer conversion"
   assert.equal(lead.propertyType, "single_family");
 });
 
+test("direct internal lead schema accepts advisor assignment without partner", () => {
+  const lead = leadCreateSchema.parse({
+    source: "internal",
+    firstName: "Eva",
+    lastName: "Schmidt",
+    phone: "0711123456",
+    postalCode: "70563",
+    assignedAdvisorUserId: "user_employee"
+  });
+
+  assert.equal(lead.source, "internal");
+  assert.equal(lead.assignedAdvisorUserId, "user_employee");
+  assert.equal(lead.assignedPartnerId, undefined);
+});
+
+test("broker lead schema requires partner assignment", () => {
+  assert.throws(() => leadCreateSchema.parse({
+    source: "partner",
+    firstName: "Eva",
+    lastName: "Schmidt",
+    phone: "0711123456",
+    postalCode: "70563",
+    routingReason: "Region Stuttgart"
+  }), /Makler oder Partner/);
+});
+
 test("assigned lead can be converted into a draft customer case", () => {
   const lead = store.leads.find((item) => item.id === "lead_assigned_1");
   assert.ok(lead);

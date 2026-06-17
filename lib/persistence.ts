@@ -745,19 +745,27 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
     federalState: input.federalState
   });
   const propertyLocation = findOpenPlzPostalCode(input.propertyPostalCode, input.propertyCity);
-  const assignedPartnerId = user?.role === "partner" ? user.partnerId : user?.role === "admin" ? input.assignedPartnerId : undefined;
-  const assignedAdvisorUserId = user?.role === "admin" && !isInternalAdmin(user) ? user.id : user?.role === "admin" ? input.assignedAdvisorUserId : undefined;
+  const requestedSource = user?.role === "partner" ? "partner" : user?.role === "admin" ? (!isInternalAdmin(user) ? "internal" : input.source ?? "phone") : "homepage";
+  const brokerLead = requestedSource === "partner";
+  const assignedPartnerId = user?.role === "partner" ? user.partnerId : user?.role === "admin" && brokerLead ? input.assignedPartnerId : undefined;
+  const assignedAdvisorUserId = user?.role === "admin" && !assignedPartnerId
+    ? (input.assignedAdvisorUserId || user.id)
+    : undefined;
   const assigned = Boolean(assignedPartnerId || assignedAdvisorUserId);
   if (assignedPartnerId) {
     const partner = await prisma.partner.findFirst({ where: { id: assignedPartnerId, status: "active" } });
     if (!partner) throw new Error("Partner not found");
   }
-  const source = user?.role === "partner" ? "partner" : user?.role === "admin" ? (!isInternalAdmin(user) ? "internal" : input.source ?? "phone") : "homepage";
+  if (assignedAdvisorUserId) {
+    const advisor = await prisma.user.findFirst({ where: { id: assignedAdvisorUserId, role: "admin", internalRole: { in: ["employee", "advisor", "admin", "super_admin"] } } });
+    if (!advisor) throw new Error("Kundenberater not found");
+  }
+  const source = requestedSource;
   const lead = await prisma.lead.create({
     data: {
       leadNumber,
       source: source as never,
-      status: assigned ? "ASSIGNED_TO_PARTNER" : source === "homepage" ? "NEW" : "IN_REVIEW",
+      status: assignedPartnerId ? "ASSIGNED_TO_PARTNER" : assignedAdvisorUserId ? "ASSIGNED" : source === "homepage" ? "NEW" : "IN_REVIEW",
       assignedPartnerId,
       assignedAdvisorUserId,
       assignedByUserId: assigned ? user?.id : undefined,
@@ -793,11 +801,14 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
     }
   });
   if (assigned && user?.id) {
+    const targetLabel = assignedPartnerId
+      ? "Makler"
+      : "Kundenberater";
     await prisma.activity.create({
       data: {
         userId: user.id,
         type: "lead_assigned",
-        message: `Lead ${lead.leadNumber} wurde weitergeleitet.${input.routingReason ? ` Grund: ${input.routingReason}` : ""}`,
+        message: `Lead ${lead.leadNumber} wurde ${assignedPartnerId ? "an einen Makler weitergeleitet" : "intern zugewiesen"}.${input.routingReason ? ` Grund: ${input.routingReason}` : ` Zuständig: ${targetLabel}`}`,
         source: user.role === "partner" ? "partner" : "admin",
         entityType: "lead",
         entityId: lead.id
@@ -813,7 +824,7 @@ export async function assignDbLead(leadId: string, assignment: { partnerId?: str
     if (!partner) throw new Error("Partner not found");
   }
   if (assignment.advisorUserId) {
-    const advisor = await prisma.user.findFirst({ where: { id: assignment.advisorUserId, role: "admin", internalRole: { in: ["advisor", "admin", "super_admin"] } } });
+    const advisor = await prisma.user.findFirst({ where: { id: assignment.advisorUserId, role: "admin", internalRole: { in: ["employee", "advisor", "admin", "super_admin"] } } });
     if (!advisor) throw new Error("Kundenberater not found");
   }
   const existing = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -823,7 +834,7 @@ export async function assignDbLead(leadId: string, assignment: { partnerId?: str
   const lead = await prisma.lead.update({
     where: { id: leadId },
     data: {
-      status: "ASSIGNED_TO_PARTNER",
+      status: assignment.partnerId ? "ASSIGNED_TO_PARTNER" : "ASSIGNED",
       assignedPartnerId: assignment.partnerId ?? null,
       assignedAdvisorUserId: assignment.advisorUserId ?? null,
       assignedByUserId: userId,

@@ -1791,7 +1791,7 @@ const leadStatusLabels = {
   NEW: 'Neu',
   IN_REVIEW: 'In Prüfung',
   QUALIFIED: 'Qualifiziert',
-  ASSIGNED: 'Zugewiesen',
+  ASSIGNED: 'Intern zugewiesen',
   ASSIGNED_TO_PARTNER: 'An Makler weitergeleitet',
   CONTACTED: 'Kontaktiert',
   PARTNER_CONTACT_PENDING: 'Kontakt durch Makler offen',
@@ -1820,7 +1820,7 @@ const leadSourceLabels = {
   referral: 'Empfehlung',
   admin: 'Intern',
   internal: 'Intern',
-  partner: 'Makler',
+  partner: 'Makler / Partner',
   other: 'Sonstiges',
 };
 
@@ -10410,6 +10410,7 @@ const emptyLeadDraft = {
   productInterest: '',
   region: '',
   assignedPartnerId: '',
+  assignedAdvisorUserId: '',
   routingReason: '',
   internalNote: ''
 };
@@ -10433,8 +10434,10 @@ const germanFederalStates = [
   'Thüringen'
 ];
 
-const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, submitting }) => {
+const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], onSubmit, onCancel, submitting }) => {
   const activePartners = partners.filter((partner) => partner.status === 'active');
+  const advisorOptions = staff.filter((member) => ['employee', 'advisor', 'admin', 'super_admin'].includes(member.internalRole));
+  const brokerLead = draft.source === 'partner';
   const [postalLookup, setPostalLookup] = useState({ status: 'idle', entry: null, message: '' });
   const lastAutoLocation = useRef({ city: '', federalState: '' });
   const set = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
@@ -10595,24 +10598,48 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], onSubmit, onCancel, s
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
             <label style={{ display: 'grid', gap: 5 }}>
               <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Lead-Quelle</span>
-              <select value={draft.source || 'phone'} onChange={(event) => set('source', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+              <select value={draft.source || 'phone'} onChange={(event) => {
+                const nextSource = event.target.value;
+                setDraft((current) => ({
+                  ...current,
+                  source: nextSource,
+                  assignedPartnerId: nextSource === 'partner' ? current.assignedPartnerId : '',
+                  assignedAdvisorUserId: nextSource === 'partner' ? '' : current.assignedAdvisorUserId,
+                  routingReason: nextSource === current.source ? current.routingReason : ''
+                }));
+              }} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+                <option value="internal">Direktanfrage</option>
                 <option value="phone">Telefon</option>
-                <option value="website">Website</option>
+                <option value="website">Homepage</option>
                 <option value="referral">Empfehlung</option>
-                <option value="partner">Makler</option>
+                <option value="partner">Makler / Partner</option>
                 <option value="other">Sonstiges</option>
               </select>
             </label>
             {field('Region', 'region')}
-            <label style={{ display: 'grid', gap: 5 }}>
+            <label style={{ display: brokerLead ? 'grid' : 'none', gap: 5 }}>
               <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Zuständiger Partner/Makler</span>
               <select value={draft.assignedPartnerId || ''} onChange={(event) => set('assignedPartnerId', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
                 <option value="">Noch nicht zuweisen</option>
                 {activePartners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
               </select>
             </label>
-            {field('Routing-Grund', 'routingReason')}
+            {!brokerLead && (
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Interner Bearbeiter</span>
+                <select value={draft.assignedAdvisorUserId || ''} onChange={(event) => setDraft((current) => ({ ...current, assignedAdvisorUserId: event.target.value, assignedPartnerId: '' }))} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
+                  <option value="">Aktueller Nutzer / spÃ¤ter zuweisen</option>
+                  {advisorOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+                </select>
+              </label>
+            )}
+            {brokerLead ? field('Routing-Grund', 'routingReason') : field('Interner Hinweis zur Zuweisung', 'routingReason')}
           </div>
+          {!brokerLead && (
+            <div style={{ marginTop: 8, fontSize: 12, color: `${theme.ink}88`, lineHeight: 1.4 }}>
+              Direkt-Lead: Eine Partnerzuordnung ist nicht erforderlich. Ohne Auswahl wird der Lead dem aktuell eingeloggten internen Nutzer zugewiesen.
+            </div>
+          )}
           <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
             <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Interne Notiz</span>
             <textarea value={draft.internalNote || ''} onChange={(event) => set('internalNote', event.target.value)} rows={2} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit' }} />
@@ -10669,7 +10696,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   };
   const activePartners = partners.filter((partner) => partner.status === 'active');
   const activePartnerCount = activePartners.length;
-  const advisorOptions = staff.filter((member) => ['advisor', 'admin', 'super_admin'].includes(member.internalRole));
+  const advisorOptions = staff.filter((member) => ['employee', 'advisor', 'admin', 'super_admin'].includes(member.internalRole));
   const assigneeOptions = [
     ...activePartners.map((partner) => ({ value: `partner:${partner.id}`, label: `Partner · ${partner.contactName || partner.companyName}` })),
     ...advisorOptions.map((member) => ({ value: `advisor:${member.id}`, label: `Intern · ${member.name}` })),
@@ -10787,6 +10814,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
           draft={leadDraft}
           setDraft={setLeadDraft}
           partners={partners}
+          staff={staff}
           submitting={savingLead}
           onSubmit={submitLead}
           onCancel={closeCreateForm}
@@ -10939,6 +10967,8 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 
               {role === 'admin' && canAssignLeads ? (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
+                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 'not-allowed' : 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Kontaktiert markieren</button>
+                  <button disabled={!['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status)} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 'pointer' : 'not-allowed', opacity: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 1 : 0.45 }}>{['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}</button>
                   <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'IN_REVIEW')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>In Prüfung markieren</button>
                   <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Lead ablehnen</button>
                 </div>
@@ -11410,11 +11440,14 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const handleCreateLead = async (leadDraft) => {
     try {
       const payload = Object.fromEntries(Object.entries(leadDraft).map(([key, value]) => [key, value === '' ? undefined : value]));
+      if (payload.source === 'partner' && !payload.assignedPartnerId) {
+        throw new Error('Bitte wählen Sie einen Makler oder Partner aus.');
+      }
       if (payload.assignedPartnerId && !payload.routingReason) {
         throw new Error('Bitte erfassen Sie den Routing-Grund, wenn der Lead direkt an einen Makler weitergeleitet wird.');
       }
       await postJson('/api/leads', payload);
-      setNotice(payload.assignedPartnerId ? 'Lead wurde erfasst und an den Makler weitergeleitet.' : 'Lead wurde erfasst.');
+      setNotice(payload.assignedPartnerId ? 'Lead wurde erfasst und an den Makler weitergeleitet.' : 'Direkt-Lead wurde erfasst und intern zugewiesen.');
       await loadLeads(role);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : 'Lead konnte nicht erfasst werden');
@@ -11423,7 +11456,8 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   };
   const handleMarkLeadContacted = async (leadId) => {
     try {
-      await patchJson(`/api/leads/${leadId}/status`, { status: 'PARTNER_CONTACT_PENDING' });
+      const lead = leads.find((item) => item.id === leadId);
+      await patchJson(`/api/leads/${leadId}/status`, { status: lead?.assignedPartnerId ? 'PARTNER_CONTACT_PENDING' : 'CONTACTED' });
       setNotice('Lead wurde als kontaktiert markiert.');
       await loadLeads(role);
     } catch (err) {

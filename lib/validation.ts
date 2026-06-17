@@ -347,9 +347,11 @@ export const leadCreateSchema = z.object({
   productInterest: z.enum(["fixed_residential_right", "sale_and_leaseback", "other"]).optional(),
   region: optionalString,
   assignedPartnerId: optionalString,
+  assignedAdvisorUserId: optionalString,
   routingReason: optionalString,
   internalNote: optionalString
 }).superRefine((value, ctx) => {
+  const brokerLead = value.source === "partner";
   const manualLead = value.source !== "homepage";
   if (manualLead && !value.firstName && !value.lastName && !value.name) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["lastName"], message: "Bitte erfassen Sie mindestens Vorname oder Nachname." });
@@ -360,7 +362,13 @@ export const leadCreateSchema = z.object({
   if (manualLead && !value.postalCode && !value.city) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["city"], message: "Bitte erfassen Sie Ort oder PLZ." });
   }
-  if (value.assignedPartnerId && !value.routingReason) {
+  if (brokerLead && !value.assignedPartnerId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["assignedPartnerId"], message: "Bitte wählen Sie einen Makler oder Partner aus." });
+  }
+  if (value.assignedPartnerId && value.assignedAdvisorUserId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["assignedAdvisorUserId"], message: "Bitte wählen Sie entweder einen Makler oder einen internen Bearbeiter aus." });
+  }
+  if ((brokerLead || value.assignedPartnerId) && !value.routingReason) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["routingReason"], message: "Bitte erfassen Sie den Routing-Grund." });
   }
 });
