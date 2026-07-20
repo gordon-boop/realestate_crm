@@ -25,6 +25,7 @@ const optionalPercent = z.preprocess((value) => {
 }, z.number().finite("Bitte geben Sie eine gültige Zahl ein.").optional());
 const optionalBoolean = z.preprocess((value) => value === "on" ? true : value === "yes" ? true : value === "no" ? false : value, z.boolean().optional());
 const optionalEnum = <T extends [string, ...string[]]>(values: T) => z.preprocess(emptyToUndefined, z.enum(values).optional());
+const energyClassSchema = optionalEnum(["A", "B", "C", "D", "E", "F", "G", "H"]);
 
 export const customerCreateSchema = z.object({
   partnerId: optionalString,
@@ -112,7 +113,7 @@ const propertyBaseSchema = z.object({
   asbestosRoofKnown: optionalBoolean,
   energyCertificateAvailable: optionalBoolean,
   energyCertificateType: optionalString,
-  energyClass: optionalString,
+  energyClass: energyClassSchema,
   visualConditionRating: z.enum(["very_bad", "bad", "moderate", "medium", "good", "very_good"]).optional(),
   leaseholdOrMonument: optionalBoolean.default(false),
   leasehold: optionalBoolean.default(false),

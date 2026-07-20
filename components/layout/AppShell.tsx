@@ -8,8 +8,8 @@ export function AppShell({ user, children }: { user?: User; children: React.Reac
   return (
     <main className="shell">
       <header className="topbar">
-        <Link className="brand" href={home}>
-          <img className="brand-logo" src="/brand/wohnkapital-logo.svg" alt="WohnKapital" />
+        <Link className="brand brand-neutral" href={home} aria-label="Zum Portal-Start">
+          CRM
         </Link>
         <nav className="topnav">
           {user ? (

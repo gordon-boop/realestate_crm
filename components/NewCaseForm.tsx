@@ -295,7 +295,7 @@ export function NewCaseForm() {
         {energyCertificateAvailable === "yes" ? (
           <>
             <label className="field"><span>Typ Energieausweis</span><select name="energyCertificateType" required><option value="">Bitte wählen</option><option value="demand">Bedarfsausweis</option><option value="consumption">Verbrauchsausweis</option></select></label>
-            <label className="field"><span>Energieklasse</span><input name="energyClass" required /></label>
+            <label className="field"><span>Energieklasse</span><select name="energyClass" required><option value="">Bitte wählen</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option><option value="F">F</option><option value="G">G</option><option value="H">H</option></select></label>
           </>
         ) : null}
         <label className="field"><span>Parkplatz</span><select name="parkingType" value={parkingType} onChange={(event) => setParkingType(event.target.value)}><option value="">Kein Parkplatz</option><option value="garage">Garage</option><option value="carport">Carport</option><option value="outdoor_space">Stellplatz</option><option value="duplex">Doppelparker</option></select></label>

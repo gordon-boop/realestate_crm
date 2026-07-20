@@ -58,7 +58,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!canCalculateOffer(user, caseView.property)) throw new Error("Forbidden");
 
     const body = (await request.json().catch(() => ({}))) as CalculateOfferBody;
-    const model = body.model ?? caseView.property.desiredModel;
+    const selectedModel = caseView.property.desiredModel;
+    if (!selectedModel) {
+      throw new Error("Bitte wählen Sie zunächst ein Modell in der Kundenerfassung aus.");
+    }
+    if (body.model && body.model !== selectedModel) {
+      throw new Error("Die Angebotsberechnung verwendet das in der Kundenerfassung gewählte Modell.");
+    }
+    const model = selectedModel;
     const kind = body.kind ?? "indicative";
     const residentialRightYears = readNumber(body.inputs, "residentialRightYears") ?? caseView.property.desiredResidentialRightYears;
     const manualMarketValue = readNumber(body.inputs, "manualMarketValue") ?? readNumber(body.inputs, "marketValue");

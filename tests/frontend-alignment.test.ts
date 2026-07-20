@@ -1,12 +1,27 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { CaseIntakeDraftDto } from "../lib/frontend-dtos.ts";
 import { frontendStatusConfig } from "../lib/frontend-dtos.ts";
+import { hausVorteilDesignTokens } from "../lib/design/tokens.ts";
 import { completeOpenReminders, createReminder, getCaseByPropertyId } from "../lib/store.ts";
 import { chatMessageCreateSchema, documentCreateSchema, portfolioUpdateSchema, propertyCreateSchema } from "../lib/validation.ts";
 
 test("frontend status config contains sold workflow state", () => {
   assert.equal(frontendStatusConfig.some((item) => item.status === "SOLD" && item.label === "Verkauft"), true);
+});
+
+test("crm uses centralized HausVorteil design tokens", () => {
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.equal(hausVorteilDesignTokens.color.primary, "#1B4385");
+  assert.equal(hausVorteilDesignTokens.color.secondary, "#8BB21F");
+  assert.match(prototype, /hausVorteilDesignTokens/);
+  assert.match(prototype, /className="crm-app"/);
+  assert.match(globals, /--hv-primary: #1b4385/);
+  assert.match(globals, /--hv-secondary: #8bb21f/);
+  assert.match(globals, /--hv-focus-ring/);
 });
 
 test("property validation accepts frontend property types and split exclusion flags", () => {
@@ -93,6 +108,84 @@ test("property validation treats empty optional offer enums as absent", () => {
   assert.equal(parsed.desiredModel, "sale_and_leaseback");
   assert.equal(parsed.residentialRightRecipients, undefined);
   assert.equal(parsed.additionalOfferResidentialRightRecipients, undefined);
+});
+
+test("property validation only accepts energy classes A to H", () => {
+  const parsed = propertyCreateSchema.parse({
+    customerId: "customer_schmidt",
+    propertyType: "single_family",
+    street: "Hauptstraße 14",
+    postalCode: "70563",
+    city: "Stuttgart",
+    livingAreaSqm: 142,
+    plotAreaSqm: 380,
+    desiredModel: "fixed_residential_right",
+    energyCertificateAvailable: true,
+    energyCertificateType: "demand",
+    energyClass: "H",
+    knownMajorMaintenanceOrSpecialAssessments: false,
+    moistureDamageStatus: "NONE",
+    accessibilityAssessment: "LOW_BARRIER"
+  });
+
+  assert.equal(parsed.energyClass, "H");
+  assert.throws(() => propertyCreateSchema.parse({
+    customerId: "customer_schmidt",
+    propertyType: "single_family",
+    street: "Hauptstraße 14",
+    postalCode: "70563",
+    city: "Stuttgart",
+    livingAreaSqm: 142,
+    plotAreaSqm: 380,
+    desiredModel: "fixed_residential_right",
+    energyClass: "A+",
+    knownMajorMaintenanceOrSpecialAssessments: false,
+    moistureDamageStatus: "NONE",
+    accessibilityAssessment: "LOW_BARRIER"
+  }), /Invalid enum value/);
+});
+
+test("frontend case form renders energy class dropdown and barrier-free label", () => {
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  const newCaseForm = readFileSync(new URL("../components/NewCaseForm.tsx", import.meta.url), "utf8");
+
+  assert.match(prototype, /<Field label="Energieklasse" required/);
+  assert.match(prototype, /'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'/);
+  assert.doesNotMatch(prototype, /A\+/);
+  assert.match(newCaseForm, /<select name="energyClass" required>/);
+  assert.doesNotMatch(newCaseForm, /<input name="energyClass"/);
+  assert.match(prototype, /Barrierefrei/);
+  assert.doesNotMatch(prototype, /Barrierearm/);
+});
+
+test("offer tabs use the selected intake model instead of product selection cards", () => {
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  const calculateRoute = readFileSync(new URL("../app/api/properties/[id]/offer/calculate/route.ts", import.meta.url), "utf8");
+
+  assert.match(prototype, /Gewähltes Modell/);
+  assert.match(prototype, /Aus Kundenerfassung übernommen/);
+  assert.match(prototype, /Bitte wählen Sie zunächst ein Modell in der Kundenerfassung aus/);
+  assert.doesNotMatch(prototype, /renderResidentialRightProductCards/);
+  assert.doesNotMatch(prototype, /Wohnrecht-Produkte/);
+  assert.doesNotMatch(prototype, /Vergleich Wohnrecht-Produkte/);
+  assert.match(calculateRoute, /Die Angebotsberechnung verwendet das in der Kundenerfassung gewählte Modell/);
+});
+
+test("offer result boxes use clear investment labels", () => {
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+
+  assert.match(prototype, /Wert des Wohnrechts/);
+  assert.match(prototype, /Instandhaltungsrücklage/);
+  assert.match(prototype, /Auszahlung an den Kunden/);
+  assert.match(prototype, /Maximaler Auszahlungsbetrag/);
+  assert.match(prototype, /Ankaufs-IRR/);
+  assert.match(prototype, /Gesamtankaufskosten/);
+  assert.doesNotMatch(prototype, /Interner Wohnrechtswert/);
+  assert.doesNotMatch(prototype, /Gewichteter IRR/);
+  assert.doesNotMatch(prototype, /Ziel-IRR/);
+  assert.doesNotMatch(prototype, /Total Investor Commitment/);
+  assert.doesNotMatch(prototype, /Gesamte Investorenauszahlung/);
+  assert.doesNotMatch(prototype, /Instandhaltungsreserve/);
 });
 
 test("property validation accepts lifelong residential right as existing usage model variant", () => {

@@ -1,0 +1,40 @@
+export const hausVorteilDesignTokens = {
+  color: {
+    primary: "#1B4385",
+    primaryHover: "#14366C",
+    primarySoft: "#EEF3FA",
+    primaryMuted: "#315D9A",
+    secondary: "#8BB21F",
+    secondaryHover: "#769919",
+    secondarySoft: "#F3F8E8",
+    background: "#F4F6F8",
+    surface: "#FFFFFF",
+    surfaceSoft: "#F8FAFB",
+    border: "#D8E0E7",
+    borderSoft: "#E8EDF1",
+    textPrimary: "#14283D",
+    textSecondary: "#66778A",
+    success: "#2E7D4F",
+    successSoft: "#EDF7F1",
+    warning: "#B7791F",
+    warningSoft: "#FFF7E8",
+    error: "#B33A3A",
+    errorSoft: "#FDF0F0",
+    muted: "#EFF2F4",
+    focusRing: "rgba(139, 178, 31, 0.32)",
+  },
+  radius: {
+    button: 6,
+    field: 6,
+    card: 8,
+    modal: 10,
+    pill: 999,
+  },
+  shadow: {
+    card: "0 8px 24px rgba(20, 40, 61, 0.06)",
+    elevated: "0 18px 48px rgba(20, 40, 61, 0.12)",
+    focus: "0 0 0 3px rgba(139, 178, 31, 0.32)",
+  },
+} as const;
+
+export type HausVorteilDesignTokens = typeof hausVorteilDesignTokens;

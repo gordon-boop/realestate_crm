@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
 import type { User } from "@/lib/domain";
+import { hausVorteilDesignTokens } from "@/lib/design/tokens";
 
 type FrontendPrototypeProps = {
   initialRole?: "partner" | "admin";
@@ -21,8 +22,8 @@ const FrontendPrototype = dynamic(
   {
   ssr: false,
   loading: () => (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#E8F5E0", color: "#44005C", fontFamily: "Aptos, Segoe UI, system-ui, sans-serif" }}>
-      WohnKapital wird geladen...
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: hausVorteilDesignTokens.color.background, color: hausVorteilDesignTokens.color.primary, fontFamily: "Inter, Aptos, Segoe UI, system-ui, sans-serif" }}>
+      CRM wird geladen...
     </div>
   )
 });

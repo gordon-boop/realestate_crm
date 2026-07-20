@@ -22,55 +22,76 @@ import { evaluateAcquisitionPrecheck } from '@/lib/acquisition-precheck';
 import { getLifetimeResidentialRightEligibility } from '@/lib/residential-right-eligibility';
 import { parseGermanNumberInput as parseGermanNumberValue, parseGermanPercentInput } from '@/lib/utils/numberParsing';
 import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
+import { hausVorteilDesignTokens } from '@/lib/design/tokens';
 
 // =====================================================================
 // THEME — WohnKapital Mint-Welt
 // =====================================================================
+const ci = hausVorteilDesignTokens;
 const theme = {
-  aubergine: '#44005C',
-  aubergineSoft: '#5C1077',
-  aubergineHover: '#380049',
-  gold: '#FFAC00',
-  goldSoft: '#FFF7E5',
-  oliv: '#A8A443',
-  mint: '#E8F5E0',
-  mintLight: '#F2F8EC',
-  mintLighter: '#F8FBF4',
-  ink: '#2A1A35',
-  inkSoft: '#5C4A66',
-  white: '#FFFFFF',
-  border: 'rgba(68, 0, 92, 0.13)',
-  borderSoft: 'rgba(68, 0, 92, 0.08)',
+  primary: ci.color.primary,
+  primaryHover: ci.color.primaryHover,
+  secondary: ci.color.secondary,
+  accent: ci.color.secondary,
+  background: ci.color.background,
+  surface: ci.color.surface,
+  surfaceSoft: ci.color.surfaceSoft,
+  success: ci.color.success,
+  successSoft: ci.color.successSoft,
+  warning: ci.color.warning,
+  warningSoft: ci.color.warningSoft,
+  error: ci.color.error,
+  errorSoft: ci.color.errorSoft,
+  focusRing: ci.color.focusRing,
+  buttonRadius: ci.radius.button,
+  cardRadius: ci.radius.card,
+  cardShadow: ci.shadow.card,
+  elevatedShadow: ci.shadow.elevated,
+  // Legacy aliases keep the existing presentational code centralized and compatible.
+  aubergine: ci.color.primary,
+  aubergineSoft: ci.color.primaryMuted,
+  aubergineHover: ci.color.primaryHover,
+  gold: ci.color.secondary,
+  goldSoft: ci.color.secondarySoft,
+  oliv: '#667A31',
+  mint: ci.color.background,
+  mintLight: ci.color.surfaceSoft,
+  mintLighter: ci.color.primarySoft,
+  ink: ci.color.textPrimary,
+  inkSoft: ci.color.textSecondary,
+  white: ci.color.surface,
+  border: ci.color.border,
+  borderSoft: ci.color.borderSoft,
 };
 
 // Status-Farbsystem
 const statusConfig = {
-  DRAFT:               { label: 'Entwurf',              color: '#7A6B5C' },
+  DRAFT:               { label: 'Entwurf',              color: theme.inkSoft },
   SUBMITTED:           { label: 'Eingereicht',          color: theme.aubergineSoft },
-  DATA_INCOMPLETE:     { label: 'Daten unvollständig',  color: theme.gold },
-  VALUATION_PENDING:   { label: 'Bewertung läuft',      color: '#7B61C7' },
-  VALUATED:            { label: 'Bewertung fertig',     color: '#7B61C7' },
-  OFFER_CALCULATED:    { label: 'Angebot berechnet',    color: '#5B8C2B' },
-  OFFER_DRAFTED:       { label: 'Angebotsentwurf',      color: '#5B8C2B' },
+  DATA_INCOMPLETE:     { label: 'Daten unvollständig',  color: theme.warning },
+  VALUATION_PENDING:   { label: 'Bewertung läuft',      color: theme.aubergineSoft },
+  VALUATED:            { label: 'Bewertung fertig',     color: theme.aubergineSoft },
+  OFFER_CALCULATED:    { label: 'Angebot berechnet',    color: theme.success },
+  OFFER_DRAFTED:       { label: 'Angebotsentwurf',      color: theme.success },
   INTERNAL_REVIEW:     { label: 'Interne Prüfung',      color: theme.oliv },
-  APPROVED:            { label: 'Freigegeben',          color: '#5B8C2B' },
-  SENT:                { label: 'Versendet',            color: '#5B8C2B' },
-  INDICATIVE_OFFER_SENT:{ label: 'Unverbindliches Angebot abgegeben', color: '#5B8C2B' },
-  OFFER_ACCEPTED:      { label: 'UVA angenommen',       color: '#5B8C2B' },
+  APPROVED:            { label: 'Freigegeben',          color: theme.success },
+  SENT:                { label: 'Versendet',            color: theme.success },
+  INDICATIVE_OFFER_SENT:{ label: 'Unverbindliches Angebot abgegeben', color: theme.success },
+  OFFER_ACCEPTED:      { label: 'UVA angenommen',       color: theme.success },
   EXPERT_OPINION_ORDERED:{ label: 'Gutachten beauftragt', color: theme.aubergineSoft },
-  EXPERT_OPINION_RECEIVED:{ label: 'Gutachten eingegangen', color: '#7B61C7' },
-  BINDING_OFFER_SENT:  { label: 'VA abgegeben',         color: '#5B8C2B' },
-  BINDING_OFFER_ACCEPTED:{ label: 'VA angenommen',      color: '#5B8C2B' },
+  EXPERT_OPINION_RECEIVED:{ label: 'Gutachten eingegangen', color: theme.aubergineSoft },
+  BINDING_OFFER_SENT:  { label: 'VA abgegeben',         color: theme.success },
+  BINDING_OFFER_ACCEPTED:{ label: 'VA angenommen',      color: theme.success },
   PURCHASE_STARTED:    { label: 'Ankauf gestartet',     color: theme.aubergineSoft },
   NOTARY_APPOINTMENT:  { label: 'Notartermin vereinbart', color: theme.oliv },
-  PURCHASED:           { label: 'Kaufvertrag abgeschlossen', color: '#3D6B1F' },
-  IN_PORTFOLIO:        { label: 'Im Bestand',           color: '#3D6B1F' },
-  APPOINTMENT_SCHEDULED:{ label: 'Termin vereinbart',   color: '#5B8C2B' },
-  WON:                 { label: 'Gewonnen',             color: '#3D6B1F' },
-  SOLD:                { label: 'Verkauft',             color: '#3D6B1F' },
-  EXIT_COMPLETED:      { label: 'Abgeschlossen',        color: '#3D6B1F' },
-  REJECTED:            { label: 'Abgelehnt',            color: '#9B2C2C' },
-  LOST:                { label: 'Verloren',             color: '#9B2C2C' },
+  PURCHASED:           { label: 'Kaufvertrag abgeschlossen', color: theme.success },
+  IN_PORTFOLIO:        { label: 'Im Bestand',           color: theme.success },
+  APPOINTMENT_SCHEDULED:{ label: 'Termin vereinbart',   color: theme.success },
+  WON:                 { label: 'Gewonnen',             color: theme.success },
+  SOLD:                { label: 'Verkauft',             color: theme.success },
+  EXIT_COMPLETED:      { label: 'Abgeschlossen',        color: theme.success },
+  REJECTED:            { label: 'Abgelehnt',            color: theme.error },
+  LOST:                { label: 'Verloren',             color: theme.error },
 };
 
 const StatusBadge = ({ status, size = 'sm' }) => {
@@ -80,7 +101,8 @@ const StatusBadge = ({ status, size = 'sm' }) => {
   return (
     <span style={{
       display: 'inline-block', background: `${cfg.color}1A`, color: cfg.color,
-      fontSize: fs, fontWeight: 700, padding: pad, borderRadius: 10,
+      fontSize: fs, fontWeight: 700, padding: pad, borderRadius: 999,
+      border: `1px solid ${cfg.color}2B`,
       letterSpacing: '0.02em', whiteSpace: 'nowrap'
     }}>{cfg.label}</span>
   );
@@ -103,15 +125,6 @@ const LeadStatusBadge = ({ status }) => {
     </span>
   );
 };
-
-// WohnKapital Logo
-const Logo = ({ size = 28 }) => (
-  <svg width={size} height={size} viewBox="0 0 28 28">
-    <circle cx="20" cy="6" r="3.5" fill={theme.gold} />
-    <path d="M 4 22 L 4 13 L 13 6 L 22 13 L 22 22 L 16 22 L 16 17 L 10 17 L 10 22 Z"
-      fill="none" stroke={theme.aubergine} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
-  </svg>
-);
 
 // =====================================================================
 // SHARED — Header & Sidebar
@@ -197,7 +210,7 @@ const GlobalSearch = ({ onOpenResult }) => {
   };
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: 290 }}>
+    <div ref={wrapperRef} className="crm-global-search" style={{ position: 'relative', width: 290 }}>
       <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: 6, padding: '6px 12px', border: `1px solid ${theme.border}`, width: '100%', boxSizing: 'border-box' }}>
         <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8, flexShrink: 0 }} />
         <input
@@ -210,7 +223,7 @@ const GlobalSearch = ({ onOpenResult }) => {
         />
       </div>
       {open && trimmedQuery.length >= 2 && (
-        <div style={{ position: 'absolute', top: 38, right: 0, width: 430, maxWidth: 'calc(100vw - 48px)', background: 'white', border: `1px solid ${theme.border}`, borderRadius: 8, boxShadow: '0 18px 45px rgba(68, 0, 92, 0.16)', zIndex: 70, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 38, right: 0, width: 430, maxWidth: 'calc(100vw - 48px)', background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, boxShadow: theme.elevatedShadow, zIndex: 70, overflow: 'hidden' }}>
           {loading ? (
             <div style={{ padding: '13px 14px', fontSize: 12.5, color: `${theme.ink}99` }}>Suche...</div>
           ) : results.length ? (
@@ -228,7 +241,7 @@ const GlobalSearch = ({ onOpenResult }) => {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                       <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 800 }}>{primary}</span>
-                      <span style={{ background: result.type === 'lead' ? theme.goldSoft : theme.mintLight, color: result.type === 'lead' ? theme.aubergine : '#3D6B1F', border: `1px solid ${result.type === 'lead' ? `${theme.gold}55` : '#3D6B1F22'}`, borderRadius: 999, padding: '3px 8px', fontSize: 10.5, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                      <span style={{ background: result.type === 'lead' ? theme.goldSoft : theme.successSoft, color: result.type === 'lead' ? theme.aubergine : theme.success, border: `1px solid ${result.type === 'lead' ? `${theme.gold}55` : `${theme.success}22`}`, borderRadius: 999, padding: '3px 8px', fontSize: 10.5, fontWeight: 800, whiteSpace: 'nowrap' }}>
                         {result.statusLabel || (result.type === 'lead' ? 'Lead' : 'Status offen')}
                       </span>
                     </div>
@@ -256,17 +269,13 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
   const chatCount = chatNotifications.length;
 
   return (
-    <div style={{ background: theme.mintLight, borderBottom: `1px solid ${theme.border}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img src="/brand/wohnkapital-logo.svg" alt="WohnKapital" style={{ display: 'block', width: 154, height: 'auto' }} />
-        </div>
-        <div style={{ width: 1, height: 22, background: theme.border, margin: '0 8px' }} />
+    <div className="crm-header" style={{ background: theme.surface, borderBottom: `1px solid ${theme.border}`, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxShadow: '0 1px 4px rgba(20, 40, 61, 0.04)', position: 'relative', zIndex: 30 }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
         <span style={{ fontSize: 12, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
           {role === 'admin' ? 'Intern · CRM' : 'Partnerportal'}
         </span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div className="crm-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         {canToggleRole && (
           <button onClick={onRoleToggle} style={{
             background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine,
@@ -295,7 +304,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
             )}
           </button>
           {notificationsOpen && (
-            <div style={{ position: 'absolute', right: -12, top: 30, width: 360, background: 'white', border: `1px solid ${theme.border}`, borderRadius: 8, boxShadow: '0 18px 45px rgba(68, 0, 92, 0.16)', zIndex: 40, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', right: -12, top: 30, width: 360, background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, boxShadow: theme.elevatedShadow, zIndex: 40, overflow: 'hidden' }}>
               <div style={{ padding: '11px 14px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: theme.aubergine }}>Prozessänderungen</span>
                 <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700 }}>{notificationCount} gesamt</span>
@@ -353,7 +362,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
             )}
           </button>
           {chatOpen && (
-            <div style={{ position: 'absolute', right: -12, top: 30, width: 380, background: 'white', border: `1px solid ${theme.border}`, borderRadius: 8, boxShadow: '0 18px 45px rgba(68, 0, 92, 0.16)', zIndex: 40, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', right: -12, top: 30, width: 380, background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, boxShadow: theme.elevatedShadow, zIndex: 40, overflow: 'hidden' }}>
               <div style={{ padding: '11px 14px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: theme.aubergine }}>Chat zu Kundenfällen</span>
                 <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700 }}>{chatCount} Nachrichten</span>
@@ -425,7 +434,7 @@ const SidebarQuickAction = ({ item, active, onSelect }) => {
         padding: '7px 10px',
         borderRadius: 6,
         border: 'none',
-        background: active ? `${theme.aubergine}12` : hovered || focused ? 'rgba(68, 0, 92, 0.055)' : 'transparent',
+        background: active ? theme.mintLighter : hovered || focused ? theme.surfaceSoft : 'transparent',
         color: active ? theme.aubergine : theme.ink,
         fontSize: 12.5,
         fontWeight: active ? 700 : 520,
@@ -461,12 +470,12 @@ const SidebarPrimaryAction = ({ icon: Icon = Plus, label, onClick }) => {
         padding: '10px 11px',
         borderRadius: 7,
         border: `1px solid ${focused ? theme.gold : theme.aubergine}`,
-        background: hovered || focused ? '#3a0050' : theme.aubergine,
+        background: hovered || focused ? theme.aubergineHover : theme.aubergine,
         color: 'white',
         fontSize: 13,
         fontWeight: 700,
         cursor: 'pointer',
-        boxShadow: focused ? `0 0 0 2px ${theme.gold}55` : '0 5px 14px rgba(68, 0, 92, 0.12)',
+        boxShadow: focused ? `0 0 0 3px ${theme.focusRing}` : theme.cardShadow,
         transition: 'background 140ms ease, box-shadow 140ms ease, border-color 140ms ease',
       }}
     >
@@ -522,15 +531,16 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
   };
 
   return (
-    <div style={{ width: 220, background: theme.mintLight, borderRight: `1px solid ${theme.border}`, padding: '16px 12px', flexShrink: 0, overflowY: 'auto' }}>
+    <div className="crm-sidebar" style={{ width: 220, background: theme.surface, borderRight: `1px solid ${theme.border}`, padding: '16px 12px', flexShrink: 0, overflowY: 'auto' }}>
       {nav.map((item, i) => (
         <React.Fragment key={i}>
           <div
             onClick={() => item.screen && onNavigate(item.screen)}
             style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6,
-              background: isActive(item) ? theme.aubergine : 'transparent',
-              color: isActive(item) ? 'white' : theme.ink,
+              background: isActive(item) ? theme.mintLighter : 'transparent',
+              color: isActive(item) ? theme.aubergine : theme.ink,
+              borderLeft: `3px solid ${isActive(item) ? theme.gold : 'transparent'}`,
               fontSize: 13, fontWeight: isActive(item) ? 600 : 500,
               marginBottom: 2, cursor: item.screen ? 'pointer' : 'default',
               opacity: item.screen ? 1 : 0.85
@@ -538,10 +548,10 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
             <item.icon size={15} />
             <span style={{ flex: 1 }}>{item.label}</span>
             {item.internal && (
-              <span style={{ fontSize: 9, color: isActive(item) ? theme.gold : theme.oliv, fontWeight: 700, letterSpacing: '0.08em' }}>INT</span>
+              <span style={{ fontSize: 9, color: isActive(item) ? theme.aubergine : theme.oliv, fontWeight: 700, letterSpacing: '0.08em', background: theme.surfaceSoft, border: `1px solid ${theme.borderSoft}`, borderRadius: 999, padding: '1px 5px' }}>INT</span>
             )}
             {item.badge && (
-              <span style={{ background: isActive(item) ? theme.gold : `${theme.aubergine}15`, color: theme.aubergine, fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10 }}>{item.badge}</span>
+              <span style={{ background: isActive(item) ? theme.goldSoft : theme.mintLighter, color: theme.aubergine, fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999 }}>{item.badge}</span>
             )}
           </div>
           {role === 'partner' && i === 0 && (
@@ -667,7 +677,7 @@ const ProfileModal = ({ user, role, onClose, onSave }) => {
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+      <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: ci.radius.modal, border: `1px solid ${theme.border}`, boxShadow: theme.elevatedShadow, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 34, height: 34, borderRadius: '50%', background: theme.aubergine, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{user.initials}</div>
@@ -847,7 +857,7 @@ function rentBackMetricRows(offer) {
   return [
     ['Verkehrswert', formatEuro(metrics.marketValue)],
     ['Auszahlungsquote', formatPercent(metrics.payoutRate)],
-    ['Auszahlungsbetrag', formatEuroCents(metrics.payoutAmount)],
+    ['Auszahlung an den Kunden', formatEuroCents(metrics.payoutAmount)],
     ['Mietfaktor p.a.', formatPercent(metrics.annualRentRate)],
     ['Jahresmiete', formatEuroCents(metrics.annualRent)],
     ['Monatliche Miete', formatEuroCents(metrics.monthlyRent)],
@@ -861,39 +871,22 @@ function offerWeightedIrrLabel(offer) {
 
 function residentialRightMetricRows(offer) {
   const components = offer?.assumptions?.components || {};
-  if (offer?.assumptions?.residentialRightVariant === 'lifelong_residential_right') {
-    return lifetimeResidentialRightMetricRows(offer);
-  }
-  const quote = offer?.payoutAmount && offer?.marketValue ? offer.payoutAmount / offer.marketValue : undefined;
-
-  return [
-    ['Verkehrswert', formatEuro(offer?.marketValue)],
-    ['Wohnrecht', offer?.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
-    ['Instandhaltung', Number.isFinite(Number(components.maintenanceCost)) ? formatEuro(components.maintenanceCost) : '-'],
-    ['Interne Verzinsung', Number.isFinite(Number(components.interestDiscount)) ? formatEuro(components.interestDiscount) : '-'],
-    ['Auszahlungsbetrag', formatEuro(offer?.payoutAmount)],
-    ['Quote', Number.isFinite(Number(quote)) ? formatPercent(quote) : '-'],
-    ['Gewichteter IRR mit 2 % Indexierung', offerWeightedIrrLabel(offer)],
-  ];
-}
-
-function lifetimeResidentialRightMetricRows(offer) {
-  const components = offer?.assumptions?.components || {};
   const quote = Number.isFinite(Number(components.payoutRatio))
     ? Number(components.payoutRatio)
     : offer?.payoutAmount && offer?.marketValue ? offer.payoutAmount / offer.marketValue : undefined;
-  const expectedSaleYear = Number(components.expectedSaleYear);
+  const residentialRightValue = components.lifetimeRightValue ?? components.residentialRightValue ?? offer?.residentialRightValue;
+  const maintenanceReserve = components.maintenanceReserve ?? components.maintenanceCost;
+  const purchaseIrr = components.weightedIrr ?? components.selectedWeightedIrr ?? components.weightedAnnualIrr;
+  const totalInvestorCommitment = components.totalInvestorCommitment;
+
   return [
     ['Verkehrswert', formatEuro(offer?.marketValue)],
-    ['Lebenslanges Wohnrecht', formatEuro(components.lifetimeRightValue ?? offer?.residentialRightValue)],
-    ['Interner Wohnrechtswert', formatEuro(components.lifetimeRightValue ?? offer?.residentialRightValue)],
-    ['Erwartetes Verkaufsjahr', Number.isFinite(expectedSaleYear) ? expectedSaleYear.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'],
-    ['Instandhaltungsreserve', Number.isFinite(Number(components.maintenanceReserve)) ? formatEuro(components.maintenanceReserve) : '-'],
-    ['Ziel-IRR', Number.isFinite(Number(components.targetIrr)) ? formatPercent(Number(components.targetIrr)) : '-'],
-    ['Maximaler Auszahlungsbetrag', formatEuroCents(offer?.payoutAmount)],
+    ['Wert des Wohnrechts', Number.isFinite(Number(residentialRightValue)) ? formatEuro(residentialRightValue) : '-'],
+    ['Instandhaltungsrücklage', Number.isFinite(Number(maintenanceReserve)) ? formatEuro(maintenanceReserve) : '-'],
+    ['Auszahlung an den Kunden', formatEuroCents(offer?.payoutAmount)],
     ['Auszahlungsquote', Number.isFinite(Number(quote)) ? formatPercent(Number(quote)) : '-'],
-    ['Gewichteter IRR', Number.isFinite(Number(components.weightedIrr)) ? formatPercent(Number(components.weightedIrr)) : offerWeightedIrrLabel(offer)],
-    ['Gesamtankaufskosten', Number.isFinite(Number(components.totalInvestorCommitment)) ? formatEuroCents(components.totalInvestorCommitment) : '-'],
+    ['Ankaufs-IRR', Number.isFinite(Number(purchaseIrr)) ? formatPercent(Number(purchaseIrr)) : offerWeightedIrrLabel(offer)],
+    ['Gesamtankaufskosten', Number.isFinite(Number(totalInvestorCommitment)) ? formatEuroCents(totalInvestorCommitment) : '-'],
   ];
 }
 
@@ -905,7 +898,7 @@ function residentialRightCalculationFields(modelRequest, property, binding = fal
       ['monthlyRentPerSqm', 'Mietansatz (€/m²)'],
       ['garageCount', 'Anzahl Garagen / Stellplätze', property?.parkingAvailable ? property?.parkingCount : 0],
       ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Garagenmiete (optional, €/Monat)']] : []),
-      ['targetReturn', 'Ziel-IRR (%)'],
+      ['targetReturn', 'Ankaufs-IRR (%)'],
       ['acquisitionCostRate', 'Ankaufskosten (%)'],
       ['salesCostRate', 'Verkaufskosten (%)'],
       ['selectedIndexationScenario', 'Indexierung (%)'],
@@ -935,7 +928,7 @@ function residentialRightOfferComparisonRows(offers = []) {
       model: isLifetime ? 'Lebenslanges Wohnrecht' : 'Befristetes Wohnrecht',
       payout: formatEuroCents(offer?.payoutAmount),
       ratio: Number.isFinite(Number(quote)) ? formatPercent(Number(quote)) : '-',
-      targetIrr: Number.isFinite(Number(components.targetIrr)) ? formatPercent(Number(components.targetIrr)) : offerWeightedIrrLabel(offer),
+      targetIrr: Number.isFinite(Number(components.weightedIrr ?? components.selectedWeightedIrr ?? components.weightedAnnualIrr)) ? formatPercent(Number(components.weightedIrr ?? components.selectedWeightedIrr ?? components.weightedAnnualIrr)) : offerWeightedIrrLabel(offer),
       exitOrTerm: isLifetime
         ? Number.isFinite(Number(components.expectedSaleYear)) ? `${Number(components.expectedSaleYear).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Jahre` : '-'
         : offer?.residentialRightYears ? `${offer.residentialRightYears} Jahre` : '-',
@@ -1109,7 +1102,7 @@ function GooglePropertyMap({ points = [], onOpenCase }) {
         fullscreenControl: false,
         styles: [
           { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-          { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: '#5C4A66' }] },
+          { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: theme.inkSoft }] },
         ],
       });
       const bounds = new maps.LatLngBounds();
@@ -1646,9 +1639,9 @@ const acquisitionPrecheckStatusLabels = {
 };
 
 const acquisitionPrecheckStatusStyles = {
-  passed: { background: '#EAF7E6', color: '#2F6B1F', border: '#2F6B1F33' },
-  exception_required: { background: theme.goldSoft, color: '#7A5600', border: `${theme.gold}55` },
-  failed: { background: '#FFF4F4', color: '#9B2C2C', border: '#9B2C2C33' },
+  passed: { background: theme.successSoft, color: theme.success, border: `${theme.success}33` },
+  exception_required: { background: theme.warningSoft, color: theme.warning, border: `${theme.warning}55` },
+  failed: { background: theme.errorSoft, color: theme.error, border: `${theme.error}33` },
   unknown: { background: theme.mintLighter, color: `${theme.ink}88`, border: theme.borderSoft },
 };
 
@@ -1674,7 +1667,7 @@ const windowLabels = { wood: 'Holz', aluminium: 'Aluminium', plastic: 'Kunststof
 const energyCertificateLabels = { demand: 'Bedarfsausweis', consumption: 'Verbrauchsausweis' };
 const energyCarrierLabels = { photovoltaik: 'Photovoltaik', solarthermie: 'Solarthermie', batteriespeicher: 'Batteriespeicher' };
 const moistureDamageLabels = { NONE: 'Nein', MINOR: 'Ja, geringfügig', SIGNIFICANT: 'Ja, erheblich' };
-const accessibilityAssessmentLabels = { LOW_BARRIER: 'Barrierearm', PARTIALLY_RESTRICTED: 'Teilweise eingeschränkt', STRONGLY_RESTRICTED: 'Stark eingeschränkt' };
+const accessibilityAssessmentLabels = { LOW_BARRIER: 'Barrierefrei', PARTIALLY_RESTRICTED: 'Teilweise eingeschränkt', STRONGLY_RESTRICTED: 'Stark eingeschränkt' };
 const documentStatusLabels = { missing: 'fehlt', pending: 'eingereicht', ok: 'geprüft', review_required: 'Prüfung nötig', rejected: 'abgelehnt' };
 const documentScanStatusLabels = { pending: 'Virenscan offen', clean: 'Virenscan unauffällig', suspicious: 'Auffällig', failed: 'Scan fehlgeschlagen' };
 const requirementLabels = { required: 'Pflicht', recommended: 'Empfohlen', optional: 'Optional' };
@@ -1801,17 +1794,17 @@ const leadStatusLabels = {
   REJECTED: 'Abgelehnt',
 };
 const leadStatusColors = {
-  NEW: theme.gold,
+  NEW: theme.aubergine,
   IN_REVIEW: theme.aubergineSoft,
   QUALIFIED: theme.aubergineSoft,
   ASSIGNED: theme.oliv,
   ASSIGNED_TO_PARTNER: theme.oliv,
-  CONTACTED: '#7B61C7',
-  PARTNER_CONTACT_PENDING: '#7B61C7',
-  CONVERTED: '#5B8C2B',
-  CONVERTED_TO_CASE: '#5B8C2B',
+  CONTACTED: theme.aubergineSoft,
+  PARTNER_CONTACT_PENDING: theme.aubergineSoft,
+  CONVERTED: theme.success,
+  CONVERTED_TO_CASE: theme.success,
   CLOSED: `${theme.ink}88`,
-  REJECTED: '#9B2C2C',
+  REJECTED: theme.error,
 };
 const leadSourceLabels = {
   homepage: 'Homepage',
@@ -2599,25 +2592,26 @@ const BrokerWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
           key={bucket.key}
           onClick={() => onSelect(active ? '' : bucket.key)}
           style={{
-            background: active ? theme.aubergine : 'white',
+            background: active ? theme.mintLighter : 'white',
             border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
+            borderTop: `3px solid ${active ? theme.gold : 'transparent'}`,
             borderRadius: 8,
             padding: '18px 18px 16px',
             textAlign: 'left',
             minHeight: 154,
             cursor: 'pointer',
-            boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+            boxShadow: active ? theme.cardShadow : 'none',
             display: 'flex',
             flexDirection: 'column',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</div>
+            <div style={{ fontSize: 11, color: active ? theme.aubergine : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</div>
             <bucket.icon size={17} style={{ color: active ? theme.gold : `${theme.aubergine}77`, marginTop: 1 }} />
           </div>
-          <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, color: active ? 'white' : theme.aubergine, marginBottom: 9 }}>{bucket.count}</div>
-          <div style={{ fontSize: 12.5, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, lineHeight: 1.45, flex: 1 }}>{bucket.description}</div>
-          <div style={{ marginTop: 14, color: active ? theme.gold : theme.aubergine, fontSize: 12.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, color: theme.aubergine, marginBottom: 9 }}>{bucket.count}</div>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}99`, lineHeight: 1.45, flex: 1 }}>{bucket.description}</div>
+          <div style={{ marginTop: 14, color: active ? theme.aubergine : theme.inkSoft, fontSize: 12.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             {bucket.action} <ChevronRight size={13} />
           </div>
         </button>
@@ -2997,25 +2991,26 @@ const AdminWorkBuckets = ({ buckets, activeBucket, onSelect, style = {} }) => (
           onClick={() => onSelect(bucket.key)}
           style={{
             textAlign: 'left',
-            background: active ? theme.aubergine : 'white',
-            color: active ? 'white' : theme.ink,
+            background: active ? theme.mintLighter : 'white',
+            color: theme.ink,
             border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
+            borderTop: `3px solid ${active ? theme.gold : 'transparent'}`,
             borderRadius: 10,
             padding: '14px 16px',
             cursor: 'pointer',
             minHeight: 104,
-            boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+            boxShadow: active ? theme.cardShadow : 'none',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-            <span style={{ fontSize: 10.5, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</span>
+            <span style={{ fontSize: 10.5, color: active ? theme.aubergine : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.title}</span>
             <bucket.icon size={15} style={{ color: active ? theme.gold : `${theme.aubergine}77` }} />
           </div>
-          <div style={{ fontSize: 28, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine }}>{bucket.count}</div>
-          <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ fontSize: 28, lineHeight: 1, fontWeight: 800, color: theme.aubergine }}>{bucket.count}</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.aubergine : theme.inkSoft, marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             {bucket.action} <ChevronRight size={13} />
           </div>
         </button>
@@ -3070,7 +3065,7 @@ const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads, sty
                   {!!row.warnings?.length && (
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 5 }}>
                       {row.warnings.map((badge) => (
-                        <span key={badge} style={{ background: badge === 'überfällig' ? '#9B2C2C14' : theme.goldSoft, color: badge === 'überfällig' ? '#9B2C2C' : '#A87308', borderRadius: 12, padding: '2px 7px', fontSize: 10.5, fontWeight: 800 }}>{badge}</span>
+                        <span key={badge} style={{ background: badge === 'überfällig' ? theme.errorSoft : theme.warningSoft, color: badge === 'überfällig' ? theme.error : theme.warning, borderRadius: 12, padding: '2px 7px', fontSize: 10.5, fontWeight: 800 }}>{badge}</span>
                       ))}
                     </div>
                   )}
@@ -3369,7 +3364,7 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
           </Field>
 
           {error && (
-            <div style={{ background: '#9B2C2C12', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 7, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>{error}</div>
+            <div style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, color: theme.error, borderRadius: 7, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>{error}</div>
           )}
         </div>
 
@@ -3429,7 +3424,7 @@ const acquisitionStages = [
     title: 'UVA angenommen',
     statuses: ['OFFER_ACCEPTED'],
     icon: CheckCircle2,
-    tone: '#5B8C2B',
+    tone: theme.success,
     text: 'Kunde hat das unverbindliche Angebot bestätigt. Gutachten beauftragen.',
   },
   {
@@ -3457,7 +3452,7 @@ const acquisitionStages = [
     title: 'Im Bestand',
     statuses: ['IN_PORTFOLIO', 'WON'],
     icon: Archive,
-    tone: '#3D6B1F',
+    tone: theme.success,
     text: 'Objekt ist in der Bestandsverwaltung angekommen.',
   },
 ];
@@ -3634,7 +3629,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
       action: 'Bestand prüfen',
       cases: inventoryCases,
       icon: Archive,
-      tone: '#5B8C2B',
+      tone: theme.success,
       tab: 'bestand',
     },
     {
@@ -3729,25 +3724,26 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
           const active = activeBucket === bucket.key;
           return (
             <button key={bucket.key} onClick={() => selectBucket(bucket.key)} style={{
-              background: active ? theme.aubergine : 'white',
-              color: active ? 'white' : theme.ink,
+              background: active ? theme.mintLighter : 'white',
+              color: theme.ink,
               border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
+              borderTop: `3px solid ${active ? theme.gold : 'transparent'}`,
               borderRadius: 8,
               padding: '15px 16px',
               textAlign: 'left',
               cursor: 'pointer',
               minHeight: 136,
-              boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+              boxShadow: active ? theme.cardShadow : 'none',
               display: 'flex',
               flexDirection: 'column',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <bucket.icon size={16} style={{ color: active ? theme.gold : `${theme.aubergine}77` }} />
-                <span style={{ fontSize: 24, lineHeight: 1, color: active ? 'white' : theme.aubergine, fontWeight: 800 }}>{bucket.cases.length}</span>
+                <span style={{ fontSize: 24, lineHeight: 1, color: theme.aubergine, fontWeight: 800 }}>{bucket.cases.length}</span>
               </div>
-              <div style={{ fontSize: 13.5, color: active ? theme.gold : theme.aubergine, fontWeight: 800, marginBottom: 6 }}>{bucket.title}</div>
-              <div style={{ fontSize: 12, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}99`, lineHeight: 1.45, flex: 1 }}>{bucket.description}</div>
-              <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.gold : theme.aubergine, marginTop: 12 }}>{bucket.action}</div>
+              <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 800, marginBottom: 6 }}>{bucket.title}</div>
+              <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45, flex: 1 }}>{bucket.description}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: active ? theme.aubergine : theme.inkSoft, marginTop: 12 }}>{bucket.action}</div>
             </button>
           );
         })}
@@ -3845,7 +3841,7 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, sho
               <td style={{ padding: '11px 16px', color: `${theme.ink}cc` }}>{row.objekt}</td>
               <td style={{ padding: '11px 16px' }}><StatusBadge status={statusForCase(row)} /></td>
               {showRejection && (
-                <td style={{ padding: '11px 16px', color: '#9B2C2C', fontSize: 12.5, fontWeight: 650, maxWidth: 280 }}>
+                <td style={{ padding: '11px 16px', color: theme.error, fontSize: 12.5, fontWeight: 650, maxWidth: 280 }}>
                   <div>{row.rejectionReasonLabel || labelFrom(rejectionReasonLabels, row.rejectionReasonCode, '-')}</div>
                   {row.rejectionNote && <div style={{ color: `${theme.ink}88`, fontSize: 11.5, fontWeight: 500, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.rejectionNote}</div>}
                 </td>
@@ -4052,7 +4048,7 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], canCr
                         Freigeben
                       </button>
                     ) : (
-                      <span style={{ fontSize: 11, color: registration.status === 'email_pending' ? '#A87308' : `${theme.ink}88`, fontWeight: 800 }}>{registration.status === 'email_pending' ? 'wartet auf E-Mail' : 'offen'}</span>
+                      <span style={{ fontSize: 11, color: registration.status === 'email_pending' ? theme.warning : `${theme.ink}88`, fontWeight: 800 }}>{registration.status === 'email_pending' ? 'wartet auf E-Mail' : 'offen'}</span>
                     )}
                   </div>
                 ))}
@@ -4084,7 +4080,7 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], canCr
                       <td style={{ padding: '12px 14px', color: theme.ink }}>{partner.email}</td>
                       <td style={{ padding: '12px 14px', color: theme.ink }}>{partner.phone || 'Telefon offen'}</td>
                       <td style={{ padding: '12px 14px' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#5B8C2B' : '#A87308', background: isActive ? '#5B8C2B1A' : `${theme.gold}1A`, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? theme.success : theme.warning, background: isActive ? theme.successSoft : theme.warningSoft, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
                           {isActive ? 'aktiv' : registrationStatusLabels[registration?.status] || 'gesperrt / offen'}
                         </span>
                       </td>
@@ -4104,7 +4100,7 @@ const PartnerDirectory = ({ partners = [], registrations = [], leads = [], canCr
                           </button>
                         )) : null}
                         {canManagePartnerStatus && (
-                          <button onClick={() => onDeletePartner?.(partner)} style={{ background: '#fff7f5', color: '#9B2C2C', border: '1px solid #efc0b9', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => onDeletePartner?.(partner)} style={{ background: theme.errorSoft, color: theme.error, border: `1px solid ${theme.error}33`, padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                             Löschen
                           </button>
                         )}
@@ -4248,7 +4244,7 @@ const PartnerDetail = ({ partnerId, canManagePartnerStatus = false, onBack, onOp
     return (
       <div style={{ padding: '24px 28px' }}>
         <PartnerDetailCard title="Partnerdetails">
-          <div style={{ color: '#9B2C2C', fontSize: 14, fontWeight: 700, marginBottom: 14 }}>{errorMessage || 'Partner nicht gefunden'}</div>
+          <div style={{ color: theme.error, fontSize: 14, fontWeight: 700, marginBottom: 14 }}>{errorMessage || 'Partner nicht gefunden'}</div>
           <button onClick={onBack} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '9px 13px', borderRadius: 6, fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
             <ArrowLeft size={15} /> Zur Partnerübersicht
           </button>
@@ -4294,7 +4290,7 @@ const PartnerDetail = ({ partnerId, canManagePartnerStatus = false, onBack, onOp
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Partnerdetails</div>
           <h1 style={{ fontSize: 24, fontWeight: 650, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>{partner.companyName}</h1>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: statusActive ? '#5B8C2B' : '#A87308', background: statusActive ? '#5B8C2B1A' : `${theme.gold}1A`, borderRadius: 10, padding: '3px 9px' }}>{statusActive ? 'aktiv' : 'inaktiv'}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: statusActive ? theme.success : theme.warning, background: statusActive ? theme.successSoft : theme.warningSoft, borderRadius: 10, padding: '3px 9px' }}>{statusActive ? 'aktiv' : 'inaktiv'}</span>
             {details.region && <span style={{ fontSize: 11, fontWeight: 800, color: theme.aubergine, background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 10, padding: '3px 9px' }}>{details.region}</span>}
           </div>
         </div>
@@ -4369,7 +4365,7 @@ const PartnerDetail = ({ partnerId, canManagePartnerStatus = false, onBack, onOp
               <td style={{ padding: '11px 12px', color: theme.ink }}>{item.role === 'partner' ? 'Makler / Partner' : item.role}</td>
               <td style={{ padding: '11px 12px', color: `${theme.ink}88` }}>nicht erfasst</td>
               <td style={{ padding: '11px 12px' }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: item.deletedAt ? '#A87308' : '#5B8C2B', background: item.deletedAt ? `${theme.gold}1A` : '#5B8C2B1A', borderRadius: 10, padding: '3px 9px' }}>{item.deletedAt ? 'inaktiv' : 'aktiv'}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: item.deletedAt ? theme.warning : theme.success, background: item.deletedAt ? theme.warningSoft : theme.successSoft, borderRadius: 10, padding: '3px 9px' }}>{item.deletedAt ? 'inaktiv' : 'aktiv'}</span>
               </td>
             </tr>
           )}
@@ -4486,7 +4482,7 @@ const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onU
                   <td style={{ padding: '12px 14px', color: theme.aubergine, fontWeight: 750 }}>{member.name}</td>
                   <td style={{ padding: '12px 14px', color: theme.ink }}>{member.email}</td>
                   <td style={{ padding: '12px 14px' }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: member.internalRole === 'super_admin' ? theme.aubergine : member.internalRole === 'admin' ? '#5B8C2B' : member.internalRole === 'advisor' ? theme.aubergineSoft : theme.inkSoft, background: member.internalRole === 'super_admin' ? `${theme.aubergine}14` : member.internalRole === 'admin' ? '#5B8C2B1A' : member.internalRole === 'advisor' ? `${theme.aubergine}10` : theme.mintLight, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: member.internalRole === 'super_admin' ? theme.aubergine : member.internalRole === 'admin' ? theme.success : member.internalRole === 'advisor' ? theme.aubergineSoft : theme.inkSoft, background: member.internalRole === 'super_admin' ? `${theme.aubergine}14` : member.internalRole === 'admin' ? theme.successSoft : member.internalRole === 'advisor' ? `${theme.aubergine}10` : theme.mintLight, borderRadius: 10, padding: '3px 9px', whiteSpace: 'nowrap' }}>
                       {staffRoleLabels[member.internalRole] || member.internalRole}
                     </span>
                   </td>
@@ -4502,7 +4498,7 @@ const StaffDirectory = ({ staff = [], canManageStaff = false, onCreateStaff, onU
                             <option value="super_admin">Super-Admin</option>
                           </Select>
                         </div>
-                        <button onClick={() => onDeleteStaff?.(member)} style={{ background: '#fff7f5', color: '#9B2C2C', border: '1px solid #efc0b9', padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <button onClick={() => onDeleteStaff?.(member)} style={{ background: theme.errorSoft, color: theme.error, border: `1px solid ${theme.error}33`, padding: '7px 10px', borderRadius: 5, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                           Löschen
                         </button>
                       </div>
@@ -4571,7 +4567,7 @@ const CustomerBrochureScreen = () => (
       <div style={{ fontSize: 13.5, color: `${theme.ink}99`, marginTop: 6 }}>Aktuelle WohnKapital-Kundenbroschüre als PDF.</div>
     </div>
 
-    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, overflow: 'hidden', boxShadow: theme.cardShadow }}>
       <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 800 }}>WohnKapital Kundenbroschüre</div>
@@ -4608,7 +4604,7 @@ const BrokerFaqScreen = () => (
       <div style={{ fontSize: 13.5, color: `${theme.ink}99`, marginTop: 6 }}>WohnKapital Makler-FAQ als PDF.</div>
     </div>
 
-    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, overflow: 'hidden', boxShadow: theme.cardShadow }}>
       <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 800 }}>WohnKapital Makler-FAQ</div>
@@ -4646,7 +4642,7 @@ const PostbankWohnatlasScreen = () => (
       <div style={{ fontSize: 13.5, color: `${theme.ink}99`, marginTop: 6 }}>Preisentwicklung und regionale Einordnung auf Basis des Postbank Wohnatlas.</div>
     </div>
 
-    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, overflow: 'hidden', boxShadow: theme.cardShadow }}>
       <div style={{ padding: '14px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 800 }}>Preisentwicklungskarte</div>
@@ -4783,7 +4779,7 @@ const AcquisitionProcessStepper = ({ property }) => {
   }, [property?.id, acquisitionCompleted]);
 
   const fullStepper = (
-    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '18px 20px 16px', boxShadow: '0 10px 26px rgba(68, 0, 92, 0.04)' }}>
+    <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, padding: '18px 20px 16px', boxShadow: theme.cardShadow }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>ANKAUFSPROZESS</div>
         <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}66`, color: theme.aubergine, borderRadius: 999, padding: '5px 10px', fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -4813,7 +4809,7 @@ const AcquisitionProcessStepper = ({ property }) => {
               ? { ...circleBase, background: theme.aubergine, border: `2px solid ${theme.aubergine}`, color: 'white' }
               : step.current
                 ? { ...circleBase, background: 'white', border: `2px solid ${theme.gold}`, color: theme.aubergine, boxShadow: `0 0 0 4px ${theme.goldSoft}` }
-                : { ...circleBase, background: '#FAF8FB', border: `1px solid ${theme.border}`, color: `${theme.ink}77` };
+                : { ...circleBase, background: theme.surfaceSoft, border: `1px solid ${theme.border}`, color: `${theme.ink}77` };
             return (
               <div key={step.key} style={{ display: 'grid', gridTemplateRows: '34px 34px 18px', rowGap: 6, justifyItems: 'center', alignItems: 'start', textAlign: 'center', padding: '0 8px' }}>
                 <div style={circleStyle}>
@@ -4838,9 +4834,9 @@ const AcquisitionProcessStepper = ({ property }) => {
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-      <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 16px', boxShadow: '0 8px 20px rgba(68, 0, 92, 0.035)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+      <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, padding: '12px 16px', boxShadow: theme.cardShadow, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0, flex: 1 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#EAF6E8', border: '1px solid #BFE3B8', color: '#2F7D32', borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: theme.successSoft, border: `1px solid ${theme.success}33`, color: theme.success, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
             <CheckCircle size={14} /> Im Bestand
           </span>
           <div style={{ minWidth: 0 }}>
@@ -4865,7 +4861,7 @@ const AcquisitionProcessStepper = ({ property }) => {
 };
 
 const SidePanelCard = ({ title, count, children, actionLabel, onAction }) => (
-  <div style={{ background: 'white', borderRadius: 12, border: `1px solid ${theme.borderSoft}`, padding: '17px 18px', boxShadow: '0 10px 28px rgba(68, 0, 92, 0.035)' }}>
+  <div style={{ background: 'white', borderRadius: theme.cardRadius, border: `1px solid ${theme.borderSoft}`, padding: '17px 18px', boxShadow: theme.cardShadow }}>
     <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 16 }}>
       {title}{Number.isFinite(count) ? ` · ${count}` : ''}
     </div>
@@ -5087,30 +5083,20 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         residentialRightPerson: property?.residentialRightPerson
       })
     : { eligible: false, eligibleSoon: false, message: 'Bitte Geburtsdatum erfassen.' };
-  const requestedOfferModels = property ? [
+  const requestedOfferModels = property?.desiredModel ? [
     {
-      key: property.desiredModel || 'fixed_residential_right',
-      model: property.desiredModel || 'fixed_residential_right',
+      key: property.desiredModel,
+      model: property.desiredModel,
       residentialRightYears: property.desiredResidentialRightYears,
-      usageModel: property.usageModel || (property.desiredModel === 'fixed_residential_right' ? 'fixed_residential_right' : property.desiredModel),
+      usageModel: property.desiredModel === 'fixed_residential_right'
+        ? (property.usageModel || 'fixed_residential_right')
+        : property.desiredModel,
       recipient: property.residentialRightRecipients,
       recipientPerson: property.residentialRightPerson,
       reason: property.fixedTermReason,
       primary: true
-    },
-    ...(property.additionalOfferRequested ? [{
-      key: `additional-${property.additionalOfferModel || 'sale_and_leaseback'}`,
-      model: property.additionalOfferModel || 'sale_and_leaseback',
-      residentialRightYears: property.additionalOfferResidentialRightYears,
-      usageModel: property.additionalOfferModel === 'fixed_residential_right' ? 'fixed_residential_right' : property.additionalOfferModel,
-      recipient: property.additionalOfferResidentialRightRecipients,
-      recipientPerson: property.additionalOfferResidentialRightPerson,
-      reason: property.additionalOfferReason,
-      primary: false
-    }] : [])
-  ] : [
-    { key: 'fixed_residential_right', model: 'fixed_residential_right', residentialRightYears: 10, recipient: 'one_person', reason: 'Mock-Fall', primary: true }
-  ];
+    }
+  ] : [];
   const acceptedOfferOptions = (action) => {
     const kind = action === 'binding_offer_accepted' ? 'binding' : 'indicative';
     const offers = kind === 'binding' ? bindingOffers : indicativeOffers;
@@ -5563,92 +5549,63 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
     });
   };
-  const updateResidentialRightVariant = (usageModel) => runCaseAction('Modellvariante ändern', async () => {
-    await patchJson(`/api/properties/${c.propertyId}`, { usageModel });
-  });
-  const renderResidentialRightProductCards = (modelRequest) => {
-    const activeUsageModel = modelRequest?.usageModel === 'lifelong_residential_right'
-      ? 'lifelong_residential_right'
-      : 'fixed_residential_right';
-    const productCards = [
-      {
-        usageModel: 'fixed_residential_right',
-        title: 'Befristetes Wohnrecht',
-        subtitle: 'Kostenfreie Wohnphase mit fester Laufzeit',
-        hint: 'Für Kunden ab ca. 65 Jahren geeignet',
-        calculation: 'Fix-Term-Kalkulation',
-        disabled: false
-      },
-      {
-        usageModel: 'lifelong_residential_right',
+  const selectedModelInfo = (modelRequest) => {
+    if (modelRequest?.model === 'sale_and_leaseback') {
+      return {
+        title: 'Rückmietverkauf',
+        subtitle: 'Verkauf mit anschließender Mietvereinbarung',
+        hint: ''
+      };
+    }
+    if (modelRequest?.usageModel === 'lifelong_residential_right') {
+      return {
         title: 'Lebenslanges Wohnrecht',
         subtitle: 'Lebenslang kostenfrei wohnen bleiben',
-        hint: 'Ab 75 Jahren; bei zwei Personen ist die jüngere Person maßgeblich',
-        calculation: 'Sterbetafelbasierte Lifetime-Kalkulation',
-        disabled: !lifetimeEligibility?.eligible,
-        statusHint: lifetimeEligibility?.eligibleSoon
-          ? 'Die jüngere Person erreicht innerhalb von 3 Monaten das Mindestalter von 75 Jahren.'
-          : lifetimeEligibility?.eligible
-            ? 'Lifetime-Kalkulation ist für diesen Fall möglich.'
-            : 'Das lebenslange Wohnrecht ist erst ab 75 Jahren möglich. Bei zwei Personen ist die jüngere Person maßgeblich.'
-      }
-    ];
-
+        hint: lifetimeEligibility?.eligible
+          ? 'Altersvoraussetzung erfüllt'
+          : lifetimeEligibility?.message || 'Das lebenslange Wohnrecht ist erst ab 75 Jahren möglich.'
+      };
+    }
+    return {
+      title: 'Befristetes Wohnrecht',
+      subtitle: 'Kostenfreie Wohnphase mit fester Laufzeit',
+      hint: ''
+    };
+  };
+  const renderSelectedModelInfoCard = (modelRequest) => {
+    const info = selectedModelInfo(modelRequest);
     return (
-      <div style={{ padding: '16px 24px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'grid', gap: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
+      <div style={{ padding: '14px 24px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.surfaceSoft }}>
+        <div style={{ border: `1px solid ${theme.border}`, borderLeft: `3px solid ${theme.gold}`, background: 'white', borderRadius: theme.cardRadius, padding: '13px 15px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 4 }}>Wohnrecht-Produkte</div>
-            <div style={{ fontSize: 12, color: `${theme.ink}88` }}>WohnKapital kann beide Wohnrecht-Varianten kalkulieren.</div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 5 }}>Gewähltes Modell</div>
+            <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 900 }}>{info.title}</div>
+            <div style={{ fontSize: 12.5, color: `${theme.ink}99`, fontWeight: 650, marginTop: 3 }}>{info.subtitle}</div>
+            {info.hint && <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 6 }}>{info.hint}</div>}
           </div>
-          {lifetimeEligibility?.eligibleSoon && (
-            <span style={{ border: `1px solid ${theme.gold}`, background: theme.goldSoft, color: '#7A5600', borderRadius: 999, padding: '5px 9px', fontSize: 11.5, fontWeight: 800 }}>
-              Lifetime bald zulässig
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(235px, 1fr))', gap: 12 }}>
-          {productCards.map((card) => {
-            const active = activeUsageModel === card.usageModel;
-            const disabled = Boolean(card.disabled || busyAction);
-            return (
-              <button
-                key={card.usageModel}
-                type="button"
-                onClick={() => !disabled && updateResidentialRightVariant(card.usageModel)}
-                disabled={disabled}
-                aria-pressed={active}
-                style={{
-                  textAlign: 'left',
-                  border: active ? `2px solid ${theme.gold}` : `1px solid ${theme.border}`,
-                  background: active ? theme.aubergine : disabled ? theme.mintLighter : 'white',
-                  color: active ? 'white' : theme.ink,
-                  borderRadius: 10,
-                  padding: '13px 14px',
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  opacity: disabled && !active ? 0.62 : 1,
-                  boxShadow: active ? '0 10px 24px rgba(68, 0, 92, 0.12)' : 'none',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 7 }}>
-                  <span style={{ fontSize: 14, fontWeight: 900, color: active ? 'white' : theme.aubergine }}>{card.title}</span>
-                  {active && <span style={{ width: 8, height: 8, borderRadius: 999, background: theme.gold, flex: '0 0 auto' }} />}
-                </div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.35, color: active ? 'rgba(255,255,255,0.92)' : theme.ink }}>{card.subtitle}</div>
-                <div style={{ fontSize: 11.5, lineHeight: 1.4, marginTop: 8, color: active ? 'rgba(255,255,255,0.78)' : `${theme.ink}88` }}>{card.hint}</div>
-                <div style={{ fontSize: 11.5, lineHeight: 1.4, marginTop: 8, fontWeight: 850, color: active ? theme.gold : theme.aubergine }}>Berechnung: {card.calculation}</div>
-                {card.statusHint && (
-                  <div style={{ fontSize: 11.2, lineHeight: 1.35, marginTop: 8, color: active ? 'rgba(255,255,255,0.78)' : card.disabled ? '#8A5A00' : `${theme.ink}88` }}>
-                    {card.statusHint}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+          <span style={{ border: `1px solid ${theme.border}`, background: theme.mintLighter, color: theme.aubergine, borderRadius: 999, padding: '6px 10px', fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
+            Aus Kundenerfassung übernommen
+          </span>
         </div>
       </div>
     );
   };
+  const renderMissingSelectedModelNotice = () => (
+    <div style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, padding: '22px 24px', boxShadow: theme.cardShadow, display: 'grid', gap: 12 }}>
+      <div>
+        <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 6 }}>Modell fehlt</div>
+        <div style={{ fontSize: 15, color: theme.ink, fontWeight: 800 }}>Bitte wählen Sie zunächst ein Modell in der Kundenerfassung aus.</div>
+        <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 5, lineHeight: 1.45 }}>
+          Danach kann das unverbindliche und verbindliche Angebot für genau dieses Modell berechnet werden.
+        </div>
+      </div>
+      <div>
+        <button type="button" onClick={() => changeTab('objekt')} style={offerButtonStyle('secondary')}>
+          Zur Kundenerfassung
+        </button>
+      </div>
+    </div>
+  );
   const calculateBindingOffer = (modelRequest, index) => runCaseAction('VA-Kalkulation', async () => {
     if (!canPrepareBindingOffer) {
       throw new Error('Bitte zuerst das Gutachten als eingegangen markieren.');
@@ -5881,7 +5838,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   });
   const indicativeOfferDateFields = (
     <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
+      <div className="offer-dates-grid" style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
         <Field label="Unverbindliches Angebot abgegeben am">
           <Input type="date" value={indicativeOfferSentDate} onChange={(event) => setIndicativeOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
         </Field>
@@ -5898,7 +5855,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   );
   const bindingOfferDateFields = (
     <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
+      <div className="offer-dates-grid" style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
         <Field label="Verbindliches Angebot abgegeben am">
           <Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
         </Field>
@@ -6006,10 +5963,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     };
   };
   const workflowButtonStyle = ({ reached, nextAllowed, disabled }) => ({
-    background: reached ? '#5B8C2B14' : nextAllowed ? theme.aubergine : 'white',
-    border: `1px solid ${reached ? '#5B8C2B33' : nextAllowed ? theme.aubergine : theme.border}`,
-    color: reached ? '#5B8C2B' : nextAllowed ? 'white' : `${theme.ink}66`,
-    borderRadius: 5,
+    background: reached ? theme.successSoft : nextAllowed ? theme.aubergine : 'white',
+    border: `1px solid ${reached ? `${theme.success}33` : nextAllowed ? theme.aubergine : theme.border}`,
+    color: reached ? theme.success : nextAllowed ? 'white' : `${theme.ink}66`,
+    borderRadius: theme.buttonRadius,
     padding: '7px 11px',
     fontSize: 12,
     fontWeight: 800,
@@ -6032,7 +5989,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         color: theme.aubergine,
       },
       disabled: {
-        background: '#F7F4F8',
+        background: theme.surfaceSoft,
         border: `1px solid ${theme.border}`,
         color: `${theme.ink}66`,
       },
@@ -6040,7 +5997,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const selected = disabled ? styles.disabled : styles[variant] || styles.primary;
     return {
       ...selected,
-      borderRadius: 8,
+      borderRadius: theme.buttonRadius,
       padding: '10px 16px',
       minHeight: 42,
       width: 'auto',
@@ -6058,13 +6015,13 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     };
   }
   const OfferDonePill = ({ children }) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B8C2B14', color: '#5B8C2B', border: '1px solid #5B8C2B33', borderRadius: 999, padding: '6px 11px', minHeight: 32, fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: theme.successSoft, color: theme.success, border: `1px solid ${theme.success}33`, borderRadius: 999, padding: '6px 11px', minHeight: 32, fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
       <CheckCircle size={13} /> {children}
     </span>
   );
   const OfferSuccessHint = ({ action, children = 'Berechnung aktualisiert' }) => (
     recentSuccessAction === action ? (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#5B8C2B', fontSize: 12, fontWeight: 800 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: theme.success, fontSize: 12, fontWeight: 800 }}>
         <CheckCircle size={13} /> {children}
       </span>
     ) : null
@@ -6080,19 +6037,56 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       </button>
     );
   };
-  const offerShellStyle = { background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' };
+  const offerShellStyle = { background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, overflow: 'hidden', boxShadow: theme.cardShadow };
   const offerHeaderStyle = { padding: '20px 24px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 };
-  const offerHeroStyle = { background: '#FEFCF8', padding: '28px 26px', display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 416px)', gap: 28, alignItems: 'center' };
+  const offerHeroStyle = { background: theme.surfaceSoft, padding: '26px 24px', display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 416px)', gap: 28, alignItems: 'center' };
   const offerSectionTitleStyle = { fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 };
   const renderOfferBreakdown = (rows, emptyText) => (
-    <div style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, padding: '14px 18px' }}>
+    <div style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, padding: '14px 18px' }}>
       {rows.length ? rows.map(([label, value], rowIndex) => {
         const isDelta = String(label).startsWith('Δ');
         const isNegative = String(value).startsWith('-');
+        const isCustomerPayout = label === 'Auszahlung an den Kunden';
+        const isPayoutRatio = label === 'Auszahlungsquote';
+        const isTotalInvestorCommitment = label === 'Gesamtankaufskosten';
+        const rowStyle = {
+          display: 'flex',
+          alignItems: isCustomerPayout ? 'flex-start' : 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          borderBottom: rowIndex < rows.length - 1 ? `1px solid ${theme.borderSoft}` : 'none',
+          padding: '8px 0',
+          ...(isCustomerPayout ? {
+            background: theme.successSoft,
+            border: `1px solid ${theme.success}33`,
+            borderRadius: theme.cardRadius,
+            margin: '8px 0',
+            padding: '12px 14px'
+          } : {}),
+          ...(isPayoutRatio ? {
+            paddingTop: 0,
+            marginTop: -2
+          } : {}),
+          ...(isTotalInvestorCommitment ? {
+            background: theme.mintLighter,
+            borderTop: `1px solid ${theme.border}`,
+            borderBottom: 'none',
+            marginTop: 10,
+            padding: '11px 12px',
+            borderRadius: 8
+          } : {})
+        };
         return (
-          <div key={`${label}-${rowIndex}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: rowIndex < rows.length - 1 ? `1px solid ${theme.borderSoft}` : 'none', padding: '8px 0' }}>
-            <span style={{ fontSize: 12.5, color: `${theme.ink}99`, fontWeight: 650 }}>{label}</span>
-            <span style={{ fontSize: 12.5, color: isDelta ? (isNegative ? '#9B2C2C' : '#2F7D32') : theme.aubergine, fontWeight: 800, textAlign: 'right' }}>{value}</span>
+          <div key={`${label}-${rowIndex}`} style={rowStyle}>
+            <span style={{ fontSize: isCustomerPayout ? 13 : 12.5, color: isCustomerPayout ? theme.success : `${theme.ink}99`, fontWeight: isCustomerPayout || isTotalInvestorCommitment ? 850 : 650 }}>
+              {isCustomerPayout ? (
+                <>
+                  <span style={{ display: 'block' }}>Auszahlung an den Kunden</span>
+                  <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, color: `${theme.success}99`, fontWeight: 750, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Maximaler Auszahlungsbetrag</span>
+                </>
+              ) : label}
+            </span>
+            <span style={{ fontSize: isCustomerPayout ? 17 : 12.5, color: isDelta ? (isNegative ? theme.error : theme.success) : isCustomerPayout ? theme.success : theme.aubergine, fontWeight: 900, textAlign: 'right' }}>{value}</span>
           </div>
         );
       }) : (
@@ -6156,14 +6150,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const isLifetimeResidentialRight = modelRequest.usageModel === 'lifelong_residential_right';
     const residentialRightVariantLabel = residentialRightVariantLabelFromUsageModel(modelRequest.usageModel);
     const rentBackMetrics = isRentBack && offer ? rentBackCalculationFromOffer(offer) : null;
-    const quote = rentBackMetrics
-      ? Math.round(rentBackMetrics.payoutRate * 100)
-      : offer?.payoutAmount && offer?.marketValue ? Math.round((offer.payoutAmount / offer.marketValue) * 100) : undefined;
-    const payoutValue = rentBackMetrics?.payoutAmount ?? offer?.payoutAmount;
     const calculationActionLabel = isRentBack ? 'Rückmietverkauf-Kalkulation' : isLifetimeResidentialRight ? 'Lebenslanges Wohnrecht berechnen' : 'Wohnrecht-Kalkulation';
     const offerMeta = offer ? `Version ${offer.currentVersion || 1} · zuletzt berechnet` : 'Entwurf';
     const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer) : residentialRightMetricRows(offer)) : [];
-    const residentialRightComparison = isResidentialRight ? residentialRightOfferComparisonRows(indicativeOffers) : [];
     const termWarning = !isRentBack ? offer?.assumptions?.termWarning : null;
     const chipRows = [
       ['Vorläufiger Verkehrswert', offer ? formatEuro(offer.marketValue) : preliminaryMarketValueLabel],
@@ -6206,14 +6195,16 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           </div>
           <div style={{ fontSize: 12, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{offerMeta}</div>
         </div>
-        {isResidentialRight && modelRequest.primary && canManageOffers && renderResidentialRightProductCards(modelRequest)}
+        {modelRequest.primary && renderSelectedModelInfoCard(modelRequest)}
 
-        <div style={offerHeroStyle}>
+        <div className="offer-hero-grid" style={offerHeroStyle}>
           <div>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Unverbindliche Auszahlung</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 33.6, lineHeight: 1, color: theme.aubergine, fontWeight: 700, fontFamily: 'inherit' }}>{payoutValue ? formatEuroCents(payoutValue) : '-'}</div>
-              <div style={{ fontSize: 16, color: `${theme.ink}88`, fontWeight: 650 }}>{quote ? `${quote}%` : '-'}</div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Berechnungsergebnis</div>
+            <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 850, lineHeight: 1.25 }}>
+              Unverbindliches Angebot für {isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
+              Die zentrale Auszahlung und die Investorengesamtkosten sind rechts strukturiert dargestellt.
             </div>
             {rentBackMetrics && (
               <div style={{ marginTop: 8, fontSize: 13, color: `${theme.ink}99`, fontWeight: 650 }}>
@@ -6225,35 +6216,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           {renderOfferBreakdown(breakdownRows, 'Noch keine UVA-Kalkulation vorhanden.')}
         </div>
 
-        {residentialRightComparison.length > 0 && (
-          <div style={{ padding: '18px 24px', borderTop: `1px solid ${theme.borderSoft}`, background: 'white' }}>
-            <div style={offerSectionTitleStyle}>Vergleich Wohnrecht-Produkte</div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
-                <thead>
-                  <tr>
-                    {['Modell', 'Auszahlungsbetrag', 'Auszahlungsquote', 'Ziel-IRR', 'Erwarteter Exit / Laufzeit', 'Instandhaltungsreserve'].map((label) => (
-                      <th key={label} style={{ textAlign: 'left', padding: '8px 10px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 10.5, color: theme.aubergine, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {residentialRightComparison.map((row) => (
-                    <tr key={row.model}>
-                      {[row.model, row.payout, row.ratio, row.targetIrr, row.exitOrTerm, row.maintenance].map((value, cellIndex) => (
-                        <td key={`${row.model}-${cellIndex}`} style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12.5, color: cellIndex === 0 ? theme.aubergine : theme.ink, fontWeight: cellIndex === 0 ? 850 : 650 }}>{value}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {termWarning && (
-          <div style={{ padding: '0 24px 18px', background: '#FEFCF8' }}>
-            <div style={{ border: `1px solid ${theme.gold}`, background: '#FFF8E1', color: theme.ink, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 650 }}>
+          <div style={{ padding: '0 24px 18px', background: theme.surfaceSoft }}>
+            <div style={{ border: `1px solid ${theme.warning}55`, background: theme.warningSoft, color: theme.ink, borderRadius: theme.cardRadius, padding: '10px 12px', fontSize: 12.5, fontWeight: 650 }}>
               {termWarning}
             </div>
           </div>
@@ -6292,7 +6257,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         {modelRequest.primary && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
             <div style={offerSectionTitleStyle}>Angebotsdaten</div>
-            <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 14, alignItems: 'end' }}>
+            <div className="offer-dates-grid" style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 14, alignItems: 'end' }}>
               <Field label="Unverbindliches Angebot abgegeben am">
                 <Input type="date" value={indicativeOfferSentDate} onChange={(event) => setIndicativeOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
               </Field>
@@ -6318,7 +6283,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           </div>
         )}
 
-        <div style={{ background: '#FCF8F0', borderTop: `1px solid ${theme.borderSoft}`, padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ background: theme.surfaceSoft, borderTop: `1px solid ${theme.borderSoft}`, padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 850 }}>{nextStep.title}</div>
             <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 4 }}>{nextStep.help}</div>
@@ -6558,10 +6523,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const deltaPayout = bindingOffer && indicativeOffer
       ? (bindingRentBackMetrics?.payoutAmount ?? bindingOffer.payoutAmount) - (indicativeRentBackMetrics?.payoutAmount ?? indicativeOffer.payoutAmount)
       : undefined;
-    const quote = bindingRentBackMetrics
-      ? Math.round(bindingRentBackMetrics.payoutRate * 100)
-      : bindingOffer?.payoutAmount && bindingOffer?.marketValue ? Math.round((bindingOffer.payoutAmount / bindingOffer.marketValue) * 100) : undefined;
-    const payoutValue = bindingRentBackMetrics?.payoutAmount ?? bindingOffer?.payoutAmount;
     const offerMeta = bindingOffer
       ? `Version ${bindingOffer.currentVersion || 1} · zuletzt berechnet`
       : 'Entwurf';
@@ -6601,7 +6562,6 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
       ['Δ Auszahlung vs. UVA', deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuro(deltaPayout)}` : '-'],
     ]) : [];
-    const residentialRightComparison = isResidentialRight ? residentialRightOfferComparisonRows(bindingOffers) : [];
     const chipRows = [
       ['Gutachtenwert', bindingOffer ? formatEuro(bindingOffer.marketValue) : expertOpinionValue ? `${expertOpinionValue} €` : '-'],
       ['Modell', isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)],
@@ -6612,21 +6572,23 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const termWarning = !isRentBack ? bindingOffer?.assumptions?.termWarning : null;
 
     return (
-      <div key={`binding-offer-card-${modelRequest.key}-${index}`} style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 14px 34px rgba(68, 0, 92, 0.045)' }}>
+      <div key={`binding-offer-card-${modelRequest.key}-${index}`} style={offerShellStyle}>
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>
             Verbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}</span>
           </div>
           <div style={{ fontSize: 12, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{offerMeta}</div>
         </div>
-        {isResidentialRight && modelRequest.primary && canManageOffers && renderResidentialRightProductCards(modelRequest)}
+        {modelRequest.primary && renderSelectedModelInfoCard(modelRequest)}
 
-        <div style={{ background: '#FEFCF8', padding: '28px 26px', display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 416px)', gap: 28, alignItems: 'center' }}>
+        <div className="offer-hero-grid" style={offerHeroStyle}>
           <div>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Verbindliche Auszahlung</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 33.6, lineHeight: 1, color: theme.aubergine, fontWeight: 700, fontFamily: 'inherit' }}>{payoutValue ? formatEuroCents(payoutValue) : '-'}</div>
-              <div style={{ fontSize: 16, color: `${theme.ink}88`, fontWeight: 650 }}>{quote ? `${quote}%` : '-'}</div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Berechnungsergebnis</div>
+            <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 850, lineHeight: 1.25 }}>
+              Verbindliches Angebot für {isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
+              Die verbindliche Auszahlung und die Investorengesamtkosten sind rechts strukturiert dargestellt.
             </div>
             {bindingRentBackMetrics && (
               <div style={{ marginTop: 8, fontSize: 13, color: `${theme.ink}99`, fontWeight: 650 }}>
@@ -6649,7 +6611,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               return (
                 <div key={`${label}-${rowIndex}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: rowIndex < breakdownRows.length - 1 ? `1px solid ${theme.borderSoft}` : 'none', padding: '8px 0' }}>
                   <span style={{ fontSize: 12.5, color: `${theme.ink}99`, fontWeight: 650 }}>{label}</span>
-                  <span style={{ fontSize: 12.5, color: isDelta ? (isNegative ? '#9B2C2C' : '#2F7D32') : theme.aubergine, fontWeight: 800, textAlign: 'right' }}>{value}</span>
+                  <span style={{ fontSize: 12.5, color: isDelta ? (isNegative ? theme.error : theme.success) : theme.aubergine, fontWeight: 800, textAlign: 'right' }}>{value}</span>
                 </div>
               );
             }) : (
@@ -6658,35 +6620,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           </div>
         </div>
 
-        {residentialRightComparison.length > 0 && (
-          <div style={{ padding: '18px 24px', borderTop: `1px solid ${theme.borderSoft}`, background: 'white' }}>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Vergleich Wohnrecht-Produkte</div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
-                <thead>
-                  <tr>
-                    {['Modell', 'Auszahlungsbetrag', 'Auszahlungsquote', 'Ziel-IRR', 'Erwarteter Exit / Laufzeit', 'Instandhaltungsreserve'].map((label) => (
-                      <th key={label} style={{ textAlign: 'left', padding: '8px 10px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 10.5, color: theme.aubergine, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {residentialRightComparison.map((row) => (
-                    <tr key={row.model}>
-                      {[row.model, row.payout, row.ratio, row.targetIrr, row.exitOrTerm, row.maintenance].map((value, cellIndex) => (
-                        <td key={`${row.model}-${cellIndex}`} style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12.5, color: cellIndex === 0 ? theme.aubergine : theme.ink, fontWeight: cellIndex === 0 ? 850 : 650 }}>{value}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {termWarning && (
-          <div style={{ padding: '0 24px 18px', background: '#FEFCF8' }}>
-            <div style={{ border: `1px solid ${theme.gold}`, background: '#FFF8E1', color: theme.ink, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 650 }}>
+          <div style={{ padding: '0 24px 18px', background: theme.surfaceSoft }}>
+            <div style={{ border: `1px solid ${theme.warning}55`, background: theme.warningSoft, color: theme.ink, borderRadius: theme.cardRadius, padding: '10px 12px', fontSize: 12.5, fontWeight: 650 }}>
               {termWarning}
             </div>
           </div>
@@ -6704,7 +6640,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               )}
             </div>
             {appraisalDeviationWarning && (
-              <div style={{ border: `1px solid ${theme.gold}66`, background: theme.goldSoft, color: '#7A5600', borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 750, marginBottom: 14 }}>
+              <div style={{ border: `1px solid ${theme.warning}55`, background: theme.warningSoft, color: theme.warning, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, fontWeight: 750, marginBottom: 14 }}>
                 {appraisalDeviationWarning}
               </div>
             )}
@@ -6740,7 +6676,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         {modelRequest.primary && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
             <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Angebotsdaten</div>
-            <div style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 14, alignItems: 'end' }}>
+            <div className="offer-dates-grid" style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 14, alignItems: 'end' }}>
               <Field label="Verbindliches Angebot abgegeben am">
                 <Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
               </Field>
@@ -6766,7 +6702,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           </div>
         )}
 
-        <div style={{ background: '#FCF8F0', borderTop: `1px solid ${theme.borderSoft}`, padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ background: theme.surfaceSoft, borderTop: `1px solid ${theme.borderSoft}`, padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 850 }}>{nextStep.title}</div>
             <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 4 }}>{nextStep.help}</div>
@@ -6829,9 +6765,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 4,
-                background: ratingInvestmentFilter.acquisitionThresholdPassed ? theme.mintLighter : '#FFF4F4',
-                color: ratingInvestmentFilter.acquisitionThresholdPassed ? theme.aubergine : '#9B2C2C',
-                border: `1px solid ${ratingInvestmentFilter.acquisitionThresholdPassed ? theme.borderSoft : '#9B2C2C33'}`,
+                background: ratingInvestmentFilter.acquisitionThresholdPassed ? theme.successSoft : theme.errorSoft,
+                color: ratingInvestmentFilter.acquisitionThresholdPassed ? theme.success : theme.error,
+                border: `1px solid ${ratingInvestmentFilter.acquisitionThresholdPassed ? `${theme.success}33` : `${theme.error}33`}`,
                 fontSize: 11.5,
                 fontWeight: 800,
                 padding: '4px 10px',
@@ -6842,7 +6778,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
               </span>
             )}
             {c.followUp && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: theme.goldSoft, color: '#A87308', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: theme.warningSoft, color: theme.warning, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10 }}>
                 <AlertCircle size={12} /> Rückfrage offen
               </span>
             )}
@@ -6854,7 +6790,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           <button onClick={() => onEdit?.(c.propertyId || c.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
         )}
         {canRejectCase && property?.status !== 'REJECTED' && (
-          <button onClick={() => setRejectModalOpen(true)} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
+          <button onClick={() => setRejectModalOpen(true)} disabled={Boolean(busyAction)} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}55`, color: theme.error, fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
             Fall ablehnen
           </button>
         )}
@@ -6867,10 +6803,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
       {rejectModalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', background: '#9B2C2C0F', borderBottom: '1px solid #9B2C2C22', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: ci.radius.modal, border: `1px solid ${theme.border}`, boxShadow: theme.elevatedShadow, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', background: theme.errorSoft, borderBottom: `1px solid ${theme.error}22`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 15, color: '#9B2C2C', fontWeight: 800 }}>Fall ablehnen</div>
+                <div style={{ fontSize: 15, color: theme.error, fontWeight: 800 }}>Fall ablehnen</div>
                 <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>Der Makler sieht den Grund im Ordner „Abgelehnt“ und in der Fallansicht.</div>
               </div>
               <button onClick={() => setRejectModalOpen(false)} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -6892,7 +6828,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             </div>
             <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button onClick={() => setRejectModalOpen(false)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
-              <button onClick={rejectCase} disabled={Boolean(busyAction) || rejectionNote.trim().length < 8} style={{ background: '#9B2C2C', border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : rejectionNote.trim().length < 8 ? 'not-allowed' : 'pointer', opacity: busyAction || rejectionNote.trim().length < 8 ? 0.55 : 1 }}>
+              <button onClick={rejectCase} disabled={Boolean(busyAction) || rejectionNote.trim().length < 8} style={{ background: theme.error, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : rejectionNote.trim().length < 8 ? 'not-allowed' : 'pointer', opacity: busyAction || rejectionNote.trim().length < 8 ? 0.55 : 1 }}>
                 {busyAction === 'Fall ablehnen' ? 'Wird abgelehnt...' : 'Ablehnen'}
               </button>
             </div>
@@ -6902,7 +6838,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
       {resetModalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ width: 'min(560px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+          <div style={{ width: 'min(560px, 94vw)', background: 'white', borderRadius: ci.radius.modal, border: `1px solid ${theme.border}`, boxShadow: theme.elevatedShadow, overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>Prozessschritt zurücksetzen</div>
@@ -6942,7 +6878,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
       {acceptedOfferDialog && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 91, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+          <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: ci.radius.modal, border: `1px solid ${theme.border}`, boxShadow: theme.elevatedShadow, overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>Angenommenes Angebotsmodell auswählen</div>
@@ -6984,7 +6920,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
       {residentStatusAction && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 92, background: 'rgba(42, 26, 53, 0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ width: 'min(560px, 94vw)', background: 'white', borderRadius: 8, border: `1px solid ${theme.border}`, boxShadow: '0 24px 70px rgba(68, 0, 92, 0.18)', overflow: 'hidden' }}>
+          <div style={{ width: 'min(560px, 94vw)', background: 'white', borderRadius: ci.radius.modal, border: `1px solid ${theme.border}`, boxShadow: theme.elevatedShadow, overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', background: theme.goldSoft, borderBottom: `1px solid ${theme.gold}33`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>{residentStatusAction === 'deceased' ? 'Bewohner verstorben melden' : 'Bewohner zieht aus'}</div>
@@ -7031,10 +6967,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       )}
 
       {property?.status === 'REJECTED' && (
-        <div style={{ background: '#9B2C2C0F', borderBottom: '1px solid #9B2C2C33', padding: '12px 28px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <AlertTriangle size={17} style={{ color: '#9B2C2C', marginTop: 1 }} />
+        <div style={{ background: theme.errorSoft, borderBottom: `1px solid ${theme.error}33`, padding: '12px 28px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <AlertTriangle size={17} style={{ color: theme.error, marginTop: 1 }} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12.8, fontWeight: 800, color: '#9B2C2C' }}>
+            <div style={{ fontSize: 12.8, fontWeight: 800, color: theme.error }}>
               Fall abgelehnt: {property.rejectionReasonLabel || labelFrom(rejectionReasonLabels, property.rejectionReasonCode, 'Grund nicht angegeben')}
             </div>
             <div style={{ fontSize: 12, color: `${theme.ink}aa`, marginTop: 3 }}>
@@ -7047,8 +6983,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
       {/* Rückfrage-Banner */}
       {c.followUp && (
-        <div style={{ background: theme.goldSoft, borderBottom: `1px solid ${theme.gold}55`, padding: '12px 28px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <AlertCircle size={16} style={{ color: theme.gold }} />
+        <div style={{ background: theme.warningSoft, borderBottom: `1px solid ${theme.warning}55`, padding: '12px 28px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <AlertCircle size={16} style={{ color: theme.warning }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.ink }}>Rückfrage offen: <span style={{ fontWeight: 400 }}>{c.followUpReason}</span></div>
             <div style={{ fontSize: 11, color: `${theme.ink}99`, marginTop: 2 }}>Wiedervorlage: heute · Letzte Erinnerung vor 1 Tag</div>
@@ -7057,7 +6993,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
         </div>
       )}
 
-      <div style={{ background: theme.mintLight, padding: '16px 28px 20px' }}>
+      <div style={{ background: theme.surfaceSoft, padding: '16px 28px 20px' }}>
         <AcquisitionProcessStepper property={property} />
       </div>
 
@@ -7074,7 +7010,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
             padding: '12px 18px',
             fontSize: 13, fontWeight: 600,
             color: t.disabled ? `${theme.ink}55` : activeTab === t.id ? theme.aubergine : `${theme.ink}99`,
-            borderBottom: activeTab === t.id ? `2px solid ${theme.aubergine}` : '2px solid transparent',
+            borderBottom: activeTab === t.id ? `2px solid ${theme.gold}` : '2px solid transparent',
             cursor: t.disabled ? 'not-allowed' : 'pointer',
             marginBottom: -1,
             marginLeft: t.tool && !tabs[tabs.indexOf(t) - 1]?.tool ? 'auto' : 0,
@@ -7095,7 +7031,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       </div>
 
       {inventoryCase && acquisitionHistoryTabs.length > 0 && (
-        <div style={{ background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, padding: '10px 28px', display: 'grid', gap: showAcquisitionHistory ? 10 : 0 }}>
+        <div style={{ background: theme.surfaceSoft, borderBottom: `1px solid ${theme.borderSoft}`, padding: '10px 28px', display: 'grid', gap: showAcquisitionHistory ? 10 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Abgeschlossener Ankauf</div>
@@ -7144,7 +7080,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       )}
 
       {/* Tab Content */}
-      <div style={{ padding: '20px 28px', display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20 }}>
+      <div className="case-detail-content-grid" style={{ padding: '20px 28px', display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20 }}>
         <div>
           {activeTab === 'kunde' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
@@ -7209,7 +7145,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         <button onClick={() => startResidentStatusAction('move_out')} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
                           Bewohner zieht aus
                         </button>
-                        <button onClick={() => startResidentStatusAction('deceased')} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C55', color: '#9B2C2C', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
+                        <button onClick={() => startResidentStatusAction('deceased')} disabled={Boolean(busyAction)} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}55`, color: theme.error, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
                           Bewohner verstorben melden
                         </button>
                       </div>
@@ -7289,18 +7225,18 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
           {activeTab === 'rating' && role === 'admin' && (
             <div style={{ display: 'grid', gap: 14 }}>
               <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
-                  <div>
+                <div className="rating-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Objektrating</div>
                     <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>Institutionelle Objektprüfung</div>
                     <div style={{ fontSize: 12.5, color: `${theme.ink}99`, lineHeight: 1.5, marginTop: 4 }}>
                       Das Rating wird aus versionierten Kriterien, Gewichtungen und Mapping-Regeln erzeugt. Freigegebene Ratings bleiben revisionssicher nachvollziehbar.
                     </div>
                   </div>
-                  <div style={{ display: 'grid', justifyItems: 'end', gap: 7, minWidth: 220 }}>
+                  <div className="rating-header-actions" style={{ display: 'grid', justifyItems: 'end', gap: 7, minWidth: 220 }}>
                     {ratingApproved ? (
                       <>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#EAF7E6', color: '#2F6B1F', border: '1px solid #2F6B1F33', borderRadius: 999, padding: '7px 11px', fontSize: 12.5, fontWeight: 850 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: theme.successSoft, color: theme.success, border: `1px solid ${theme.success}33`, borderRadius: 999, padding: '7px 11px', fontSize: 12.5, fontWeight: 850 }}>
                           <CheckCircle2 size={14} /> Rating freigegeben
                         </span>
                         {canUnlockRating && (
@@ -7329,10 +7265,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 
                 {precheckView && (
                   <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', marginBottom: 18, background: 'white' }}>
-                    <div style={{ padding: '15px 16px', background: precheckView.result === 'not_acquirable' ? '#FFF4F4' : ['exception_required', 'incomplete'].includes(precheckView.result) ? theme.goldSoft : theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ padding: '15px 16px', background: precheckView.result === 'not_acquirable' ? theme.errorSoft : ['exception_required', 'incomplete'].includes(precheckView.result) ? theme.warningSoft : theme.successSoft, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                       <div>
                         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Ankaufsfähigkeit / Vorprüfung</div>
-                        <div style={{ fontSize: 17, color: precheckView.result === 'not_acquirable' ? '#9B2C2C' : theme.aubergine, fontWeight: 900 }}>
+                        <div style={{ fontSize: 17, color: precheckView.result === 'not_acquirable' ? theme.error : theme.aubergine, fontWeight: 900 }}>
                           Vorprüfung: {precheckView.resultLabel}
                         </div>
                         <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 4, lineHeight: 1.45 }}>
@@ -7341,7 +7277,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         {precheckView.exceptionApproved && (
-                          <span style={{ background: '#EAF7E6', color: '#2F6B1F', border: '1px solid #2F6B1F33', borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850 }}>
+                          <span style={{ background: theme.successSoft, color: theme.success, border: `1px solid ${theme.success}33`, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850 }}>
                             Ausnahme freigegeben
                           </span>
                         )}
@@ -7356,12 +7292,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               </button>
                             )}
                             {precheckView.hasExceptionRequired && !precheckView.hasHardKo && canApprovePrecheckException && (
-                              <button type="button" onClick={() => saveAcquisitionPrecheck('approve_exception')} disabled={Boolean(busyAction)} style={{ background: '#2F6B1F', color: 'white', border: 'none', borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
+                              <button type="button" onClick={() => saveAcquisitionPrecheck('approve_exception')} disabled={Boolean(busyAction)} style={{ background: theme.success, color: 'white', border: 'none', borderRadius: theme.buttonRadius, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
                                 Ausnahme freigeben
                               </button>
                             )}
                             {precheckView.hasExceptionRequired && canApprovePrecheckException && (
-                              <button type="button" onClick={() => saveAcquisitionPrecheck('reject_exception')} disabled={Boolean(busyAction)} style={{ background: '#9B2C2C0F', color: '#9B2C2C', border: '1px solid #9B2C2C44', borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
+                              <button type="button" onClick={() => saveAcquisitionPrecheck('reject_exception')} disabled={Boolean(busyAction)} style={{ background: theme.errorSoft, color: theme.error, border: `1px solid ${theme.error}44`, borderRadius: theme.buttonRadius, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
                                 Ausnahme ablehnen
                               </button>
                             )}
@@ -7401,7 +7337,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     </div>
 
                     {canManagePrecheck && (
-                      <div style={{ padding: '14px 16px', borderTop: `1px solid ${theme.borderSoft}`, background: '#FEFCF8' }}>
+                      <div style={{ padding: '14px 16px', borderTop: `1px solid ${theme.borderSoft}`, background: theme.surfaceSoft }}>
                         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Manuelle Vorprüfungswerte</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
                           <Field label="Vorläufiger Verkehrswert (€)">
@@ -7461,12 +7397,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   </div>
                 ) : (
                   <>
-                    <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 10, background: '#FEFCF8', padding: '15px 16px', marginBottom: 14 }}>
+                    <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, background: theme.surfaceSoft, padding: '15px 16px', marginBottom: 14 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                             <div style={{ fontSize: 26, lineHeight: 1, color: theme.aubergine, fontWeight: 900 }}>{objectRating.totalScore ? Number(objectRating.totalScore).toFixed(2).replace('.', ',') : '-'}</div>
-                            <span style={{ background: ratingApproved ? '#EAF7E6' : theme.goldSoft, color: ratingApproved ? '#2F6B1F' : '#7A5600', border: `1px solid ${ratingApproved ? '#2F6B1F33' : theme.gold}55`, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850 }}>{ratingStatusChipLabel}</span>
+                            <span style={{ background: ratingApproved ? theme.successSoft : theme.warningSoft, color: ratingApproved ? theme.success : theme.warning, border: `1px solid ${ratingApproved ? `${theme.success}33` : `${theme.warning}55`}`, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850 }}>{ratingStatusChipLabel}</span>
                           </div>
                           <div style={{ marginTop: 7, fontSize: 13, color: theme.ink, fontWeight: 800 }}>
                             Ratingklasse: {ratingInvestmentFilter.scoreBandLabel || objectRating.ratingClass || '-'}
@@ -7518,12 +7454,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     </div>
 
                     {ratingInvestmentFilter.warning && (
-                      <div style={{ background: '#FFF4F4', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 8, padding: '11px 13px', fontSize: 12.5, fontWeight: 750, marginBottom: 12 }}>
+                      <div style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, color: theme.error, borderRadius: theme.cardRadius, padding: '11px 13px', fontSize: 12.5, fontWeight: 750, marginBottom: 12 }}>
                         {ratingInvestmentFilter.warning}
                       </div>
                     )}
                     {ratingReviewAfterAppraisal.required && !ratingReviewAfterAppraisal.satisfied && (
-                      <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, color: '#7A5600', borderRadius: 8, padding: '11px 13px', fontSize: 12.5, fontWeight: 750, marginBottom: 12 }}>
+                      <div style={{ background: theme.warningSoft, border: `1px solid ${theme.warning}55`, color: theme.warning, borderRadius: theme.cardRadius, padding: '11px 13px', fontSize: 12.5, fontWeight: 750, marginBottom: 12 }}>
                         Rating-Review nach Gutachten erforderlich. Das verbindliche Angebot kann erst nach erneuter Bestätigung oder Freigabe erstellt werden.
                       </div>
                     )}
@@ -7544,10 +7480,10 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                       </div>
                     </div>
 
-                    <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 10, background: ratingOpenTasks.length ? theme.goldSoft : '#EAF7E6', padding: '13px 15px', marginBottom: 14 }}>
+                    <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, background: ratingOpenTasks.length ? theme.warningSoft : theme.successSoft, padding: '13px 15px', marginBottom: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: ratingOpenTasks.length ? 8 : 0 }}>
                         <div style={{ fontSize: 12, color: theme.aubergine, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Offene Punkte</div>
-                        <span style={{ fontSize: 11.5, fontWeight: 850, color: ratingOpenTasks.length ? '#7A5600' : '#2F6B1F' }}>
+                        <span style={{ fontSize: 11.5, fontWeight: 850, color: ratingOpenTasks.length ? theme.warning : theme.success }}>
                           {ratingOpenTasks.length ? `${ratingOpenTasks.length} offen` : 'bereit'}
                         </span>
                       </div>
@@ -7556,7 +7492,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                           {ratingOpenTasks.slice(0, 7).map((task, index) => <li key={`${task}-${index}`}>{task}</li>)}
                         </ul>
                       ) : (
-                        <div style={{ fontSize: 12.5, color: '#2F6B1F', fontWeight: 750 }}>Keine offenen Punkte. Das Rating kann freigegeben werden.</div>
+                        <div style={{ fontSize: 12.5, color: theme.success, fontWeight: 750 }}>Keine offenen Punkte. Das Rating kann freigegeben werden.</div>
                       )}
                     </div>
 
@@ -7564,8 +7500,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
                       {ratingCategorySummaries.map(({ category, score, scores, openCount, manualCount, missingCommentCount, status }) => {
                         const expanded = Boolean(openRatingCategoryIds[category.id]);
-                        const statusColor = status === 'Freigegeben' || status === 'Vollständig' ? '#2F6B1F' : status === 'Kommentar erforderlich' ? '#9B2C2C' : '#7A5600';
-                        const statusBg = status === 'Freigegeben' || status === 'Vollständig' ? '#EAF7E6' : status === 'Kommentar erforderlich' ? '#FFF4F4' : theme.goldSoft;
+                        const statusColor = status === 'Freigegeben' || status === 'Vollständig' ? theme.success : status === 'Kommentar erforderlich' ? theme.error : theme.warning;
+                        const statusBg = status === 'Freigegeben' || status === 'Vollständig' ? theme.successSoft : status === 'Kommentar erforderlich' ? theme.errorSoft : theme.warningSoft;
                         return (
                           <div key={category.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 10, overflow: 'hidden', background: 'white' }}>
                             <button type="button" onClick={() => setOpenRatingCategoryIds((current) => ({ ...current, [category.id]: !current[category.id] }))} style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', background: expanded ? theme.mintLighter : 'white', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left' }}>
@@ -7586,7 +7522,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                               <div style={{ borderTop: `1px solid ${theme.borderSoft}`, overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
                                   <thead>
-                                    <tr style={{ background: '#FEFCF8' }}>
+                                    <tr style={{ background: theme.surfaceSoft }}>
                                       {['Kriterium', 'Gewichtung', 'Quelle', 'Auto', 'Final', 'Confidence', 'Status', 'Aktion'].map((label) => (
                                         <th key={label} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, color: theme.aubergine, letterSpacing: '0.1em', textTransform: 'uppercase', borderBottom: `1px solid ${theme.borderSoft}` }}>{label}</th>
                                       ))}
@@ -7615,7 +7551,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.aubergine, fontWeight: 850 }}>{disabledByRoofChoice ? '-' : finalValue || '-'}</td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.ink }}>{disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)}</td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}` }}>
-                                              <span style={{ background: missingComment ? '#FFF4F4' : rowStatus === 'OK' ? '#EAF7E6' : theme.goldSoft, color: missingComment ? '#9B2C2C' : rowStatus === 'OK' ? '#2F6B1F' : '#7A5600', borderRadius: 999, padding: '3px 8px', fontSize: 11, fontWeight: 850, whiteSpace: 'nowrap' }}>{rowStatus}</span>
+                                              <span style={{ background: missingComment ? theme.errorSoft : rowStatus === 'OK' ? theme.successSoft : theme.warningSoft, color: missingComment ? theme.error : rowStatus === 'OK' ? theme.success : theme.warning, borderRadius: 999, padding: '3px 8px', fontSize: 11, fontWeight: 850, whiteSpace: 'nowrap' }}>{rowStatus}</span>
                                             </td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}` }}>
                                               <button type="button" onClick={() => setActiveRatingScoreId(activeRatingScoreId === scoreItem.id ? '' : scoreItem.id)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 9px', fontSize: 11.5, fontWeight: 850, cursor: 'pointer' }}>
@@ -7632,7 +7568,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                           )}
                                           {activeRatingScoreId === scoreItem.id && (
                                             <tr>
-                                              <td colSpan={8} style={{ padding: '14px 16px', background: '#FEFCF8', borderBottom: `1px solid ${theme.borderSoft}` }}>
+                                              <td colSpan={8} style={{ padding: '14px 16px', background: theme.surfaceSoft, borderBottom: `1px solid ${theme.borderSoft}` }}>
                                                 <div style={{ display: 'grid', gap: 12 }}>
                                                   <div>
                                                     <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 900 }}>{scoreItem.criterion?.name || scoreItem.criterionId}</div>
@@ -7660,7 +7596,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                                     <Field label="Confidence"><Input value={disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)} readOnly /></Field>
                                                   </div>
                                                   {missingComment && (
-                                                    <div style={{ border: '1px solid #B4231833', background: '#FFF4F4', color: '#9B2C2C', borderRadius: 7, padding: '8px 10px', fontSize: 12.5, fontWeight: 750 }}>
+                                                    <div style={{ border: `1px solid ${theme.error}33`, background: theme.errorSoft, color: theme.error, borderRadius: 7, padding: '8px 10px', fontSize: 12.5, fontWeight: 750 }}>
                                                       Begründung erforderlich, weil ein automatischer Wert überschrieben wurde.
                                                     </div>
                                                   )}
@@ -7669,7 +7605,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                                       <textarea value={ratingCommentValue(scoreItem)} disabled={disabledByRoofChoice} onChange={(event) => {
                                                         const input = ratingScoreInputs[scoreItem.id] || {};
                                                         setRatingScoreInputs({ ...ratingScoreInputs, [scoreItem.id]: { ...input, comment: event.target.value } });
-                                                      }} rows={3} placeholder={missingComment ? 'Pflicht: Änderung begründen' : 'Optional'} style={{ width: '100%', border: `1px solid ${missingComment ? '#B42318' : theme.border}`, borderRadius: 6, padding: '9px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
+                                                      }} rows={3} placeholder={missingComment ? 'Pflicht: Änderung begründen' : 'Optional'} style={{ width: '100%', border: `1px solid ${missingComment ? theme.error : theme.border}`, borderRadius: 6, padding: '9px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
                                                     ) : (
                                                       <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '9px 10px', background: theme.mintLighter, color: theme.ink, fontSize: 13 }}>{scoreItem.comment || '-'}</div>
                                                     )}
@@ -7721,7 +7657,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                 const manuallyChanged = !disabledByRoofChoice && ratingManualChange(score);
                                 const missingManualComment = manuallyChanged && !String(ratingCommentValue(score) || '').trim();
                                 return (
-                                  <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '12px 14px', background: disabledByRoofChoice ? theme.mintLighter : missingManualComment ? '#FFF4F4' : manuallyChanged ? theme.goldSoft : Number(score.confidence || 0) < 0.65 ? theme.goldSoft : 'white', opacity: disabledByRoofChoice ? 0.62 : 1 }}>
+                                  <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '12px 14px', background: disabledByRoofChoice ? theme.mintLighter : missingManualComment ? theme.errorSoft : manuallyChanged ? theme.warningSoft : Number(score.confidence || 0) < 0.65 ? theme.warningSoft : 'white', opacity: disabledByRoofChoice ? 0.62 : 1 }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 0.75fr 0.45fr 0.9fr 0.55fr 1.1fr', gap: 10, alignItems: 'center' }}>
                                       <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -7776,8 +7712,8 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                                         <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Kommentar</div>
                                         {canManageRating && objectRating.status !== 'approved' ? (
                                           <>
-                                            <input value={ratingCommentValue(score)} disabled={disabledByRoofChoice} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder={manuallyChanged ? 'Pflicht: Änderung begründen' : 'Optional'} style={{ width: '100%', border: `1px solid ${missingManualComment ? '#B42318' : theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
-                                            {missingManualComment && <div style={{ fontSize: 10.5, color: '#B42318', marginTop: 4, fontWeight: 700 }}>Bitte begründen Sie die manuelle Änderung.</div>}
+                                            <input value={ratingCommentValue(score)} disabled={disabledByRoofChoice} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder={manuallyChanged ? 'Pflicht: Änderung begründen' : 'Optional'} style={{ width: '100%', border: `1px solid ${missingManualComment ? theme.error : theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
+                                            {missingManualComment && <div style={{ fontSize: 10.5, color: theme.error, marginTop: 4, fontWeight: 700 }}>Bitte begründen Sie die manuelle Änderung.</div>}
                                           </>
                                         ) : (
                                           <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : score.comment || '-'}</div>
@@ -8225,12 +8161,12 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         {isMissing || needsReview ? (
                           <AlertCircle size={15} style={{ color: isMissing ? theme.gold : theme.oliv, flexShrink: 0, marginTop: 1 }} />
                         ) : (
-                          <CheckCircle size={15} style={{ color: '#5B8C2B', flexShrink: 0, marginTop: 1 }} />
+                          <CheckCircle size={15} style={{ color: theme.success, flexShrink: 0, marginTop: 1 }} />
                         )}
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, lineHeight: 1.25 }}>{requirement.label}</div>
                           <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3, lineHeight: 1.35 }}>
-                            <span style={{ fontWeight: 700, color: isMissing ? theme.gold : needsReview ? theme.oliv : '#5B8C2B' }}>{requirement.statusLabel}</span>
+                            <span style={{ fontWeight: 700, color: isMissing || needsReview ? theme.warning : theme.success }}>{requirement.statusLabel}</span>
                             {requirement.note ? <span> · {requirement.note}</span> : null}
                             {requirement.fileName ? <span> · {requirement.fileName}</span> : null}
                             {requirement.missingReason ? <span> · {requirement.missingReason}</span> : null}
@@ -8312,16 +8248,16 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     ) : null}
                   </div>
                   {d.storageUrl && !d.id?.startsWith('mock-') && canDeleteDocuments && (
-                    <button onClick={() => deleteDocument(d)} disabled={Boolean(busyAction)} style={{ background: '#fff7f5', border: '1px solid #efc0b9', color: '#9B2C2C', fontSize: 11.5, fontWeight: 700, padding: '6px 10px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer' }}>
+                    <button onClick={() => deleteDocument(d)} disabled={Boolean(busyAction)} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, color: theme.error, fontSize: 11.5, fontWeight: 700, padding: '6px 10px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer' }}>
                       {busyAction === 'Dokument löschen' ? 'Löscht...' : 'Löschen'}
                     </button>
                   )}
                   {d.status === 'missing' ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: theme.gold }}>fehlt</span>
                   ) : d.status === 'review_required' || d.status === 'rejected' ? (
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#9B2C2C' }}>{d.statusLabel}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: theme.error }}>{d.statusLabel}</span>
                   ) : (
-                    <CheckCircle size={15} style={{ color: '#5B8C2B' }} />
+                    <CheckCircle size={15} style={{ color: theme.success }} />
                   )}
                 </div>
               ))}
@@ -8396,7 +8332,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                         <div style={{ fontSize: 12.5, fontWeight: 800, color: theme.aubergine }}>
                           {message.userName || (isAdminMessage ? 'WohnKapital' : 'Makler')}
                           <span style={{ color: `${theme.ink}88`, fontWeight: 600 }}> · {isAdminMessage ? 'Admin' : 'Makler'}</span>
-                          {isInternal && <span style={{ marginLeft: 8, color: '#A87308', fontSize: 11, fontWeight: 800 }}>Intern</span>}
+                          {isInternal && <span style={{ marginLeft: 8, color: theme.warning, fontSize: 11, fontWeight: 800 }}>Intern</span>}
                         </div>
                         <div style={{ fontSize: 11, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(message.createdAt)}</div>
                       </div>
@@ -8428,7 +8364,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 <div style={{ fontSize: 13, color: `${theme.ink}88` }}>Keine offenen Aufgaben.</div>
               ) : taskRows.map((task, i) => (
                 <div key={i} style={{ borderTop: i ? `1px solid ${theme.borderSoft}` : 'none', padding: i ? '12px 0 0' : '0 0 12px', marginTop: i ? 12 : 0, display: 'flex', gap: 10 }}>
-                  <AlertCircle size={15} style={{ color: task.tone === 'danger' ? '#9B2C2C' : theme.gold, flexShrink: 0, marginTop: 1 }} />
+                  <AlertCircle size={15} style={{ color: task.tone === 'danger' ? theme.error : theme.warning, flexShrink: 0, marginTop: 1 }} />
                   <div>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.ink }}>{task.title}</div>
                     <div style={{ fontSize: 12.5, color: theme.ink, marginTop: 2 }}>{task.text}</div>
@@ -8446,7 +8382,9 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   Lesende Ansicht: WohnKapital berechnet und gibt Angebote intern frei. Als Makler siehst du hier die vorhandenen Angebotsdaten.
                 </div>
               )}
-              {requestedOfferModels.map((modelRequest, index) => renderIndicativeOfferCard(modelRequest, index))}
+              {requestedOfferModels.length > 0
+                ? requestedOfferModels.map((modelRequest, index) => renderIndicativeOfferCard(modelRequest, index))
+                : renderMissingSelectedModelNotice()}
               {canManageOffers && (
                 <div style={{ ...offerShellStyle, padding: '18px 20px', display: 'grid', gap: 14 }}>
                   <div>
@@ -8527,6 +8465,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 </div>
               )}
               <div style={{ display: 'grid', gap: 12 }}>
+                {requestedOfferModels.length === 0 && renderMissingSelectedModelNotice()}
                 {requestedOfferModels.map((modelRequest, index) => {
                   const offer = indicativeOffers.find((item) => item.model === modelRequest.model);
                   const key = `${modelRequest.key}-${index}`;
@@ -8542,11 +8481,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     ['Wohnrechtswert', offer.residentialRightValue ? formatEuro(offer.residentialRightValue) : '-'],
                     ['Instandhaltung', maintenanceValue ? formatEuro(Number(maintenanceValue)) : '-'],
                     ['Interne Verzinsung', params.interestRate ? `${params.interestRate}%` : 'Standard 5,5%'],
-                    ['Auszahlungsbetrag (Quote)', `${formatEuro(offer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                    ['Auszahlung an den Kunden', `${formatEuro(offer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
                   ] : [
                     ['Status', labelFrom(offerStatusLabels, offer.status, offer.status)],
                     ['Verkehrswert', formatEuro(offer.marketValue)],
-                    ['Angebotssumme', `${formatEuro(offer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                    ['Auszahlung an den Kunden', `${formatEuro(offer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
                     ['Modell', labelFrom(productModelLabels, offer.model)],
                     ['Version', `Version ${offer.currentVersion || 1}`],
                   ]) : [];
@@ -8737,9 +8676,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                   Das verbindliche Angebot wird freigeschaltet, sobald im Bereich „Unverbindliches Angebot“ das Gutachten als eingegangen markiert wurde.
                 </div>
               )}
-              {requestedOfferModels.map((modelRequest, index) => renderBindingOfferCard(modelRequest, index))}
+              {requestedOfferModels.length > 0
+                ? requestedOfferModels.map((modelRequest, index) => renderBindingOfferCard(modelRequest, index))
+                : renderMissingSelectedModelNotice()}
               {canManageOffers && (
-                <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 12, padding: '18px 20px', boxShadow: '0 10px 28px rgba(68, 0, 92, 0.035)', display: 'grid', gap: 12 }}>
+                <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, padding: '18px 20px', boxShadow: theme.cardShadow, display: 'grid', gap: 12 }}>
                   <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Notartermin und Kaufvertrag</div>
                   {(workflowActionState('notary_appointment_ordered').nextAllowed || workflowActionState('notary_appointment_ordered').reached || workflowActionState('contract_signed').nextAllowed) ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 230px) minmax(190px, 270px) auto auto', gap: 9, alignItems: 'center' }}>
@@ -8795,6 +8736,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                 </div>
               )}
               <div style={{ display: 'grid', gap: 12 }}>
+                {requestedOfferModels.length === 0 && renderMissingSelectedModelNotice()}
                 {requestedOfferModels.map((modelRequest, index) => {
                   const bindingOffer = bindingOffers.find((item) => item.model === modelRequest.model);
                   const indicativeOffer = indicativeOffers.find((item) => item.model === modelRequest.model);
@@ -8813,11 +8755,11 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                     ['Wohnrechtswert', bindingOffer.residentialRightValue ? formatEuro(bindingOffer.residentialRightValue) : '-'],
                     ['Risikoabschlag', bindingOffer.riskDiscount ? formatEuro(bindingOffer.riskDiscount) : '-'],
                     ['Marge', bindingOffer.companyMargin ? formatEuro(bindingOffer.companyMargin) : '-'],
-                    ['VA-Auszahlung', `${formatEuro(bindingOffer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                    ['Auszahlung an den Kunden', `${formatEuro(bindingOffer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
                   ] : [
                     ['Status', labelFrom(offerStatusLabels, bindingOffer.status, bindingOffer.status)],
                     ['Gutachtenwert', formatEuro(bindingOffer.marketValue)],
-                    ['Verbindliche Angebotssumme', `${formatEuro(bindingOffer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
+                    ['Auszahlung an den Kunden', `${formatEuro(bindingOffer.payoutAmount)}${quote ? ` (${quote}%)` : ''}`],
                     ['Modell', labelFrom(productModelLabels, bindingOffer.model)],
                     ['Version', `Version ${bindingOffer.currentVersion || 1}`],
                   ]) : [];
@@ -8844,7 +8786,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
                             ].map(([k, v]) => (
                               <div key={k}>
                                 <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{k}</div>
-                                <div style={{ fontSize: 13, color: k.includes('Differenz') ? (String(v).startsWith('-') ? '#9B2C2C' : '#5B8C2B') : theme.ink, fontWeight: 800 }}>{v}</div>
+                                <div style={{ fontSize: 13, color: k.includes('Differenz') ? (String(v).startsWith('-') ? theme.error : theme.success) : theme.ink, fontWeight: 800 }}>{v}</div>
                               </div>
                             ))}
                           </div>
@@ -9240,15 +9182,15 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
                 <button onClick={() => goToStep(s.n)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
                   <div style={{
                     width: 26, height: 26, borderRadius: '50%',
-                    background: active ? theme.aubergine : done ? '#5B8C2B' : 'white',
+                    background: active ? theme.aubergine : done ? theme.success : 'white',
                     border: active || done ? 'none' : `1.5px solid ${theme.border}`,
                     color: active || done ? 'white' : `${theme.ink}77`,
                     fontSize: 12, fontWeight: 700,
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>{done ? <CheckCircle size={14} /> : s.n}</div>
-                  <span style={{ fontSize: 12.5, fontWeight: active ? 600 : 500, color: active ? theme.aubergine : done ? '#5B8C2B' : `${theme.ink}88` }}>{s.label}</span>
+                  <span style={{ fontSize: 12.5, fontWeight: active ? 600 : 500, color: active ? theme.aubergine : done ? theme.success : `${theme.ink}88` }}>{s.label}</span>
                 </button>
-                {i < steps.length - 1 && <div style={{ flex: 1, height: 1, background: done ? '#5B8C2B44' : theme.border, margin: '0 12px' }} />}
+                {i < steps.length - 1 && <div style={{ flex: 1, height: 1, background: done ? `${theme.success}44` : theme.border, margin: '0 12px' }} />}
               </React.Fragment>
             );
           })}
@@ -9276,13 +9218,13 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
             </div>
           )}
           {validation.message && (
-            <div style={{ background: '#fff7f5', border: '1px solid #efc0b9', borderLeft: '4px solid #9B2C2C', borderRadius: 8, padding: '12px 14px', marginBottom: 18, fontSize: 12.5, color: '#7A1D1D', fontWeight: 650 }}>
+            <div style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, borderLeft: `4px solid ${theme.error}`, borderRadius: 8, padding: '12px 14px', marginBottom: 18, fontSize: 12.5, color: theme.error, fontWeight: 650 }}>
               <div>{validation.message}</div>
               {validation.groups?.length ? (
                 <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
                   {validation.groups.map((group) => (
                     <div key={group.section}>
-                      <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7A1D1D', marginBottom: 4 }}>{group.section}</div>
+                      <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: theme.error, marginBottom: 4 }}>{group.section}</div>
                       <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 3 }}>
                         {group.items.map((item) => (
                           <li key={item.field} style={{ fontWeight: 600 }}>{item.message}</li>
@@ -9371,8 +9313,8 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
                     <span style={{
                       fontSize: 10.5,
                       fontWeight: 800,
-                      color: item.complete ? '#3D6B1F' : item.missing ? '#9B2C2C' : `${theme.ink}88`,
-                      background: item.complete ? '#3D6B1F14' : item.missing ? '#9B2C2C12' : theme.mintLight,
+                      color: item.complete ? theme.success : item.missing ? theme.error : `${theme.ink}88`,
+                      background: item.complete ? theme.successSoft : item.missing ? theme.errorSoft : theme.mintLight,
                       borderRadius: 999,
                       padding: '2px 7px',
                       whiteSpace: 'nowrap'
@@ -9403,27 +9345,27 @@ const fieldErrorMessages = {
 };
 
 const Field = ({ label, required, children, hint, width = '100%', invalid = false, errorMessage }) => (
-  <div style={{ width, border: invalid ? '1px solid #9B2C2C55' : 'none', background: invalid ? '#9B2C2C08' : 'transparent', borderRadius: 6, padding: invalid ? 7 : 0, boxSizing: 'border-box' }}>
+  <div style={{ width, border: invalid ? `1px solid ${theme.error}55` : 'none', background: invalid ? theme.errorSoft : 'transparent', borderRadius: theme.buttonRadius, padding: invalid ? 7 : 0, boxSizing: 'border-box' }}>
     <label style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: theme.ink, marginBottom: 6, letterSpacing: '0.01em' }}>
-      {label}{required && <span style={{ color: theme.gold, marginLeft: 2 }}>*</span>}
+      {label}{required && <span style={{ color: theme.error, marginLeft: 3 }}>*</span>}
     </label>
     {children}
     {hint && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 4 }}>{hint}</div>}
-    {invalid && <div style={{ fontSize: 11, color: '#9B2C2C', fontWeight: 700, marginTop: 5 }}>{errorMessage || 'Bitte ausfüllen.'}</div>}
+    {invalid && <div style={{ fontSize: 11, color: theme.error, fontWeight: 700, marginTop: 5 }}>{errorMessage || 'Bitte ausfüllen.'}</div>}
   </div>
 );
 const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly, disabled, inputRef, inputMode }) => (
   <input ref={inputRef} type={type} placeholder={placeholder} defaultValue={defaultValue} value={value} onChange={onChange} onInput={onChange} checked={checked} readOnly={readOnly} disabled={disabled} inputMode={inputMode} style={{
-    width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
-    borderRadius: 5, background: readOnly || disabled ? theme.mintLighter : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
+    width: '100%', minHeight: 40, padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
+    borderRadius: theme.buttonRadius, background: readOnly || disabled ? theme.surfaceSoft : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
     boxSizing: 'border-box', cursor: disabled ? 'not-allowed' : 'text'
   }} />
 );
 const Select = ({ children, defaultValue, value, onChange, disabled = false }) => (
   <div style={{ position: 'relative' }}>
     <select defaultValue={defaultValue} value={value} onChange={onChange} disabled={disabled} style={{
-      width: '100%', padding: '8px 32px 8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
-      borderRadius: 5, background: disabled ? theme.mintLighter : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
+      width: '100%', minHeight: 40, padding: '8px 32px 8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
+      borderRadius: theme.buttonRadius, background: disabled ? theme.surfaceSoft : 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit',
       appearance: 'none', cursor: disabled ? 'not-allowed' : 'pointer'
     }}>{children}</select>
     <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: `${theme.aubergine}88`, pointerEvents: 'none' }} />
@@ -9435,8 +9377,8 @@ const RadioGroup = ({ options, name, defaultValue, value, onChange }) => (
       <label key={i} style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
         padding: '6px 12px', border: `1px solid ${(value ?? defaultValue) === o.value ? theme.aubergine : theme.border}`,
-        borderRadius: 5, fontSize: 12.5, cursor: 'pointer',
-        background: (value ?? defaultValue) === o.value ? `${theme.aubergine}0D` : 'white',
+        borderRadius: theme.buttonRadius, fontSize: 12.5, cursor: 'pointer',
+        background: (value ?? defaultValue) === o.value ? theme.mintLighter : 'white',
         color: (value ?? defaultValue) === o.value ? theme.aubergine : theme.ink,
         fontWeight: (value ?? defaultValue) === o.value ? 600 : 500
       }}>
@@ -9482,7 +9424,7 @@ const ResidentialRightVariantSelector = ({ value = 'fixed_term', eligibility, on
           );
         })}
       </div>
-      <div style={{ marginTop: 8, fontSize: 12, color: eligibility?.eligibleSoon ? theme.oliv : eligibility?.eligible ? `${theme.ink}99` : '#8A5A00', lineHeight: 1.45 }}>
+      <div style={{ marginTop: 8, fontSize: 12, color: eligibility?.eligibleSoon ? theme.oliv : eligibility?.eligible ? `${theme.ink}99` : theme.warning, lineHeight: 1.45 }}>
         {eligibility?.eligibleSoon
           ? 'Die jüngere Person erreicht innerhalb von 3 Monaten das Mindestalter von 75 Jahren.'
           : eligibility?.eligible
@@ -9604,7 +9546,7 @@ const FormStep1 = ({ draft, setDraft, errors = [] }) => (
       </Field>
     </div>
 
-    <div style={{ background: errors.includes('consentDataProcessing') ? '#fff7f5' : theme.mintLight, border: `1px solid ${errors.includes('consentDataProcessing') ? '#efc0b9' : 'transparent'}`, borderRadius: 6, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+    <div style={{ background: errors.includes('consentDataProcessing') ? theme.errorSoft : theme.mintLight, border: `1px solid ${errors.includes('consentDataProcessing') ? `${theme.error}33` : 'transparent'}`, borderRadius: 6, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
       <input type="checkbox" checked={Boolean(draft.consentDataProcessing)} onChange={(event) => setDraft({ ...draft, consentDataProcessing: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
       <div>
         <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 500 }}>Einwilligung zur Datenverarbeitung <span style={{ color: theme.gold }}>*</span></div>
@@ -9663,13 +9605,13 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
     </Field>
 
     {!draft.desiredModel && (
-      <div style={{ background: errors.includes('desiredModel') ? '#FFF4F4' : theme.mintLight, border: `1px solid ${errors.includes('desiredModel') ? '#9B2C2C55' : 'transparent'}`, borderRadius: 6, padding: '12px 14px', fontSize: 12.5, color: errors.includes('desiredModel') ? '#9B2C2C' : `${theme.ink}99`, marginBottom: 18, fontWeight: errors.includes('desiredModel') ? 750 : 500 }}>
+      <div style={{ background: errors.includes('desiredModel') ? theme.errorSoft : theme.mintLight, border: `1px solid ${errors.includes('desiredModel') ? `${theme.error}55` : 'transparent'}`, borderRadius: 6, padding: '12px 14px', fontSize: 12.5, color: errors.includes('desiredModel') ? theme.error : `${theme.ink}99`, marginBottom: 18, fontWeight: errors.includes('desiredModel') ? 750 : 500 }}>
         {errors.includes('desiredModel') ? fieldErrorMessages.desiredModel : 'Bitte wähle ein Modell, damit die passenden Angaben geöffnet werden.'}
       </div>
     )}
 
     {draft.desiredModel === 'sale_and_leaseback' && (
-      <div style={{ background: theme.goldSoft, border: `1px solid ${errors.includes('rentalModelDisclosureAccepted') ? '#9B2C2C66' : `${theme.gold}66`}`, borderLeft: `4px solid ${errors.includes('rentalModelDisclosureAccepted') ? '#9B2C2C' : theme.gold}`, borderRadius: 8, padding: '13px 15px', marginBottom: 18 }}>
+      <div style={{ background: errors.includes('rentalModelDisclosureAccepted') ? theme.errorSoft : theme.warningSoft, border: `1px solid ${errors.includes('rentalModelDisclosureAccepted') ? `${theme.error}66` : `${theme.warning}55`}`, borderLeft: `4px solid ${errors.includes('rentalModelDisclosureAccepted') ? theme.error : theme.warning}`, borderRadius: 8, padding: '13px 15px', marginBottom: 18 }}>
         <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
           <input type="checkbox" checked={draft.rentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, rentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
           <span><strong>Belehrung Rückmietverkauf:</strong> Beim Rückmietverkauf fällt ab Tag 1 nach Verkauf eine laufende Miete an. Diese Information muss vor Einreichung mit dem Kunden besprochen werden.</span>
@@ -9783,7 +9725,7 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
             </Field>
           )}
           {draft.additionalOfferModel === 'sale_and_leaseback' && (
-            <div style={{ gridColumn: '1 / -1', background: theme.goldSoft, border: `1px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? '#9B2C2C66' : `${theme.gold}66`}`, borderLeft: `4px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? '#9B2C2C' : theme.gold}`, borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ gridColumn: '1 / -1', background: errors.includes('additionalOfferRentalModelDisclosureAccepted') ? theme.errorSoft : theme.warningSoft, border: `1px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? `${theme.error}66` : `${theme.warning}55`}`, borderLeft: `4px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? theme.error : theme.warning}`, borderRadius: 8, padding: '12px 14px' }}>
               <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
                 <input type="checkbox" checked={draft.additionalOfferRentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, additionalOfferRentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
                 <span><strong>Belehrung Rückmietverkauf:</strong> Beim Rückmietverkauf fällt ab Tag 1 nach Verkauf eine laufende Miete an.</span>
@@ -9899,7 +9841,14 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
               <option value="consumption">Verbrauchsausweis</option>
             </Select>
           </Field>
-          <Field label="Energieklasse" required invalid={errors.includes('energyClass')}><Input value={draft.energyClass} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })} /></Field>
+          <Field label="Energieklasse" required invalid={errors.includes('energyClass')}>
+            <Select value={draft.energyClass || ''} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })}>
+              <option value="">Bitte wählen</option>
+              {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((energyClass) => (
+                <option key={energyClass} value={energyClass}>{energyClass}</option>
+              ))}
+            </Select>
+          </Field>
         </>
       )}
       {!draft.energyCertificateAvailable && (
@@ -10043,17 +9992,17 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
       </div>
     </div>
 
-    <div style={{ background: '#9B2C2C0A', border: `1px solid #9B2C2C33`, borderLeft: `3px solid #9B2C2C`, borderRadius: 6, padding: '12px 14px', marginTop: 20 }}>
+    <div style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, borderLeft: `3px solid ${theme.error}`, borderRadius: 6, padding: '12px 14px', marginTop: 20 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <AlertTriangle size={16} style={{ color: '#9B2C2C' }} />
+        <AlertTriangle size={16} style={{ color: theme.error }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.ink, marginBottom: 6 }}>Ausschlusskriterien</div>
           <div style={{ display: 'flex', gap: 20, fontSize: 12.5, color: theme.ink, flexWrap: 'wrap', marginBottom: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={draft.leasehold} onChange={(event) => setDraft({ ...draft, leasehold: event.target.checked })} style={{ accentColor: '#9B2C2C' }} /> Erbbaurecht
+              <input type="checkbox" checked={draft.leasehold} onChange={(event) => setDraft({ ...draft, leasehold: event.target.checked })} style={{ accentColor: theme.error }} /> Erbbaurecht
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={draft.monumentProtection} onChange={(event) => setDraft({ ...draft, monumentProtection: event.target.checked })} style={{ accentColor: '#9B2C2C' }} /> Denkmalschutz
+              <input type="checkbox" checked={draft.monumentProtection} onChange={(event) => setDraft({ ...draft, monumentProtection: event.target.checked })} style={{ accentColor: theme.error }} /> Denkmalschutz
             </label>
           </div>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -10069,7 +10018,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
               </Field>
             )}
           </div>
-          <div style={{ fontSize: 11, color: '#9B2C2Cdd', marginTop: 6 }}>Wenn aktiviert, kann der Fall nicht eingereicht werden.</div>
+          <div style={{ fontSize: 11, color: theme.error, marginTop: 6 }}>Wenn aktiviert, kann der Fall nicht eingereicht werden.</div>
         </div>
       </div>
     </div>
@@ -10207,7 +10156,7 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
         )}
         <Field label="Einschätzung Zugänglichkeit" required invalid={errors.includes('accessibilityAssessment')}>
           <RadioGroup name="accessibilityAssessment" value={draft.accessibilityAssessment || ''} onChange={(value) => setDraft({ ...draft, accessibilityAssessment: value })} options={[
-            { value: 'LOW_BARRIER', label: 'Barrierearm' },
+            { value: 'LOW_BARRIER', label: 'Barrierefrei' },
             { value: 'PARTIALLY_RESTRICTED', label: 'Teilweise eingeschränkt' },
             { value: 'STRONGLY_RESTRICTED', label: 'Stark eingeschränkt' },
           ]} />
@@ -10248,24 +10197,24 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
     const existing = draft.existingDocumentCategories?.includes(item.category);
     const missing = level === 'required' && (customErrorKey ? errors.includes(customErrorKey) : errors.includes(`document:${item.category}`));
     return (
-      <div key={`${level}-${item.category}`} style={{ background: 'white', border: `1px solid ${missing ? '#9B2C2C66' : theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
+      <div key={`${level}-${item.category}`} style={{ background: 'white', border: `1px solid ${missing ? `${theme.error}66` : theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            {files.length || existing ? <CheckCircle size={15} style={{ color: '#5B8C2B' }} /> : <FileText size={15} style={{ color: missing ? '#9B2C2C' : theme.aubergine }} />}
+            {files.length || existing ? <CheckCircle size={15} style={{ color: theme.success }} /> : <FileText size={15} style={{ color: missing ? theme.error : theme.aubergine }} />}
             <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{item.label}</div>
             <span style={{ fontSize: 10.5, fontWeight: 800, color: level === 'required' ? theme.gold : `${theme.ink}77`, background: level === 'required' ? theme.goldSoft : theme.mintLight, borderRadius: 12, padding: '2px 8px' }}>
               {level === 'required' ? 'Pflicht' : 'Optional'}
             </span>
           </div>
           {item.note && <div style={{ fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.4 }}>{item.note}</div>}
-          {existing && <div style={{ fontSize: 11.5, color: '#5B8C2B', fontWeight: 800, marginTop: 6 }}>Bereits im Kundenordner vorhanden.</div>}
-          {missing && <div style={{ fontSize: 11.5, color: '#9B2C2C', fontWeight: 800, marginTop: 6 }}>Diese Unterlage fehlt noch.</div>}
+          {existing && <div style={{ fontSize: 11.5, color: theme.success, fontWeight: 800, marginTop: 6 }}>Bereits im Kundenordner vorhanden.</div>}
+          {missing && <div style={{ fontSize: 11.5, color: theme.error, fontWeight: 800, marginTop: 6 }}>Diese Unterlage fehlt noch.</div>}
           {files.length > 0 && (
             <div style={{ display: 'grid', gap: 5, marginTop: 9 }}>
               {files.map((file, index) => (
                 <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: theme.ink, background: theme.mintLighter, borderRadius: 5, padding: '5px 7px' }}>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                  <button type="button" onClick={() => removeFile(item.category, index)} style={{ background: 'transparent', border: 'none', color: '#9B2C2C', cursor: 'pointer', display: 'flex', padding: 1 }} aria-label="Datei entfernen">
+                  <button type="button" onClick={() => removeFile(item.category, index)} style={{ background: 'transparent', border: 'none', color: theme.error, cursor: 'pointer', display: 'flex', padding: 1 }} aria-label="Datei entfernen">
                     <X size={13} />
                   </button>
                 </div>
@@ -10360,25 +10309,26 @@ const LeadWorkBuckets = ({ buckets, activeBucket, onSelect, columns = 4 }) => (
           key={bucket.key}
           onClick={() => onSelect(active ? '' : bucket.key)}
           style={{
-            background: active ? theme.aubergine : 'white',
+            background: active ? theme.mintLighter : 'white',
             border: `1px solid ${active ? theme.aubergine : theme.borderSoft}`,
+            borderTop: `3px solid ${active ? theme.gold : 'transparent'}`,
             borderRadius: 8,
             padding: '14px 16px',
             minHeight: 132,
             textAlign: 'left',
             cursor: 'pointer',
-            boxShadow: active ? '0 12px 28px rgba(68,0,92,0.14)' : 'none',
+            boxShadow: active ? theme.cardShadow : 'none',
             display: 'flex',
             flexDirection: 'column',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
-            <div style={{ fontSize: 10.5, color: active ? theme.gold : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.label}</div>
+            <div style={{ fontSize: 10.5, color: active ? theme.aubergine : theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{bucket.label}</div>
             <bucket.icon size={14} style={{ color: active ? theme.gold : `${theme.aubergine}66` }} />
           </div>
-          <div style={{ fontSize: 27, lineHeight: 1, fontWeight: 800, color: active ? 'white' : theme.aubergine, marginBottom: 7 }}>{bucket.value}</div>
-          <div style={{ fontSize: 11.5, color: active ? 'rgba(255,255,255,0.82)' : `${theme.ink}88`, lineHeight: 1.4, flex: 1 }}>{bucket.sub}</div>
-          <div style={{ fontSize: 12, color: active ? theme.gold : theme.aubergine, fontWeight: 800, marginTop: 10 }}>{bucket.action}</div>
+          <div style={{ fontSize: 27, lineHeight: 1, fontWeight: 800, color: theme.aubergine, marginBottom: 7 }}>{bucket.value}</div>
+          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.4, flex: 1 }}>{bucket.sub}</div>
+          <div style={{ fontSize: 12, color: active ? theme.aubergine : theme.inkSoft, fontWeight: 800, marginTop: 10 }}>{bucket.action}</div>
         </button>
       );
     })}
@@ -10543,9 +10493,9 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'c
             <div style={{
               marginTop: 8,
               fontSize: 12,
-              color: postalLookup.status === 'found' ? '#2F6B1F' : `${theme.ink}99`,
-              background: postalLookup.status === 'found' ? '#EAF7E7' : theme.mintLighter,
-              border: `1px solid ${postalLookup.status === 'found' ? '#8BC580' : theme.borderSoft}`,
+              color: postalLookup.status === 'found' ? theme.success : `${theme.ink}99`,
+              background: postalLookup.status === 'found' ? theme.successSoft : theme.mintLighter,
+              border: `1px solid ${postalLookup.status === 'found' ? `${theme.success}55` : theme.borderSoft}`,
               borderRadius: 6,
               padding: '7px 9px'
             }}>
@@ -10995,7 +10945,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                   <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'IN_REVIEW')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>In Prüfung markieren</button>
                   <button disabled={isClosedLead(selectedLead)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>Nachfassen planen</button>
                   <button disabled={isClosedLead(selectedLead)} onClick={() => openEditForm(selectedLead)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>Lead bearbeiten</button>
-                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: '#9B2C2C0F', border: '1px solid #9B2C2C33', color: '#9B2C2C', borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Lead ablehnen</button>
+                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, color: theme.error, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Lead ablehnen</button>
                 </div>
               ) : (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
@@ -11004,8 +10954,8 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                       { label: 'Kontakt aufnehmen', done: ['CONTACTED', 'PARTNER_CONTACT_PENDING', 'CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status), active: ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) },
                       { label: 'Kundenfall anlegen', done: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status), active: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) }
                     ].map((step, index) => (
-                      <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: 8, color: step.done ? '#5B8C2B' : step.active ? theme.aubergine : `${theme.ink}88`, fontSize: 12.5, fontWeight: step.active ? 800 : 650 }}>
-                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: step.done ? '#5B8C2B' : step.active ? theme.aubergine : 'white', color: step.done || step.active ? 'white' : `${theme.ink}88`, border: step.done || step.active ? 'none' : `1px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
+                      <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: 8, color: step.done ? theme.success : step.active ? theme.aubergine : `${theme.ink}88`, fontSize: 12.5, fontWeight: step.active ? 800 : 650 }}>
+                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: step.done ? theme.success : step.active ? theme.aubergine : 'white', color: step.done || step.active ? 'white' : `${theme.ink}88`, border: step.done || step.active ? 'none' : `1px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
                           {step.done ? <CheckCircle size={12} /> : index + 1}
                         </span>
                         {step.label}
@@ -11611,7 +11561,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const editingCase = editingCaseId ? cases.find((item) => item.propertyId === editingCaseId || item.id === editingCaseId)?.raw : null;
 
   return (
-    <div style={{ background: theme.mint, fontFamily: '"Inter", "Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="crm-app" style={{ background: theme.background, color: theme.ink, fontFamily: '"Inter", "Aptos", "Segoe UI", system-ui, sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header
         role={role}
         user={user}
@@ -11629,7 +11579,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         onOpenCurrentCaseChat={handleOpenCurrentCaseChat}
       />
       {profileOpen && <ProfileModal user={user} role={role} onClose={() => setProfileOpen(false)} onSave={handleSaveProfile} />}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <div className="crm-shell-body" style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar
           role={role}
           internalRole={currentInternalRole}
@@ -11642,7 +11592,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           portfolioCount={filterCasesForScreen(cases, 'portfolio').length}
           rejectedCount={cases.filter((item) => item.status === 'REJECTED' || item.status === 'LOST').length}
         />
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="crm-main-content" style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
           {(notice || loadingCases || loadingLeads || loadingStaff) && (
             <div style={{ margin: '14px 28px 0', background: loadingCases ? theme.mintLight : theme.goldSoft, border: `1px solid ${loadingCases ? theme.border : `${theme.gold}55`}`, borderRadius: 6, padding: '9px 12px', fontSize: 12.5, color: theme.ink }}>
               {loadingCases ? 'Fälle werden geladen...' : loadingLeads ? 'Leads werden geladen...' : loadingStaff ? 'Mitarbeiter werden geladen...' : notice}
