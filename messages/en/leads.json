@@ -1,0 +1,15 @@
+{
+  "title": "Leads",
+  "lead": "Lead",
+  "status": {
+    "NEW": "New",
+    "IN_REVIEW": "In Review",
+    "ASSIGNED_TO_PARTNER": "Assigned to Broker",
+    "PARTNER_CONTACT_PENDING": "Broker Contact Pending",
+    "CONTACTED": "Contacted",
+    "CONVERTED": "Converted to Customer Case",
+    "CONVERTED_TO_CASE": "Converted to Customer Case",
+    "REJECTED": "Rejected",
+    "CLOSED": "Closed"
+  }
+}

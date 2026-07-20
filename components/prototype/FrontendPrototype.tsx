@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import {
   Home, FileText, Building2, Archive, CheckCircle2, FolderOpen, BookOpen,
   MapPin, HelpCircle, Search, Bell, MessageSquare, LogOut, ChevronRight,
@@ -24,6 +25,9 @@ import { parseGermanNumberInput as parseGermanNumberValue, parseGermanPercentInp
 import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 import { hausVorteilDesignTokens } from '@/lib/design/tokens';
 import { formatAddress, splitStreetAndHouseNumber } from '@/lib/address';
+import { getDefaultLocale } from '@/i18n/config';
+
+const uiLocale = getDefaultLocale();
 
 // =====================================================================
 // THEME — WohnKapital Mint-Welt
@@ -67,35 +71,36 @@ const theme = {
 
 // Status-Farbsystem
 const statusConfig = {
-  DRAFT:               { label: 'Entwurf',              color: theme.inkSoft },
-  SUBMITTED:           { label: 'Eingereicht',          color: theme.aubergineSoft },
-  DATA_INCOMPLETE:     { label: 'Daten unvollständig',  color: theme.warning },
-  VALUATION_PENDING:   { label: 'Bewertung läuft',      color: theme.aubergineSoft },
-  VALUATED:            { label: 'Bewertung fertig',     color: theme.aubergineSoft },
-  OFFER_CALCULATED:    { label: 'Angebot berechnet',    color: theme.success },
-  OFFER_DRAFTED:       { label: 'Angebotsentwurf',      color: theme.success },
-  INTERNAL_REVIEW:     { label: 'Interne Prüfung',      color: theme.oliv },
-  APPROVED:            { label: 'Freigegeben',          color: theme.success },
-  SENT:                { label: 'Versendet',            color: theme.success },
-  INDICATIVE_OFFER_SENT:{ label: 'Unverbindliches Angebot abgegeben', color: theme.success },
-  OFFER_ACCEPTED:      { label: 'UVA angenommen',       color: theme.success },
-  EXPERT_OPINION_ORDERED:{ label: 'Gutachten beauftragt', color: theme.aubergineSoft },
-  EXPERT_OPINION_RECEIVED:{ label: 'Gutachten eingegangen', color: theme.aubergineSoft },
-  BINDING_OFFER_SENT:  { label: 'VA abgegeben',         color: theme.success },
-  BINDING_OFFER_ACCEPTED:{ label: 'VA angenommen',      color: theme.success },
-  PURCHASE_STARTED:    { label: 'Ankauf gestartet',     color: theme.aubergineSoft },
-  NOTARY_APPOINTMENT:  { label: 'Notartermin vereinbart', color: theme.oliv },
-  PURCHASED:           { label: 'Kaufvertrag abgeschlossen', color: theme.success },
-  IN_PORTFOLIO:        { label: 'Im Bestand',           color: theme.success },
-  APPOINTMENT_SCHEDULED:{ label: 'Termin vereinbart',   color: theme.success },
-  WON:                 { label: 'Gewonnen',             color: theme.success },
-  SOLD:                { label: 'Verkauft',             color: theme.success },
-  EXIT_COMPLETED:      { label: 'Abgeschlossen',        color: theme.success },
-  REJECTED:            { label: 'Abgelehnt',            color: theme.error },
-  LOST:                { label: 'Verloren',             color: theme.error },
+  DRAFT:               { color: theme.inkSoft },
+  SUBMITTED:           { color: theme.aubergineSoft },
+  DATA_INCOMPLETE:     { color: theme.warning },
+  VALUATION_PENDING:   { color: theme.aubergineSoft },
+  VALUATED:            { color: theme.aubergineSoft },
+  OFFER_CALCULATED:    { color: theme.success },
+  OFFER_DRAFTED:       { color: theme.success },
+  INTERNAL_REVIEW:     { color: theme.oliv },
+  APPROVED:            { color: theme.success },
+  SENT:                { color: theme.success },
+  INDICATIVE_OFFER_SENT:{ color: theme.success },
+  OFFER_ACCEPTED:      { color: theme.success },
+  EXPERT_OPINION_ORDERED:{ color: theme.aubergineSoft },
+  EXPERT_OPINION_RECEIVED:{ color: theme.aubergineSoft },
+  BINDING_OFFER_SENT:  { color: theme.success },
+  BINDING_OFFER_ACCEPTED:{ color: theme.success },
+  PURCHASE_STARTED:    { color: theme.aubergineSoft },
+  NOTARY_APPOINTMENT:  { color: theme.oliv },
+  PURCHASED:           { color: theme.success },
+  IN_PORTFOLIO:        { color: theme.success },
+  APPOINTMENT_SCHEDULED:{ color: theme.success },
+  WON:                 { color: theme.success },
+  SOLD:                { color: theme.success },
+  EXIT_COMPLETED:      { color: theme.success },
+  REJECTED:            { color: theme.error },
+  LOST:                { color: theme.error },
 };
 
 const StatusBadge = ({ status, size = 'sm' }) => {
+  const t = useTranslations('common.status');
   const cfg = statusConfig[status] || statusConfig.DRAFT;
   const pad = size === 'lg' ? '5px 14px' : '3px 10px';
   const fs = size === 'lg' ? 12.5 : 11;
@@ -105,11 +110,12 @@ const StatusBadge = ({ status, size = 'sm' }) => {
       fontSize: fs, fontWeight: 700, padding: pad, borderRadius: 999,
       border: `1px solid ${cfg.color}2B`,
       letterSpacing: '0.02em', whiteSpace: 'nowrap'
-    }}>{cfg.label}</span>
+    }}>{t(statusConfig[status] ? status : 'DRAFT')}</span>
   );
 };
 
 const LeadStatusBadge = ({ status }) => {
+  const t = useTranslations('leads.status');
   const color = leadStatusColors[status] || theme.aubergine;
   return (
     <span style={{
@@ -122,7 +128,7 @@ const LeadStatusBadge = ({ status }) => {
       borderRadius: 10,
       whiteSpace: 'nowrap'
     }}>
-      {leadStatusLabels[status] || status}
+      {t.has(status) ? t(status) : status}
     </span>
   );
 };
@@ -131,6 +137,8 @@ const LeadStatusBadge = ({ status }) => {
 // SHARED — Header & Sidebar
 // =====================================================================
 const GlobalSearch = ({ onOpenResult }) => {
+  const t = useTranslations('common.search');
+  const tStatus = useTranslations('common.status');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -162,7 +170,7 @@ const GlobalSearch = ({ onOpenResult }) => {
       try {
         const response = await fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`, { signal: controller.signal });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || 'Suche fehlgeschlagen');
+        if (!response.ok) throw new Error(payload.error || t('failed'));
         setResults(payload.results || []);
         setActiveIndex(0);
       } catch (err) {
@@ -178,7 +186,7 @@ const GlobalSearch = ({ onOpenResult }) => {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [trimmedQuery]);
+  }, [trimmedQuery, t]);
 
   const openResult = (result) => {
     if (!result) return;
@@ -219,18 +227,21 @@ const GlobalSearch = ({ onOpenResult }) => {
           onChange={(event) => setQuery(event.target.value)}
           onFocus={() => trimmedQuery.length >= 2 && setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Fall, Kunde oder Adresse suchen..."
+          placeholder={t('globalPlaceholder')}
           style={{ border: 'none', background: 'transparent', fontSize: 13, color: theme.ink, outline: 'none', width: '100%', fontFamily: 'inherit' }}
         />
       </div>
       {open && trimmedQuery.length >= 2 && (
         <div style={{ position: 'absolute', top: 38, right: 0, width: 430, maxWidth: 'calc(100vw - 48px)', background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, boxShadow: theme.elevatedShadow, zIndex: 70, overflow: 'hidden' }}>
           {loading ? (
-            <div style={{ padding: '13px 14px', fontSize: 12.5, color: `${theme.ink}99` }}>Suche...</div>
+            <div style={{ padding: '13px 14px', fontSize: 12.5, color: `${theme.ink}99` }}>{t('loading')}</div>
           ) : results.length ? (
             <div style={{ maxHeight: 410, overflowY: 'auto' }}>
               {results.map((result, index) => {
                 const primary = result.type === 'lead' ? result.leadNumber : result.caseNumber;
+                const localizedStatus = result.type === 'lead'
+                  ? t('lead')
+                  : tStatus.has(result.status) ? tStatus(result.status) : result.statusLabel || t('statusOpen');
                 const active = index === activeIndex;
                 return (
                   <button
@@ -243,17 +254,17 @@ const GlobalSearch = ({ onOpenResult }) => {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                       <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 800 }}>{primary}</span>
                       <span style={{ background: result.type === 'lead' ? theme.goldSoft : theme.successSoft, color: result.type === 'lead' ? theme.aubergine : theme.success, border: `1px solid ${result.type === 'lead' ? `${theme.gold}55` : `${theme.success}22`}`, borderRadius: 999, padding: '3px 8px', fontSize: 10.5, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                        {result.statusLabel || (result.type === 'lead' ? 'Lead' : 'Status offen')}
+                        {localizedStatus}
                       </span>
                     </div>
-                    <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{result.customerName || 'Name offen'}</div>
-                    <div style={{ fontSize: 12, color: `${theme.ink}99`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{result.propertyAddress || 'Adresse offen'}</div>
+                    <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{result.customerName || t('nameOpen')}</div>
+                    <div style={{ fontSize: 12, color: `${theme.ink}99`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{result.propertyAddress || t('addressOpen')}</div>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <div style={{ padding: '13px 14px', fontSize: 12.5, color: `${theme.ink}99` }}>Keine Treffer gefunden</div>
+            <div style={{ padding: '13px 14px', fontSize: 12.5, color: `${theme.ink}99` }}>{t('empty')}</div>
           )}
         </div>
       )}
@@ -262,6 +273,8 @@ const GlobalSearch = ({ onOpenResult }) => {
 };
 
 const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onProfileOpen, notifications = [], chatNotifications = [], currentCaseContext, onOpenCase, onOpenSearchResult, onOpenNotification, onOpenChatNotification, onOpenCurrentCaseChat }) => {
+  const t = useTranslations('common.header');
+  const tButtons = useTranslations('common.buttons');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const visibleNotifications = notifications.slice(0, 8);
@@ -273,7 +286,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
     <div className="crm-header" style={{ background: theme.surface, borderBottom: `1px solid ${theme.border}`, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxShadow: '0 1px 4px rgba(20, 40, 61, 0.04)', position: 'relative', zIndex: 30 }}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <span style={{ fontSize: 12, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-          {role === 'admin' ? 'Intern · CRM' : 'Partnerportal'}
+          {role === 'admin' ? t('internalCrm') : t('partnerPortal')}
         </span>
       </div>
       <div className="crm-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -283,7 +296,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
             fontSize: 11.5, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: 'pointer',
             letterSpacing: '0.04em', textTransform: 'uppercase'
           }}>
-            {role === 'admin' ? 'Zur Makleransicht' : 'Zur Admin-Ansicht'}
+            {role === 'admin' ? t('switchToBroker') : t('switchToAdmin')}
           </button>
         )}
         <GlobalSearch onOpenResult={onOpenSearchResult} />
@@ -294,7 +307,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
               setNotificationsOpen(!notificationsOpen);
               setChatOpen(false);
             }}
-            title="Prozessänderungen"
+            title={t('processChanges')}
             style={{ position: 'relative', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
           >
             <Bell size={18} style={{ color: theme.aubergine }} />
@@ -307,8 +320,8 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
           {notificationsOpen && (
             <div style={{ position: 'absolute', right: -12, top: 30, width: 360, background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, boxShadow: theme.elevatedShadow, zIndex: 40, overflow: 'hidden' }}>
               <div style={{ padding: '11px 14px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: theme.aubergine }}>Prozessänderungen</span>
-                <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700 }}>{notificationCount} gesamt</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: theme.aubergine }}>{t('processChanges')}</span>
+                <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700 }}>{t('total', { count: notificationCount })}</span>
               </div>
               {visibleNotifications.length ? (
                 <div style={{ maxHeight: 360, overflowY: 'auto' }}>
@@ -333,7 +346,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
                 </div>
               ) : (
                 <div style={{ padding: '16px 14px', fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5 }}>
-                  Keine neuen Änderungen im Ankaufsprozess.
+                  {t('noProcessChanges')}
                 </div>
               )}
             </div>
@@ -352,7 +365,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
               setChatOpen(!chatOpen);
               setNotificationsOpen(false);
             }}
-            title="Chat-Nachrichten"
+            title={t('chatMessages')}
             style={{ position: 'relative', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
           >
             <MessageSquare size={18} style={{ color: theme.aubergine }} />
@@ -365,8 +378,8 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
           {chatOpen && (
             <div style={{ position: 'absolute', right: -12, top: 30, width: 380, background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, boxShadow: theme.elevatedShadow, zIndex: 40, overflow: 'hidden' }}>
               <div style={{ padding: '11px 14px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: theme.aubergine }}>Chat zu Kundenfällen</span>
-                <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700 }}>{chatCount} Nachrichten</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: theme.aubergine }}>{t('caseChats')}</span>
+                <span style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700 }}>{t('messages', { count: chatCount })}</span>
               </div>
               {visibleChatNotifications.length ? (
                 <div style={{ maxHeight: 380, overflowY: 'auto' }}>
@@ -395,19 +408,19 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
                 </div>
               ) : (
                 <div style={{ padding: '16px 14px', fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5 }}>
-                  Noch keine Chat-Nachrichten zu sichtbaren Kundenfällen.
+                  {t('noMessages')}
                 </div>
               )}
             </div>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12, borderLeft: `1px solid ${theme.border}` }}>
-          <button onClick={onProfileOpen} title="Profil öffnen" style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', maxWidth: 190 }}>
+          <button onClick={onProfileOpen} title={t('openProfile')} style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', maxWidth: 190 }}>
             <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.aubergine, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>{user.initials}</div>
             <span style={{ fontSize: 13, color: theme.ink, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user.name}</span>
           </button>
-          <button onClick={onLogout} title="Abmelden" style={{ background: theme.mintLight, border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '5px 8px', marginLeft: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600 }}>
-            <LogOut size={14} /> Logout
+          <button onClick={onLogout} title={tButtons('logout')} style={{ background: theme.mintLight, border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '5px 8px', marginLeft: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600 }}>
+            <LogOut size={14} /> {tButtons('logout')}
           </button>
         </div>
       </div>
@@ -487,38 +500,39 @@ const SidebarPrimaryAction = ({ icon: Icon = Plus, label, onClick }) => {
 };
 
 const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, onQuickAction, leadCount = 0, draftCount = 0, inProgressCount = 0, portfolioCount = 0, rejectedCount = 0 }) => {
+  const t = useTranslations('navigation');
   const [activeQuickAction, setActiveQuickAction] = useState('');
   const partnerNav = [
-    { icon: Home, label: 'Home', screen: 'dashboard' },
-    { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined },
-    { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts', badge: draftCount || undefined },
-    { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: inProgressCount || undefined },
-    { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined },
-    { icon: FileText, label: 'Sonstiges', screen: 'other' },
+    { icon: Home, label: t('home'), screen: 'dashboard' },
+    { icon: TrendingUp, label: t('leads'), screen: 'leads', badge: leadCount || undefined },
+    { icon: FolderOpen, label: t('drafts'), screen: 'drafts', badge: draftCount || undefined },
+    { icon: Clock, label: t('inProgress'), screen: 'in_progress', badge: inProgressCount || undefined },
+    { icon: X, label: t('rejected'), screen: 'rejected', badge: rejectedCount || undefined },
+    { icon: FileText, label: t('other'), screen: 'other' },
   ];
   const canViewStaff = ['admin', 'super_admin'].includes(internalRole);
   const adminNav = [
-    { icon: Home, label: 'Home', screen: 'dashboard' },
-    { icon: TrendingUp, label: 'Leads', screen: 'leads', badge: leadCount || undefined, internal: true },
-    { icon: FolderOpen, label: 'Entwürfe', screen: 'drafts', badge: draftCount || undefined },
-    { icon: Clock, label: 'In Bearbeitung', screen: 'in_progress', badge: inProgressCount || undefined },
-    { icon: Archive, label: 'Bestand', screen: 'portfolio', badge: portfolioCount || undefined },
-    { icon: CheckCircle2, label: 'Verkauft', screen: 'sold', internal: true },
-    { icon: X, label: 'Abgelehnt', screen: 'rejected', badge: rejectedCount || undefined, internal: true },
-    { icon: Users, label: 'Partner', screen: 'partners' },
-    ...(canViewStaff ? [{ icon: Settings, label: 'Mitarbeiter', screen: 'staff', internal: true }] : []),
-    { icon: FileText, label: 'Sonstiges', screen: 'other' },
+    { icon: Home, label: t('home'), screen: 'dashboard' },
+    { icon: TrendingUp, label: t('leads'), screen: 'leads', badge: leadCount || undefined, internal: true },
+    { icon: FolderOpen, label: t('drafts'), screen: 'drafts', badge: draftCount || undefined },
+    { icon: Clock, label: t('inProgress'), screen: 'in_progress', badge: inProgressCount || undefined },
+    { icon: Archive, label: t('portfolio'), screen: 'portfolio', badge: portfolioCount || undefined },
+    { icon: CheckCircle2, label: t('sold'), screen: 'sold', internal: true },
+    { icon: X, label: t('rejected'), screen: 'rejected', badge: rejectedCount || undefined, internal: true },
+    { icon: Users, label: t('partners'), screen: 'partners' },
+    ...(canViewStaff ? [{ icon: Settings, label: t('staff'), screen: 'staff', internal: true }] : []),
+    { icon: FileText, label: t('other'), screen: 'other' },
   ];
   const nav = role === 'admin' ? adminNav : partnerNav;
   const isActive = (item) => item.screen === currentScreen || (item.screen === 'partners' && currentScreen === 'partner_detail');
   const canUseQuickActions = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
   const quickActions = [
-    { key: 'new-lead', icon: TrendingUp, label: 'Neuer Lead' },
-    { key: 'new-case', icon: Plus, label: 'Neukunde erfassen' },
-    { key: 'reminder', icon: Clock, label: 'Wiedervorlage anlegen' },
-    { key: 'repair', icon: Settings, label: 'Reparatur erfassen' },
-    { key: 'billing', icon: FileText, label: 'Abrechnung erfassen' },
-    { key: 'resident-request', icon: MessageSquare, label: 'Bewohneranfrage erfassen' },
+    { key: 'new-lead', icon: TrendingUp, label: t('newLead') },
+    { key: 'new-case', icon: Plus, label: t('newCustomer') },
+    { key: 'reminder', icon: Clock, label: t('createFollowUp') },
+    { key: 'repair', icon: Settings, label: t('recordRepair') },
+    { key: 'billing', icon: FileText, label: t('recordStatement') },
+    { key: 'resident-request', icon: MessageSquare, label: t('recordResidentRequest') },
   ];
   const selectQuickAction = (item) => {
     setActiveQuickAction(item.key);
@@ -528,7 +542,7 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
   const selectPartnerNewCase = () => {
     setActiveQuickAction('partner-new-case');
     window.setTimeout(() => setActiveQuickAction((current) => current === 'partner-new-case' ? '' : current), 900);
-    onQuickAction?.({ key: 'new-case', icon: Plus, label: 'Neukunde anlegen' });
+    onQuickAction?.({ key: 'new-case', icon: Plus, label: t('newCustomer') });
   };
 
   return (
@@ -557,17 +571,17 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
           </div>
           {role === 'partner' && i === 0 && (
             <div style={{ padding: '8px 0 12px' }}>
-              <SidebarPrimaryAction label="Neukunde anlegen" onClick={selectPartnerNewCase} />
+              <SidebarPrimaryAction label={t('newCustomer')} onClick={selectPartnerNewCase} />
             </div>
           )}
         </React.Fragment>
       ))}
       <div style={{ height: 16 }} />
-      <div style={{ fontSize: 10, color: `${theme.aubergine}99`, fontWeight: 700, letterSpacing: '0.1em', padding: '0 10px 6px', textTransform: 'uppercase' }}>Wissen</div>
+      <div style={{ fontSize: 10, color: `${theme.aubergine}99`, fontWeight: 700, letterSpacing: '0.1em', padding: '0 10px 6px', textTransform: 'uppercase' }}>{t('knowledge')}</div>
       {[
-        { icon: BookOpen, label: 'Broschüre', screen: 'knowledge_brochure' },
-        { icon: MapPin, label: 'Postbank Wohnatlas', screen: 'knowledge_atlas' },
-        { icon: HelpCircle, label: 'FAQs', screen: 'knowledge_faq' },
+        { icon: BookOpen, label: t('brochure'), screen: 'knowledge_brochure' },
+        { icon: MapPin, label: t('postbankAtlas'), screen: 'knowledge_atlas' },
+        { icon: HelpCircle, label: t('faqs'), screen: 'knowledge_faq' },
       ].map((item, i) => (
         <div key={i} onClick={() => onNavigate(item.screen)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 6, background: currentScreen === item.screen ? `${theme.aubergine}12` : 'transparent', fontSize: 12.5, color: currentScreen === item.screen ? theme.aubergine : `${theme.ink}cc`, cursor: 'pointer' }}>
           <item.icon size={14} />
@@ -577,7 +591,7 @@ const Sidebar = ({ role, internalRole = 'employee', currentScreen, onNavigate, o
       {canUseQuickActions && (
         <>
           <div style={{ height: 14, borderTop: `1px solid ${theme.borderSoft}`, margin: '16px 4px 0' }} />
-          <div style={{ fontSize: 10, color: `${theme.aubergine}99`, fontWeight: 700, letterSpacing: '0.1em', padding: '0 10px 6px', textTransform: 'uppercase' }}>Schnellfunktionen</div>
+          <div style={{ fontSize: 10, color: `${theme.aubergine}99`, fontWeight: 700, letterSpacing: '0.1em', padding: '0 10px 6px', textTransform: 'uppercase' }}>{t('quickActions')}</div>
           <div style={{ display: 'grid', gap: 2 }}>
             {quickActions.map((item) => (
               <SidebarQuickAction key={item.key} item={item} active={activeQuickAction === item.key} onSelect={selectQuickAction} />
@@ -801,18 +815,18 @@ async function ensureDemoSession(role) {
 
 function formatEuro(value) {
   if (!Number.isFinite(Number(value))) return '-';
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(value));
+  return new Intl.NumberFormat(uiLocale, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Number(value));
 }
 
 function formatEuroCents(value) {
   if (!Number.isFinite(Number(value))) return '-';
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));
+  return new Intl.NumberFormat(uiLocale, { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));
 }
 
 function formatGermanIntegerInput(value) {
   const digits = String(value ?? '').replace(/\D/g, '');
   if (!digits) return '';
-  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(Number(digits));
+  return new Intl.NumberFormat(uiLocale, { maximumFractionDigits: 0 }).format(Number(digits));
 }
 
 function parseGermanNumberInput(value) {
@@ -821,7 +835,7 @@ function parseGermanNumberInput(value) {
 
 function formatPercent(value) {
   if (!Number.isFinite(Number(value))) return '-';
-  return new Intl.NumberFormat('de-DE', { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value));
+  return new Intl.NumberFormat(uiLocale, { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value));
 }
 
 function roundMoneyValue(value) {
@@ -931,7 +945,7 @@ function residentialRightOfferComparisonRows(offers = []) {
       ratio: Number.isFinite(Number(quote)) ? formatPercent(Number(quote)) : '-',
       targetIrr: Number.isFinite(Number(components.weightedIrr ?? components.selectedWeightedIrr ?? components.weightedAnnualIrr)) ? formatPercent(Number(components.weightedIrr ?? components.selectedWeightedIrr ?? components.weightedAnnualIrr)) : offerWeightedIrrLabel(offer),
       exitOrTerm: isLifetime
-        ? Number.isFinite(Number(components.expectedSaleYear)) ? `${Number(components.expectedSaleYear).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Jahre` : '-'
+        ? Number.isFinite(Number(components.expectedSaleYear)) ? `${Number(components.expectedSaleYear).toLocaleString(uiLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Jahre` : '-'
         : offer?.residentialRightYears ? `${offer.residentialRightYears} Jahre` : '-',
       maintenance: Number.isFinite(Number(components.maintenanceReserve ?? components.maintenanceCost))
         ? formatEuro(components.maintenanceReserve ?? components.maintenanceCost)
@@ -943,7 +957,7 @@ function residentialRightOfferComparisonRows(offers = []) {
 function dateLabel(value) {
   if (!value) return 'Gerade eben';
   try {
-    return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
+    return new Intl.DateTimeFormat(uiLocale, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
   } catch {
     return 'Gerade eben';
   }
@@ -1588,7 +1602,7 @@ function ratingScoreBand(score) {
 
 function formatRatingScore(value) {
   const score = ratingScoreNumber(value);
-  return score === undefined ? '-' : score.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+  return score === undefined ? '-' : score.toLocaleString(uiLocale, { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 function deriveRatingInvestmentFilter(rating) {
@@ -1849,7 +1863,7 @@ function yesNoOptional(value) {
 function formatDate(value) {
   if (!value) return '-';
   try {
-    return new Intl.DateTimeFormat('de-DE').format(new Date(value));
+    return new Intl.DateTimeFormat(uiLocale).format(new Date(value));
   } catch {
     return value;
   }
@@ -2218,7 +2232,7 @@ function hasMeaningfulIntakeData(draft) {
 
 function formatSavedAt(value) {
   if (!value) return '';
-  return new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(value);
+  return new Intl.DateTimeFormat(uiLocale, { hour: '2-digit', minute: '2-digit' }).format(value);
 }
 
 function hasValue(value) {
@@ -2681,13 +2695,14 @@ const BrokerWorkBuckets = ({ buckets, activeBucket, onSelect }) => (
   </div>
 );
 
-const BrokerDashboardSearch = ({ value, onChange }) => (
-  <div style={{ position: 'relative', width: 'min(100%, 320px)' }}>
+const BrokerDashboardSearch = ({ value, onChange }) => {
+  const t = useTranslations('dashboard.broker');
+  return <div style={{ position: 'relative', width: 'min(100%, 320px)' }}>
     <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: `${theme.aubergine}88` }} />
     <input
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      placeholder="Fall oder Kunde suchen"
+      placeholder={t('search')}
       style={{
         width: '100%',
         padding: '9px 12px 9px 34px',
@@ -2701,16 +2716,18 @@ const BrokerDashboardSearch = ({ value, onChange }) => (
         boxSizing: 'border-box',
       }}
     />
-  </div>
-);
+  </div>;
+};
 
-const BrokerWorklist = ({ items, activeBucket, totalCount, onOpenCase, onOpenLeads, onShowAllCases }) => (
-  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+const BrokerWorklist = ({ items, activeBucket, totalCount, onOpenCase, onOpenLeads, onShowAllCases }) => {
+  const t = useTranslations('dashboard');
+  const tButtons = useTranslations('common.buttons');
+  return <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
     <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: theme.mintLight }}>
-            {['Fallnummer', 'Herkunft', 'Kunde', 'Objekt', 'Status', 'Nächster Schritt', 'Letzte Aktivität', ''].map((h, i) => (
+            {[t('table.caseNumber'), t('table.origin'), t('table.customer'), t('table.property'), t('table.status'), t('table.nextStep'), t('table.lastActivity'), ''].map((h, i) => (
               <th key={i} style={{ textAlign: 'left', padding: '9px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
             ))}
           </tr>
@@ -2718,7 +2735,7 @@ const BrokerWorklist = ({ items, activeBucket, totalCount, onOpenCase, onOpenLea
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan={8} style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{activeBucket ? 'Keine Vorgänge in diesem Arbeitskorb.' : 'Keine passenden aktiven Fälle gefunden.'}</td>
+              <td colSpan={8} style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{activeBucket ? t('broker.emptyBucket') : t('broker.noActiveCases')}</td>
             </tr>
           ) : items.map((item, index) => {
             const open = () => item.kind === 'lead' ? onOpenLeads() : onOpenCase(item.propertyId || item.id, item.tab || 'kunde');
@@ -2733,7 +2750,7 @@ const BrokerWorklist = ({ items, activeBucket, totalCount, onOpenCase, onOpenLea
                 <td style={{ padding: '12px 16px', color: `${theme.ink}88`, fontSize: 12 }}>{item.vor}</td>
                 <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                   <button onClick={(event) => { event.stopPropagation(); open(); }} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 11.5, fontWeight: 700, padding: '5px 9px', borderRadius: 5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    Öffnen <ChevronRight size={12} />
+                    {tButtons('open')} <ChevronRight size={12} />
                   </button>
                 </td>
               </tr>
@@ -2744,16 +2761,17 @@ const BrokerWorklist = ({ items, activeBucket, totalCount, onOpenCase, onOpenLea
     </div>
     {totalCount > items.length && (
       <div style={{ padding: '12px 16px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{totalCount - items.length} weitere Vorgänge vorhanden.</span>
+        <span style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{t('broker.moreItems', { count: totalCount - items.length })}</span>
         <button onClick={onShowAllCases} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 800, padding: '7px 11px', borderRadius: 5, cursor: 'pointer' }}>
-          Alle Fälle anzeigen
+          {t('broker.allCases')}
         </button>
       </div>
     )}
-  </div>
-);
+  </div>;
+};
 
 const BrokerDashboard = ({ cases = mockCases, leads = [], user = {}, onOpenCase, onNewCase, onOpenLeads, onShowAllCases }) => {
+  const t = useTranslations('dashboard.broker');
   const [search, setSearch] = useState('');
   const [activeBucket, setActiveBucket] = useState(() => readBrokerBucketFromUrl());
   const dashboardStatuses = brokerDashboardStatuses;
@@ -2774,7 +2792,7 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], user = {}, onOpenCase,
     sourceLabel: 'Lead',
     objekt: `${propertyTypeLabel(lead.propertyType)} ${lead.city || ''}`.trim(),
     status: lead.status,
-    nextStep: 'Lead prüfen',
+    nextStep: t('reviewLeads'),
     vor: dateLabel(lead.updatedAt || lead.createdAt),
     priority: 4,
   }));
@@ -2796,33 +2814,33 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], user = {}, onOpenCase,
   const buckets = [
     {
       key: 'new-leads',
-      title: 'Neue Leads',
+      title: t('newLeads'),
       count: activeLeadRows.length,
-      description: 'Neue Anfragen prüfen und bei Interesse als Kundenfall übernehmen.',
-      action: 'Leads prüfen',
+      description: t('newLeadsDescription'),
+      action: t('reviewLeads'),
       icon: TrendingUp,
     },
     {
       key: 'missing-documents',
-      title: 'Rückfragen / fehlende Unterlagen',
+      title: t('questions'),
       count: followUpCases.length,
-      description: 'Offene Rückfragen, fehlende Pflichtunterlagen oder Wiedervorlagen bearbeiten.',
-      action: 'Unterlagen anfordern',
+      description: t('questionsDescription'),
+      action: t('requestDocuments'),
       icon: AlertCircle,
     },
     {
       key: 'follow-up-offers',
-      title: 'Angebote nachfassen',
+      title: t('followUpOffers'),
       count: offerCases.length,
-      description: 'Freigegebene oder versendete Angebote beim Kunden nachhalten.',
-      action: 'Angebote nachfassen',
+      description: t('offersDescription'),
+      action: t('followUp'),
       icon: Send,
     },
   ];
   const bucketTitles = {
-    'new-leads': 'Neue Leads',
-    'missing-documents': 'Rückfragen / fehlende Unterlagen',
-    'follow-up-offers': 'Angebote nachfassen',
+    'new-leads': t('newLeads'),
+    'missing-documents': t('questions'),
+    'follow-up-offers': t('followUpOffers'),
   };
   const rowsByBucket = {
     'new-leads': activeLeadRows,
@@ -2835,14 +2853,14 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], user = {}, onOpenCase,
     .filter((item) => !normalizedSearch || [item.id, item.kunde, item.objekt, item.status, item.nextStep].some((value) => String(value || '').toLowerCase().includes(normalizedSearch)))
     .sort((a, b) => a.priority - b.priority || String(b.vor || '').localeCompare(String(a.vor || ''), 'de'));
   const tableItems = filteredRows.slice(0, 7);
-  const tableTitle = activeBucket ? bucketTitles[activeBucket] : 'Aktive Fälle';
+  const tableTitle = activeBucket ? bucketTitles[activeBucket] : t('title');
 
   return (
     <div style={{ padding: '22px 28px 28px' }}>
       <div className="broker-dashboard-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 22 }}>
         <div>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>{brokerGreeting(user)}</div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Was steht heute an?</h1>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>{user?.firstName ? t('greeting', { firstName: user.firstName }) : t('greetingFallback')}</div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>{t('pageTitle')}</h1>
         </div>
       </div>
 
@@ -2852,7 +2870,7 @@ const BrokerDashboard = ({ cases = mockCases, leads = [], user = {}, onOpenCase,
         <div className="active-cases-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <div>
             <h2 style={{ fontSize: 17, fontWeight: 700, color: theme.aubergine, margin: 0 }}>{tableTitle}</h2>
-            <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 3 }}>Handlungsbedarf zuerst, maximal sieben Vorgänge.</div>
+            <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 3 }}>{t('worklistHint')}</div>
           </div>
           <BrokerDashboardSearch value={search} onChange={setSearch} />
         </div>
@@ -2935,23 +2953,23 @@ function adminCaseDueDate(item) {
     || property.lastActivityAt;
 }
 
-function adminCaseNextStep(item) {
+function adminCaseNextStep(item, t) {
   const property = item.raw?.property || {};
-  if (item.followUp || item.status === 'DATA_INCOMPLETE') return 'Rückfrage klären';
-  if (item.status === 'SUBMITTED') return 'Einreichung prüfen';
-  if (item.status === 'INTERNAL_REVIEW') return 'Interne Entscheidung treffen';
-  if (['VALUATION_PENDING', 'VALUATED'].includes(item.status)) return 'Bewertung prüfen';
-  if (['OFFER_CALCULATED', 'OFFER_DRAFTED', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT'].includes(item.status)) return 'Unverbindliches Angebot bearbeiten';
-  if (item.status === 'OFFER_ACCEPTED') return 'Gutachten beauftragen';
-  if (item.status === 'EXPERT_OPINION_ORDERED') return 'Gutachteneingang erfassen';
-  if (item.status === 'EXPERT_OPINION_RECEIVED') return 'Verbindliches Angebot kalkulieren';
-  if (item.status === 'BINDING_OFFER_SENT') return 'VA nachfassen';
-  if (item.status === 'BINDING_OFFER_ACCEPTED') return 'Notartermin vereinbaren';
-  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return 'Kaufvertrag / Vollzug bearbeiten';
-  if (item.status === 'IN_PORTFOLIO') return 'Bestandsverwaltung prüfen';
-  if (item.status === 'SOLD') return 'Verkauf prüfen';
-  if (property.exitProcess) return 'Verkaufsprozess prüfen';
-  return 'Vorgang öffnen';
+  if (item.followUp || item.status === 'DATA_INCOMPLETE') return t('clarifyQuery');
+  if (item.status === 'SUBMITTED') return t('reviewSubmission');
+  if (item.status === 'INTERNAL_REVIEW') return t('internalDecision');
+  if (['VALUATION_PENDING', 'VALUATED'].includes(item.status)) return t('reviewValuation');
+  if (['OFFER_CALCULATED', 'OFFER_DRAFTED', 'APPROVED', 'SENT', 'INDICATIVE_OFFER_SENT'].includes(item.status)) return t('processIndicativeOffer');
+  if (item.status === 'OFFER_ACCEPTED') return t('commissionAppraisal');
+  if (item.status === 'EXPERT_OPINION_ORDERED') return t('recordAppraisal');
+  if (item.status === 'EXPERT_OPINION_RECEIVED') return t('calculateBindingOffer');
+  if (item.status === 'BINDING_OFFER_SENT') return t('followUpBindingOffer');
+  if (item.status === 'BINDING_OFFER_ACCEPTED') return t('scheduleNotary');
+  if (['PURCHASE_STARTED', 'NOTARY_APPOINTMENT', 'PURCHASED'].includes(item.status)) return t('processClosing');
+  if (item.status === 'IN_PORTFOLIO') return t('reviewPortfolio');
+  if (item.status === 'SOLD') return t('reviewSale');
+  if (property.exitProcess) return t('reviewSalesProcess');
+  return t('openItem');
 }
 
 function adminCaseTab(item) {
@@ -2965,22 +2983,22 @@ function adminCaseTab(item) {
   return 'kunde';
 }
 
-function adminWarningBadges(item) {
+function adminWarningBadges(item, t) {
   const badges = [];
   const dueRank = dateRank(adminCaseDueDate(item));
-  if (item.followUp) badges.push('Rückfrage offen');
-  if (item.status === 'DATA_INCOMPLETE') badges.push('Unterlagen fehlen');
-  if (dueRank === 0) badges.push('überfällig');
-  if (dueRank === 1) badges.push('Wiedervorlage heute');
+  if (item.followUp) badges.push(t('openQuery'));
+  if (item.status === 'DATA_INCOMPLETE') badges.push(t('missingDocuments'));
+  if (dueRank === 0) badges.push(t('overdue'));
+  if (dueRank === 1) badges.push(t('dueToday'));
   return badges;
 }
 
-function leadNextStep(lead) {
-  if (lead.status === 'NEW') return 'Lead qualifizieren';
-  if (['IN_REVIEW', 'QUALIFIED'].includes(lead.status)) return 'Verantwortlichen zuweisen';
-  if (['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)) return 'Kontakt aufnehmen';
-  if (['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status)) return 'In Kundenfall umwandeln';
-  return 'Lead prüfen';
+function leadNextStep(lead, t) {
+  if (lead.status === 'NEW') return t('qualifyLead');
+  if (['IN_REVIEW', 'QUALIFIED'].includes(lead.status)) return t('assignOwner');
+  if (['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status)) return t('makeContact');
+  if (['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(lead.status)) return t('convertLead');
+  return t('reviewLead');
 }
 
 function leadAssigneeLabel(lead) {
@@ -2991,7 +3009,7 @@ function leadAssigneeLabel(lead) {
   return 'nicht zugewiesen';
 }
 
-function adminWorkRows({ cases, leads, bucket }) {
+function adminWorkRows({ cases, leads, bucket, tActions, tWarnings }) {
   const activeBucket = bucket || 'new-submissions';
   const leadRows = leads
     .filter((lead) => activeBucket === 'new-leads' && adminLeadStatuses.includes(lead.status))
@@ -3003,7 +3021,7 @@ function adminWorkRows({ cases, leads, bucket }) {
       origin: lead.source === 'homepage' ? 'Homepage' : lead.source || 'Lead',
       responsible: leadAssigneeLabel(lead),
       object: `${propertyTypeLabel(lead.propertyType)} ${lead.city || ''}`.trim() || '-',
-      nextStep: leadNextStep(lead),
+      nextStep: leadNextStep(lead, tActions),
       status: lead.status,
       lastActivity: formatDate(lead.updatedAt || lead.createdAt),
       sortRank: lead.status === 'NEW' ? 2 : 4,
@@ -3026,11 +3044,11 @@ function adminWorkRows({ cases, leads, bucket }) {
         origin: item.sourceLabel || getCaseSourceLabel(item.raw?.property?.caseSource) || 'Partner',
         responsible: item.partner || item.raw?.property?.assignedAdvisor?.name || 'intern',
         object: item.objekt,
-        nextStep: adminCaseNextStep(item),
+        nextStep: adminCaseNextStep(item, tActions),
         status: item.status,
         lastActivity: item.vor || formatDate(item.raw?.property?.lastActivityAt || item.raw?.property?.updatedAt),
         tab: adminCaseTab(item),
-        warnings: adminWarningBadges(item),
+        warnings: adminWarningBadges(item, tWarnings),
         sortRank: Math.min(dateRank(due), item.status === 'SUBMITTED' ? 2 : item.followUp ? 3 : 4),
         lastActivityValue: item.raw?.property?.lastActivityAt || item.raw?.property?.updatedAt,
       };
@@ -3080,17 +3098,18 @@ const AdminWorkBuckets = ({ buckets, activeBucket, onSelect, style = {} }) => (
   </div>
 );
 
-const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads, style = {} }) => (
-  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden', ...style }}>
+const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads, style = {} }) => {
+  const t = useTranslations('dashboard');
+  return <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden', ...style }}>
     <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div>
         <span style={{ fontSize: 15, fontWeight: 700, color: theme.aubergine }}>{title}</span>
-        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>Arbeitsliste nach Handlungsbedarf sortiert. Erst hier öffnest du konkrete Vorgänge.</div>
+        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{t('admin.worklistHint')}</div>
       </div>
-      <span style={{ fontSize: 12, color: `${theme.ink}88`, fontWeight: 700 }}>{rows.length} Vorgänge</span>
+      <span style={{ fontSize: 12, color: `${theme.ink}88`, fontWeight: 700 }}>{t('table.items', { count: rows.length })}</span>
     </div>
     {rows.length === 0 ? (
-      <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Vorgänge in diesem Arbeitskorb.</div>
+      <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{t('admin.emptyBucket')}</div>
     ) : (
       <div style={{ overflowX: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
@@ -3105,7 +3124,7 @@ const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads, sty
           </colgroup>
           <thead>
             <tr style={{ background: theme.mintLight }}>
-              {['Fall / Lead', 'Kunde', 'Herkunft', 'Objekt', 'Nächster Schritt', 'Status', 'Öffnen'].map((h) => (
+              {[t('table.caseOrLead'), t('table.customer'), t('table.origin'), t('table.property'), t('table.nextStep'), t('table.status'), t('table.open')].map((h) => (
                 <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, fontWeight: 800, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -3146,10 +3165,12 @@ const AdminWorklist = ({ title, rows, activeBucket, onOpenCase, onOpenLeads, sty
         </table>
       </div>
     )}
-  </div>
-);
+  </div>;
+};
 
 const UrgentTasksPanel = ({ cases, onOpenCase }) => {
+  const t = useTranslations('dashboard.urgent');
+  const tActions = useTranslations('dashboard.actions');
   const tasks = cases
     .filter((item) => item.followUp || item.status === 'DATA_INCOMPLETE' || dateRank(adminCaseDueDate(item)) <= 1)
     .slice(0, 5);
@@ -3157,14 +3178,14 @@ const UrgentTasksPanel = ({ cases, onOpenCase }) => {
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden' }}>
       <div style={{ padding: '12px 14px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.goldSoft, display: 'flex', alignItems: 'center', gap: 8 }}>
         <AlertCircle size={15} style={{ color: theme.gold }} />
-        <span style={{ fontSize: 14, fontWeight: 800, color: theme.aubergine }}>Dringende Aufgaben</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: theme.aubergine }}>{t('title')}</span>
       </div>
       {tasks.length === 0 ? (
-        <div style={{ padding: 14, fontSize: 12.5, color: `${theme.ink}88` }}>Keine dringenden Aufgaben.</div>
+        <div style={{ padding: 14, fontSize: 12.5, color: `${theme.ink}88` }}>{t('empty')}</div>
       ) : tasks.map((item) => (
         <button key={item.propertyId || item.id} onClick={() => onOpenCase(item.propertyId || item.id, adminCaseTab(item))} style={{ width: '100%', textAlign: 'left', background: 'white', border: 'none', borderTop: `1px solid ${theme.borderSoft}`, padding: '11px 14px', cursor: 'pointer' }}>
           <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 750 }}>{item.kunde}</div>
-          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{adminCaseNextStep(item)}</div>
+          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{adminCaseNextStep(item, tActions)}</div>
         </button>
       ))}
     </div>
@@ -3172,6 +3193,9 @@ const UrgentTasksPanel = ({ cases, onOpenCase }) => {
 };
 
 const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, onNewLead, onOpenLeads, canCreateCase = false }) => {
+  const t = useTranslations('dashboard.admin');
+  const tActions = useTranslations('dashboard.actions');
+  const tWarnings = useTranslations('dashboard.warnings');
   const [activeBucket, setActiveBucket] = useState(readAdminBucketFromUrl);
   const setBucket = (bucket) => {
     setActiveBucket(bucket);
@@ -3180,48 +3204,48 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
   const buckets = [
     {
       key: 'new-leads',
-      title: 'Neue Leads',
+      title: t('newLeads'),
       count: leads.filter((lead) => adminLeadStatuses.includes(lead.status)).length,
-      description: 'Homepage-Leads, Kontaktanfragen und unqualifizierte Interessenten.',
-      action: 'Leads prüfen',
+      description: t('newLeadsDescription'),
+      action: t('reviewLeads'),
       icon: TrendingUp,
     },
     {
       key: 'new-submissions',
-      title: 'Neue Einreichungen',
+      title: t('newSubmissions'),
       count: cases.filter((item) => adminNewSubmissionStatuses.includes(item.status)).length,
-      description: 'Eingereichte Partner- und interne Fälle für die Erstprüfung.',
-      action: 'Einreichungen prüfen',
+      description: t('newSubmissionsDescription'),
+      action: t('reviewSubmissions'),
       icon: FolderOpen,
     },
     {
       key: 'acquisition-process',
-      title: 'Im Ankaufsprozess',
+      title: t('acquisitionProcess'),
       count: cases.filter((item) => adminAcquisitionStatuses.includes(item.status)).length,
-      description: 'Bewertung, Gutachten, Angebote, Notar und Vertragsvollzug.',
-      action: 'Ankäufe bearbeiten',
+      description: t('acquisitionDescription'),
+      action: t('processAcquisitions'),
       icon: Briefcase,
     },
     {
       key: 'other',
-      title: 'Sonstiges',
+      title: t('other'),
       count: cases.filter((item) => adminOtherStatuses.includes(item.status) || item.raw?.property?.exitProcess).length,
-      description: 'Bestand, Bewohneranfragen, Reparaturen, Abrechnungen und laufende Objektverwaltung.',
-      action: 'Themen öffnen',
+      description: t('otherDescription'),
+      action: t('openTopics'),
       icon: Archive,
     },
   ];
   const activeBucketDefinition = buckets.find((bucket) => bucket.key === activeBucket);
-  const tableTitle = activeBucketDefinition?.title || 'Neueste Einreichungen';
-  const rows = adminWorkRows({ cases, leads, bucket: activeBucket });
+  const tableTitle = activeBucketDefinition?.title || t('latestSubmissions');
+  const rows = adminWorkRows({ cases, leads, bucket: activeBucket, tActions, tWarnings });
 
   return (
     <div style={{ padding: '20px 28px' }}>
       <div style={{ marginBottom: 18, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>Intern · CRM</div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankaufsübersicht</h1>
-          <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>Leads, Einreichungen und laufende Ankäufe nach Handlungsbedarf.</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>{t('eyebrow')}</div>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>{t('title')}</h1>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>{t('subtitle')}</div>
         </div>
       </div>
 
@@ -4784,7 +4808,7 @@ function processDateLabel(value, isCurrent) {
   if (!value) return '–';
   if (isCurrent && isToday(value)) return 'heute';
   try {
-    return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit' }).format(new Date(value));
+    return new Intl.DateTimeFormat(uiLocale, { day: '2-digit', month: '2-digit' }).format(new Date(value));
   } catch {
     return '–';
   }
@@ -5462,7 +5486,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
   };
   const ratingOpenChecks = ratingScores.filter((score) => !ratingScoreValue(score) || Number(score.confidence || 0) < 0.65);
   const ratingReadOnly = objectRating?.status === 'approved' || !canManageRating;
-  const ratingReturnPercent = ratingReturnInput || (objectRating?.finalTargetReturn ? String((Number(objectRating.finalTargetReturn) * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 })) : '');
+  const ratingReturnPercent = ratingReturnInput || (objectRating?.finalTargetReturn ? String((Number(objectRating.finalTargetReturn) * 100).toLocaleString(uiLocale, { maximumFractionDigits: 2 })) : '');
   const canUnlockRating = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
   const ratingInputHas = (input, key) => Object.prototype.hasOwnProperty.call(input || {}, key);
   const ratingCommentValue = (score) => {
@@ -6204,7 +6228,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     const rentHint = Number.isFinite(Number(raw.residentialMonthlyRent))
       ? formatEuroCents(raw.residentialMonthlyRent)
       : Number.isFinite(Number(raw.monthlyRentPerSqm))
-        ? `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(Number(raw.monthlyRentPerSqm))} €/m²`
+        ? `${new Intl.NumberFormat(uiLocale, { maximumFractionDigits: 2 }).format(Number(raw.monthlyRentPerSqm))} €/m²`
         : '–';
     const sourceParts = [
       labelFrom(preliminaryMarketValueSourceLabels, precheckDraft.preliminaryMarketValueSource, 'Nicht erfasst'),
@@ -11327,6 +11351,8 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 // MAIN APP
 // =====================================================================
 export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialReturnUrl, initialScreen, initialLeadCreate = false, initialPartnerId = null } = {}) {
+  const tFeedback = useTranslations('common.feedback');
+  const localizedError = (error, fallbackKey) => uiLocale === 'de-DE' && error instanceof Error ? error.message : tFeedback(fallbackKey);
   const urlCaseLocation = parseCaseLocation('kunde');
   const initialCaseLocation = {
     caseId: initialCaseId || urlCaseLocation.caseId,
@@ -11388,7 +11414,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       if (!response.ok) throw new Error(payload.error || 'Fälle konnten nicht geladen werden');
       setCases((payload.cases || []).map(mapCaseView));
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Fälle konnten nicht geladen werden');
+      setNotice(localizedError(err, 'casesLoadFailed'));
     } finally {
       setLoadingCases(false);
     }
@@ -11412,7 +11438,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         }
       }
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Leads konnten nicht geladen werden');
+      setNotice(localizedError(err, 'leadsLoadFailed'));
     } finally {
       setLoadingLeads(false);
     }
@@ -11428,7 +11454,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       if (!response.ok) throw new Error(payload.error || 'Mitarbeiter konnten nicht geladen werden');
       setStaff(payload.staff || []);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Mitarbeiter konnten nicht geladen werden');
+      setNotice(localizedError(err, 'staffLoadFailed'));
     } finally {
       setLoadingStaff(false);
     }
@@ -11817,16 +11843,16 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       // Speichern im Browser ist optional.
     }
     setProfileOpen(false);
-    setNotice('Profil wurde gespeichert.');
+    setNotice(tFeedback('profileSaved'));
   };
   const handleAssignLead = async (leadId, assigneeValue) => {
     try {
       const [type, id] = String(assigneeValue || '').split(':');
       await postJson(`/api/leads/${leadId}/assign`, type === 'advisor' ? { advisorUserId: id } : { partnerId: id });
-      setNotice('Lead wurde zugewiesen.');
+      setNotice(tFeedback('leadAssigned'));
       await loadLeads(role);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht zugewiesen werden');
+      setNotice(localizedError(err, 'leadAssignFailed'));
     }
   };
   const handleCreateLead = async (leadDraft) => {
@@ -11842,7 +11868,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       setNotice(payload.assignedPartnerId ? 'Lead wurde erfasst und an den Makler weitergeleitet.' : 'Direkt-Lead wurde erfasst und intern zugewiesen.');
       await loadLeads(role);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht erfasst werden');
+      setNotice(localizedError(err, 'leadCreateFailed'));
       throw err;
     }
   };
@@ -11850,10 +11876,10 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     try {
       const payload = Object.fromEntries(Object.entries(leadDraft).map(([key, value]) => [key, value === '' ? undefined : value]));
       await patchJson(`/api/leads/${leadId}`, payload);
-      setNotice('Lead wurde bearbeitet.');
+      setNotice(tFeedback('leadUpdated'));
       await loadLeads(role);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht bearbeitet werden');
+      setNotice(localizedError(err, 'leadUpdateFailed'));
       throw err;
     }
   };
@@ -11861,10 +11887,10 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     try {
       const lead = leads.find((item) => item.id === leadId);
       await patchJson(`/api/leads/${leadId}/status`, { status: lead?.assignedPartnerId ? 'PARTNER_CONTACT_PENDING' : 'CONTACTED' });
-      setNotice('Lead wurde als kontaktiert markiert.');
+      setNotice(tFeedback('leadContacted'));
       await loadLeads(role);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht aktualisiert werden');
+      setNotice(localizedError(err, 'leadUpdateFailed'));
     }
   };
   const handleUpdateLeadStatus = async (leadId, status) => {
@@ -11888,9 +11914,9 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       setCaseReturnUrl(returnUrl);
       setScreen('case');
       updateCaseUrl(role, payload.case?.property?.caseNumber || payload.case?.property?.id || null, 'kunde', '', 'push', returnUrl);
-      setNotice('Lead wurde in einen Kundenfall umgewandelt.');
+      setNotice(tFeedback('leadConverted'));
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht umgewandelt werden');
+      setNotice(localizedError(err, 'leadConvertFailed'));
     }
   };
   const handleSetPartnerStatus = async (partnerId, status) => {
@@ -11908,10 +11934,10 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       const response = await fetch(`/api/partners/${partner.id}`, { method: 'DELETE' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || 'Partner konnte nicht gelöscht werden');
-      setNotice('Partner wurde gelöscht.');
+      setNotice(tFeedback('partnerDeleted'));
       await loadLeads('admin');
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Partner konnte nicht gelöscht werden');
+      setNotice(localizedError(err, 'partnerDeleteFailed'));
     }
   };
   const handleCreatePartner = async (payload) => {
@@ -11921,29 +11947,29 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     }
     try {
       await postJson('/api/partners', payload);
-      setNotice('Partner wurde angelegt.');
+      setNotice(tFeedback('partnerCreated'));
       await loadLeads('admin');
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Partner konnte nicht angelegt werden');
+      setNotice(localizedError(err, 'partnerCreateFailed'));
       throw err;
     }
   };
   const handleCreateStaff = async (staffInput) => {
     try {
       await postJson('/api/staff', staffInput);
-      setNotice('Mitarbeiter wurde angelegt.');
+      setNotice(tFeedback('staffCreated'));
       await loadStaff('admin');
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Mitarbeiter konnte nicht angelegt werden');
+      setNotice(localizedError(err, 'staffCreateFailed'));
     }
   };
   const handleUpdateStaffRole = async (staffId, internalRole) => {
     try {
       await patchJson(`/api/staff/${staffId}`, { internalRole });
-      setNotice('Mitarbeiterrolle wurde aktualisiert.');
+      setNotice(tFeedback('staffRoleUpdated'));
       await loadStaff('admin');
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Mitarbeiterrolle konnte nicht geändert werden');
+      setNotice(localizedError(err, 'staffRoleUpdateFailed'));
     }
   };
   const handleDeleteStaff = async (member) => {
@@ -11952,10 +11978,10 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       const response = await fetch(`/api/staff/${member.id}`, { method: 'DELETE' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || 'Mitarbeiter konnte nicht gelöscht werden');
-      setNotice('Mitarbeiter wurde gelöscht.');
+      setNotice(tFeedback('staffDeleted'));
       await loadStaff('admin');
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Mitarbeiter konnte nicht gelöscht werden');
+      setNotice(localizedError(err, 'staffDeleteFailed'));
     }
   };
   const handleLogout = async () => {
@@ -12012,7 +12038,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         <div className="crm-main-content" style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
           {(notice || loadingCases || loadingLeads || loadingStaff) && (
             <div style={{ margin: '14px 28px 0', background: loadingCases ? theme.mintLight : theme.goldSoft, border: `1px solid ${loadingCases ? theme.border : `${theme.gold}55`}`, borderRadius: 6, padding: '9px 12px', fontSize: 12.5, color: theme.ink }}>
-              {loadingCases ? 'Fälle werden geladen...' : loadingLeads ? 'Leads werden geladen...' : loadingStaff ? 'Mitarbeiter werden geladen...' : notice}
+              {loadingCases ? tFeedback('casesLoading') : loadingLeads ? tFeedback('leadsLoading') : loadingStaff ? tFeedback('staffLoading') : notice}
             </div>
           )}
           {screen === 'dashboard' && role === 'partner' && <BrokerDashboard cases={cases} leads={leads} user={user} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onOpenLeads={() => handleNavigate('leads')} onShowAllCases={() => handleNavigate('in_progress')} />}

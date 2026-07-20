@@ -1,0 +1,15 @@
+{
+  "title": "Leads",
+  "lead": "Lead",
+  "status": {
+    "NEW": "Neu",
+    "IN_REVIEW": "In Prüfung",
+    "ASSIGNED_TO_PARTNER": "An Makler weitergeleitet",
+    "PARTNER_CONTACT_PENDING": "Kontakt durch Makler offen",
+    "CONTACTED": "Kontaktiert",
+    "CONVERTED": "In Kundenfall umgewandelt",
+    "CONVERTED_TO_CASE": "In Kundenfall umgewandelt",
+    "REJECTED": "Abgelehnt",
+    "CLOSED": "Geschlossen"
+  }
+}

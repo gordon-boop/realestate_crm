@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { AppIntlProvider } from "@/components/i18n/AppIntlProvider";
+import { getDefaultLocale } from "@/i18n/config";
+import { getMessagesForLocale } from "@/i18n/messages";
 import { siteUrl } from "@/lib/site-content";
 import "./globals.css";
 
@@ -23,8 +26,10 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = getDefaultLocale();
+  const messages = getMessagesForLocale(locale);
   return (
-    <html lang="de">
+    <html lang={locale}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -36,7 +41,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
       </head>
-      <body>{children}</body>
+      <body>
+        <AppIntlProvider locale={locale} messages={messages}>
+          {children}
+        </AppIntlProvider>
+      </body>
     </html>
   );
 }
