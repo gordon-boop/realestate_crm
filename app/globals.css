@@ -399,6 +399,10 @@ textarea:focus-visible {
   border-collapse: collapse;
 }
 
+.customer-address-grid {
+  grid-template-columns: minmax(220px, 3.2fr) minmax(96px, 1fr) minmax(100px, 1.1fr) minmax(180px, 2.2fr);
+}
+
 .table th,
 .table td {
   padding: 15px 16px;
@@ -766,6 +770,9 @@ textarea:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .customer-address-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(90px, 1fr);
+  }
   .topbar {
     align-items: flex-start;
     flex-direction: column;
@@ -922,6 +929,9 @@ textarea:focus-visible {
 }
 
 @media (max-width: 560px) {
+  .customer-address-grid {
+    grid-template-columns: 1fr;
+  }
   .broker-dashboard-header,
   .active-cases-header {
     align-items: stretch !important;

@@ -149,6 +149,7 @@ export type Customer = {
   propertyOwnership?: PropertyOwnership;
   monthlyIncomeRange?: IncomeRange;
   street?: string;
+  houseNumber?: string;
   postalCode?: string;
   city?: string;
   addressText?: string;
@@ -225,6 +226,8 @@ export type Property = {
   modernization?: Record<string, unknown>;
   buildingCondition?: Record<string, unknown>;
   acquisitionPrecheck?: Record<string, unknown>;
+  intakeDraft?: Record<string, unknown>;
+  draftIntakeStep?: number;
   generalPropertyNotes?: string;
   followUpRequired?: boolean;
   followUpReason?: string;
@@ -639,6 +642,7 @@ export type Lead = {
   phone?: string;
   mobilePhone?: string;
   street?: string;
+  houseNumber?: string;
   postalCode?: string;
   city?: string;
   federalState?: string;

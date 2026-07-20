@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
+import { formatAddress } from "@/lib/address";
 
 const residentialRightYears = Array.from({ length: 11 }, (_, index) => index + 5);
 
@@ -83,9 +84,15 @@ export function NewCaseForm() {
       phone: form.get("phone"),
       mobile: form.get("mobile"),
       street: form.get("customerStreet"),
+      houseNumber: form.get("customerHouseNumber"),
       postalCode: form.get("customerPostalCode"),
       city: form.get("customerCity"),
-      addressText: `${form.get("customerStreet") ?? ""}, ${form.get("customerPostalCode") ?? ""} ${form.get("customerCity") ?? ""}`.trim(),
+      addressText: formatAddress({
+        street: stringValue(form.get("customerStreet")),
+        houseNumber: stringValue(form.get("customerHouseNumber")),
+        postalCode: stringValue(form.get("customerPostalCode")),
+        city: stringValue(form.get("customerCity"))
+      }),
       consentDataProcessing: form.get("consentDataProcessing") === "on"
     };
     const customerResponse = await fetch("/api/customers", {
@@ -226,9 +233,12 @@ export function NewCaseForm() {
         {maritalStatus === "married" ? (
           <label className="field"><span>Wer ist Eigentümer?</span><select name="propertyOwnership"><option value="customer_1">Kunde 1</option><option value="customer_2">Kunde 2</option><option value="both">Beide</option></select></label>
         ) : null}
-        <label className="field"><span>Straße</span><input name="customerStreet" /></label>
-        <label className="field"><span>PLZ</span><input name="customerPostalCode" /></label>
-        <label className="field"><span>Ort</span><input name="customerCity" /></label>
+        <div className="customer-address-grid" style={{ display: "grid", gap: 16, gridColumn: "1 / -1" }}>
+          <label className="field"><span>Straße</span><input name="customerStreet" autoComplete="address-line1" required /></label>
+          <label className="field"><span>Hausnummer</span><input name="customerHouseNumber" type="text" autoComplete="address-line2" required /></label>
+          <label className="field"><span>PLZ</span><input name="customerPostalCode" inputMode="numeric" autoComplete="postal-code" required /></label>
+          <label className="field"><span>Ort</span><input name="customerCity" autoComplete="address-level2" required /></label>
+        </div>
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="consentDataProcessing" type="checkbox" required /> DSGVO-Einwilligung liegt vor</label>
       </section>
 

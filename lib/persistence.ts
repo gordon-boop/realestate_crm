@@ -7,6 +7,7 @@ import { sendCaseNotificationEmailStub } from "./email.ts";
 import { enrichGermanPostalLocation, findOpenPlzPostalCode } from "./openplz.ts";
 import { prisma } from "./prisma.ts";
 import { nextSequenceValue } from "./sequence.ts";
+import { formatAddress, formatStreetAddress, splitStreetAndHouseNumber } from "./address.ts";
 
 const caseInclude = {
   partner: true,
@@ -102,6 +103,8 @@ function mapProperty(property: NonNullable<PrismaCase>) {
     modernization: property.modernizationJson as Record<string, unknown> | undefined,
     buildingCondition: property.buildingConditionJson as Record<string, unknown> | undefined,
     acquisitionPrecheck: property.acquisitionPrecheckJson as Record<string, unknown> | undefined,
+    intakeDraft: property.intakeDraftJson as Record<string, unknown> | undefined,
+    draftIntakeStep: property.draftIntakeStep,
     followUpDueAt: iso(property.followUpDueAt),
     customerFeedbackReceivedAt: iso(property.customerFeedbackReceivedAt),
     rejectedAt: iso(property.rejectedAt),
@@ -777,6 +780,7 @@ export async function createDbLead(input: Partial<Lead>, user?: User): Promise<L
       phone: input.phone,
       mobilePhone: input.mobilePhone,
       street: input.street,
+      houseNumber: input.houseNumber,
       postalCode: location.postalCode,
       city: location.city,
       federalState: location.federalState,
@@ -903,6 +907,7 @@ export async function updateDbLead(leadId: string, input: Partial<Lead>, userId:
       phone: input.phone,
       mobilePhone: input.mobilePhone,
       street: input.street,
+      houseNumber: input.houseNumber,
       postalCode: input.postalCode,
       city: input.city,
       federalState: input.federalState,
@@ -960,6 +965,7 @@ export async function convertDbLeadToCase(leadId: string, assignment: { partnerI
   const lastName = lead.lastName || parts.slice(1).join(" ") || "Lead";
   const caseNumber = await nextPropertyCaseNumber();
   const isApartment = lead.propertyType === "apartment";
+  const customerAddress = splitStreetAndHouseNumber(lead.street, lead.houseNumber);
 
   const result = await prisma.$transaction(async (tx) => {
     const customer = await tx.customer.create({
@@ -972,10 +978,11 @@ export async function convertDbLeadToCase(leadId: string, assignment: { partnerI
         email: lead.email,
         phone: lead.phone,
         mobile: lead.mobilePhone,
-        street: lead.street,
+        street: customerAddress.street || undefined,
+        houseNumber: customerAddress.houseNumber || undefined,
         postalCode: lead.postalCode,
         city: lead.city,
-        addressText: [lead.street, lead.postalCode, lead.city].filter(Boolean).join(" "),
+        addressText: formatAddress({ ...customerAddress, postalCode: lead.postalCode, city: lead.city }),
         consentDataProcessing: true
       }
     });
@@ -988,7 +995,7 @@ export async function convertDbLeadToCase(leadId: string, assignment: { partnerI
         assignedAdvisorUserId: assignment.advisorUserId,
         caseSource: assignment.advisorUserId ? "INTERNAL" : "PARTNER",
         propertyType: (lead.propertyType || "single_family") as never,
-        street: lead.propertyStreet || lead.street || "Noch offen",
+        street: lead.propertyStreet || formatStreetAddress(customerAddress) || "Noch offen",
         postalCode: lead.propertyPostalCode || lead.postalCode || "00000",
         city: lead.propertyCity || lead.city || "Ort offen",
         livingAreaSqm: lead.livingAreaSqm || (isApartment ? 80 : 130),
@@ -1313,6 +1320,7 @@ function mapLead(lead: Awaited<ReturnType<typeof prisma.lead.findFirst>>): Lead 
     phone: lead.phone ?? undefined,
     mobilePhone: lead.mobilePhone ?? undefined,
     street: lead.street ?? undefined,
+    houseNumber: lead.houseNumber ?? undefined,
     postalCode: lead.postalCode ?? undefined,
     city: lead.city ?? undefined,
     federalState: lead.federalState ?? undefined,

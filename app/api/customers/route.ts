@@ -2,6 +2,7 @@ import { handleApiError, json, requireRole } from "@/lib/api";
 import { isInternalAdmin } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 import { customerCreateSchema } from "@/lib/validation";
+import { formatAddress } from "@/lib/address";
 
 export async function GET(): Promise<Response> {
   try {
@@ -51,9 +52,10 @@ export async function POST(request: Request): Promise<Response> {
         propertyOwnership: body.propertyOwnership as never,
         monthlyIncomeRange: body.monthlyIncomeRange as never,
         street: body.street,
+        houseNumber: body.houseNumber,
         postalCode: body.postalCode,
         city: body.city,
-        addressText: body.addressText,
+        addressText: body.addressText ?? formatAddress(body),
         consentDataProcessing: body.consentDataProcessing
       }
     });

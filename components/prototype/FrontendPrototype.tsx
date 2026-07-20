@@ -23,6 +23,7 @@ import { getLifetimeResidentialRightEligibility } from '@/lib/residential-right-
 import { parseGermanNumberInput as parseGermanNumberValue, parseGermanPercentInput } from '@/lib/utils/numberParsing';
 import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 import { hausVorteilDesignTokens } from '@/lib/design/tokens';
+import { formatAddress, splitStreetAndHouseNumber } from '@/lib/address';
 
 // =====================================================================
 // THEME — WohnKapital Mint-Welt
@@ -1366,6 +1367,24 @@ function updateScreenUrl(role, screen = 'dashboard', mode = 'replace') {
   window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', url);
 }
 
+function readIntakeDraftLocation() {
+  if (typeof window === 'undefined') return { draftId: null, step: 1 };
+  const params = new URLSearchParams(window.location.search);
+  return {
+    draftId: params.get('draft'),
+    step: Math.min(5, Math.max(1, Number(params.get('step') || 1))),
+  };
+}
+
+function updateIntakeDraftUrl(role, draftId, step = 1, mode = 'replace') {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams();
+  params.set('screen', 'erfassung');
+  if (draftId) params.set('draft', String(draftId));
+  params.set('step', String(Math.min(5, Math.max(1, Number(step) || 1))));
+  window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', `${basePathForRole(role)}?${params.toString()}`);
+}
+
 function screenFromInternalUrl(value, fallback = 'dashboard') {
   const safeUrl = sanitizeInternalReturnUrl(value);
   if (!safeUrl) return normalizeAppScreen(fallback);
@@ -1953,6 +1972,7 @@ const defaultDraft = {
   phone: '',
   mobile: '',
   street: '',
+  houseNumber: '',
   postalCode: '',
   city: '',
   consentDataProcessing: false,
@@ -2078,8 +2098,9 @@ function draftFromCaseView(caseView) {
   if (!caseView) return { ...defaultDraft };
   const customer = caseView.customer || {};
   const property = caseView.property || {};
+  const customerAddress = splitStreetAndHouseNumber(customer.street, customer.houseNumber);
   const existingDocumentCategories = Array.from(new Set((caseView.documents || []).map((document) => document.category).filter(Boolean)));
-  return {
+  const normalizedDraft = {
     ...defaultDraft,
     modernization: { ...defaultDraft.modernization, ...(property.modernization || {}) },
     buildingCondition: { ...defaultDraft.buildingCondition, ...(property.buildingCondition || {}) },
@@ -2101,7 +2122,8 @@ function draftFromCaseView(caseView) {
     email: customer.email || '',
     phone: customer.phone || '',
     mobile: customer.mobile || '',
-    street: customer.street || property.street || '',
+    street: customerAddress.street || property.street || '',
+    houseNumber: customerAddress.houseNumber || '',
     postalCode: customer.postalCode || property.postalCode || '',
     city: customer.city || property.city || '',
     consentDataProcessing: Boolean(customer.consentDataProcessing),
@@ -2160,6 +2182,43 @@ function draftFromCaseView(caseView) {
     documentUploads: {},
     existingDocumentCategories,
   };
+  const savedIntakeDraft = property.status === 'DRAFT' && property.intakeDraft && typeof property.intakeDraft === 'object'
+    ? property.intakeDraft
+    : {};
+  return {
+    ...normalizedDraft,
+    ...savedIntakeDraft,
+    modernization: { ...normalizedDraft.modernization, ...(savedIntakeDraft.modernization || {}) },
+    buildingCondition: { ...normalizedDraft.buildingCondition, ...(savedIntakeDraft.buildingCondition || {}) },
+    documentUploads: {},
+    existingDocumentCategories,
+  };
+}
+
+function serializableIntakeDraft(draft) {
+  const { documentUploads: _documentUploads, documentFile: _documentFile, ...serializable } = draft || {};
+  return serializable;
+}
+
+function intakeDraftFingerprint(draft, internalIntakeSource = '') {
+  const uploads = Object.fromEntries(Object.entries(draft?.documentUploads || {}).map(([category, files]) => [
+    category,
+    (files || []).map((file) => ({ name: file.name, size: file.size, lastModified: file.lastModified }))
+  ]));
+  return JSON.stringify({ ...serializableIntakeDraft(draft), documentUploads: uploads, internalIntakeSource });
+}
+
+function hasMeaningfulIntakeData(draft) {
+  return Boolean(
+    draft?.firstName || draft?.lastName || draft?.email || draft?.phone || draft?.mobile ||
+    draft?.street || draft?.postalCode || draft?.city || draft?.propertyType || draft?.desiredModel ||
+    Object.values(draft?.documentUploads || {}).some((files) => files?.length)
+  );
+}
+
+function formatSavedAt(value) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(value);
 }
 
 function hasValue(value) {
@@ -2218,6 +2277,7 @@ const validationFieldLabels = {
   email: 'Persönliche Daten: E-Mail',
   phone: 'Persönliche Daten: Telefon',
   street: 'Persönliche Daten: Straße',
+  houseNumber: 'Persönliche Daten: Hausnummer',
   postalCode: 'Persönliche Daten: PLZ',
   city: 'Persönliche Daten: Ort',
   consentDataProcessing: 'Persönliche Daten: Einwilligung zur Datenverarbeitung',
@@ -2354,6 +2414,7 @@ function validateCaseStep(step, draft) {
     add('email', hasValue(draft.email));
     add('phone', hasValue(draft.phone));
     add('street', hasValue(draft.street));
+    add('houseNumber', hasValue(draft.houseNumber));
     add('postalCode', hasValue(draft.postalCode));
     add('city', hasValue(draft.city));
     add('consentDataProcessing', draft.consentDataProcessing === true);
@@ -3379,7 +3440,40 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
   );
 };
 
-const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
+const DraftCasesTable = ({ cases = [], onContinue, role }) => (
+  <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
+    {cases.length === 0 ? <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Entwürfe vorhanden.</div> : (
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 940 }}>
+          <thead><tr style={{ background: theme.mintLight }}>
+            {['Fall', 'Kunde', 'Objekt', 'Aktueller Schritt', 'Vollständigkeit', 'Bearbeiter', 'Zuletzt bearbeitet', ''].map((label) => <th key={label} style={{ textAlign: 'left', padding: '9px 13px', color: theme.oliv, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</th>)}
+          </tr></thead>
+          <tbody>{cases.map((row) => {
+            const formDraft = draftFromCaseView(row.raw);
+            const checked = [1, 2, 3, 4, 5].map((draftStep) => validateCaseStep(draftStep, formDraft));
+            const total = checked.reduce((sum, result) => sum + result.checked.length, 0);
+            const missing = checked.reduce((sum, result) => sum + result.fields.length, 0);
+            const completion = total ? Math.round(((total - missing) / total) * 100) : 0;
+            const draftStep = Math.min(5, Math.max(1, Number(row.raw?.property?.draftIntakeStep || 1)));
+            const responsible = role === 'partner' ? row.partner || 'Makler' : row.raw?.property?.assignedAdvisorUserId ? 'Interne Bearbeitung' : row.partner || 'Nicht zugewiesen';
+            return <tr key={row.propertyId || row.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
+              <td style={{ padding: '11px 13px', color: theme.aubergine, fontFamily: 'ui-monospace, monospace', fontWeight: 750 }}>{row.id}</td>
+              <td style={{ padding: '11px 13px', fontWeight: 700 }}>{row.kunde || 'Unvollständiger Entwurf'}</td>
+              <td style={{ padding: '11px 13px', color: `${theme.ink}AA` }}>{row.objekt || 'Noch nicht erfasst'}</td>
+              <td style={{ padding: '11px 13px' }}>{draftStep}. {['', 'Persönliche Daten', 'Wunschmodell', 'Immobiliendaten', 'Modernisierungen', 'Dokumente'][draftStep]}</td>
+              <td style={{ padding: '11px 13px' }}><span style={{ color: completion === 100 ? theme.success : theme.warning, fontWeight: 800 }}>{completion} %</span></td>
+              <td style={{ padding: '11px 13px', color: `${theme.ink}99` }}>{responsible}</td>
+              <td style={{ padding: '11px 13px', color: `${theme.ink}88` }}>{formatDate(row.raw?.property?.updatedAt)}</td>
+              <td style={{ padding: '11px 13px', textAlign: 'right' }}><button type="button" onClick={() => onContinue(row.propertyId || row.id)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '7px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>Erfassung fortsetzen</button></td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>
+    )}
+  </div>
+);
+
+const CaseMenuScreen = ({ screen, cases = [], onOpenCase, onContinueDraft, role }) => {
   const filteredCases = filterCasesForScreen(cases, screen);
   const title = menuScreenTitle(screen);
   const subtitle = {
@@ -3406,15 +3500,17 @@ const CaseMenuScreen = ({ screen, cases = [], onOpenCase, role }) => {
         </div>
       </div>
 
-      <CaseTableCard
-        title={title}
-        emptyText={`Keine Fälle in "${title}".`}
-        cases={filteredCases}
-        onOpenCase={onOpenCase}
-        showPartner={role === 'admin'}
-        showRejection={screen === 'rejected'}
-        statusForCase={screen === 'sold' ? soldScreenStatus : undefined}
-      />
+      {screen === 'drafts' ? <DraftCasesTable cases={filteredCases} onContinue={onContinueDraft || onOpenCase} role={role} /> : (
+        <CaseTableCard
+          title={title}
+          emptyText={`Keine Fälle in "${title}".`}
+          cases={filteredCases}
+          onOpenCase={onOpenCase}
+          showPartner={role === 'admin'}
+          showRejection={screen === 'rejected'}
+          statusForCase={screen === 'sold' ? soldScreenStatus : undefined}
+        />
+      )}
     </div>
   );
 };
@@ -5160,7 +5256,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ['Geschlecht', labelFrom(genderLabels, customer.gender)],
     ['Geburtsdatum', `${formatDate(customer.dateOfBirth)}${customer.ageAtSubmission ? ` (${customer.ageAtSubmission} Jahre)` : ''}`],
     ['Familienstand', labelFrom(maritalLabels, customer.maritalStatus)],
-    ['Adresse', customer.addressText || `${customer.street || '-'}, ${customer.postalCode || ''} ${customer.city || ''}`],
+    ['Adresse', formatAddress(customer) || '-'],
     ['Telefon', customer.phone || '-'],
     ['Mobil', customer.mobile || '-'],
     ['E-Mail', customer.email || '-'],
@@ -5182,7 +5278,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
     ['Name', [customer.spouseTitle, customer.spouseFirstName, customer.spouseLastName].filter(Boolean).join(' ') || '-'],
     ['Geschlecht', labelFrom(genderLabels, customer.spouseGender)],
     ['Geburtsdatum', formatDate(customer.spouseDateOfBirth)],
-    ['Adresse', customer.addressText || `${customer.street || '-'}, ${customer.postalCode || ''} ${customer.city || ''}`],
+    ['Adresse', formatAddress(customer) || '-'],
     ['Telefon', customer.phone || '-'],
     ['Mobil', customer.mobile || '-'],
     ['E-Mail', customer.email || '-'],
@@ -8948,16 +9044,34 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 // =====================================================================
 // SCREEN 4 — ERFASSUNGSBOGEN SCHRITT 1
 // =====================================================================
-const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', internalRole = 'employee', user }) => {
-  const [step, setStep] = useState(1);
+const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, setNotice, initialCase, role = 'partner', internalRole = 'employee', user }) => {
+  const initialStep = Math.min(5, Math.max(1, Number(initialCase?.property?.draftIntakeStep || 1)));
+  const [step, setStep] = useState(initialStep);
   const [saving, setSaving] = useState('');
   const [draft, setDraft] = useState(() => draftFromCaseView(initialCase));
   const [validation, setValidation] = useState({ fields: [], message: '', groups: [] });
   const [internalIntakeSource, setInternalIntakeSource] = useState('phone');
-  const editMode = Boolean(initialCase?.property?.id);
-  const canSubmitCase = !editMode || initialCase?.property?.status === 'DRAFT';
+  const [persistedDraft, setPersistedDraft] = useState(() => ({
+    propertyId: initialCase?.property?.id || null,
+    customerId: initialCase?.customer?.id || null,
+    updatedAt: initialCase?.property?.updatedAt || null,
+  }));
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState(initialCase?.property?.updatedAt ? new Date(initialCase.property.updatedAt) : null);
+  const [saveError, setSaveError] = useState('');
+  const [leaveDialog, setLeaveDialog] = useState(null);
+  const [manualSaveSuccess, setManualSaveSuccess] = useState(false);
+  const draftRef = useRef(draft);
+  const stepRef = useRef(step);
+  const persistedDraftRef = useRef(persistedDraft);
+  const savedFingerprintRef = useRef(intakeDraftFingerprint(draft, internalIntakeSource));
+  const savePromiseRef = useRef(null);
+  const mountedRef = useRef(true);
+  const bypassGuardRef = useRef(false);
+  const editMode = Boolean(persistedDraft.propertyId);
+  const canSubmitCase = !initialCase?.property?.id || initialCase?.property?.status === 'DRAFT';
+  const draftMode = canSubmitCase;
   const isInternalCase = role === 'admin';
-  const canNavigateWithIncompleteRequiredFields = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
   const modelLockedForPortfolio = Boolean(editMode && (initialCase?.property?.status === 'IN_PORTFOLIO' || initialCase?.property?.portfolioEnteredAt));
   const steps = [
     { n: 1, label: 'Persönliche Daten' },
@@ -8984,16 +9098,176 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
   const progress = totalRequiredFields ? Math.round((completedRequiredFields / totalRequiredFields) * 100) : 0;
   const stepProgress = Math.round((step / steps.length) * 100);
   useEffect(() => {
-    setDraft(draftFromCaseView(initialCase));
+    const nextDraft = draftFromCaseView(initialCase);
+    const nextStep = Math.min(5, Math.max(1, Number(initialCase?.property?.draftIntakeStep || 1)));
+    setDraft(nextDraft);
     setValidation({ fields: [], message: '', groups: [] });
-    setStep(1);
+    setStep(nextStep);
+    setPersistedDraft({
+      propertyId: initialCase?.property?.id || null,
+      customerId: initialCase?.customer?.id || null,
+      updatedAt: initialCase?.property?.updatedAt || null,
+    });
+    savedFingerprintRef.current = intakeDraftFingerprint(nextDraft, internalIntakeSource);
+    setIsDirty(false);
+    setSaveError('');
+    setLastSavedAt(initialCase?.property?.updatedAt ? new Date(initialCase.property.updatedAt) : null);
   }, [initialCase?.property?.id]);
 
-  function goToStep(nextStep) {
+  useEffect(() => { draftRef.current = draft; }, [draft]);
+  useEffect(() => { stepRef.current = step; }, [step]);
+  useEffect(() => { persistedDraftRef.current = persistedDraft; }, [persistedDraft]);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    if (!draftMode) return;
+    const dirty = intakeDraftFingerprint(draft, internalIntakeSource) !== savedFingerprintRef.current;
+    setIsDirty(dirty);
+    if (dirty) {
+      setManualSaveSuccess(false);
+      setSaveError('');
+    }
+  }, [draft, internalIntakeSource, draftMode]);
+
+  async function uploadPendingDraftDocuments(propertyId, sourceDraft) {
+    const uploads = Object.entries(sourceDraft.documentUploads || {});
+    if (!uploads.some(([, files]) => files?.length)) return sourceDraft;
+    const uploadedCategories = new Set(sourceDraft.existingDocumentCategories || []);
+    for (const [category, files] of uploads) {
+      for (const file of files || []) {
+        const documentForm = new FormData();
+        documentForm.append('file', file);
+        documentForm.append('category', category);
+        const required = getRequiredDocumentsForPropertyType(sourceDraft.propertyType).some((item) => item.category === category)
+          || (category === 'power_of_attorney' && !hasUploadedDocument(sourceDraft, 'land_register'));
+        documentForm.append('requirementLevel', required ? 'required' : 'optional');
+        documentForm.append('status', 'pending');
+        await postFormData(`/api/properties/${propertyId}/documents`, documentForm);
+        uploadedCategories.add(category);
+      }
+    }
+    return { ...sourceDraft, documentUploads: {}, existingDocumentCategories: Array.from(uploadedCategories) };
+  }
+
+  async function persistDraft({ reason = 'autosave', targetStep = stepRef.current, uploadDocuments = true } = {}) {
+    if (!draftMode) return persistedDraftRef.current;
+    if (savePromiseRef.current) {
+      await savePromiseRef.current;
+      if (intakeDraftFingerprint(draftRef.current, internalIntakeSource) === savedFingerprintRef.current) return persistedDraftRef.current;
+    }
+    const sourceDraft = draftRef.current;
+    if (!persistedDraftRef.current.propertyId && !hasMeaningfulIntakeData(sourceDraft) && reason === 'autosave') return persistedDraftRef.current;
+    const fingerprintAtStart = intakeDraftFingerprint(sourceDraft, internalIntakeSource);
+    const operation = (async () => {
+      setSaving(reason === 'submit' ? 'submit' : 'draft');
+      setSaveError('');
+      let state = persistedDraftRef.current;
+      const payload = {
+        draft: serializableIntakeDraft(sourceDraft),
+        currentStep: targetStep,
+        internalIntakeSource: isInternalCase ? internalIntakeSource : undefined,
+        expectedUpdatedAt: state.updatedAt || undefined,
+      };
+      const response = state.propertyId
+        ? await patchJson(`/api/properties/${state.propertyId}/draft`, payload)
+        : await postJson('/api/properties/draft', payload);
+      state = {
+        propertyId: response.property.id,
+        customerId: response.customer.id,
+        updatedAt: response.property.updatedAt,
+      };
+      persistedDraftRef.current = state;
+      if (mountedRef.current) setPersistedDraft(state);
+      onDraftCreated?.(state.propertyId, targetStep, {
+        updatedAt: response.property.updatedAt,
+        intakeDraft: payload.draft,
+        customer: response.customer,
+        property: response.property,
+      });
+
+      let savedDraft = sourceDraft;
+      if (uploadDocuments) {
+        savedDraft = await uploadPendingDraftDocuments(state.propertyId, sourceDraft);
+        if (savedDraft !== sourceDraft) {
+          draftRef.current = savedDraft;
+          if (mountedRef.current) setDraft(savedDraft);
+        }
+      }
+      savedFingerprintRef.current = intakeDraftFingerprint(savedDraft, internalIntakeSource);
+      if (mountedRef.current) {
+        setLastSavedAt(new Date());
+        setIsDirty(intakeDraftFingerprint(draftRef.current, internalIntakeSource) !== savedFingerprintRef.current);
+        if (reason === 'manual') setManualSaveSuccess(true);
+      }
+      return state;
+    })();
+    savePromiseRef.current = operation;
+    try {
+      return await operation;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Entwurf konnte nicht gespeichert werden.';
+      if (mountedRef.current) {
+        setSaveError(message);
+        setIsDirty(true);
+      }
+      throw err;
+    } finally {
+      if (savePromiseRef.current === operation) savePromiseRef.current = null;
+      if (mountedRef.current) setSaving('');
+      if (fingerprintAtStart !== intakeDraftFingerprint(draftRef.current, internalIntakeSource)) setIsDirty(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!draftMode || !isDirty || saveError || !hasMeaningfulIntakeData(draft)) return undefined;
+    const hasPendingUploads = Object.values(draft.documentUploads || {}).some((files) => files?.length);
+    const timer = window.setTimeout(() => {
+      persistDraft({ reason: 'autosave', targetStep: step }).catch(() => {});
+    }, hasPendingUploads ? 100 : 1500);
+    return () => window.clearTimeout(timer);
+  }, [draft, internalIntakeSource, step, isDirty, saveError, draftMode]);
+
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  function requestLeave(action) {
+    if (bypassGuardRef.current || !isDirty) {
+      action?.();
+      return;
+    }
+    setLeaveDialog({ action, error: '' });
+  }
+
+  useEffect(() => {
+    registerNavigationGuard?.(requestLeave);
+    return () => registerNavigationGuard?.(null);
+  }, [registerNavigationGuard, isDirty]);
+
+  async function goToStep(nextStep) {
+    const boundedStep = Math.min(5, Math.max(1, nextStep));
     validateForNavigation(step, draft);
-    setStep(nextStep);
+    setStep(boundedStep);
+    stepRef.current = boundedStep;
+    if (draftMode && (persistedDraftRef.current.propertyId || hasMeaningfulIntakeData(draftRef.current))) {
+      try { await persistDraft({ reason: 'step', targetStep: boundedStep }); } catch { /* Status bleibt sichtbar. */ }
+    }
   }
   async function saveCase(submit = false) {
+    if (!submit && draftMode) {
+      try {
+        await persistDraft({ reason: 'manual', targetStep: step });
+        setNotice?.('Entwurf wurde gespeichert. Sie können die Erfassung später fortsetzen.');
+      } catch (err) {
+        setNotice?.(err instanceof Error ? err.message : 'Entwurf konnte nicht gespeichert werden.');
+      }
+      return;
+    }
     if (submit && (draft.leasehold || draft.monumentProtection)) {
       setNotice?.('Erbbaurecht oder Denkmalschutz ist ein Ausschlusskriterium. Der Fall kann so nicht eingereicht werden.');
       return;
@@ -9007,7 +9281,7 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         return;
       }
     } else {
-      const result = validateForDraftSave(draft, { allowIncomplete: canNavigateWithIncompleteRequiredFields });
+      const result = validateForDraftSave(draft, { allowIncomplete: true });
       if (!result.valid) {
         setValidation({ fields: result.fields, message: result.message, groups: [] });
         setNotice?.(result.message);
@@ -9015,6 +9289,14 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
       }
     }
     setValidation({ fields: [], message: '', groups: [] });
+    if (submit && draftMode) {
+      try {
+        await persistDraft({ reason: 'submit', targetStep: step, uploadDocuments: false });
+      } catch (err) {
+        setNotice?.(err instanceof Error ? err.message : 'Entwurf konnte vor dem Einreichen nicht gespeichert werden.');
+        return;
+      }
+    }
     setSaving(submit ? 'submit' : 'draft');
     try {
       const incompleteDraftSave = !submit;
@@ -9049,13 +9331,15 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         phone: draft.phone,
         mobile: draft.mobile,
         street: draft.street || undefined,
+        houseNumber: draft.houseNumber || undefined,
         postalCode: draft.postalCode || undefined,
         city: draft.city || undefined,
-        addressText: [draft.street, [draft.postalCode, draft.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+        addressText: formatAddress(draft),
         consentDataProcessing: Boolean(draft.consentDataProcessing),
       };
-      const customerResult = editMode
-        ? await patchJson(`/api/customers/${initialCase.customer.id}`, customerPayload)
+      const activeDraftState = persistedDraftRef.current;
+      const customerResult = activeDraftState.customerId
+        ? await patchJson(`/api/customers/${activeDraftState.customerId}`, customerPayload)
         : await postJson('/api/customers', customerPayload);
       const parkingEntries = draft.parkingAvailable === true ? normalizedParkingEntries(draft) : [];
       const payloadParkingType = primaryParkingType(parkingEntries);
@@ -9124,10 +9408,11 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
         generalPropertyNotes: draft.generalPropertyNotes,
         notes: isInternalCase ? `Direkterfassung intern · Quelle: ${labelFrom(internalIntakeSourceLabels, internalIntakeSource)}` : undefined,
       };
-      const propertyResult = editMode
-        ? await patchJson(`/api/properties/${initialCase.property.id}`, propertyPayload)
+      propertyPayload.draftIntakeStep = step;
+      const propertyResult = activeDraftState.propertyId
+        ? await patchJson(`/api/properties/${activeDraftState.propertyId}`, propertyPayload)
         : await postJson('/api/properties', propertyPayload);
-      const documentUploads = Object.entries(draft.documentUploads || {});
+      const documentUploads = Object.entries(draftRef.current.documentUploads || {});
       if (documentUploads.length) {
         for (const [category, files] of documentUploads) {
           for (const file of files || []) {
@@ -9145,7 +9430,9 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
       if (submit) {
         await postJson(`/api/properties/${propertyResult.property.id}/submit`);
       }
-      setNotice?.(submit ? 'Fall wurde gespeichert und eingereicht.' : 'Entwurf gespeichert. Sie können die Angaben später vervollständigen.');
+      setNotice?.(submit ? 'Fall wurde gespeichert und eingereicht.' : 'Änderungen wurden gespeichert.');
+      savedFingerprintRef.current = intakeDraftFingerprint(draftRef.current, internalIntakeSource);
+      setIsDirty(false);
       await onSaved?.(propertyResult.property.id);
     } catch (err) {
       setNotice?.(err instanceof Error ? err.message : 'Fall konnte nicht gespeichert werden');
@@ -9154,21 +9441,54 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
     }
   }
 
+  const saveStatusLabel = saving === 'draft'
+    ? 'Änderungen werden gespeichert …'
+    : saveError
+      ? 'Speichern fehlgeschlagen'
+      : isDirty
+        ? 'Noch nicht gespeichert'
+        : lastSavedAt
+          ? `Entwurf gespeichert um ${formatSavedAt(lastSavedAt)} Uhr`
+          : 'Noch nicht gespeichert';
+  const saveStatusColor = saveError ? theme.error : isDirty ? theme.warning : lastSavedAt ? theme.success : `${theme.ink}88`;
+
+  async function saveAndLeave() {
+    try {
+      await persistDraft({ reason: 'manual', targetStep: step });
+      const action = leaveDialog?.action;
+      bypassGuardRef.current = true;
+      setLeaveDialog(null);
+      action?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Entwurf konnte nicht gespeichert werden.';
+      setLeaveDialog((current) => current ? { ...current, error: message } : current);
+    }
+  }
+
+  function leaveWithoutSaving() {
+    const action = leaveDialog?.action;
+    bypassGuardRef.current = true;
+    setIsDirty(false);
+    setLeaveDialog(null);
+    action?.();
+  }
+
   return (
     <div>
       {/* Top Bar */}
       <div style={{ padding: '14px 28px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: theme.aubergine, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>
+        <button onClick={() => requestLeave(onBack)} style={{ background: 'transparent', border: 'none', color: theme.aubergine, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>
           <ArrowLeft size={15} /> Zurück
         </button>
         <div style={{ width: 1, height: 18, background: theme.border }} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{editMode ? `${initialCase.property.caseNumber || 'Entwurf'} · Entwurf bearbeiten` : isInternalCase ? 'Neuer interner Fall · Entwurf' : 'Neuer Fall · Entwurf'}</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{editMode ? `${initialCase?.property?.caseNumber || 'Entwurf'} · Entwurf bearbeiten` : isInternalCase ? 'Neuer interner Fall · Entwurf' : 'Neuer Fall · Entwurf'}</div>
           <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 2 }}>{editMode ? 'Erfassung ergänzen' : isInternalCase ? 'Direktberatung erfassen' : 'Erfassung'}</div>
         </div>
-        <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Save size={13} /> {saving === 'draft' ? 'Speichert...' : editMode ? 'Änderungen speichern' : 'Entwurf speichern'}
-        </button>
+        <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: 7, color: saveStatusColor, fontSize: 12, fontWeight: 700 }}>
+          {saving === 'draft' ? <Clock size={14} /> : saveError ? <AlertCircle size={14} /> : lastSavedAt && !isDirty ? <CheckCircle size={14} /> : <Save size={14} />}
+          {saveStatusLabel}
+        </div>
       </div>
 
       {/* Stepper */}
@@ -9243,17 +9563,22 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
           {step === 5 && <FormStep5 draft={draft} setDraft={setDraft} errors={validation.fields} />}
 
           {/* Form Actions */}
-          <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 28, paddingTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 28, paddingTop: 20, display: 'grid', gridTemplateColumns: 'auto minmax(180px, 1fr) auto', gap: 16, alignItems: 'center' }}>
             <button
-              onClick={() => setStep(Math.max(1, step - 1))}
+              onClick={() => goToStep(Math.max(1, step - 1))}
               disabled={step === 1}
               style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 5, cursor: step === 1 ? 'not-allowed' : 'pointer', opacity: step === 1 ? 0.4 : 1 }}>
               Zurück
             </button>
+            <div role="status" aria-live="polite" style={{ textAlign: 'center', color: saveStatusColor, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>
+              <div>{saveStatusLabel}</div>
+              {manualSaveSuccess && !isDirty && !saveError ? <div style={{ marginTop: 3, color: theme.success, fontSize: 11.5 }}>Entwurf wurde gespeichert. Sie können die Erfassung später fortsetzen.</div> : null}
+              {saveError ? <div style={{ marginTop: 3, fontWeight: 600 }}>{saveError}</div> : null}
+            </div>
             <div style={{ display: 'flex', gap: 10 }}>
               {!(step === 5 && !canSubmitCase) && (
                 <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer' }}>
-                  {saving === 'draft' ? 'Speichert...' : editMode ? 'Änderungen speichern' : 'Entwurf speichern'}
+                  {saving === 'draft' ? 'Speichert...' : draftMode ? 'Entwurf speichern' : 'Änderungen speichern'}
                 </button>
               )}
               {step < 5 ? (
@@ -9333,6 +9658,25 @@ const Erfassung = ({ onBack, onSaved, setNotice, initialCase, role = 'partner', 
           </div>
         </div>
       </div>
+      {leaveDialog && (
+        <div role="presentation" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(39, 15, 53, 0.32)', display: 'grid', placeItems: 'center', padding: 20 }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="unsaved-title" style={{ width: 'min(520px, 100%)', background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 10, boxShadow: theme.elevatedShadow, padding: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+              <div>
+                <h2 id="unsaved-title" style={{ margin: 0, color: theme.aubergine, fontSize: 19 }}>Ungespeicherte Änderungen</h2>
+                <p style={{ margin: '9px 0 0', color: `${theme.ink}AA`, fontSize: 13.5, lineHeight: 1.55 }}>Sie haben Änderungen vorgenommen, die noch nicht gespeichert wurden. Möchten Sie den Entwurf speichern, bevor Sie die Seite verlassen?</p>
+              </div>
+              <button type="button" aria-label="Dialog schließen" onClick={() => setLeaveDialog(null)} style={{ background: 'transparent', border: 'none', color: theme.inkSoft, cursor: 'pointer', padding: 2 }}><X size={18} /></button>
+            </div>
+            {leaveDialog.error ? <div style={{ marginTop: 14, borderRadius: 7, background: theme.errorSoft, color: theme.error, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>{leaveDialog.error}</div> : null}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 9, marginTop: 20 }}>
+              <button type="button" onClick={() => setLeaveDialog(null)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, padding: '9px 13px', fontSize: 12.5, fontWeight: 750, cursor: 'pointer' }}>Auf Seite bleiben</button>
+              <button type="button" onClick={leaveWithoutSaving} style={{ background: 'white', border: `1px solid ${theme.error}55`, color: theme.error, borderRadius: 6, padding: '9px 13px', fontSize: 12.5, fontWeight: 750, cursor: 'pointer' }}>Ohne Speichern verlassen</button>
+              <button type="button" onClick={saveAndLeave} disabled={Boolean(saving)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 6, padding: '9px 14px', fontSize: 12.5, fontWeight: 800, cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Speichert …' : 'Entwurf speichern und verlassen'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -9523,8 +9867,9 @@ const FormStep1 = ({ draft, setDraft, errors = [] }) => (
       </div>
     )}
 
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1.2fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Straße" required invalid={errors.includes('street')}><Input placeholder="Straße und Hausnr." value={draft.street} onChange={(event) => setDraft({ ...draft, street: event.target.value })} /></Field>
+    <div className="customer-address-grid" style={{ display: 'grid', gap: 16, marginBottom: 16 }}>
+      <Field label="Straße" required invalid={errors.includes('street')}><Input placeholder="Straße" autoComplete="address-line1" value={draft.street} onChange={(event) => setDraft({ ...draft, street: event.target.value })} /></Field>
+      <Field label="Hausnummer" required invalid={errors.includes('houseNumber')} errorMessage="Bitte geben Sie die Hausnummer an."><Input type="text" placeholder="Hausnr." autoComplete="address-line2" value={draft.houseNumber} onChange={(event) => setDraft({ ...draft, houseNumber: event.target.value })} /></Field>
       <Field label="PLZ" required invalid={errors.includes('postalCode')}><Input placeholder="PLZ" value={draft.postalCode} onChange={(event) => setDraft({ ...draft, postalCode: event.target.value })} /></Field>
       <Field label="Ort" required invalid={errors.includes('city')}><Input placeholder="Ort" value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></Field>
     </div>
@@ -10343,6 +10688,7 @@ const emptyLeadDraft = {
   mobilePhone: '',
   email: '',
   street: '',
+  houseNumber: '',
   postalCode: '',
   city: '',
   federalState: '',
@@ -10467,6 +10813,7 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'c
             {field('Mobil', 'mobilePhone')}
             {field('E-Mail', 'email', { type: 'email' })}
             {field('Straße', 'street')}
+            {field('Hausnummer', 'houseNumber', { type: 'text' })}
             {field('PLZ', 'postalCode', { inputMode: 'numeric', maxLength: 5, autoComplete: 'postal-code' })}
             {field('Ort', 'city')}
             <label style={{ display: 'grid', gap: 5 }}>
@@ -10989,6 +11336,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   };
   const initialPartnerDetailId = initialPartnerId || readPartnerIdFromUrl();
   const initialAppScreen = normalizeAppScreen(initialScreen || parseAppLocation('dashboard'));
+  const initialIntakeDraft = readIntakeDraftLocation();
   const [role, setRole] = useState(initialRole);
   const [screen, setScreen] = useState(initialCaseLocation.caseId ? 'case' : initialPartnerDetailId ? 'partner_detail' : initialAppScreen);
   const [caseId, setCaseId] = useState(initialCaseLocation.caseId);
@@ -10996,7 +11344,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const [caseInitialTab, setCaseInitialTab] = useState(initialCaseLocation.tab);
   const [caseReturnTab, setCaseReturnTab] = useState(initialCaseLocation.returnTab);
   const [caseReturnUrl, setCaseReturnUrl] = useState(initialCaseLocation.returnUrl);
-  const [editingCaseId, setEditingCaseId] = useState(null);
+  const [editingCaseId, setEditingCaseId] = useState(initialAppScreen === 'erfassung' ? initialIntakeDraft.draftId : null);
   const [cases, setCases] = useState(mockCases);
   const [leads, setLeads] = useState([]);
   const [partners, setPartners] = useState([]);
@@ -11015,6 +11363,13 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     [initialRole]: profileFromSessionUser(initialUser, defaultProfiles[initialRole] || {}),
   }));
   const [profileOpen, setProfileOpen] = useState(false);
+  const intakeNavigationGuardRef = useRef(null);
+  const intakeUrlRef = useRef(typeof window === 'undefined' ? '' : `${window.location.pathname}${window.location.search}`);
+  const knownDraftIdsRef = useRef(new Set());
+  const registerIntakeNavigationGuard = useRef((guard) => {
+    intakeNavigationGuardRef.current = guard;
+    if (guard && typeof window !== 'undefined') intakeUrlRef.current = `${window.location.pathname}${window.location.search}`;
+  }).current;
 
   const rawUser = profiles[role] || defaultProfiles[role];
   const user = { ...rawUser, name: profileDisplayName(rawUser), initials: initialsFromName(profileDisplayName(rawUser)).toUpperCase() };
@@ -11102,6 +11457,8 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     const syncFromUrl = () => {
       const locationState = parseCaseLocation('kunde');
       const partnerIdFromUrl = readPartnerIdFromUrl();
+      const nextScreen = parseAppLocation('dashboard');
+      const intakeDraft = readIntakeDraftLocation();
       if (locationState.caseId) {
         setCaseId(locationState.caseId);
         setCaseInitialTab(locationState.tab);
@@ -11124,12 +11481,27 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
         setCaseReturnTab('');
         setCaseReturnUrl('');
         setPartnerDetailId(null);
-        setScreen(parseAppLocation('dashboard'));
+        setEditingCaseId(nextScreen === 'erfassung' ? intakeDraft.draftId : null);
+        setScreen(nextScreen);
       }
+      intakeUrlRef.current = `${window.location.pathname}${window.location.search}`;
+    };
+    const handlePopState = () => {
+      const targetUrl = `${window.location.pathname}${window.location.search}`;
+      const guard = intakeNavigationGuardRef.current;
+      if (!guard || !intakeUrlRef.current) {
+        syncFromUrl();
+        return;
+      }
+      window.history.pushState({}, '', intakeUrlRef.current);
+      guard(() => {
+        window.history.replaceState({}, '', targetUrl);
+        syncFromUrl();
+      });
     };
     syncFromUrl();
-    window.addEventListener('popstate', syncFromUrl);
-    return () => window.removeEventListener('popstate', syncFromUrl);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   useEffect(() => {
@@ -11147,7 +11519,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     }
   }, []);
 
-  const handleNavigate = (s) => {
+  const performNavigate = (s) => {
     if (s === 'staff' && !canViewStaff) {
       setNotice('Der Mitarbeiterbereich ist nur für Admins und Super-Admins sichtbar.');
       setScreen('dashboard');
@@ -11166,7 +11538,17 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     if (nextScreen === 'leads' || nextScreen === 'partners') loadLeads(role);
     if (nextScreen === 'staff') loadStaff(role);
   };
-  const handleOpenCase = (id, tab = 'kunde', options = {}) => {
+  const runWithIntakeNavigationGuard = (action) => {
+    if (screen === 'erfassung' && intakeNavigationGuardRef.current) {
+      intakeNavigationGuardRef.current(action);
+      return;
+    }
+    action();
+  };
+  const handleNavigate = (s) => {
+    runWithIntakeNavigationGuard(() => performNavigate(s));
+  };
+  const performOpenCase = (id, tab = 'kunde', options = {}) => {
     const nextTab = normalizeCaseTab(tab);
     const nextReturnTab = options.returnTab ? normalizeCaseTab(options.returnTab, '') : '';
     const nextReturnUrl = sanitizeInternalReturnUrl(options.returnUrl || (screen === 'case' ? caseReturnUrl : currentReturnUrl(role)));
@@ -11178,6 +11560,9 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setEditingCaseId(null);
     setScreen('case');
     updateCaseUrl(role, id, nextTab, nextReturnTab, options.replace ? 'replace' : 'push', nextReturnUrl);
+  };
+  const handleOpenCase = (id, tab = 'kunde', options = {}) => {
+    runWithIntakeNavigationGuard(() => performOpenCase(id, tab, options));
   };
   const handleOpenLead = (id) => {
     setCaseId(null);
@@ -11253,16 +11638,19 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setEditingCaseId(null);
     setCaseReturnUrl('');
     setScreen('erfassung');
-    updateScreenUrl(role, 'erfassung', 'push');
+    updateIntakeDraftUrl(role, null, 1, 'push');
+    intakeUrlRef.current = `${window.location.pathname}${window.location.search}`;
   };
   const handleEditCase = (id) => {
+    const draftCase = cases.find((item) => item.propertyId === id || item.id === id);
     setEditingCaseId(id);
     setCaseInitialTab('kunde');
     setCaseReturnTab('');
     setCaseReturnUrl(currentReturnUrl(role));
     setPartnerDetailId(null);
     setScreen('erfassung');
-    updateScreenUrl(role, 'erfassung', 'push');
+    updateIntakeDraftUrl(role, id, draftCase?.raw?.property?.draftIntakeStep || 1, 'push');
+    intakeUrlRef.current = `${window.location.pathname}${window.location.search}`;
   };
   const handleBack = () => {
     const safeReturnUrl = sanitizeInternalReturnUrl(caseReturnUrl);
@@ -11299,6 +11687,32 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setEditingCaseId(null);
     setScreen('case');
     updateCaseUrl(role, id, 'kunde', '', 'push', currentReturnUrl(role));
+  };
+  const handleDraftCreated = (id, draftStep, savedState = {}) => {
+    updateIntakeDraftUrl(role, id, draftStep, 'replace');
+    intakeUrlRef.current = `${window.location.pathname}${window.location.search}`;
+    const existing = cases.some((item) => item.propertyId === id || item.id === id);
+    if (existing) {
+      setCases((current) => current.map((item) => {
+        if (item.propertyId !== id && item.id !== id) return item;
+        const raw = {
+          ...item.raw,
+          customer: savedState.customer || item.raw?.customer,
+          property: {
+            ...item.raw?.property,
+            ...(savedState.property || {}),
+            intakeDraft: savedState.intakeDraft || item.raw?.property?.intakeDraft,
+            draftIntakeStep: draftStep,
+            updatedAt: savedState.updatedAt || item.raw?.property?.updatedAt,
+          },
+        };
+        return mapCaseView(raw);
+      }));
+    }
+    if (!knownDraftIdsRef.current.has(id) && !existing) {
+      knownDraftIdsRef.current.add(id);
+      loadCases(role);
+    }
   };
   const handleNewLead = () => {
     if (role !== 'admin') {
@@ -11340,7 +11754,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     setScreen('leads');
     updateLeadCreateUrl(role, true, 'push', prefill);
   };
-  const handleSidebarQuickAction = (item) => {
+  const performSidebarQuickAction = (item) => {
     if (!item) return;
     if (item.key === 'new-lead') {
       handleNewLead();
@@ -11355,6 +11769,9 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
       return;
     }
     setNotice(`${item.label}: Diese Schnellfunktion ist noch nicht verfügbar.`);
+  };
+  const handleSidebarQuickAction = (item) => {
+    runWithIntakeNavigationGuard(() => performSidebarQuickAction(item));
   };
   const handleSaveQuickAction = async ({ propertyId, dueAt, reason, actionKey }) => {
     setQuickActionSaving(true);
@@ -11602,7 +12019,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           {screen === 'dashboard' && role === 'admin' && <AdminDashboard cases={cases} leads={leads} onOpenCase={handleOpenCase} onNewCase={handleNewCase} onNewLead={handleNewLead} onOpenLeads={() => handleNavigate('leads')} canCreateCase={['admin', 'super_admin'].includes(currentInternalRole)} />}
           {screen === 'leads' && <LeadBoard role={role} leads={leads} partners={partners} staff={staff} canAssignLeads={['employee', 'advisor', 'admin', 'super_admin'].includes(currentInternalRole)} initialCreateOpen={initialLeadCreate || readLeadCreateFromUrl()} initialSelectedLeadId={readLeadIdFromUrl()} initialDraft={leadCreatePrefill} onCreate={handleCreateLead} onUpdate={handleUpdateLead} onAssign={handleAssignLead} onConvert={handleConvertLead} onMarkContacted={handleMarkLeadContacted} onUpdateStatus={handleUpdateLeadStatus} loading={loadingLeads} />}
           {screen === 'portfolio' && <PortfolioScreen cases={cases} onOpenCase={handleOpenCase} role={role} />}
-          {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} role={role} />}
+          {['drafts', 'in_progress', 'sold', 'rejected'].includes(screen) && <CaseMenuScreen screen={screen} cases={cases} onOpenCase={handleOpenCase} onContinueDraft={handleEditCase} role={role} />}
           {screen === 'partners' && role === 'admin' && (
             <PartnerDirectory
               partners={partners}
@@ -11633,7 +12050,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           {screen === 'knowledge_atlas' && <PostbankWohnatlasScreen />}
           {screen === 'knowledge_faq' && <BrokerFaqScreen />}
           {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} returnTab={caseReturnTab} onTabChange={handleCaseTabChange} onReturnToTab={handleReturnToCaseTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
-          {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} setNotice={setNotice} initialCase={editingCase} role={role} internalRole={currentInternalRole} user={user} />}
+          {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} onDraftCreated={handleDraftCreated} registerNavigationGuard={registerIntakeNavigationGuard} setNotice={setNotice} initialCase={editingCase} role={role} internalRole={currentInternalRole} user={user} />}
         </div>
       </div>
       <QuickActionModal

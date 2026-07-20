@@ -16,6 +16,7 @@
   Valuation
 } from "./domain.ts";
 import { makeId, nowIso } from "./id.ts";
+import { formatAddress, formatStreetAddress, splitStreetAndHouseNumber } from "./address.ts";
 
 const runtimeStoreEnabled = process.env.WK_ENABLE_RUNTIME_STORE === "true";
 const demoPasswordHash = "$2b$12$idQ09RAGiZUr50i8zRONNuJf27hemp7bMUNmH2rJsKbme1JTImMH6";
@@ -656,6 +657,7 @@ export function convertLeadToCase(leadId: string, partnerId: string, userId: str
 
   const now = nowIso();
   const name = splitLeadName(lead);
+  const customerAddress = splitStreetAndHouseNumber(lead.street, lead.houseNumber);
   const customer: Customer = {
     id: makeId("cus"),
     partnerId,
@@ -664,9 +666,11 @@ export function convertLeadToCase(leadId: string, partnerId: string, userId: str
     lastName: name.lastName,
     email: lead.email,
     phone: lead.phone,
+    street: customerAddress.street || undefined,
+    houseNumber: customerAddress.houseNumber || undefined,
     postalCode: lead.postalCode,
     city: lead.city,
-    addressText: [lead.postalCode, lead.city].filter(Boolean).join(" "),
+    addressText: formatAddress({ ...customerAddress, postalCode: lead.postalCode, city: lead.city }),
     consentDataProcessing: true,
     createdAt: now,
     updatedAt: now
@@ -680,7 +684,7 @@ export function convertLeadToCase(leadId: string, partnerId: string, userId: str
     partnerId,
     caseSource: "PARTNER",
     propertyType: lead.propertyType || "single_family",
-    street: "Noch offen",
+    street: lead.propertyStreet || formatStreetAddress(customerAddress) || "Noch offen",
     postalCode: lead.postalCode || "00000",
     city: lead.city || "Ort offen",
     livingAreaSqm: 1,

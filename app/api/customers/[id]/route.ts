@@ -2,6 +2,7 @@ import { handleApiError, json, requireRole } from "@/lib/api";
 import { isInternalAdmin } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 import { customerCreateSchema } from "@/lib/validation";
+import { formatAddress } from "@/lib/address";
 
 export async function GET(_request: Request, { params }: { params: { id: string } }): Promise<Response> {
   try {
@@ -29,7 +30,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (user.role === "partner" && customer.properties.some((property) => property.status !== "DRAFT")) {
       throw new Error("Submitted cases cannot be edited by partners");
     }
-    const body = customerCreateSchema.partial().parse(await request.json());
+    const rawBody = await request.json();
+    const body = customerCreateSchema.partial().parse(rawBody);
+    const addressChanged = ["street", "houseNumber", "postalCode", "city"].some((field) => Object.prototype.hasOwnProperty.call(rawBody, field));
     const updated = await prisma.customer.update({
       where: { id: params.id },
       data: {
@@ -52,9 +55,17 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         propertyOwnership: body.propertyOwnership as never,
         monthlyIncomeRange: body.monthlyIncomeRange as never,
         street: body.street,
+        houseNumber: body.houseNumber,
         postalCode: body.postalCode,
         city: body.city,
-        addressText: body.addressText,
+        addressText: addressChanged
+          ? formatAddress({
+              street: body.street ?? customer.street,
+              houseNumber: body.houseNumber ?? customer.houseNumber,
+              postalCode: body.postalCode ?? customer.postalCode,
+              city: body.city ?? customer.city
+            })
+          : body.addressText,
         consentDataProcessing: body.consentDataProcessing
       }
     });

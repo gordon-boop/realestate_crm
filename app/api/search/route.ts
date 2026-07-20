@@ -2,6 +2,7 @@ import { isInternalAdmin } from "@/lib/access-control";
 import { handleApiError, json } from "@/lib/api";
 import { requireCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { formatAddress } from "@/lib/address";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,7 @@ export async function GET(request: Request): Promise<Response> {
       { customer: { is: { lastName: contains(query) } } },
       { customer: { is: { displayName: contains(query) } } },
       { customer: { is: { street: contains(query) } } },
+      { customer: { is: { houseNumber: contains(query) } } },
       { customer: { is: { postalCode: contains(query) } } },
       { customer: { is: { city: contains(query) } } },
       { customer: { is: { email: contains(query) } } },
@@ -109,6 +111,7 @@ export async function GET(request: Request): Promise<Response> {
                 { lastName: contains(term) },
                 { displayName: contains(term) },
                 { street: contains(term) },
+                { houseNumber: contains(term) },
                 { postalCode: contains(term) },
                 { city: contains(term) },
               ],
@@ -127,6 +130,7 @@ export async function GET(request: Request): Promise<Response> {
       { phone: contains(query) },
       { mobilePhone: contains(query) },
       { street: contains(query) },
+      { houseNumber: contains(query) },
       { postalCode: contains(query) },
       { city: contains(query) },
       { propertyStreet: contains(query) },
@@ -140,6 +144,7 @@ export async function GET(request: Request): Promise<Response> {
             { firstName: contains(term) },
             { lastName: contains(term) },
             { street: contains(term) },
+            { houseNumber: contains(term) },
             { postalCode: contains(term) },
             { city: contains(term) },
             { propertyStreet: contains(term) },
@@ -188,10 +193,12 @@ export async function GET(request: Request): Promise<Response> {
       id: lead.id,
       leadNumber: lead.leadNumber,
       customerName: fullName(lead.firstName, lead.lastName, lead.name),
-      propertyAddress: compactAddress([
-        lead.propertyStreet || lead.street,
-        [lead.propertyPostalCode || lead.postalCode, lead.propertyCity || lead.city].filter(Boolean).join(" "),
-      ]) || lead.region || "Ort offen",
+      propertyAddress: lead.propertyStreet
+        ? compactAddress([
+            lead.propertyStreet,
+            [lead.propertyPostalCode || lead.postalCode, lead.propertyCity || lead.city].filter(Boolean).join(" "),
+          ])
+        : formatAddress(lead) || lead.region || "Ort offen",
       status: lead.status,
       statusLabel: leadStatusLabels[lead.status] || "Lead",
       href: `${basePath}?screen=leads&lead=${encodeURIComponent(lead.id)}`,

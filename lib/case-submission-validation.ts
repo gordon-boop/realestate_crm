@@ -1,5 +1,5 @@
-import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
-import { getLifetimeResidentialRightEligibility } from "@/lib/residential-right-eligibility";
+import { getRequiredDocumentsForPropertyType } from "./document-requirements.ts";
+import { getLifetimeResidentialRightEligibility } from "./residential-right-eligibility.ts";
 
 type MissingSubmissionItem = {
   section: string;
@@ -45,6 +45,7 @@ export function validateCaseSubmission(caseView: CaseViewLike) {
   add(missingFields, "Persönliche Daten", "email", "E-Mail", hasValue(customer.email));
   add(missingFields, "Persönliche Daten", "phone", "Telefon", hasValue(customer.phone));
   add(missingFields, "Persönliche Daten", "street", "Straße", hasValue(customer.street));
+  add(missingFields, "Persönliche Daten", "houseNumber", "Hausnummer", hasValue(customer.houseNumber), "Bitte geben Sie die Hausnummer an.");
   add(missingFields, "Persönliche Daten", "postalCode", "PLZ", hasValue(customer.postalCode));
   add(missingFields, "Persönliche Daten", "city", "Ort", hasValue(customer.city));
   add(missingFields, "Persönliche Daten", "consentDataProcessing", "Einwilligung zur Datenverarbeitung", customer.consentDataProcessing === true);

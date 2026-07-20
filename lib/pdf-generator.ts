@@ -1,6 +1,7 @@
 import type { CaseView, DesiredModel, Offer, User } from "./domain.ts";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
+import { formatAddress, formatStreetAddress } from "./address.ts";
 
 function formatEuro(value: number): string {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value);
@@ -126,8 +127,7 @@ export function buildIndicativeOfferPdfData(caseView: CaseView, offer: Offer, ad
   const customerFullName = [caseView.customer.firstName, caseView.customer.lastName].filter(Boolean).join(" ").trim();
   const customerAddress = [
     customerFullName,
-    caseView.customer.street,
-    [caseView.customer.postalCode, caseView.customer.city].filter(Boolean).join(" ")
+    formatAddress(caseView.customer, { multiline: true })
   ].filter(Boolean).join("\n");
   const propertyAddress = [
     caseView.property.street,
@@ -144,7 +144,7 @@ export function buildIndicativeOfferPdfData(caseView: CaseView, offer: Offer, ad
     customerFullName: valueOrDash(customerFullName),
     customerFirstName: valueOrDash(caseView.customer.firstName),
     customerLastName: valueOrDash(caseView.customer.lastName),
-    customerStreet: valueOrDash(caseView.customer.street),
+    customerStreet: valueOrDash(formatStreetAddress(caseView.customer)),
     customerPostalCode: valueOrDash(caseView.customer.postalCode),
     customerCity: valueOrDash(caseView.customer.city),
     customerAddressBlock: customerAddress || "-",

@@ -122,6 +122,7 @@ export type CaseIntakeDraftDto = {
     spouseDateOfBirth?: string;
     propertyOwnership?: PropertyOwnership;
     street?: string;
+    houseNumber?: string;
     postalCode?: string;
     city?: string;
     phone?: string;
