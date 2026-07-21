@@ -1606,7 +1606,45 @@ const genderLabels = { female: 'weiblich', male: 'männlich', diverse: 'divers',
 const maritalLabels = { single: 'ledig', married: 'verheiratet', divorced: 'geschieden', widowed: 'verwitwet', other: 'sonstiges' };
 const incomeLabels = { under_1000: 'unter 1.000 €', from_1000_to_2000: '1.000 - 2.000 €', from_2000_to_3000: '2.000 - 3.000 €', over_3000: 'über 3.000 €' };
 const ratingLabels = conditionRatingLabels;
-const objectRatingCategoryOrder = ['Wirtschaftliche Faktoren', 'Mikrolage', 'Instandhaltungsaufwand', 'Immobilie', 'Energieausweis'];
+const objectRatingCategoryOrder = [
+  'rating_cat_economics_v1',
+  'rating_cat_microlocation_v1',
+  'rating_cat_maintenance_v1',
+  'rating_cat_property_v1',
+  'rating_cat_energy_v1',
+];
+const objectRatingCategoryTranslationKeys = {
+  rating_cat_economics_v1: 'economics',
+  rating_cat_microlocation_v1: 'microlocation',
+  rating_cat_maintenance_v1: 'maintenance',
+  rating_cat_property_v1: 'property',
+  rating_cat_energy_v1: 'energy',
+};
+const objectRatingCriterionTranslationKeys = {
+  rating_crit_economics_purchase_power_v1: 'purchasePower',
+  rating_crit_economics_unemployment_rate_v1: 'unemploymentRate',
+  rating_crit_economics_unemployment_trend_v1: 'unemploymentTrend',
+  rating_crit_economics_migration_balance_v1: 'migrationBalance',
+  rating_crit_economics_population_trend_v1: 'populationTrend',
+  rating_crit_micro_public_transport_v1: 'publicTransport',
+  rating_crit_micro_individual_transport_v1: 'individualTransport',
+  rating_crit_micro_infrastructure_v1: 'infrastructure',
+  rating_crit_micro_neighborhood_condition_v1: 'neighbourhoodCondition',
+  rating_crit_micro_noise_emissions_v1: 'noiseEmissions',
+  rating_crit_maintenance_heating_v1: 'heating',
+  rating_crit_maintenance_roof_v1: 'roof',
+  rating_crit_maintenance_flat_roof_v1: 'flatRoof',
+  rating_crit_maintenance_facade_v1: 'facade',
+  rating_crit_maintenance_masonry_v1: 'masonry',
+  rating_crit_maintenance_bathrooms_v1: 'bathrooms',
+  rating_crit_maintenance_electrical_v1: 'electrical',
+  rating_crit_maintenance_windows_v1: 'windows',
+  rating_crit_property_layout_v1: 'layout',
+  rating_crit_property_living_quality_v1: 'livingQuality',
+  rating_crit_property_light_v1: 'light',
+  rating_crit_property_outdoor_area_v1: 'outdoorArea',
+  rating_crit_energy_certificate_class_v1: 'energyCertificate',
+};
 const objectRatingCriterionOrder = [
   'rating_crit_economics_purchase_power_v1',
   'rating_crit_economics_unemployment_rate_v1',
@@ -1656,71 +1694,64 @@ function formatRatingScore(value) {
   return score === undefined ? '-' : score.toLocaleString(uiLocale, { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
-function deriveRatingInvestmentFilter(rating) {
+function deriveRatingInvestmentFilter(rating, tRating) {
   const score = ratingScoreNumber(rating?.totalScore);
   const band = ratingScoreBand(score);
   if (!rating || score === undefined) {
     return {
-      scoreBandLabel: 'Nicht bewertet',
-      treatmentLabel: 'Rating erforderlich',
-      targetReturnLabel: 'Noch nicht final parametrisiert',
+      scoreBandLabel: tRating('investment.bands.notRated'),
+      treatmentLabel: tRating('investment.treatments.ratingRequired'),
+      targetReturnLabel: tRating('investment.returns.notFinal'),
       acquisitionThresholdPassed: false,
-      nextAction: 'Objektrating abschließen',
-      warning: 'Bitte schließen Sie zuerst das Objektrating ab.',
+      nextAction: tRating('investment.next.complete'),
+      warning: tRating('investment.warnings.complete'),
     };
   }
   if (score < ratingInvestmentThreshold) {
     return {
-      scoreBandLabel: band === 1 ? '1 · Ungeeignet' : '2 · Unter Schwelle',
-      treatmentLabel: band === 1 ? 'Nicht ankauffähig' : 'Unterhalb der Ankaufsschwelle',
-      targetReturnLabel: 'Kein Angebot',
+      scoreBandLabel: band === 1 ? tRating('investment.bands.one') : tRating('investment.bands.two'),
+      treatmentLabel: band === 1 ? tRating('investment.treatments.notEligible') : tRating('investment.treatments.belowThreshold'),
+      targetReturnLabel: tRating('investment.returns.noOffer'),
       acquisitionThresholdPassed: false,
-      nextAction: 'Ablehnung vorbereiten oder zurückstellen',
-      warning: 'Objekt liegt unterhalb der Ankaufsschwelle.',
+      nextAction: tRating('investment.next.reject'),
+      warning: tRating('investment.warnings.belowThreshold'),
     };
   }
   if (band === 3) {
     return {
-      scoreBandLabel: '3 · Grenzfall',
-      treatmentLabel: 'Zusätzliche Prüfung erforderlich',
-      targetReturnLabel: 'Erhöhte Zielrendite aus Ratingkurve',
+      scoreBandLabel: tRating('investment.bands.three'),
+      treatmentLabel: tRating('investment.treatments.additionalReview'),
+      targetReturnLabel: tRating('investment.returns.increased'),
       acquisitionThresholdPassed: true,
-      nextAction: rating.status === 'approved' ? 'Angebotsstrecke mit erhöhter Prüfung fortsetzen' : 'Rating intern prüfen und freigeben',
+      nextAction: rating.status === 'approved' ? tRating('investment.next.continueWithReview') : tRating('investment.next.reviewAndApprove'),
     };
   }
   return {
-    scoreBandLabel: band === 6 ? '6 · Top-Objekt' : band === 5 ? '5 · Starkes Objekt' : '4 · Solides Objekt',
-    treatmentLabel: 'Standardfreigabe',
-    targetReturnLabel: band === 6 ? 'Niedrigste Zielrendite aus Ratingkurve' : band === 5 ? 'Reduzierte Zielrendite aus Ratingkurve' : 'Normale Zielrendite aus Ratingkurve',
+    scoreBandLabel: band === 6 ? tRating('investment.bands.six') : band === 5 ? tRating('investment.bands.five') : tRating('investment.bands.four'),
+    treatmentLabel: tRating('investment.treatments.standardApproval'),
+    targetReturnLabel: band === 6 ? tRating('investment.returns.lowest') : band === 5 ? tRating('investment.returns.reduced') : tRating('investment.returns.normal'),
     acquisitionThresholdPassed: true,
-    nextAction: rating.status === 'approved' ? 'Angebotsstrecke fortsetzen' : 'Rating freigeben',
+    nextAction: rating.status === 'approved' ? tRating('investment.next.continue') : tRating('investment.next.approve'),
   };
 }
 
-function ratingReviewAfterAppraisalUi(rating, property) {
+function ratingReviewAfterAppraisalUi(rating, property, tRating) {
   const appraisalReceivedAt = property?.expertOpinionReceivedAt ? new Date(property.expertOpinionReceivedAt) : undefined;
   if (!appraisalReceivedAt || Number.isNaN(appraisalReceivedAt.getTime())) {
-    return { label: 'Noch nicht erforderlich', required: false, satisfied: true };
+    return { label: tRating('appraisalReview.notRequired'), required: false, satisfied: true };
   }
-  if (!rating) return { label: 'Erforderlich', required: true, satisfied: false };
-  if (rating.status !== 'approved') return { label: 'In Prüfung', required: true, satisfied: false };
+  if (!rating) return { label: tRating('appraisalReview.required'), required: true, satisfied: false };
+  if (rating.status !== 'approved') return { label: tRating('appraisalReview.underReview'), required: true, satisfied: false };
   const approvedAt = rating.approvedAt ? new Date(rating.approvedAt) : undefined;
   if (!approvedAt || Number.isNaN(approvedAt.getTime()) || approvedAt < appraisalReceivedAt) {
-    return { label: 'Erforderlich', required: true, satisfied: false };
+    return { label: tRating('appraisalReview.required'), required: true, satisfied: false };
   }
   const adjustedAfterAppraisal = rating.auditLogs?.some((entry) => {
     const changedAt = entry?.timestamp ? new Date(entry.timestamp) : undefined;
     return entry?.action === 'score_changed' && changedAt && !Number.isNaN(changedAt.getTime()) && changedAt >= appraisalReceivedAt;
   });
-  return { label: adjustedAfterAppraisal ? 'Angepasst' : 'Bestätigt', required: true, satisfied: true };
+  return { label: adjustedAfterAppraisal ? tRating('appraisalReview.adjusted') : tRating('appraisalReview.confirmed'), required: true, satisfied: true };
 }
-
-const acquisitionPrecheckStatusLabels = {
-  passed: 'Bestanden',
-  exception_required: 'Ausnahmeprüfung',
-  failed: 'Nicht bestanden',
-  unknown: 'Wertprüfung offen',
-};
 
 const acquisitionPrecheckStatusStyles = {
   passed: { background: theme.successSoft, color: theme.success, border: `${theme.success}33` },
@@ -5127,8 +5158,20 @@ const SidePanelCard = ({ title, count, children, actionLabel, onAction, unavaila
   </div>
 );
 
-function localizedCaseActivityText(activity, t) {
+function localizedCaseActivityText(activity, t, tPrecheck, tRating) {
   const message = String(activity?.text || activity?.message || '');
+  if (tPrecheck && activity?.type === 'acquisition_precheck_saved') {
+    const action = activity?.metadata?.action;
+    if (action === 'approve_exception') return tPrecheck('messages.approveSuccess');
+    if (action === 'reject_exception') return tPrecheck('messages.rejectSuccess');
+    if (action === 'request_exception') return tPrecheck('messages.requestSuccess');
+    return tPrecheck('activity.saved');
+  }
+  if (tPrecheck && activity?.type === 'preliminary_market_value_saved') return tPrecheck('activity.preliminaryValueSaved');
+  if (tPrecheck && activity?.type === 'acquisition_precheck_ko') return tPrecheck('activity.knockOutIdentified');
+  if (tRating && activity?.type === 'object_rating_created') return tRating('activity.created');
+  if (tRating && activity?.type === 'object_rating_approved') return tRating('activity.approved');
+  if (tRating && activity?.type === 'object_rating_unlocked') return tRating('activity.reopened');
   const convertedLead = message.match(/^Lead\s+(.+?)\s+wurde in einen Kundenfall umgewandelt\.?$/i);
   if (convertedLead) return t('activity.leadConverted', { leadNumber: convertedLead[1] });
   return message;
@@ -5136,6 +5179,8 @@ function localizedCaseActivityText(activity, t) {
 
 const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onShowTasks, onShowDocuments }) => {
   const t = useTranslations('customers.caseView');
+  const tPrecheck = useTranslations('precheck');
+  const tRating = useTranslations('rating');
   const visibleActivities = (activities || []).slice(0, 3);
   const visibleTasks = (taskRows || []).slice(0, 3);
   const importantDocuments = (documents || [])
@@ -5153,7 +5198,7 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
           <div key={activity.id || index} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 12, padding: index === 0 ? '0 0 12px' : '12px 0', borderBottom: index < visibleActivities.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
             <div style={{ fontSize: 11.5, color: `${theme.ink}88`, fontWeight: 700 }}>{activity.time || dateLabel(activity.createdAt)}</div>
             <div>
-              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35 }}>{localizedCaseActivityText(activity, t)}</div>
+              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35 }}>{localizedCaseActivityText(activity, t, tPrecheck, tRating)}</div>
               <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{activity.actor || activity.source || activity.userId || t('activity.internal')}</div>
             </div>
           </div>
@@ -5207,6 +5252,8 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
 const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde', returnTab = '', onTabChange, onReturnToTab }) => {
   const t = useTranslations('customers.caseView');
   const tIntake = useTranslations('customers.intake');
+  const tPrecheck = useTranslations('precheck');
+  const tRating = useTranslations('rating');
   const [activeTab, setActiveTab] = useState(normalizeCaseTab(initialTab));
   const [showAcquisitionHistory, setShowAcquisitionHistory] = useState(false);
   const [busyAction, setBusyAction] = useState('');
@@ -5561,8 +5608,36 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   ];
   const chatMessages = caseView?.chatMessages?.length ? caseView.chatMessages : [];
   const objectRating = caseView?.objectRatings?.[0];
-  const ratingInvestmentFilter = deriveRatingInvestmentFilter(objectRating);
-  const ratingReviewAfterAppraisal = ratingReviewAfterAppraisalUi(objectRating, property);
+  const localizeRatingCategory = (category) => {
+    const key = objectRatingCategoryTranslationKeys[category?.id];
+    return key ? tRating(`categories.${key}`) : category?.id || '-';
+  };
+  const localizeRatingCriterion = (criterion) => {
+    const key = objectRatingCriterionTranslationKeys[criterion?.id];
+    return key ? tRating(`criteria.${key}.label`) : criterion?.id || '-';
+  };
+  const localizeRatingCriterionDescription = (criterion) => {
+    const key = objectRatingCriterionTranslationKeys[criterion?.id];
+    return key ? tRating(`criteria.${key}.description`) : tRating('messages.noDescription');
+  };
+  const localizeRatingScoreDefinition = (criterion, definition) => {
+    const key = objectRatingCriterionTranslationKeys[criterion?.id];
+    return key ? tRating(`criteria.${key}.scores.${definition.scoreValue}`) : String(definition.scoreValue);
+  };
+  const localizeRatingAuditAction = (action) => {
+    const keyByAction = {
+      rating_created: 'rating_created',
+      score_changed: 'score_changed',
+      final_return_changed: 'return_changed',
+      return_changed: 'return_changed',
+      rating_approved: 'rating_approved',
+      rating_unlocked: 'rating_unlocked',
+      rating_recalculated: 'rating_recalculated',
+    };
+    return tRating(`audit.${keyByAction[action] || 'unknown'}`);
+  };
+  const ratingInvestmentFilter = deriveRatingInvestmentFilter(objectRating, tRating);
+  const ratingReviewAfterAppraisal = ratingReviewAfterAppraisalUi(objectRating, property, tRating);
   const ratingCompactLabel = objectRating
     ? `Rating ${formatRatingScore(objectRating.totalScore)} · ${ratingInvestmentFilter.treatmentLabel}`
     : '';
@@ -5577,14 +5652,104 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     : undefined;
   const preliminaryMarketValueLabel = preliminaryMarketValue
     ? formatEuro(preliminaryMarketValue)
-    : 'Nicht erfasst';
-  const ratingStatusLabels = { draft: 'Entwurf', analyst_review: 'Analystenprüfung', approved: 'Freigegeben' };
-  const ratingSourceLabels = { questionnaire: 'Fragebogen', api: 'API / Marktdaten', analyst: 'Analyst', document: 'Dokument' };
+    : tPrecheck('values.notRecorded');
+  const precheckStatusLabels = {
+    passed: tPrecheck('status.passed'),
+    exception_required: tPrecheck('status.exception_required'),
+    failed: tPrecheck('status.failed'),
+    unknown: tPrecheck('status.unknown'),
+  };
+  const localizedPreliminaryMarketValueSourceLabels = Object.fromEntries(
+    Object.keys(preliminaryMarketValueSourceLabels).map((key) => [key, tPrecheck(`sources.${key}`)])
+  );
+  const localizedPostbankRegionLabels = Object.fromEntries(
+    Object.keys(postbankRegionLabels).map((key) => [key, tPrecheck(`regions.${key}`)])
+  );
+  const precheckBooleanLabel = (value) => value === true ? tPrecheck('values.yes') : value === false ? tPrecheck('values.no') : tPrecheck('values.unknown');
+  const precheckPropertyTypeLabels = {
+    house: tIntake('property.singleFamily'),
+    single_family: tIntake('property.singleFamily'),
+    semi_detached: tIntake('property.semiDetached'),
+    row_house: tIntake('property.terraced'),
+    apartment: tIntake('property.apartment'),
+  };
+  const localizePrecheckCriterion = (item) => {
+    const key = item.key;
+    const currentRatingScore = ratingScoreNumber(objectRating?.totalScore);
+    const parsedLandValue = parseGermanNumberInput(precheckDraft.landValuePerSqm);
+    const parsedUsefulLife = parseGermanNumberInput(precheckDraft.remainingUsefulLifeYears);
+    const energyClass = String(property?.energyClass || '').trim().toUpperCase();
+    const currentValueByKey = {
+      region: precheckDraft.postbankRegionCategory ? labelFrom(localizedPostbankRegionLabels, precheckDraft.postbankRegionCategory) : tPrecheck('values.notRecorded'),
+      market_value: preliminaryMarketValue === undefined ? tPrecheck('values.notRecorded') : formatEuro(preliminaryMarketValue),
+      land_value: Number.isFinite(parsedLandValue) ? `${parsedLandValue.toLocaleString(uiLocale, { maximumFractionDigits: 2 })} €/m²` : tPrecheck('values.notRecorded'),
+      property_type: `${labelFrom(precheckPropertyTypeLabels, property?.propertyType, tPrecheck('values.unknown'))}${property?.propertyType === 'apartment' ? ` · ${tPrecheck('values.management', { value: precheckBooleanLabel(precheckDraft.apartmentManagementAvailable) })}` : ''}`,
+      remaining_useful_life: Number.isFinite(parsedUsefulLife) ? tPrecheck('values.years', { value: parsedUsefulLife.toLocaleString(uiLocale, { maximumFractionDigits: 0 }) }) : tPrecheck('values.notRecorded'),
+      energy_class: energyClass ? `${energyClass}${['G', 'H'].includes(energyClass) ? ` · ${tPrecheck('values.renovationPlan', { value: precheckBooleanLabel(precheckDraft.renovationPlanAvailable) })}` : ''}` : tPrecheck('values.notRecorded'),
+      living_area: Number.isFinite(Number(property?.livingAreaSqm)) ? `${Number(property.livingAreaSqm).toLocaleString(uiLocale, { maximumFractionDigits: 2 })} m²` : tPrecheck('values.notRecorded'),
+      monument_protection: precheckBooleanLabel(Boolean(property?.monumentProtection)),
+      leasehold: precheckBooleanLabel(Boolean(property?.leasehold)),
+      rating_threshold: currentRatingScore === undefined ? tPrecheck('notYetAssessed') : currentRatingScore.toLocaleString(uiLocale, { minimumFractionDigits: 1, maximumFractionDigits: 2 }),
+    };
+    const commentByKey = {
+      region: precheckDraft.postbankRegionCategory === 'yellow' ? tPrecheck('criteria.region.yellow') : ['orange', 'red'].includes(precheckDraft.postbankRegionCategory) ? tPrecheck('criteria.region.excluded') : '',
+      market_value: preliminaryMarketValue === undefined
+        ? tPrecheck('criteria.market_value.missingPreliminary')
+        : preliminaryMarketValue < 250000
+          ? tPrecheck('criteria.market_value.below')
+          : preliminaryMarketValue > 1000000
+            ? tPrecheck('criteria.market_value.above')
+            : tPrecheck('criteria.market_value.within'),
+      land_value: Number.isFinite(parsedLandValue) && parsedLandValue <= 100 ? tPrecheck('criteria.land_value.failed') : '',
+      property_type: property?.propertyType === 'apartment' && precheckDraft.apartmentManagementAvailable === false
+        ? tPrecheck('criteria.property_type.managementMissing')
+        : property?.propertyType === 'apartment' && precheckDraft.apartmentManagementAvailable !== true
+          ? tPrecheck('criteria.property_type.managementUnknown')
+          : '',
+      remaining_useful_life: Number.isFinite(parsedUsefulLife) && parsedUsefulLife <= 35
+        ? precheckDraft.developmentPotential ? tPrecheck('criteria.remaining_useful_life.exception') : tPrecheck('criteria.remaining_useful_life.failed')
+        : '',
+      energy_class: ['G', 'H'].includes(energyClass) ? tPrecheck('criteria.energy_class.exception') : '',
+      living_area: Number(property?.livingAreaSqm) >= 225 ? tPrecheck('criteria.living_area.exception') : '',
+      monument_protection: property?.monumentProtection ? tPrecheck('criteria.monument_protection.failed') : '',
+      leasehold: property?.leasehold ? tPrecheck('criteria.leasehold.failed') : '',
+      rating_threshold: currentRatingScore === undefined ? tPrecheck('criteria.rating_threshold.pending') : currentRatingScore < ratingInvestmentThreshold ? tPrecheck('criteria.rating_threshold.failed') : '',
+    };
+    const labelKey = key === 'market_value' ? 'criteria.market_value.preliminaryLabel' : `criteria.${key}.label`;
+    return {
+      ...item,
+      label: tPrecheck(labelKey),
+      requirement: tPrecheck(`criteria.${key}.requirement`),
+      currentValue: currentValueByKey[key] || tPrecheck('values.notRecorded'),
+      comment: commentByKey[key] || '',
+    };
+  };
+  const localizedPrecheckCriteria = precheckView?.criteria?.map(localizePrecheckCriterion) || [];
+  const firstPrecheckComment = (status) => localizedPrecheckCriteria.find((item) => item.status === status && item.comment)?.comment;
+  const localizedPrecheckResultLabel = precheckView
+    ? tPrecheck(`results.${precheckView.exceptionApproved && precheckView.result === 'exception_required' ? 'exception_approved' : precheckView.result}`)
+    : '';
+  const localizedPrecheckReason = !precheckView
+    ? ''
+    : precheckView.result === 'not_acquirable'
+      ? firstPrecheckComment('failed') || tPrecheck('reasons.notEligible')
+      : precheckView.result === 'incomplete'
+        ? firstPrecheckComment('unknown') || tPrecheck('reasons.incomplete')
+        : precheckView.result === 'exception_required'
+          ? precheckView.exceptionApproved ? tPrecheck('reasons.exceptionApproved') : firstPrecheckComment('exception_required') || tPrecheck('reasons.exceptionRequired')
+          : tPrecheck('reasons.eligible');
+  const ratingStatusLabels = { draft: tRating('status.draft'), analyst_review: tRating('status.analyst_review'), approved: tRating('status.approved') };
+  const ratingSourceLabels = {
+    questionnaire: tRating('sources.questionnaire'),
+    api: tRating('sources.api'),
+    analyst: tRating('sources.analyst'),
+    document: tRating('sources.document'),
+  };
   const ratingScores = (objectRating?.scores || [])
     .filter((score) => score.criterion?.active !== false && score.criterion?.category?.active !== false)
     .sort((a, b) => {
-      const aCategoryIndex = objectRatingCategoryOrder.indexOf(a.criterion?.category?.name || '');
-      const bCategoryIndex = objectRatingCategoryOrder.indexOf(b.criterion?.category?.name || '');
+      const aCategoryIndex = objectRatingCategoryOrder.indexOf(a.criterion?.category?.id || '');
+      const bCategoryIndex = objectRatingCategoryOrder.indexOf(b.criterion?.category?.id || '');
       const categoryCompare = (aCategoryIndex === -1 ? objectRatingCategoryOrder.length : aCategoryIndex) - (bCategoryIndex === -1 ? objectRatingCategoryOrder.length : bCategoryIndex);
       if (categoryCompare !== 0) return categoryCompare;
       const aCriterionIndex = objectRatingCriterionOrder.indexOf(a.criterionId);
@@ -5596,8 +5761,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     .filter(Boolean)
     .map((category) => [category.id, category])
   ).values()).sort((a, b) => {
-    const aIndex = objectRatingCategoryOrder.indexOf(a.name);
-    const bIndex = objectRatingCategoryOrder.indexOf(b.name);
+    const aIndex = objectRatingCategoryOrder.indexOf(a.id);
+    const bIndex = objectRatingCategoryOrder.indexOf(b.id);
     return (aIndex === -1 ? objectRatingCategoryOrder.length : aIndex) - (bIndex === -1 ? objectRatingCategoryOrder.length : bIndex);
   });
   const ratingScoreValue = (score) => score?.finalScore ?? score?.analystScore ?? score?.prefilledScore;
@@ -5638,19 +5803,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     category,
     score: weightedScore(ratingScores.filter((score) => score.criterion?.categoryId === category.id))
   }));
-  const ratingScoreDefinitions = (criterion) => {
-    if (criterion?.id === 'rating_crit_micro_infrastructure_v1') {
-      return [
-        { scoreValue: 1, label: 'sehr schlecht' },
-        { scoreValue: 2, label: 'schlecht' },
-        { scoreValue: 3, label: 'durchschnittlich' },
-        { scoreValue: 4, label: 'gut' },
-        { scoreValue: 5, label: 'sehr gut' },
-        { scoreValue: 6, label: 'exzellent' },
-      ];
-    }
-    return criterion?.scoreDefinitions?.length ? criterion.scoreDefinitions : [1, 2, 3, 4, 5, 6].map((value) => ({ scoreValue: value, label: String(value) }));
-  };
+  const ratingScoreDefinitions = (criterion) => criterion?.scoreDefinitions?.length
+    ? criterion.scoreDefinitions
+    : [1, 2, 3, 4, 5, 6].map((value) => ({ scoreValue: value, label: String(value) }));
   const ratingOpenChecks = ratingScores.filter((score) => !ratingScoreValue(score) || Number(score.confidence || 0) < 0.65);
   const ratingReadOnly = objectRating?.status === 'approved' || !canManageRating;
   const ratingReturnPercent = ratingReturnInput || (objectRating?.finalTargetReturn ? String((Number(objectRating.finalTargetReturn) * 100).toLocaleString(uiLocale, { maximumFractionDigits: 2 })) : '');
@@ -5691,20 +5846,20 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const ratingApproved = objectRating?.status === 'approved';
   const ratingCanApprove = Boolean(objectRating && objectRating.status !== 'approved' && ratingDirtyCount === 0 && ratingIncompleteScores.length === 0 && ratingMissingCommentScores.length === 0);
   const ratingLastAudit = objectRating?.auditLogs?.[0];
-  const ratingStatusChipLabel = ratingApproved ? 'Freigegeben' : objectRating ? 'In Prüfung' : 'Nicht initialisiert';
+  const ratingStatusChipLabel = ratingApproved ? tRating('status.approved') : objectRating ? tRating('status.underReview') : tRating('status.notInitialised');
   const ratingCategorySummaries = ratingCategoryRows.map(({ category, score }) => {
     const scores = ratingScores.filter((item) => item.criterion?.categoryId === category.id);
     const openCount = scores.filter((item) => !ratingScoreDisabledByRoofChoice(item) && (!ratingScoreValue(item) || Number(item.confidence || 0) < 0.65)).length;
     const manualCount = scores.filter(ratingScoreManuallyChanged).length;
     const missingCommentCount = scores.filter((item) => ratingScoreManuallyChanged(item) && !String(ratingCommentValue(item) || '').trim()).length;
-    const status = ratingApproved
-      ? 'Freigegeben'
+    const statusKey = ratingApproved
+      ? 'approved'
       : missingCommentCount
-        ? 'Kommentar erforderlich'
+        ? 'commentRequired'
         : openCount
-          ? 'Offen'
-          : 'Vollständig';
-    return { category, score, scores, openCount, manualCount, missingCommentCount, status };
+          ? 'open'
+          : 'complete';
+    return { category, score, scores, openCount, manualCount, missingCommentCount, statusKey, status: tRating(`status.${statusKey}`) };
   });
   const ratingDefaultOpenCategoryIds = Object.fromEntries(
     ratingCategorySummaries
@@ -5712,16 +5867,16 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       .map((row) => [row.category.id, true])
   );
   const ratingOpenTasks = objectRating ? [
-    ...ratingIncompleteScores.slice(0, 8).map((score) => `${score.criterion?.category?.name || 'Rating'}: ${score.criterion?.name || score.criterionId} noch nicht bewertet`),
+    ...ratingIncompleteScores.slice(0, 8).map((score) => tRating('openItems.notAssessed', { category: localizeRatingCategory(score.criterion?.category), criterion: localizeRatingCriterion(score.criterion) })),
     ...ratingScores
       .filter((score) => !ratingScoreDisabledByRoofChoice(score) && ratingScoreValue(score) && Number(score.confidence || 0) < 0.65)
       .slice(0, 5)
-      .map((score) => `${score.criterion?.category?.name || 'Rating'}: ${score.criterion?.name || score.criterionId} mit niedriger Confidence prüfen`),
-    ...ratingMissingCommentScores.slice(0, 5).map((score) => `Kommentar erforderlich bei ${score.criterion?.name || score.criterionId}`),
-    ...(ratingApproved ? [] : ['Rating noch nicht freigegeben'])
-  ] : ['Rating noch nicht initialisiert'];
+      .map((score) => tRating('openItems.lowConfidence', { category: localizeRatingCategory(score.criterion?.category), criterion: localizeRatingCriterion(score.criterion) })),
+    ...ratingMissingCommentScores.slice(0, 5).map((score) => tRating('openItems.commentRequired', { criterion: localizeRatingCriterion(score.criterion) })),
+    ...(ratingApproved ? [] : [tRating('openItems.notApproved')])
+  ] : [tRating('openItems.notInitialised')];
   const activeRatingScore = ratingScores.find((score) => score.id === activeRatingScoreId);
-  async function runCaseAction(label, action) {
+  async function runCaseAction(label, action, feedback = {}) {
     if (!c.propertyId) {
       setNotice?.('Dieser Mock-Fall ist noch nicht mit einer API-ID verbunden.');
       return;
@@ -5733,24 +5888,26 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       await onRefresh?.();
       await onNotificationsRefresh?.();
       setRecentSuccessAction(label);
-      setNotice?.(`${label} abgeschlossen.`);
+      setNotice?.(feedback.success || `${label} abgeschlossen.`);
     } catch (err) {
-      setNotice?.(err instanceof Error ? err.message : 'Aktion fehlgeschlagen');
+      setNotice?.(err instanceof Error ? err.message : feedback.error || 'Aktion fehlgeschlagen');
     } finally {
       setBusyAction('');
     }
   }
-  const generateObjectRating = () => runCaseAction('Objektrating erzeugen', async () => {
-    await postJson(`/api/properties/${c.propertyId}/rating`, {});
-  });
-  const saveRatingChanges = () => runCaseAction('Rating-Änderungen speichern', async () => {
+  const generateObjectRating = () => runCaseAction(tRating('actions.initialise'), async () => {
+    await postJson(`/api/properties/${c.propertyId}/rating`, {}).catch(() => {
+      throw new Error(tRating('messages.actionFailed'));
+    });
+  }, { success: tRating('messages.initialised'), error: tRating('messages.actionFailed') });
+  const saveRatingChanges = () => runCaseAction(tRating('actions.saveChanges'), async () => {
     const updates = ratingScores
       .filter((score) => ratingInputDirty(score))
       .map((score) => {
         const finalScore = ratingFinalValueForSave(score);
         const comment = String(ratingCommentValue(score) || '').trim();
         if (ratingManualChange(score) && !comment) {
-          throw new Error('Bitte begründen Sie die manuelle Änderung.');
+          throw new Error(tRating('messages.manualReasonRequired'));
         }
         return {
           scoreId: score.id,
@@ -5760,37 +5917,45 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
         };
       });
     if (!updates.length) {
-      throw new Error('Es gibt keine Rating-Änderungen zum Speichern.');
+      throw new Error(tRating('messages.noChanges'));
     }
-    await patchJson(`/api/properties/${c.propertyId}/rating`, { scores: updates });
+    await patchJson(`/api/properties/${c.propertyId}/rating`, { scores: updates }).catch(() => {
+      throw new Error(tRating('messages.actionFailed'));
+    });
     setRatingScoreInputs({});
-  });
-  const saveRatingReturn = () => runCaseAction('Zielrendite speichern', async () => {
+  }, { success: tRating('messages.changesSaved'), error: tRating('messages.actionFailed') });
+  const saveRatingReturn = () => runCaseAction(tRating('actions.saveTargetReturn'), async () => {
     const parsed = parseGermanPercentInput(ratingReturnPercent);
-    if (!Number.isFinite(parsed)) throw new Error('Bitte eine gültige Zielrendite eingeben.');
-    await patchJson(`/api/properties/${c.propertyId}/rating/final-return`, { finalTargetReturn: parsed });
+    if (!Number.isFinite(parsed)) throw new Error(tRating('messages.invalidTargetReturn'));
+    await patchJson(`/api/properties/${c.propertyId}/rating/final-return`, { finalTargetReturn: parsed }).catch(() => {
+      throw new Error(tRating('messages.actionFailed'));
+    });
     setRatingReturnInput('');
-  });
-  const approveRating = () => runCaseAction('Objektrating freigeben', async () => {
-    await postJson(`/api/properties/${c.propertyId}/rating/approve`, {});
-  });
+  }, { success: tRating('messages.targetReturnSaved'), error: tRating('messages.actionFailed') });
+  const approveRating = () => runCaseAction(tRating('actions.approve'), async () => {
+    await postJson(`/api/properties/${c.propertyId}/rating/approve`, {}).catch(() => {
+      throw new Error(tRating('messages.actionFailed'));
+    });
+  }, { success: tRating('messages.approvalSuccess'), error: tRating('messages.actionFailed') });
   const unlockRating = () => {
-    const reason = window.prompt('Bitte geben Sie einen Grund für die Freischaltung an.');
+    const reason = window.prompt(tRating('messages.reopenReasonPrompt'));
     if (!reason || !reason.trim()) {
-      setNotice?.('Bitte geben Sie einen Grund für die Freischaltung an.');
+      setNotice?.(tRating('messages.reopenReasonPrompt'));
       return;
     }
-    runCaseAction('Objektrating freischalten', async () => {
-      await postJson(`/api/properties/${c.propertyId}/rating/unlock`, { reason: reason.trim() });
-    });
+    runCaseAction(tRating('actions.reopen'), async () => {
+      await postJson(`/api/properties/${c.propertyId}/rating/unlock`, { reason: reason.trim() }).catch(() => {
+        throw new Error(tRating('messages.actionFailed'));
+      });
+    }, { success: tRating('messages.reopenSuccess'), error: tRating('messages.actionFailed') });
   };
   const ratingPrimaryAction = !objectRating
-    ? { label: 'Rating initialisieren', onClick: generateObjectRating, disabled: Boolean(busyAction), helper: 'Übernimmt automatisch ableitbare Werte aus Fragebogen und Marktdaten. Nicht ableitbare Kriterien bleiben offen.' }
+    ? { label: tRating('actions.initialise'), onClick: generateObjectRating, disabled: Boolean(busyAction), helper: tRating('helpers.initialise') }
     : ratingApproved
       ? null
       : ratingCanApprove
-        ? { label: 'Rating freigeben', onClick: approveRating, disabled: Boolean(busyAction), helper: 'Alle Pflichtwerte sind vorhanden. Das Rating kann revisionssicher freigegeben werden.' }
-        : { label: 'Änderungen speichern', onClick: saveRatingChanges, disabled: Boolean(busyAction) || ratingDirtyCount === 0, helper: ratingDirtyCount ? `${ratingDirtyCount} Änderung(en) vor der Freigabe speichern.` : 'Bearbeiten Sie offene Kriterien oder prüfen Sie die offenen Punkte.' };
+        ? { label: tRating('actions.approve'), onClick: approveRating, disabled: Boolean(busyAction), helper: tRating('helpers.approve') }
+        : { label: tRating('actions.saveChanges'), onClick: saveRatingChanges, disabled: Boolean(busyAction) || ratingDirtyCount === 0, helper: ratingDirtyCount ? tRating('helpers.saveChanges', { count: ratingDirtyCount }) : tRating('helpers.editOpen') };
   useEffect(() => {
     setOpenRatingCategoryIds(ratingDefaultOpenCategoryIds);
     setActiveRatingScoreId('');
@@ -5798,14 +5963,26 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   }, [objectRating?.id, objectRating?.status]);
   const saveAcquisitionPrecheck = (action = 'save') => runCaseAction(
     action === 'approve_exception'
-      ? 'Ausnahme freigeben'
+      ? tPrecheck('actions.approveException')
       : action === 'reject_exception'
-        ? 'Ausnahme ablehnen'
+        ? tPrecheck('actions.rejectException')
         : action === 'request_exception'
-          ? 'Ausnahmeprüfung beantragen'
-          : 'Vorprüfung speichern',
+          ? tPrecheck('actions.requestException')
+          : tPrecheck('actions.save'),
     async () => {
-      await patchJson(`/api/properties/${c.propertyId}/precheck`, { ...precheckDraft, action });
+      await patchJson(`/api/properties/${c.propertyId}/precheck`, { ...precheckDraft, action }).catch(() => {
+        throw new Error(tPrecheck('messages.saveFailed'));
+      });
+    },
+    {
+      success: action === 'approve_exception'
+        ? tPrecheck('messages.approveSuccess')
+        : action === 'reject_exception'
+          ? tPrecheck('messages.rejectSuccess')
+          : action === 'request_exception'
+            ? tPrecheck('messages.requestSuccess')
+            : tPrecheck('messages.saveSuccess'),
+      error: tPrecheck('messages.saveFailed'),
     }
   );
   const startValuationAndOffer = (modelRequest, index = 0) => {
@@ -7514,21 +7691,21 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
                 <div className="rating-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Objektrating</div>
-                    <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>Institutionelle Objektprüfung</div>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>{tRating('title')}</div>
+                    <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>{tRating('subtitle')}</div>
                     <div style={{ fontSize: 12.5, color: `${theme.ink}99`, lineHeight: 1.5, marginTop: 4 }}>
-                      Das Rating wird aus versionierten Kriterien, Gewichtungen und Mapping-Regeln erzeugt. Freigegebene Ratings bleiben revisionssicher nachvollziehbar.
+                      {tRating('description')}
                     </div>
                   </div>
                   <div className="rating-header-actions" style={{ display: 'grid', justifyItems: 'end', gap: 7, minWidth: 220 }}>
                     {ratingApproved ? (
                       <>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: theme.successSoft, color: theme.success, border: `1px solid ${theme.success}33`, borderRadius: 999, padding: '7px 11px', fontSize: 12.5, fontWeight: 850 }}>
-                          <CheckCircle2 size={14} /> Rating freigegeben
+                          <CheckCircle2 size={14} /> {tRating('messages.approved')}
                         </span>
                         {canUnlockRating && (
                           <button onClick={unlockRating} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 9px', fontSize: 11.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                            Rating wieder freischalten
+                            {tRating('actions.reopen')}
                           </button>
                         )}
                       </>
@@ -7540,8 +7717,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                           </button>
                         )}
                         {objectRating && (
-                          <button type="button" onClick={() => setNotice?.(ratingOpenTasks.length ? `Offene Punkte: ${ratingOpenTasks.slice(0, 3).join(' · ')}` : 'Keine offenen Punkte. Das Rating kann freigegeben werden.')} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 10px', fontSize: 12, fontWeight: 800, cursor: busyAction ? 'default' : 'pointer', opacity: busyAction ? 0.6 : 1 }}>
-                            Rating prüfen
+                          <button type="button" onClick={() => setNotice?.(ratingOpenTasks.length ? `${tRating('openItems.title')}: ${ratingOpenTasks.slice(0, 3).join(' · ')}` : tRating('messages.noOpenItems'))} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '7px 10px', fontSize: 12, fontWeight: 800, cursor: busyAction ? 'default' : 'pointer', opacity: busyAction ? 0.6 : 1 }}>
+                            {tRating('actions.review')}
                           </button>
                         )}
                         {ratingPrimaryAction?.helper && <div style={{ maxWidth: 310, textAlign: 'right', fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.35 }}>{ratingPrimaryAction.helper}</div>}
@@ -7554,38 +7731,38 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                   <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', marginBottom: 18, background: 'white' }}>
                     <div style={{ padding: '15px 16px', background: precheckView.result === 'not_acquirable' ? theme.errorSoft : ['exception_required', 'incomplete'].includes(precheckView.result) ? theme.warningSoft : theme.successSoft, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Ankaufsfähigkeit / Vorprüfung</div>
+                        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>{tPrecheck('eligibilityTitle')}</div>
                         <div style={{ fontSize: 17, color: precheckView.result === 'not_acquirable' ? theme.error : theme.aubergine, fontWeight: 900 }}>
-                          Vorprüfung: {precheckView.resultLabel}
+                          {tPrecheck('summaryPrefix', { result: localizedPrecheckResultLabel })}
                         </div>
                         <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 4, lineHeight: 1.45 }}>
-                          {precheckView.reason}
+                          {localizedPrecheckReason}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         {precheckView.exceptionApproved && (
                           <span style={{ background: theme.successSoft, color: theme.success, border: `1px solid ${theme.success}33`, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850 }}>
-                            Ausnahme freigegeben
+                            {tPrecheck('exceptionApproved')}
                           </span>
                         )}
                         {canManagePrecheck && (
                           <>
                             <button type="button" onClick={() => saveAcquisitionPrecheck('save')} disabled={Boolean(busyAction)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
-                              Vorprüfung speichern
+                              {tPrecheck('actions.save')}
                             </button>
                             {precheckView.hasExceptionRequired && !precheckView.exceptionApproved && (
                               <button type="button" onClick={() => saveAcquisitionPrecheck('request_exception')} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
-                                Ausnahme beantragen
+                                {tPrecheck('actions.requestException')}
                               </button>
                             )}
                             {precheckView.hasExceptionRequired && !precheckView.hasHardKo && canApprovePrecheckException && (
                               <button type="button" onClick={() => saveAcquisitionPrecheck('approve_exception')} disabled={Boolean(busyAction)} style={{ background: theme.success, color: 'white', border: 'none', borderRadius: theme.buttonRadius, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
-                                Ausnahme freigeben
+                                {tPrecheck('actions.approveException')}
                               </button>
                             )}
                             {precheckView.hasExceptionRequired && canApprovePrecheckException && (
                               <button type="button" onClick={() => saveAcquisitionPrecheck('reject_exception')} disabled={Boolean(busyAction)} style={{ background: theme.errorSoft, color: theme.error, border: `1px solid ${theme.error}44`, borderRadius: theme.buttonRadius, padding: '8px 11px', fontSize: 12.5, fontWeight: 850, cursor: busyAction ? 'wait' : 'pointer' }}>
-                                Ausnahme ablehnen
+                                {tPrecheck('actions.rejectException')}
                               </button>
                             )}
                           </>
@@ -7597,13 +7774,13 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                         <thead>
                           <tr style={{ background: theme.mintLight, color: theme.aubergine, textAlign: 'left' }}>
-                            {['Kriterium', 'Anforderung', 'Aktueller Wert', 'Status', 'Hinweis'].map((label) => (
+                            {[tPrecheck('table.criterion'), tPrecheck('table.requirement'), tPrecheck('table.currentValue'), tPrecheck('table.status'), tPrecheck('table.notice')].map((label) => (
                               <th key={label} style={{ padding: '9px 11px', fontSize: 10.5, letterSpacing: '0.09em', textTransform: 'uppercase' }}>{label}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {precheckView.criteria.map((item) => {
+                          {localizedPrecheckCriteria.map((item) => {
                             const statusStyle = acquisitionPrecheckStatusStyles[item.status] || acquisitionPrecheckStatusStyles.unknown;
                             return (
                               <tr key={item.key} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
@@ -7612,7 +7789,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                 <td style={{ padding: '10px 11px', color: theme.ink, fontWeight: 650, minWidth: 150 }}>{item.currentValue}</td>
                                 <td style={{ padding: '10px 11px' }}>
                                   <span style={{ background: statusStyle.background, color: statusStyle.color, border: `1px solid ${statusStyle.border}`, borderRadius: 999, padding: '3px 8px', fontSize: 11, fontWeight: 850, whiteSpace: 'nowrap' }}>
-                                    {acquisitionPrecheckStatusLabels[item.status]}
+                                    {precheckStatusLabels[item.status]}
                                   </span>
                                 </td>
                                 <td style={{ padding: '10px 11px', color: `${theme.ink}88`, minWidth: 220 }}>{item.comment || '-'}</td>
@@ -7625,44 +7802,44 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
                     {canManagePrecheck && (
                       <div style={{ padding: '14px 16px', borderTop: `1px solid ${theme.borderSoft}`, background: theme.surfaceSoft }}>
-                        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Manuelle Vorprüfungswerte</div>
+                        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>{tPrecheck('manualValues')}</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
-                          <Field label="Vorläufiger Verkehrswert (€)">
-                            <Input value={precheckDraft.preliminaryMarketValue ? formatGermanIntegerInput(precheckDraft.preliminaryMarketValue) : ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValue: formatGermanIntegerInput(event.target.value) })} placeholder="z.B. 520.000" inputMode="numeric" />
+                          <Field label={tPrecheck('fields.preliminaryMarketValue')}>
+                            <Input value={precheckDraft.preliminaryMarketValue ? formatGermanIntegerInput(precheckDraft.preliminaryMarketValue) : ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValue: formatGermanIntegerInput(event.target.value) })} placeholder={tPrecheck('placeholders.marketValue')} inputMode="numeric" />
                           </Field>
-                          <Field label="Quelle">
+                          <Field label={tPrecheck('fields.source')}>
                             <select value={precheckDraft.preliminaryMarketValueSource || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValueSource: event.target.value || undefined })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, background: 'white' }}>
-                              <option value="">Nicht erfasst</option>
-                              {Object.entries(preliminaryMarketValueSourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                              <option value="">{tPrecheck('values.notRecorded')}</option>
+                              {Object.entries(localizedPreliminaryMarketValueSourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                             </select>
                           </Field>
-                          <Field label="Bewertungsdatum">
+                          <Field label={tPrecheck('fields.valuationDate')}>
                             <Input type="date" value={precheckDraft.preliminaryMarketValueDate || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValueDate: event.target.value })} />
                           </Field>
-                          <Field label="Kommentar Verkehrswert">
-                            <Input value={precheckDraft.preliminaryMarketValueComment || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValueComment: event.target.value })} placeholder="z.B. interne Ersteinschätzung" />
+                          <Field label={tPrecheck('fields.marketValueComment')}>
+                            <Input value={precheckDraft.preliminaryMarketValueComment || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValueComment: event.target.value })} placeholder={tPrecheck('placeholders.marketValueComment')} />
                           </Field>
-                          <Field label="Postbank-Wohnatlas-Kategorie">
+                          <Field label={tPrecheck('fields.postbankCategory')}>
                             <select value={precheckDraft.postbankRegionCategory || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, postbankRegionCategory: event.target.value || undefined })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, background: 'white' }}>
-                              <option value="">Nicht erfasst</option>
-                              {Object.entries(postbankRegionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                              <option value="">{tPrecheck('values.notRecorded')}</option>
+                              {Object.entries(localizedPostbankRegionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                             </select>
                           </Field>
-                          <Field label="Bodenrichtwert (€/m²)">
-                            <Input value={precheckDraft.landValuePerSqm ?? ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, landValuePerSqm: event.target.value })} placeholder="z.B. 420" />
+                          <Field label={tPrecheck('fields.landValue')}>
+                            <Input value={precheckDraft.landValuePerSqm ?? ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, landValuePerSqm: event.target.value })} placeholder={tPrecheck('placeholders.landValue')} />
                           </Field>
-                          <Field label="Restnutzungsdauer (Jahre)">
-                            <Input value={precheckDraft.remainingUsefulLifeYears ?? ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, remainingUsefulLifeYears: event.target.value })} placeholder="z.B. 48" />
+                          <Field label={tPrecheck('fields.remainingUsefulLife')}>
+                            <Input value={precheckDraft.remainingUsefulLifeYears ?? ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, remainingUsefulLifeYears: event.target.value })} placeholder={tPrecheck('placeholders.remainingUsefulLife')} />
                           </Field>
-                          <Field label="Interner Kommentar">
-                            <Input value={precheckDraft.comment || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, comment: event.target.value })} placeholder="kurzer Hinweis" />
+                          <Field label={tPrecheck('fields.internalComment')}>
+                            <Input value={precheckDraft.comment || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, comment: event.target.value })} placeholder={tPrecheck('placeholders.internalComment')} />
                           </Field>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 12, fontSize: 12.5, color: theme.ink }}>
                           {[
-                            ['developmentPotential', 'Entwicklungspotenzial vorhanden'],
-                            ['renovationPlanAvailable', 'Sanierungs-/Modernisierungsplan vorhanden'],
-                            ['apartmentManagementAvailable', 'WEG-/Hausverwaltung vorhanden'],
+                            ['developmentPotential', tPrecheck('fields.developmentPotential')],
+                            ['renovationPlanAvailable', tPrecheck('fields.renovationPlan')],
+                            ['apartmentManagementAvailable', tPrecheck('fields.propertyManagement')],
                           ].map(([field, label]) => (
                             <label key={field} style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                               <input type="checkbox" checked={Boolean(precheckDraft[field])} onChange={(event) => setPrecheckDraft({ ...precheckDraft, [field]: event.target.checked })} style={{ accentColor: theme.aubergine }} />
@@ -7670,8 +7847,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                             </label>
                           ))}
                         </div>
-                        <Field label="Begründung Ausnahmeprüfung">
-                          <textarea value={precheckDraft.exceptionReason || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, exceptionReason: event.target.value })} rows={2} placeholder="Warum soll der Fall trotz gelber Kriterien weiter geprüft werden?" style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
+                        <Field label={tPrecheck('fields.exceptionReason')}>
+                          <textarea value={precheckDraft.exceptionReason || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, exceptionReason: event.target.value })} rows={2} placeholder={tPrecheck('placeholders.exceptionReason')} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
                         </Field>
                       </div>
                     )}
@@ -7680,7 +7857,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
                 {!objectRating ? (
                   <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', fontSize: 13, color: `${theme.ink}99`, lineHeight: 1.5 }}>
-                    Für diesen Fall wurde noch kein Objektrating erzeugt. Bei Einreichung eines Objekts passiert das automatisch; für bestehende Demo-Fälle kann es hier manuell erzeugt werden.
+                    {tRating('empty')}
                   </div>
                 ) : (
                   <>
@@ -7688,29 +7865,29 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                            <div style={{ fontSize: 26, lineHeight: 1, color: theme.aubergine, fontWeight: 900 }}>{objectRating.totalScore ? Number(objectRating.totalScore).toFixed(2).replace('.', ',') : '-'}</div>
+                            <div style={{ fontSize: 26, lineHeight: 1, color: theme.aubergine, fontWeight: 900 }}>{formatRatingScore(objectRating.totalScore)}</div>
                             <span style={{ background: ratingApproved ? theme.successSoft : theme.warningSoft, color: ratingApproved ? theme.success : theme.warning, border: `1px solid ${ratingApproved ? `${theme.success}33` : `${theme.warning}55`}`, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850 }}>{ratingStatusChipLabel}</span>
                           </div>
                           <div style={{ marginTop: 7, fontSize: 13, color: theme.ink, fontWeight: 800 }}>
-                            Ratingklasse: {ratingInvestmentFilter.scoreBandLabel || objectRating.ratingClass || '-'}
+                            {tRating('ratingClass')}: {ratingInvestmentFilter.scoreBandLabel || objectRating.ratingClass || '-'}
                           </div>
                           <div style={{ marginTop: 3, fontSize: 12.5, color: `${theme.ink}99` }}>
-                            Investment-Behandlung: {ratingInvestmentFilter.treatmentLabel} · Zielrendite {formatPercent(objectRating.finalTargetReturn)}
+                            {tRating('investmentTreatment')}: {ratingInvestmentFilter.treatmentLabel} · {tRating('targetReturn')} {formatPercent(objectRating.finalTargetReturn)}
                           </div>
                           {ratingApproved && (
                             <div style={{ marginTop: 8, fontSize: 12, color: `${theme.ink}88`, lineHeight: 1.4 }}>
-                              Dieses Rating ist freigegeben und revisionssicher gesperrt.
+                              {tRating('approvedLocked')}
                             </div>
                           )}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(95px, 1fr))', gap: 8, minWidth: 320 }}>
                           {[
-                            ['Offene Kriterien', ratingOpenScores.length],
-                            ['Manuell geändert', ratingManualChangeCount],
-                            ['Pflichtkommentare offen', ratingMissingCommentScores.length],
-                            ['Status', labelFrom(ratingStatusLabels, objectRating.status)],
-                            ['Letzte Speicherung', ratingLastAudit ? formatDate(ratingLastAudit.timestamp) : '-'],
-                            ['Korridor', `${formatPercent(objectRating.lowerReturnBound)} - ${formatPercent(objectRating.upperReturnBound)}`],
+                            [tRating('summary.openCriteria'), ratingOpenScores.length],
+                            [tRating('summary.manualChanges'), ratingManualChangeCount],
+                            [tRating('summary.mandatoryCommentsOpen'), ratingMissingCommentScores.length],
+                            [tRating('summary.status'), labelFrom(ratingStatusLabels, objectRating.status)],
+                            [tRating('summary.lastSaved'), ratingLastAudit ? formatDate(ratingLastAudit.timestamp) : '-'],
+                            [tRating('summary.corridor'), `${formatPercent(objectRating.lowerReturnBound)} - ${formatPercent(objectRating.upperReturnBound)}`],
                           ].map(([label, value]) => (
                             <div key={label} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '9px 10px' }}>
                               <div style={{ fontSize: 10, color: theme.oliv, fontWeight: 850, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
@@ -7723,15 +7900,15 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
                     <div style={{ display: 'none', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
                       {[
-                        ['Gesamtscore', objectRating.totalScore ? Number(objectRating.totalScore).toFixed(2).replace('.', ',') : '-'],
-                        ['Ratingklasse', objectRating.ratingClass || '-'],
-                        ['Status', labelFrom(ratingStatusLabels, objectRating.status)],
-                        ['Investment-Behandlung', ratingInvestmentFilter.treatmentLabel],
-                        ['Zielrendite', formatPercent(objectRating.finalTargetReturn)],
-                        ['Korridor', `${formatPercent(objectRating.lowerReturnBound)} - ${formatPercent(objectRating.upperReturnBound)}`],
-                        ['Ankaufsschwelle', ratingInvestmentFilter.acquisitionThresholdPassed ? 'Bestanden' : 'Nicht bestanden'],
-                        ['Rating-Review nach Gutachten', ratingReviewAfterAppraisal.label],
-                        ['Nächste Aktion', ratingReviewAfterAppraisal.required && !ratingReviewAfterAppraisal.satisfied ? 'Rating nach Gutachten prüfen' : ratingInvestmentFilter.nextAction],
+                        [tRating('summary.overallScore'), formatRatingScore(objectRating.totalScore)],
+                        [tRating('ratingClass'), objectRating.ratingClass || '-'],
+                        [tRating('summary.status'), labelFrom(ratingStatusLabels, objectRating.status)],
+                        [tRating('investmentTreatment'), ratingInvestmentFilter.treatmentLabel],
+                        [tRating('targetReturn'), formatPercent(objectRating.finalTargetReturn)],
+                        [tRating('summary.corridor'), `${formatPercent(objectRating.lowerReturnBound)} - ${formatPercent(objectRating.upperReturnBound)}`],
+                        [tRating('summary.acquisitionThreshold'), ratingInvestmentFilter.acquisitionThresholdPassed ? tPrecheck('status.passed') : tPrecheck('status.failed')],
+                        [tRating('summary.reviewAfterAppraisal'), ratingReviewAfterAppraisal.label],
+                        [tRating('summary.nextAction'), ratingReviewAfterAppraisal.required && !ratingReviewAfterAppraisal.satisfied ? tRating('appraisalReview.reviewAction') : ratingInvestmentFilter.nextAction],
                       ].map(([label, value]) => (
                         <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 13px' }}>
                           <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
@@ -7747,21 +7924,21 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                     )}
                     {ratingReviewAfterAppraisal.required && !ratingReviewAfterAppraisal.satisfied && (
                       <div style={{ background: theme.warningSoft, border: `1px solid ${theme.warning}55`, color: theme.warning, borderRadius: theme.cardRadius, padding: '11px 13px', fontSize: 12.5, fontWeight: 750, marginBottom: 12 }}>
-                        Rating-Review nach Gutachten erforderlich. Das verbindliche Angebot kann erst nach erneuter Bestätigung oder Freigabe erstellt werden.
+                        {tRating('helpers.appraisalReviewRequired')}
                       </div>
                     )}
 
                     <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                         <div>
-                          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>Finale Zielrendite</div>
-                          <div style={{ fontSize: 12.5, color: `${theme.ink}99` }}>Analysten dürfen die finale Zielrendite nur innerhalb des Rating-Korridors setzen.</div>
+                          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>{tRating('sections.finalTargetReturn')}</div>
+                          <div style={{ fontSize: 12.5, color: `${theme.ink}99` }}>{tRating('helpers.returnRule')}</div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <input value={ratingReturnPercent} onChange={(event) => setRatingReturnInput(event.target.value)} disabled={ratingReadOnly} placeholder="z.B. 7,25" style={{ width: 110, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, fontFamily: 'inherit', background: ratingReadOnly ? theme.mintLighter : 'white' }} />
+                          <input value={ratingReturnPercent} onChange={(event) => setRatingReturnInput(event.target.value)} disabled={ratingReadOnly} placeholder={tRating('placeholders.targetReturn')} style={{ width: 110, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, fontFamily: 'inherit', background: ratingReadOnly ? theme.mintLighter : 'white' }} />
                           <span style={{ fontSize: 13, color: theme.ink, fontWeight: 700 }}>%</span>
                           {canManageRating && objectRating.status !== 'approved' && (
-                            <button onClick={saveRatingReturn} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>Speichern</button>
+                            <button onClick={saveRatingReturn} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>{tRating('actions.save')}</button>
                           )}
                         </div>
                       </div>
@@ -7769,9 +7946,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
                     <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, background: ratingOpenTasks.length ? theme.warningSoft : theme.successSoft, padding: '13px 15px', marginBottom: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: ratingOpenTasks.length ? 8 : 0 }}>
-                        <div style={{ fontSize: 12, color: theme.aubergine, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Offene Punkte</div>
+                        <div style={{ fontSize: 12, color: theme.aubergine, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tRating('sections.openItems')}</div>
                         <span style={{ fontSize: 11.5, fontWeight: 850, color: ratingOpenTasks.length ? theme.warning : theme.success }}>
-                          {ratingOpenTasks.length ? `${ratingOpenTasks.length} offen` : 'bereit'}
+                          {ratingOpenTasks.length ? tRating('openItems.openCount', { count: ratingOpenTasks.length }) : tRating('status.ready')}
                         </span>
                       </div>
                       {ratingOpenTasks.length ? (
@@ -7779,25 +7956,30 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                           {ratingOpenTasks.slice(0, 7).map((task, index) => <li key={`${task}-${index}`}>{task}</li>)}
                         </ul>
                       ) : (
-                        <div style={{ fontSize: 12.5, color: theme.success, fontWeight: 750 }}>Keine offenen Punkte. Das Rating kann freigegeben werden.</div>
+                        <div style={{ fontSize: 12.5, color: theme.success, fontWeight: 750 }}>{tRating('messages.noOpenItems')}</div>
                       )}
                     </div>
 
-                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kategorien</div>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>{tRating('sections.categories')}</div>
                     <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
-                      {ratingCategorySummaries.map(({ category, score, scores, openCount, manualCount, missingCommentCount, status }) => {
+                      {ratingCategorySummaries.map(({ category, score, scores, openCount, manualCount, missingCommentCount, statusKey, status }) => {
                         const expanded = Boolean(openRatingCategoryIds[category.id]);
-                        const statusColor = status === 'Freigegeben' || status === 'Vollständig' ? theme.success : status === 'Kommentar erforderlich' ? theme.error : theme.warning;
-                        const statusBg = status === 'Freigegeben' || status === 'Vollständig' ? theme.successSoft : status === 'Kommentar erforderlich' ? theme.errorSoft : theme.warningSoft;
+                        const statusColor = statusKey === 'approved' || statusKey === 'complete' ? theme.success : statusKey === 'commentRequired' ? theme.error : theme.warning;
+                        const statusBg = statusKey === 'approved' || statusKey === 'complete' ? theme.successSoft : statusKey === 'commentRequired' ? theme.errorSoft : theme.warningSoft;
                         return (
                           <div key={category.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 10, overflow: 'hidden', background: 'white' }}>
                             <button type="button" onClick={() => setOpenRatingCategoryIds((current) => ({ ...current, [category.id]: !current[category.id] }))} style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', background: expanded ? theme.mintLighter : 'white', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left' }}>
                               <div>
                                 <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 900 }}>
-                                  {category.name} · Score {score ? score.toFixed(2).replace('.', ',') : '-'} · {scores.length} Kriterien{openCount ? ` · ${openCount} offen` : ''}
+                                  {tRating('categorySummary.headline', {
+                                    category: localizeRatingCategory(category),
+                                    score: formatRatingScore(score),
+                                    count: scores.length,
+                                    open: openCount ? tRating('categorySummary.openSuffix', { count: openCount }) : '',
+                                  })}
                                 </div>
                                 <div style={{ marginTop: 4, fontSize: 11.5, color: `${theme.ink}88` }}>
-                                  Gewichtung {formatPercent(category.weight)} · {manualCount} manuelle Änderung(en) · {missingCommentCount} Pflichtkommentar(e) offen
+                                  {tRating('categorySummary.details', { weight: formatPercent(category.weight), manual: manualCount, comments: missingCommentCount })}
                                 </div>
                               </div>
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -7810,7 +7992,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
                                   <thead>
                                     <tr style={{ background: theme.surfaceSoft }}>
-                                      {['Kriterium', 'Gewichtung', 'Quelle', 'Auto', 'Final', 'Confidence', 'Status', 'Aktion'].map((label) => (
+                                      {[tRating('table.criterion'), tRating('table.weighting'), tRating('table.source'), tRating('table.automatic'), tRating('table.final'), tRating('table.confidence'), tRating('table.status'), tRating('table.action')].map((label) => (
                                         <th key={label} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, color: theme.aubergine, letterSpacing: '0.1em', textTransform: 'uppercase', borderBottom: `1px solid ${theme.borderSoft}` }}>{label}</th>
                                       ))}
                                     </tr>
@@ -7821,15 +8003,16 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                       const finalValue = ratingScoreValueWithInput(scoreItem);
                                       const manuallyChanged = ratingScoreManuallyChanged(scoreItem);
                                       const missingComment = manuallyChanged && !String(ratingCommentValue(scoreItem) || '').trim();
-                                      const rowStatus = disabledByRoofChoice ? 'ausgeschlossen' : missingComment ? 'Kommentar erforderlich' : !ratingScoreValue(scoreItem) ? 'Offen' : manuallyChanged ? 'manuell geändert' : Number(scoreItem.confidence || 0) < 0.65 ? 'Prüfen' : 'OK';
-                                      const hasInfo = scoreItem.criterion?.category?.name === 'Mikrolage' && Boolean(scoreItem.criterion?.description);
+                                      const rowStatusKey = disabledByRoofChoice ? 'excluded' : missingComment ? 'commentRequired' : !ratingScoreValue(scoreItem) ? 'open' : manuallyChanged ? 'manuallyChanged' : Number(scoreItem.confidence || 0) < 0.65 ? 'review' : 'ok';
+                                      const rowStatus = tRating(`status.${rowStatusKey}`);
+                                      const hasInfo = scoreItem.criterion?.category?.id === 'rating_cat_microlocation_v1' && Boolean(scoreItem.criterion?.description);
                                       return (
                                         <React.Fragment key={scoreItem.id}>
                                           <tr style={{ opacity: disabledByRoofChoice ? 0.56 : 1, background: activeRatingScoreId === scoreItem.id ? theme.mintLighter : 'white' }}>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.ink, fontWeight: 800 }}>
-                                              <span>{scoreItem.criterion?.name || scoreItem.criterionId}</span>
+                                              <span>{localizeRatingCriterion(scoreItem.criterion)}</span>
                                               {hasInfo && (
-                                                <button type="button" aria-label="Erklärung anzeigen" onClick={() => setOpenRatingInfo(openRatingInfo === scoreItem.id ? '' : scoreItem.id)} style={{ marginLeft: 7, width: 19, height: 19, borderRadius: 999, border: `1px solid ${theme.border}`, background: openRatingInfo === scoreItem.id ? theme.aubergine : 'white', color: openRatingInfo === scoreItem.id ? 'white' : theme.aubergine, fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>i</button>
+                                                <button type="button" aria-label={tRating('actions.view')} onClick={() => setOpenRatingInfo(openRatingInfo === scoreItem.id ? '' : scoreItem.id)} style={{ marginLeft: 7, width: 19, height: 19, borderRadius: 999, border: `1px solid ${theme.border}`, background: openRatingInfo === scoreItem.id ? theme.aubergine : 'white', color: openRatingInfo === scoreItem.id ? 'white' : theme.aubergine, fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>i</button>
                                               )}
                                             </td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: `${theme.ink}99` }}>{formatPercent(ratingEffectiveCriterionWeight(scoreItem.criterion))}</td>
@@ -7838,18 +8021,18 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.aubergine, fontWeight: 850 }}>{disabledByRoofChoice ? '-' : finalValue || '-'}</td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.ink }}>{disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)}</td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}` }}>
-                                              <span style={{ background: missingComment ? theme.errorSoft : rowStatus === 'OK' ? theme.successSoft : theme.warningSoft, color: missingComment ? theme.error : rowStatus === 'OK' ? theme.success : theme.warning, borderRadius: 999, padding: '3px 8px', fontSize: 11, fontWeight: 850, whiteSpace: 'nowrap' }}>{rowStatus}</span>
+                                              <span style={{ background: missingComment ? theme.errorSoft : rowStatusKey === 'ok' ? theme.successSoft : theme.warningSoft, color: missingComment ? theme.error : rowStatusKey === 'ok' ? theme.success : theme.warning, borderRadius: 999, padding: '3px 8px', fontSize: 11, fontWeight: 850, whiteSpace: 'nowrap' }}>{rowStatus}</span>
                                             </td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}` }}>
                                               <button type="button" onClick={() => setActiveRatingScoreId(activeRatingScoreId === scoreItem.id ? '' : scoreItem.id)} style={{ background: 'white', color: theme.aubergine, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 9px', fontSize: 11.5, fontWeight: 850, cursor: 'pointer' }}>
-                                                {activeRatingScoreId === scoreItem.id ? 'Schließen' : ratingReadOnly ? 'Ansehen' : 'Bearbeiten'}
+                                                {activeRatingScoreId === scoreItem.id ? tRating('actions.close') : ratingReadOnly ? tRating('actions.view') : tRating('actions.edit')}
                                               </button>
                                             </td>
                                           </tr>
                                           {openRatingInfo === scoreItem.id && (
                                             <tr>
                                               <td colSpan={8} style={{ padding: '9px 12px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45, whiteSpace: 'pre-line' }}>
-                                                {scoreItem.criterion?.description}
+                                                {localizeRatingCriterionDescription(scoreItem.criterion)}
                                               </td>
                                             </tr>
                                           )}
@@ -7858,12 +8041,12 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                               <td colSpan={8} style={{ padding: '14px 16px', background: theme.surfaceSoft, borderBottom: `1px solid ${theme.borderSoft}` }}>
                                                 <div style={{ display: 'grid', gap: 12 }}>
                                                   <div>
-                                                    <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 900 }}>{scoreItem.criterion?.name || scoreItem.criterionId}</div>
-                                                    <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>{scoreItem.criterion?.description || 'Keine zusätzliche Beschreibung hinterlegt.'}</div>
+                                                    <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 900 }}>{localizeRatingCriterion(scoreItem.criterion)}</div>
+                                                    <div style={{ fontSize: 12, color: `${theme.ink}88`, marginTop: 3 }}>{localizeRatingCriterionDescription(scoreItem.criterion)}</div>
                                                   </div>
                                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-                                                    <Field label="Automatische Bewertung"><Input value={scoreItem.prefilledScore || '-'} readOnly /></Field>
-                                                    <Field label="Finale Bewertung">
+                                                    <Field label={tRating('table.automaticAssessment')}><Input value={scoreItem.prefilledScore || '-'} readOnly /></Field>
+                                                    <Field label={tRating('table.finalAssessment')}>
                                                       {canManageRating && objectRating.status !== 'approved' ? (
                                                         <select value={finalValue} disabled={disabledByRoofChoice} onChange={(event) => {
                                                           const input = ratingScoreInputs[scoreItem.id] || {};
@@ -7873,26 +8056,26 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                                           setRatingScoreInputs(nextInputs);
                                                         }} style={{ width: '100%', border: `1px solid ${manuallyChanged ? theme.gold : theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, background: disabledByRoofChoice ? theme.mintLighter : 'white' }}>
                                                           <option value="">-</option>
-                                                          {ratingScoreDefinitions(scoreItem.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {definition.label}</option>)}
+                                                          {ratingScoreDefinitions(scoreItem.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {localizeRatingScoreDefinition(scoreItem.criterion, definition)}</option>)}
                                                         </select>
                                                       ) : (
                                                         <Input value={disabledByRoofChoice ? '-' : scoreItem.finalScore || '-'} readOnly />
                                                       )}
                                                     </Field>
-                                                    <Field label="Quelle"><Input value={labelFrom(ratingSourceLabels, scoreItem.source || scoreItem.criterion?.sourceType)} readOnly /></Field>
-                                                    <Field label="Confidence"><Input value={disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)} readOnly /></Field>
+                                                    <Field label={tRating('table.source')}><Input value={labelFrom(ratingSourceLabels, scoreItem.source || scoreItem.criterion?.sourceType)} readOnly /></Field>
+                                                    <Field label={tRating('table.confidence')}><Input value={disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)} readOnly /></Field>
                                                   </div>
                                                   {missingComment && (
                                                     <div style={{ border: `1px solid ${theme.error}33`, background: theme.errorSoft, color: theme.error, borderRadius: 7, padding: '8px 10px', fontSize: 12.5, fontWeight: 750 }}>
-                                                      Begründung erforderlich, weil ein automatischer Wert überschrieben wurde.
+                                                      {tRating('messages.reasonRequired')}
                                                     </div>
                                                   )}
-                                                  <Field label={missingComment ? 'Begründung' : 'Kommentar'}>
+                                                  <Field label={missingComment ? tRating('table.reason') : tRating('table.comment')}>
                                                     {canManageRating && objectRating.status !== 'approved' ? (
                                                       <textarea value={ratingCommentValue(scoreItem)} disabled={disabledByRoofChoice} onChange={(event) => {
                                                         const input = ratingScoreInputs[scoreItem.id] || {};
                                                         setRatingScoreInputs({ ...ratingScoreInputs, [scoreItem.id]: { ...input, comment: event.target.value } });
-                                                      }} rows={3} placeholder={missingComment ? 'Pflicht: Änderung begründen' : 'Optional'} style={{ width: '100%', border: `1px solid ${missingComment ? theme.error : theme.border}`, borderRadius: 6, padding: '9px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
+                                                      }} rows={3} placeholder={missingComment ? tRating('placeholders.mandatoryReason') : tRating('placeholders.optional')} style={{ width: '100%', border: `1px solid ${missingComment ? theme.error : theme.border}`, borderRadius: 6, padding: '9px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
                                                     ) : (
                                                       <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '9px 10px', background: theme.mintLighter, color: theme.ink, fontSize: 13 }}>{scoreItem.comment || '-'}</div>
                                                     )}
@@ -7913,25 +8096,25 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                       })}
                     </div>
 
-                    <div style={{ display: 'none', fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kategorien</div>
+                    <div style={{ display: 'none', fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>{tRating('sections.categories')}</div>
                     <div style={{ display: 'none', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 18 }}>
                       {ratingCategoryRows.map(({ category, score }) => (
                         <div key={category.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', background: 'white' }}>
-                          <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 800 }}>{category.name}</div>
-                          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 4 }}>Gewichtung {formatPercent(category.weight)}</div>
-                          <div style={{ fontSize: 22, color: theme.ink, fontWeight: 800, marginTop: 6 }}>{score ? score.toFixed(2).replace('.', ',') : '-'}</div>
+                          <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 800 }}>{localizeRatingCategory(category)}</div>
+                          <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 4 }}>{tRating('table.weighting')} {formatPercent(category.weight)}</div>
+                          <div style={{ fontSize: 22, color: theme.ink, fontWeight: 800, marginTop: 6 }}>{formatRatingScore(score)}</div>
                         </div>
                       ))}
                     </div>
 
-                    <div style={{ display: 'none', fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>Kriterien</div>
+                    <div style={{ display: 'none', fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 10px' }}>{tRating('sections.criteria')}</div>
                     <div style={{ display: 'none', gap: 8 }}>
                       {ratingCategoryRows.map(({ category }) => {
                         const categoryScores = ratingScores.filter((score) => score.criterion?.categoryId === category.id);
                         return (
                           <div key={category.id} style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, overflow: 'hidden', background: 'white' }}>
                             <div style={{ padding: '10px 14px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}` }}>
-                              <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 900 }}>{category.name}</div>
+                              <div style={{ fontSize: 13, color: theme.aubergine, fontWeight: 900 }}>{localizeRatingCategory(category)}</div>
                             </div>
                             <div style={{ display: 'grid', gap: 0 }}>
                               {categoryScores.map((score) => {
@@ -7940,7 +8123,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                 const isRoofPair = score.criterionId === ratingRoofCriterionId || score.criterionId === ratingFlatRoofCriterionId;
                                 const disabledByRoofChoice = isRoofPair && selectedRoofCriterionId && selectedRoofCriterionId !== score.criterionId;
                                 const effectiveWeight = ratingEffectiveCriterionWeight(score.criterion);
-                                const hasInfo = score.criterion?.category?.name === 'Mikrolage' && Boolean(score.criterion?.description);
+                                const hasInfo = score.criterion?.category?.id === 'rating_cat_microlocation_v1' && Boolean(score.criterion?.description);
                                 const manuallyChanged = !disabledByRoofChoice && ratingManualChange(score);
                                 const missingManualComment = manuallyChanged && !String(ratingCommentValue(score) || '').trim();
                                 return (
@@ -7948,30 +8131,30 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                     <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 0.75fr 0.45fr 0.9fr 0.55fr 1.1fr', gap: 10, alignItems: 'center' }}>
                                       <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                          <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{score.criterion?.name || score.criterionId}</div>
+                                          <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{localizeRatingCriterion(score.criterion)}</div>
                                           {hasInfo && (
-                                            <button type="button" aria-label="Erklärung anzeigen" onClick={() => setOpenRatingInfo(openRatingInfo === score.id ? '' : score.id)} style={{ width: 20, height: 20, borderRadius: 999, border: `1px solid ${theme.border}`, background: openRatingInfo === score.id ? theme.aubergine : 'white', color: openRatingInfo === score.id ? 'white' : theme.aubergine, fontSize: 12, fontWeight: 900, lineHeight: '18px', cursor: 'pointer' }}>i</button>
+                                            <button type="button" aria-label={tRating('actions.view')} onClick={() => setOpenRatingInfo(openRatingInfo === score.id ? '' : score.id)} style={{ width: 20, height: 20, borderRadius: 999, border: `1px solid ${theme.border}`, background: openRatingInfo === score.id ? theme.aubergine : 'white', color: openRatingInfo === score.id ? 'white' : theme.aubergine, fontSize: 12, fontWeight: 900, lineHeight: '18px', cursor: 'pointer' }}>i</button>
                                           )}
                                         </div>
                                         <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>
-                                          Gewichtung {formatPercent(effectiveWeight)}
-                                          {disabledByRoofChoice ? ' · ausgegraut, wird nicht mitgerechnet' : ''}
-                                          {!disabledByRoofChoice && manuallyChanged ? ' · manuell geändert' : ''}
+                                          {tRating('table.weighting')} {formatPercent(effectiveWeight)}
+                                          {disabledByRoofChoice ? ` · ${tRating('helpers.excludedNotCalculated')}` : ''}
+                                          {!disabledByRoofChoice && manuallyChanged ? ` · ${tRating('helpers.manuallyChanged')}` : ''}
                                         </div>
                                         {hasInfo && openRatingInfo === score.id && (
-                                          <div style={{ marginTop: 8, border: `1px solid ${theme.borderSoft}`, background: 'white', borderRadius: 6, padding: '9px 10px', fontSize: 11.5, color: `${theme.ink}99`, lineHeight: 1.45, whiteSpace: 'pre-line' }}>{score.criterion.description}</div>
+                                          <div style={{ marginTop: 8, border: `1px solid ${theme.borderSoft}`, background: 'white', borderRadius: 6, padding: '9px 10px', fontSize: 11.5, color: `${theme.ink}99`, lineHeight: 1.45, whiteSpace: 'pre-line' }}>{localizeRatingCriterionDescription(score.criterion)}</div>
                                         )}
                                       </div>
                                       <div>
-                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Quelle</div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{tRating('table.source')}</div>
                                         <div style={{ fontSize: 12.5, color: theme.ink }}>{labelFrom(ratingSourceLabels, score.source || score.criterion?.sourceType)}</div>
                                       </div>
                                       <div>
-                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Auto</div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{tRating('table.automatic')}</div>
                                         <div style={{ fontSize: 12.5, color: theme.ink }}>{score.prefilledScore || '-'}</div>
                                       </div>
                                       <div>
-                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Final</div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{tRating('table.final')}</div>
                                         {canManageRating && objectRating.status !== 'approved' ? (
                                           <select value={effectiveScore} disabled={disabledByRoofChoice} onChange={(event) => {
                                             const nextInputs = { ...ratingScoreInputs, [score.id]: { ...input, analystScore: event.target.value, comment: input.comment ?? score.comment ?? '', cleared: false } };
@@ -7980,27 +8163,27 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                             setRatingScoreInputs(nextInputs);
                                           }} style={{ width: '100%', border: `1px solid ${manuallyChanged ? theme.gold : theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, background: disabledByRoofChoice ? theme.mintLighter : 'white' }}>
                                             <option value="">-</option>
-                                            {ratingScoreDefinitions(score.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {definition.label}</option>)}
+                                            {ratingScoreDefinitions(score.criterion).map((definition) => <option key={definition.scoreValue} value={definition.scoreValue}>{definition.scoreValue} · {localizeRatingScoreDefinition(score.criterion, definition)}</option>)}
                                           </select>
                                         ) : (
                                           <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : score.finalScore || '-'}</div>
                                         )}
                                         {!disabledByRoofChoice && score.finalScore && (
                                           <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>
-                                            {ratingScoreDefinitions(score.criterion).find((definition) => Number(definition.scoreValue) === Number(score.finalScore))?.label || ''}
+                                            {localizeRatingScoreDefinition(score.criterion, ratingScoreDefinitions(score.criterion).find((definition) => Number(definition.scoreValue) === Number(score.finalScore)) || { scoreValue: score.finalScore })}
                                           </div>
                                         )}
                                       </div>
                                       <div>
-                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Confidence</div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{tRating('table.confidence')}</div>
                                         <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : formatPercent(score.confidence)}</div>
                                       </div>
                                       <div>
-                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>Kommentar</div>
+                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{tRating('table.comment')}</div>
                                         {canManageRating && objectRating.status !== 'approved' ? (
                                           <>
-                                            <input value={ratingCommentValue(score)} disabled={disabledByRoofChoice} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder={manuallyChanged ? 'Pflicht: Änderung begründen' : 'Optional'} style={{ width: '100%', border: `1px solid ${missingManualComment ? theme.error : theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
-                                            {missingManualComment && <div style={{ fontSize: 10.5, color: theme.error, marginTop: 4, fontWeight: 700 }}>Bitte begründen Sie die manuelle Änderung.</div>}
+                                            <input value={ratingCommentValue(score)} disabled={disabledByRoofChoice} onChange={(event) => setRatingScoreInputs({ ...ratingScoreInputs, [score.id]: { ...input, comment: event.target.value } })} placeholder={manuallyChanged ? tRating('placeholders.mandatoryReason') : tRating('placeholders.optional')} style={{ width: '100%', border: `1px solid ${missingManualComment ? theme.error : theme.border}`, borderRadius: 5, padding: '7px 8px', fontSize: 12.5, color: theme.ink, fontFamily: 'inherit', boxSizing: 'border-box', background: disabledByRoofChoice ? theme.mintLighter : 'white' }} />
+                                            {missingManualComment && <div style={{ fontSize: 10.5, color: theme.error, marginTop: 4, fontWeight: 700 }}>{tRating('messages.manualReasonRequired')}</div>}
                                           </>
                                         ) : (
                                           <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : score.comment || '-'}</div>
@@ -8022,25 +8205,25 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               {objectRating && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
-                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Offene Prüfungen</div>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>{tRating('sections.openReviews')}</div>
                     {ratingOpenChecks.length ? ratingOpenChecks.map((score) => (
                       <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '9px 0' }}>
-                        <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{score.criterion?.name || score.criterionId}</div>
-                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>Confidence {formatPercent(score.confidence)} · {score.prefilledScore ? 'Analystenprüfung empfohlen' : 'Datenbasis fehlt'}</div>
+                        <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{localizeRatingCriterion(score.criterion)}</div>
+                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{tRating('table.confidence')} {formatPercent(score.confidence)} · {score.prefilledScore ? tRating('messages.analystReviewRecommended') : tRating('messages.dataMissing')}</div>
                       </div>
                     )) : (
-                      <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Keine offenen Prüfungen.</div>
+                      <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{tRating('messages.noOpenReviews')}</div>
                     )}
                   </div>
                   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
-                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Audit Trail</div>
+                    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>{tRating('sections.auditTrail')}</div>
                     {objectRating.auditLogs?.length ? objectRating.auditLogs.map((entry) => (
                       <div key={entry.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '9px 0' }}>
-                        <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{entry.action}</div>
-                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{formatDate(entry.timestamp)}{entry.comment ? ` · ${entry.comment}` : ''}</div>
+                        <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{localizeRatingAuditAction(entry.action)}</div>
+                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{formatDate(entry.timestamp)}{entry.action === 'score_changed' && entry.comment ? ` · ${entry.comment}` : ''}</div>
                       </div>
                     )) : (
-                      <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Noch keine Historie vorhanden.</div>
+                      <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{tRating('messages.noHistory')}</div>
                     )}
                   </div>
                 </div>
@@ -9219,7 +9402,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               <div key={i} style={{ position: 'relative', paddingLeft: 18, paddingBottom: 12 }}>
                 <div style={{ position: 'absolute', left: 2, top: 4, width: 8, height: 8, borderRadius: '50%', background: i === 0 ? theme.gold : theme.aubergine, border: `2px solid white`, boxShadow: `0 0 0 1px ${theme.border}` }} />
                 <div style={{ fontSize: 11, color: `${theme.ink}88`, marginBottom: 2 }}>{a.time || dateLabel(a.createdAt)}</div>
-                <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.4 }}>{localizedCaseActivityText(a, t)}</div>
+                <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.4 }}>{localizedCaseActivityText(a, t, tPrecheck, tRating)}</div>
                 <div style={{ fontSize: 11, color: `${theme.ink}99`, marginTop: 2 }}>{a.actor || a.source || a.userId}</div>
               </div>
             ))}

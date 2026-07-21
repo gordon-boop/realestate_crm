@@ -1,1 +1,225 @@
-{"title":"Property Rating","ratingClass":"Rating Class","investmentTreatment":"Investment Treatment","standardApproval":"Standard Approval","additionalReview":"Additional Review"}
+{
+  "title": "Property Rating",
+  "subtitle": "Institutional Property Assessment",
+  "description": "The rating is generated from versioned criteria, weightings and mapping rules. Approved ratings remain fully traceable for audit purposes.",
+  "approvedLocked": "This rating has been approved and is locked for audit purposes.",
+  "empty": "No property rating has been generated for this case yet. This happens automatically when a property is submitted; for existing demo cases it can be initiated manually here.",
+  "ratingClass": "Rating Class",
+  "investmentTreatment": "Investment Treatment",
+  "targetReturn": "Target Return",
+  "acquisitionIrr": "Acquisition IRR",
+  "standardApproval": "Standard Approval",
+  "additionalReview": "Additional Review",
+  "belowThreshold": "Below Acquisition Threshold",
+  "status": {
+    "draft": "Draft",
+    "analyst_review": "Analyst Review",
+    "approved": "Approved",
+    "underReview": "Under Review",
+    "notInitialised": "Not Initialised",
+    "complete": "Complete",
+    "open": "Open",
+    "commentRequired": "Comment Required",
+    "excluded": "Excluded",
+    "manuallyChanged": "Manually Changed",
+    "review": "Review",
+    "ok": "OK",
+    "ready": "Ready"
+  },
+  "summary": {
+    "overallScore": "Overall Score",
+    "openCriteria": "Open Criteria",
+    "manualChanges": "Manually Changed",
+    "mandatoryCommentsOpen": "Mandatory Comments Open",
+    "status": "Status",
+    "lastSaved": "Last Saved",
+    "corridor": "Return Corridor",
+    "acquisitionThreshold": "Acquisition Threshold",
+    "reviewAfterAppraisal": "Rating Review after Appraisal",
+    "nextAction": "Next Action"
+  },
+  "actions": {
+    "initialise": "Initialise Rating",
+    "saveChanges": "Save Changes",
+    "saveTargetReturn": "Save Target Return",
+    "review": "Review Rating",
+    "approve": "Approve Rating",
+    "reopen": "Reopen Rating",
+    "view": "View",
+    "edit": "Edit",
+    "close": "Close",
+    "save": "Save"
+  },
+  "helpers": {
+    "initialise": "Uses values that can be derived automatically from customer intake and market data. Criteria that cannot be derived remain open.",
+    "approve": "All mandatory values are available. The rating can be approved and locked for audit purposes.",
+    "saveChanges": "Save {count} change(s) before approval.",
+    "editOpen": "Edit open criteria or review the open items.",
+    "returnRule": "Analysts may set the final target return only within the rating corridor.",
+    "appraisalReviewRequired": "A rating review is required after receipt of the appraisal. The Binding Offer can only be prepared after renewed confirmation or approval.",
+    "excludedNotCalculated": "excluded and not included in the calculation",
+    "manuallyChanged": "manually changed"
+  },
+  "messages": {
+    "reasonRequired": "A reason is required because an automatically generated value has been overridden.",
+    "manualReasonRequired": "Please provide a reason for the manual change.",
+    "noChanges": "There are no rating changes to save.",
+    "invalidTargetReturn": "Please enter a valid target return.",
+    "reopenReasonPrompt": "Please provide a reason for reopening the rating.",
+    "noOpenItems": "There are no open items. The rating can be approved.",
+    "approved": "Rating Approved",
+    "noDescription": "No additional description is available.",
+    "noHistory": "No history is available yet.",
+    "noOpenReviews": "No open reviews.",
+    "dataMissing": "Data basis missing",
+    "analystReviewRecommended": "Analyst review recommended",
+    "initialised": "The Property Rating has been initialised.",
+    "changesSaved": "Rating changes have been saved.",
+    "targetReturnSaved": "The target return has been saved.",
+    "approvalSuccess": "The Property Rating has been approved.",
+    "reopenSuccess": "The Property Rating has been reopened.",
+    "actionFailed": "The rating action could not be completed."
+  },
+  "openItems": {
+    "title": "Open Items",
+    "openCount": "{count} open",
+    "notAssessed": "{category}: {criterion} not yet assessed",
+    "lowConfidence": "{category}: review {criterion} due to low confidence",
+    "commentRequired": "Comment required for {criterion}",
+    "notApproved": "Rating not yet approved",
+    "notInitialised": "Rating not yet initialised"
+  },
+  "sections": {
+    "finalTargetReturn": "Final Target Return",
+    "openItems": "Open Items",
+    "categories": "Categories",
+    "criteria": "Criteria",
+    "openReviews": "Open Reviews",
+    "auditTrail": "Audit Trail"
+  },
+  "table": {
+    "criterion": "Criterion",
+    "weighting": "Weighting",
+    "source": "Source",
+    "automatic": "Automatic",
+    "automaticValue": "Automatic Value",
+    "automaticAssessment": "Automatic Assessment",
+    "final": "Final",
+    "finalValue": "Final Value",
+    "finalAssessment": "Final Assessment",
+    "confidence": "Confidence",
+    "status": "Status",
+    "action": "Action",
+    "comment": "Comment",
+    "reason": "Reason",
+    "mandatoryComment": "Mandatory Comment"
+  },
+  "placeholders": {
+    "targetReturn": "e.g. 7.25",
+    "mandatoryReason": "Required: explain the change",
+    "optional": "Optional"
+  },
+  "sources": {
+    "questionnaire": "Customer Intake",
+    "api": "API / Market Data",
+    "analyst": "Analyst",
+    "document": "Document"
+  },
+  "categorySummary": {
+    "headline": "{category} · Score {score} · {count} criteria{open}",
+    "openSuffix": " · {count} open",
+    "details": "Weighting {weight} · {manual} manual change(s) · {comments} mandatory comment(s) open"
+  },
+  "investment": {
+    "bands": {
+      "notRated": "Not Rated",
+      "one": "1 · Unsuitable",
+      "two": "2 · Below Threshold",
+      "three": "3 · Borderline Case",
+      "four": "4 · Solid Property",
+      "five": "5 · Strong Property",
+      "six": "6 · Top-Tier Property"
+    },
+    "treatments": {
+      "ratingRequired": "Rating Required",
+      "notEligible": "Not Eligible for Acquisition",
+      "belowThreshold": "Below Acquisition Threshold",
+      "additionalReview": "Additional Review Required",
+      "standardApproval": "Standard Approval"
+    },
+    "returns": {
+      "notFinal": "Not Finally Parameterised",
+      "noOffer": "No Offer",
+      "increased": "Higher Target Return from Rating Curve",
+      "lowest": "Lowest Target Return from Rating Curve",
+      "reduced": "Reduced Target Return from Rating Curve",
+      "normal": "Standard Target Return from Rating Curve"
+    },
+    "next": {
+      "complete": "Complete Property Rating",
+      "reject": "Prepare Rejection or Put on Hold",
+      "continueWithReview": "Continue Offer Process with Additional Review",
+      "reviewAndApprove": "Review and Approve Rating Internally",
+      "continue": "Continue Offer Process",
+      "approve": "Approve Rating"
+    },
+    "warnings": {
+      "complete": "Please complete the Property Rating first.",
+      "belowThreshold": "The property is below the acquisition threshold."
+    }
+  },
+  "appraisalReview": {
+    "notRequired": "Not Yet Required",
+    "required": "Required",
+    "underReview": "Under Review",
+    "adjusted": "Adjusted",
+    "confirmed": "Confirmed",
+    "reviewAction": "Review Rating after Appraisal"
+  },
+  "audit": {
+    "rating_created": "Rating Initialised",
+    "score_changed": "Score Changed",
+    "return_changed": "Target Return Changed",
+    "rating_approved": "Rating Approved",
+    "rating_unlocked": "Rating Reopened",
+    "rating_recalculated": "Rating Recalculated",
+    "unknown": "Rating Activity"
+  },
+  "activity": {
+    "created": "A preliminary Property Rating has been generated.",
+    "approved": "The Property Rating has been approved.",
+    "reopened": "The Property Rating has been reopened."
+  },
+  "categories": {
+    "economics": "Economic Factors",
+    "microlocation": "Micro-Location",
+    "maintenance": "Maintenance Requirements",
+    "property": "Property",
+    "energy": "Energy Performance"
+  },
+  "criteria": {
+    "purchasePower": {"label":"Purchasing Power","description":"Purchasing power index at the property location.","scores":{"1":"< 85","2":"85 - 92","3":"92 - 100","4":"100 - 108","5":"108 - 118","6":"> 118"}},
+    "unemploymentRate": {"label":"Unemployment Rate","description":"Current unemployment rate at the property location.","scores":{"1":"> 8.5%","2":"7.0% to < 8.5%","3":"5.5% to < 7.0%","4":"4.0% to < 5.5%","5":"3.0% to < 4.0%","6":"< 3.0%"}},
+    "unemploymentTrend": {"label":"Unemployment Rate Trend over the Last Five Years","description":"Change in the unemployment rate over the last five years.","scores":{"1":"sharp increase (> +1.5%)","2":"increase (+0.5% to +1.5%)","3":"slight increase (0 to +0.5 percentage points)","4":"stable (-0.5% to 0%)","5":"slight decrease (-0.5% to -1.5%)","6":"sharp decrease (< -1.5%)"}},
+    "migrationBalance": {"label":"Net Migration","description":"Net migration at the property location.","scores":{"1":"< -5","2":"-5 to -2","3":"-2 to 0","4":"0 to +2","5":"+2 to +5","6":"> +5"}},
+    "populationTrend": {"label":"Population Development","description":"Population development over ten years.","scores":{"1":"< -10% over 10 years","2":"-5% to -10% over 10 years","3":"-1% to -5% over 10 years","4":"-1% to +2% over 10 years","5":"+2% to +6% over 10 years","6":"> +6% over 10 years"}},
+    "publicTransport": {"label":"Public Transport Accessibility","description":"Guidelines for assessing public transport accessibility\nUrban: Very Poor = hardly any practical public transport, very low frequency, key destinations difficult to reach, high car dependency.\nUrban: Poor = limited usability and flexibility; key destinations require significant travel time.\nUrban: Average = adequate for basic daily needs, regular services, key destinations accessible.\nUrban: Good = practical daily connectivity, regular and reliable services, good access to key amenities.\nUrban: Very Good = above-average mobility without a car, fast links to key hubs, high day-to-day flexibility.\nUrban: Excellent = outstanding mobility, almost all daily needs accessible without a car, excellent access to key destinations.\nRural: Very Poor = virtually no practical public transport, high car dependency, key amenities difficult to reach.\nRural: Poor = limited day-to-day usability and flexibility; key destinations require significant travel time.\nRural: Average = adequate for basic daily needs, regular services available, regional amenities accessible.\nRural: Good = good regional public transport, regular and reliable services, good access to surrounding centres.\nRural: Very Good = above-average public transport for a rural location, practical for daily life without a car.\nRural: Excellent = exceptional mobility for a rural region, almost all daily needs accessible without a car.","scores":{"1":"Very Poor","2":"Poor","3":"Average","4":"Good","5":"Very Good","6":"Excellent"}},
+    "individualTransport": {"label":"Private Transport Accessibility","description":"Guidelines for assessing private transport accessibility\nVery Poor: severely restricted access, remote location, long journeys to regional centres, poor links to principal roads.\nPoor: below-average road access, limited regional accessibility, longer journeys to key destinations.\nAverage: average accessibility, regional centres generally reachable, acceptable traffic conditions.\nGood: good regional accessibility, principal roads easily accessible, practical for daily use.\nVery Good: very good regional and national accessibility, fast links to key centres, highly attractive for commuters.\nExcellent: outstanding regional and national road links, excellent access to key destinations, exceptionally high mobility quality.","scores":{"1":"Very Poor","2":"Poor","3":"Average","4":"Good","5":"Very Good","6":"Excellent"}},
+    "infrastructure": {"label":"Neighbourhood Amenities","description":"Guidelines for assessing neighbourhood amenities\nVery Poor: virtually no local amenities nearby.\nPoor: only limited basic amenities.\nAverage: supermarket and basic amenities available.\nGood: supermarket, doctors and schools within 10–15 minutes.\nVery Good: several shops, doctors and restaurants.\nExcellent: almost all amenities within walking distance.","scores":{"1":"Very Poor","2":"Poor","3":"Average","4":"Good","5":"Very Good","6":"Excellent"}},
+    "neighbourhoodCondition": {"label":"Condition of Surrounding Properties","description":"No additional description is available.","scores":{"1":"visible vacancy and severe refurbishment backlog","2":"several poorly maintained properties","3":"mixed streetscape","4":"predominantly well-maintained buildings","5":"high-quality residential buildings","6":"premium environment with exceptionally high residential quality"}},
+    "noiseEmissions": {"label":"Noise and Environmental Impact","description":"No additional description is available.","scores":{"1":"under a flight path or beside a heavily trafficked motorway, main road or railway line","2":"beside a busy road, motorway junction, commercial or industrial area","3":"beside an urban main road, bus route or tram line","4":"quiet side street near a principal road","5":"quiet residential area, far from main roads, with green spaces nearby","6":"suburban or rural location with extensive green space and fields"}},
+    "heating": {"label":"Heating System","description":"Condition and modernity of the heating system.","scores":{"1":"Severely outdated or technically problematic heating system; high short-term replacement requirement likely.","2":"Clearly outdated system; increased medium-term investment requirement likely.","3":"Older but functional system; modernisation advisable in due course.","4":"Sound and well-maintained condition; no immediate investment requirement evident.","5":"Modern and efficient heating system; low likelihood of medium-term investment.","6":"As-new or comprehensively modernised heating system; low long-term investment requirement expected."}},
+    "roof": {"label":"Roof","description":"Condition and maintenance requirements of the roof.","scores":{"1":"Significant visible damage or urgent refurbishment required.","2":"Clear signs of age; substantial medium-term investment likely.","3":"Older but functional condition; modernisation advisable in due course.","4":"Technically sound and well-maintained condition.","5":"Modernised or very well maintained; low investment requirement.","6":"As-new or comprehensively refurbished; low long-term capital expenditure risk."}},
+    "flatRoof": {"label":"Flat Roof","description":"Condition and risk of flat-roof sections.","scores":{"1":"Significant damage or leaks; urgent refurbishment required.","2":"Clear signs of age; medium-term refurbishment likely.","3":"Older but functional condition; future modernisation requirement.","4":"Sound technical condition; no significant defects evident.","5":"Modern or refurbished waterproofing; well-maintained condition.","6":"As-new or comprehensively renewed flat-roof system."}},
+    "facade": {"label":"Façade","description":"Condition of the façade.","scores":{"1":"Significant visible damage; high short-term investment requirement.","2":"Clear signs of age; modernisation requirement evident.","3":"Older but functional condition; future modernisation requirement.","4":"Well-maintained and sound condition.","5":"Modernised or very well-maintained façade.","6":"As-new or comprehensively refurbished building envelope."}},
+    "masonry": {"label":"Masonry / Construction Quality","description":"Building structure, masonry and construction quality.","scores":{"1":"Significant structural defects or damp damage.","2":"Clear structural weaknesses; increased refurbishment requirement.","3":"Average older construction quality.","4":"Sound and solid construction quality.","5":"High-quality or modernised construction.","6":"Very high-quality or as-new construction."}},
+    "bathrooms": {"label":"Sanitary Facilities / Bathrooms","description":"Condition and modernity of sanitary facilities and bathrooms.","scores":{"1":"Severely outdated fittings; significant modernisation required.","2":"Older fittings with clear signs of wear.","3":"Older but functional condition.","4":"Well-maintained and sound fittings.","5":"Modernised sanitary areas.","6":"As-new or high-quality modernised sanitary areas."}},
+    "electrical": {"label":"Electrical System","description":"Condition and modernity of the electrical installation.","scores":{"1":"Severely outdated installation or evident safety risks.","2":"Older installation with a clear need for renewal.","3":"Older but functional installation.","4":"Sound technical condition.","5":"Modernised electrical installation.","6":"As-new or comprehensively renewed electrical installation."}},
+    "windows": {"label":"Windows","description":"Condition and modernity of the windows.","scores":{"1":"Severely outdated or damaged windows.","2":"Older windows with an evident modernisation requirement.","3":"Older but functional windows.","4":"Well-maintained and sound windows.","5":"Modernised windows with a good energy standard.","6":"As-new energy-efficient windows."}},
+    "layout": {"label":"Layout / Functionality","description":"Functionality and marketability of the layout.","scores":{"1":"highly impractical or difficult-to-use layout","2":"clear functional limitations","3":"average usability","4":"functional and marketable layout","5":"very good and flexible layout","6":"exceptionally usable, flexible and highly marketable layout"}},
+    "livingQuality": {"label":"Living Quality / Appeal","description":"Subjective appeal and living quality of the property.","scores":{"1":"highly unattractive or outdated overall impression","2":"basic, outdated or unappealing overall impression","3":"average living quality","4":"well-maintained and appealing living quality","5":"high-quality and modern overall impression","6":"exceptionally high-quality and emotionally appealing living environment"}},
+    "light": {"label":"Natural Light","description":"Natural light and brightness within the property.","scores":{"1":"very dark living environment","2":"limited natural light","3":"average lighting conditions with adequate natural light","4":"good natural light and pleasant lighting conditions","5":"very bright living environment with high amenity value","6":"exceptionally bright, high-quality living environment"}},
+    "outdoorArea": {"label":"Outdoor Area","description":"Quality and usability of balconies, terraces, gardens or other outdoor areas.","scores":{"1":"no meaningfully usable outdoor area","2":"severely restricted outdoor area","3":"basic outdoor area available with average usability","4":"well-usable outdoor area","5":"high-quality, well-usable outdoor area","6":"exceptionally attractive, high-quality outdoor area with substantial residential value"}},
+    "energyCertificate": {"label":"Energy Performance Certificate","description":"Energy efficiency class shown on the Energy Performance Certificate.","scores":{"1":"G/H","2":"F","3":"E","4":"D","5":"C","6":"A/B"}}
+  }
+}

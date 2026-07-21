@@ -1,1 +1,168 @@
-{"title":"Vorprüfung","knockOutCriteria":"Ausschlusskriterien","eligible":"Ankaufsfähig","exceptionReview":"Ausnahmeprüfung","preliminaryMarketValue":"Vorläufiger Verkehrswert"}
+{
+  "title": "Vorprüfung",
+  "eligibilityTitle": "Ankaufsfähigkeit / Vorprüfung",
+  "summaryPrefix": "Vorprüfung: {result}",
+  "knockOutCriteria": "Ausschlusskriterien",
+  "eligible": "Ankaufsfähig",
+  "notEligible": "Nicht ankaufsfähig",
+  "exceptionReview": "Ausnahmeprüfung",
+  "exceptionReviewRequired": "Ausnahmeprüfung erforderlich",
+  "assessmentIncomplete": "Prüfung unvollständig",
+  "valueAssessmentPending": "Wertprüfung offen",
+  "notYetAssessed": "Noch nicht bewertet",
+  "exceptionApproved": "Ausnahme freigegeben",
+  "table": {
+    "criterion": "Kriterium",
+    "requirement": "Anforderung",
+    "currentValue": "Aktueller Wert",
+    "status": "Status",
+    "notice": "Hinweis"
+  },
+  "status": {
+    "passed": "Bestanden",
+    "exception_required": "Ausnahmeprüfung erforderlich",
+    "failed": "Nicht bestanden",
+    "unknown": "Wertprüfung offen"
+  },
+  "results": {
+    "acquirable": "Ankaufsfähig",
+    "not_acquirable": "Nicht ankaufsfähig",
+    "exception_required": "Ausnahmeprüfung erforderlich",
+    "exception_approved": "Ausnahmeprüfung freigegeben",
+    "incomplete": "Prüfung unvollständig"
+  },
+  "reasons": {
+    "eligible": "Alle erfassten Ankaufskriterien sind erfüllt.",
+    "notEligible": "Der Fall erfüllt die Ankaufskriterien nicht.",
+    "incomplete": "Bitte vervollständigen Sie die Vorprüfung.",
+    "exceptionRequired": "Für diesen Fall ist eine Ausnahmefreigabe erforderlich.",
+    "exceptionApproved": "Ausnahmeprüfung wurde freigegeben.",
+    "koFailed": "Mindestens ein KO-Kriterium ist nicht erfüllt."
+  },
+  "manualValues": "Manuelle Vorprüfungswerte",
+  "fields": {
+    "preliminaryMarketValue": "Vorläufiger Verkehrswert (€)",
+    "source": "Quelle",
+    "valuationDate": "Bewertungsdatum",
+    "marketValueComment": "Kommentar Verkehrswert",
+    "postbankCategory": "Postbank-Wohnatlas-Kategorie",
+    "landValue": "Bodenrichtwert (€/m²)",
+    "remainingUsefulLife": "Restnutzungsdauer (Jahre)",
+    "internalComment": "Interner Kommentar",
+    "developmentPotential": "Entwicklungspotenzial vorhanden",
+    "renovationPlan": "Sanierungs-/Modernisierungsplan vorhanden",
+    "propertyManagement": "WEG-/Hausverwaltung vorhanden",
+    "exceptionReason": "Begründung Ausnahmeprüfung"
+  },
+  "placeholders": {
+    "marketValue": "z. B. 520.000",
+    "marketValueComment": "z. B. interne Ersteinschätzung",
+    "landValue": "z. B. 420",
+    "remainingUsefulLife": "z. B. 48",
+    "internalComment": "kurzer Hinweis",
+    "exceptionReason": "Warum soll der Fall trotz gelber Kriterien weiter geprüft werden?"
+  },
+  "sources": {
+    "manual_estimate": "Manuelle Einschätzung",
+    "broker_statement": "Maklerangabe",
+    "market_data": "Marktdaten",
+    "internal_initial_estimate": "Interne Ersteinschätzung",
+    "other": "Sonstige"
+  },
+  "regions": {
+    "green": "Grün",
+    "yellow": "Gelb",
+    "orange": "Orange",
+    "red": "Rot"
+  },
+  "values": {
+    "notRecorded": "Nicht erfasst",
+    "yes": "Ja",
+    "no": "Nein",
+    "unknown": "Unbekannt",
+    "management": "Verwaltung: {value}",
+    "renovationPlan": "Sanierungsplan: {value}",
+    "years": "{value} Jahre"
+  },
+  "criteria": {
+    "region": {
+      "label": "Region gemäß Postbank Wohnatlas",
+      "requirement": "Grüne Regionen zulässig, gelbe Regionen mit Ausnahmeprüfung, orange/rote Regionen ausgeschlossen.",
+      "yellow": "Gelbe Region: Ausnahmefreigabe erforderlich.",
+      "excluded": "Orange/rote Region ist ausgeschlossen."
+    },
+    "market_value": {
+      "preliminaryLabel": "Vorläufiger Verkehrswert",
+      "appraisalLabel": "Gutachtenwert",
+      "requirement": "Mindestens 250.000 € und maximal 1.000.000 €.",
+      "missingPreliminary": "Bitte erfassen Sie zuerst einen vorläufigen Verkehrswert.",
+      "missingAppraisal": "Bitte erfassen Sie zuerst den Gutachtenwert.",
+      "below": "Der Verkehrswert liegt unter 250.000 €.",
+      "appraisalBelow": "Der Gutachtenwert liegt unter 250.000 €.",
+      "above": "Der Verkehrswert liegt über 1.000.000 €.",
+      "appraisalAbove": "Der Gutachtenwert liegt über 1.000.000 €.",
+      "within": "Verkehrswert innerhalb Ankaufskorridor."
+    },
+    "land_value": {
+      "label": "Bodenrichtwert",
+      "requirement": "Größer als 100 €/m².",
+      "failed": "Bodenrichtwert liegt bei maximal 100 €/m²."
+    },
+    "property_type": {
+      "label": "Objektart",
+      "requirement": "Wohngebäude bis 2 Einheiten, EFH, DHH, Reihenhaus oder ETW mit Verwaltung.",
+      "managementMissing": "Eigentumswohnung ohne WEG-/Hausverwaltung ist ausgeschlossen.",
+      "managementUnknown": "Bei Eigentumswohnungen muss die Verwaltung bestätigt werden."
+    },
+    "remaining_useful_life": {
+      "label": "Restnutzungsdauer",
+      "requirement": "Mehr als 35 Jahre; bei Entwicklungspotenzial Ausnahmeprüfung möglich.",
+      "exception": "Kurze Restnutzungsdauer mit Entwicklungspotenzial: Ausnahmefreigabe erforderlich.",
+      "failed": "Restnutzungsdauer liegt bei maximal 35 Jahren."
+    },
+    "energy_class": {
+      "label": "Energieklasse",
+      "requirement": "A bis F zulässig; G/H nur mit Sanierungs-/Modernisierungsplan oder Ausnahmeprüfung.",
+      "exception": "Energieklasse G/H: Sanierungsplan oder Ausnahmefreigabe erforderlich."
+    },
+    "living_area": {
+      "label": "Wohnfläche je Einheit",
+      "requirement": "Unter 225 m² je Wohneinheit.",
+      "exception": "Wohnfläche ab 225 m²: interne Ausnahmeprüfung erforderlich."
+    },
+    "monument_protection": {
+      "label": "Denkmalschutz",
+      "requirement": "Kein Denkmalschutz.",
+      "failed": "Denkmalschutz ist ein hartes KO-Kriterium."
+    },
+    "leasehold": {
+      "label": "Erbbaurecht",
+      "requirement": "Kein Erbbaurecht.",
+      "failed": "Erbbaurecht ist ein hartes KO-Kriterium."
+    },
+    "rating_threshold": {
+      "label": "Interne Rating-Schwelle",
+      "requirement": "Rating mindestens 2,5 von 6,0.",
+      "pending": "Dieses Kriterium wird nach Ratingberechnung final bewertet.",
+      "failed": "Rating liegt unterhalb der internen Ankaufsschwelle."
+    }
+  },
+  "actions": {
+    "save": "Vorprüfung speichern",
+    "requestException": "Ausnahme beantragen",
+    "approveException": "Ausnahme freigeben",
+    "rejectException": "Ausnahme ablehnen"
+  },
+  "messages": {
+    "saveSuccess": "Vorprüfung gespeichert.",
+    "saveFailed": "Die Vorprüfung konnte nicht gespeichert werden.",
+    "requestSuccess": "Ausnahmeprüfung beantragt.",
+    "approveSuccess": "Ausnahmeprüfung freigegeben.",
+    "rejectSuccess": "Ausnahmeprüfung abgelehnt."
+  },
+  "activity": {
+    "saved": "Vorprüfung gespeichert.",
+    "preliminaryValueSaved": "Vorläufiger Verkehrswert gespeichert.",
+    "knockOutIdentified": "KO-Kriterium festgestellt."
+  }
+}

@@ -32,7 +32,7 @@ test("en-GB exposes the English navigation without offer abbreviations", () => {
 
 test("catalogs contain display text and no raw translation keys", () => {
   for (const locale of ["de", "en"] as const) {
-    for (const name of ["common", "navigation", "dashboard", "leads", "customers"]) {
+    for (const name of ["common", "navigation", "dashboard", "leads", "customers", "precheck", "rating"]) {
       const values = leafValues(catalog(locale, name));
       assert.ok(values.length > 0);
       for (const value of values) {
@@ -110,6 +110,38 @@ test("case detail uses the shared bilingual case-view catalog", () => {
   assert.equal(english.activity.title, "Activity Log");
   assert.doesNotMatch(leafValues(english).join(" "), /\b(?:UVA|VA)\b/);
   assert.match(prototype, /useTranslations\('customers\.caseView'\)/);
+});
+
+test("acquisition pre-check catalogs are complete and use the agreed terminology", () => {
+  const german = catalog("de", "precheck");
+  const english = catalog("en", "precheck");
+  assert.deepEqual(Object.keys(english).sort(), Object.keys(german).sort());
+  assert.equal(english.eligibilityTitle, "Acquisition Eligibility / Pre-Check");
+  assert.equal(english.criteria.market_value.preliminaryLabel, "Preliminary Market Value");
+  assert.equal(english.criteria.land_value.label, "Standard Land Value");
+  assert.equal(english.results.not_acquirable, "Not Eligible for Acquisition");
+  assert.equal(english.actions.save, "Save Pre-Check");
+});
+
+test("property rating catalogs cover every configured category and criterion id", () => {
+  const german = catalog("de", "rating");
+  const english = catalog("en", "rating");
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  assert.deepEqual(Object.keys(english).sort(), Object.keys(german).sort());
+  assert.deepEqual(Object.keys(english.criteria).sort(), Object.keys(german.criteria).sort());
+  assert.equal(Object.keys(english.criteria).length, 23);
+  assert.equal(english.categories.economics, "Economic Factors");
+  assert.equal(english.categories.microlocation, "Micro-Location");
+  assert.equal(english.categories.maintenance, "Maintenance Requirements");
+  assert.equal(english.categories.property, "Property");
+  assert.equal(english.categories.energy, "Energy Performance");
+  assert.equal(english.criteria.publicTransport.scores[1], "Very Poor");
+  assert.equal(english.criteria.publicTransport.scores[6], "Excellent");
+  assert.equal(english.messages.reasonRequired, "A reason is required because an automatically generated value has been overridden.");
+  assert.match(prototype, /useTranslations\('precheck'\)/);
+  assert.match(prototype, /useTranslations\('rating'\)/);
+  assert.match(prototype, /objectRatingCriterionTranslationKeys/);
+  assert.match(prototype, /criterion\?\.category\?\.id === 'rating_cat_microlocation_v1'/);
 });
 
 test("locale aliases normalise to the supported locales", () => {

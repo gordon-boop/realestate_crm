@@ -1,1 +1,225 @@
-{"title":"Objektrating","ratingClass":"Ratingklasse","investmentTreatment":"Investment-Behandlung","standardApproval":"Standardfreigabe","additionalReview":"Zusätzliche Prüfung"}
+{
+  "title": "Objektrating",
+  "subtitle": "Institutionelle Objektprüfung",
+  "description": "Das Rating wird aus versionierten Kriterien, Gewichtungen und Mapping-Regeln erzeugt. Freigegebene Ratings bleiben revisionssicher nachvollziehbar.",
+  "approvedLocked": "Dieses Rating ist freigegeben und revisionssicher gesperrt.",
+  "empty": "Für diesen Fall wurde noch kein Objektrating erzeugt. Bei Einreichung eines Objekts passiert das automatisch; für bestehende Demo-Fälle kann es hier manuell erzeugt werden.",
+  "ratingClass": "Ratingklasse",
+  "investmentTreatment": "Investment-Behandlung",
+  "targetReturn": "Zielrendite",
+  "acquisitionIrr": "Ankaufs-IRR",
+  "standardApproval": "Standardfreigabe",
+  "additionalReview": "Zusätzliche Prüfung",
+  "belowThreshold": "Unterhalb der Ankaufsschwelle",
+  "status": {
+    "draft": "Entwurf",
+    "analyst_review": "Analystenprüfung",
+    "approved": "Freigegeben",
+    "underReview": "In Prüfung",
+    "notInitialised": "Nicht initialisiert",
+    "complete": "Vollständig",
+    "open": "Offen",
+    "commentRequired": "Kommentar erforderlich",
+    "excluded": "Ausgeschlossen",
+    "manuallyChanged": "Manuell geändert",
+    "review": "Prüfen",
+    "ok": "OK",
+    "ready": "Bereit"
+  },
+  "summary": {
+    "overallScore": "Gesamtscore",
+    "openCriteria": "Offene Kriterien",
+    "manualChanges": "Manuell geändert",
+    "mandatoryCommentsOpen": "Pflichtkommentare offen",
+    "status": "Status",
+    "lastSaved": "Letzte Speicherung",
+    "corridor": "Korridor",
+    "acquisitionThreshold": "Ankaufsschwelle",
+    "reviewAfterAppraisal": "Rating-Review nach Gutachten",
+    "nextAction": "Nächste Aktion"
+  },
+  "actions": {
+    "initialise": "Rating initialisieren",
+    "saveChanges": "Änderungen speichern",
+    "saveTargetReturn": "Zielrendite speichern",
+    "review": "Rating prüfen",
+    "approve": "Rating freigeben",
+    "reopen": "Rating wieder freischalten",
+    "view": "Ansehen",
+    "edit": "Bearbeiten",
+    "close": "Schließen",
+    "save": "Speichern"
+  },
+  "helpers": {
+    "initialise": "Übernimmt automatisch ableitbare Werte aus Fragebogen und Marktdaten. Nicht ableitbare Kriterien bleiben offen.",
+    "approve": "Alle Pflichtwerte sind vorhanden. Das Rating kann revisionssicher freigegeben werden.",
+    "saveChanges": "{count} Änderung(en) vor der Freigabe speichern.",
+    "editOpen": "Bearbeiten Sie offene Kriterien oder prüfen Sie die offenen Punkte.",
+    "returnRule": "Analysten dürfen die finale Zielrendite nur innerhalb des Rating-Korridors setzen.",
+    "appraisalReviewRequired": "Rating-Review nach Gutachten erforderlich. Das verbindliche Angebot kann erst nach erneuter Bestätigung oder Freigabe erstellt werden.",
+    "excludedNotCalculated": "ausgegraut, wird nicht mitgerechnet",
+    "manuallyChanged": "manuell geändert"
+  },
+  "messages": {
+    "reasonRequired": "Begründung erforderlich, weil ein automatischer Wert überschrieben wurde.",
+    "manualReasonRequired": "Bitte begründen Sie die manuelle Änderung.",
+    "noChanges": "Es gibt keine Rating-Änderungen zum Speichern.",
+    "invalidTargetReturn": "Bitte eine gültige Zielrendite eingeben.",
+    "reopenReasonPrompt": "Bitte geben Sie einen Grund für die Freischaltung an.",
+    "noOpenItems": "Keine offenen Punkte. Das Rating kann freigegeben werden.",
+    "approved": "Rating freigegeben",
+    "noDescription": "Keine zusätzliche Beschreibung hinterlegt.",
+    "noHistory": "Noch keine Historie vorhanden.",
+    "noOpenReviews": "Keine offenen Prüfungen.",
+    "dataMissing": "Datenbasis fehlt",
+    "analystReviewRecommended": "Analystenprüfung empfohlen",
+    "initialised": "Objektrating wurde initialisiert.",
+    "changesSaved": "Rating-Änderungen wurden gespeichert.",
+    "targetReturnSaved": "Zielrendite wurde gespeichert.",
+    "approvalSuccess": "Objektrating wurde freigegeben.",
+    "reopenSuccess": "Objektrating wurde wieder freigeschaltet.",
+    "actionFailed": "Die Rating-Aktion konnte nicht ausgeführt werden."
+  },
+  "openItems": {
+    "title": "Offene Punkte",
+    "openCount": "{count} offen",
+    "notAssessed": "{category}: {criterion} noch nicht bewertet",
+    "lowConfidence": "{category}: {criterion} mit niedriger Confidence prüfen",
+    "commentRequired": "Kommentar erforderlich bei {criterion}",
+    "notApproved": "Rating noch nicht freigegeben",
+    "notInitialised": "Rating noch nicht initialisiert"
+  },
+  "sections": {
+    "finalTargetReturn": "Finale Zielrendite",
+    "openItems": "Offene Punkte",
+    "categories": "Kategorien",
+    "criteria": "Kriterien",
+    "openReviews": "Offene Prüfungen",
+    "auditTrail": "Audit Trail"
+  },
+  "table": {
+    "criterion": "Kriterium",
+    "weighting": "Gewichtung",
+    "source": "Quelle",
+    "automatic": "Auto",
+    "automaticValue": "Automatischer Wert",
+    "automaticAssessment": "Automatische Bewertung",
+    "final": "Final",
+    "finalValue": "Finaler Wert",
+    "finalAssessment": "Finale Bewertung",
+    "confidence": "Confidence",
+    "status": "Status",
+    "action": "Aktion",
+    "comment": "Kommentar",
+    "reason": "Begründung",
+    "mandatoryComment": "Pflichtkommentar"
+  },
+  "placeholders": {
+    "targetReturn": "z. B. 7,25",
+    "mandatoryReason": "Pflicht: Änderung begründen",
+    "optional": "Optional"
+  },
+  "sources": {
+    "questionnaire": "Fragebogen",
+    "api": "API / Marktdaten",
+    "analyst": "Analyst",
+    "document": "Dokument"
+  },
+  "categorySummary": {
+    "headline": "{category} · Score {score} · {count} Kriterien{open}",
+    "openSuffix": " · {count} offen",
+    "details": "Gewichtung {weight} · {manual} manuelle Änderung(en) · {comments} Pflichtkommentar(e) offen"
+  },
+  "investment": {
+    "bands": {
+      "notRated": "Nicht bewertet",
+      "one": "1 · Ungeeignet",
+      "two": "2 · Unter Schwelle",
+      "three": "3 · Grenzfall",
+      "four": "4 · Solides Objekt",
+      "five": "5 · Starkes Objekt",
+      "six": "6 · Top-Objekt"
+    },
+    "treatments": {
+      "ratingRequired": "Rating erforderlich",
+      "notEligible": "Nicht ankauffähig",
+      "belowThreshold": "Unterhalb der Ankaufsschwelle",
+      "additionalReview": "Zusätzliche Prüfung erforderlich",
+      "standardApproval": "Standardfreigabe"
+    },
+    "returns": {
+      "notFinal": "Noch nicht final parametrisiert",
+      "noOffer": "Kein Angebot",
+      "increased": "Erhöhte Zielrendite aus Ratingkurve",
+      "lowest": "Niedrigste Zielrendite aus Ratingkurve",
+      "reduced": "Reduzierte Zielrendite aus Ratingkurve",
+      "normal": "Normale Zielrendite aus Ratingkurve"
+    },
+    "next": {
+      "complete": "Objektrating abschließen",
+      "reject": "Ablehnung vorbereiten oder zurückstellen",
+      "continueWithReview": "Angebotsstrecke mit erhöhter Prüfung fortsetzen",
+      "reviewAndApprove": "Rating intern prüfen und freigeben",
+      "continue": "Angebotsstrecke fortsetzen",
+      "approve": "Rating freigeben"
+    },
+    "warnings": {
+      "complete": "Bitte schließen Sie zuerst das Objektrating ab.",
+      "belowThreshold": "Objekt liegt unterhalb der Ankaufsschwelle."
+    }
+  },
+  "appraisalReview": {
+    "notRequired": "Noch nicht erforderlich",
+    "required": "Erforderlich",
+    "underReview": "In Prüfung",
+    "adjusted": "Angepasst",
+    "confirmed": "Bestätigt",
+    "reviewAction": "Rating nach Gutachten prüfen"
+  },
+  "audit": {
+    "rating_created": "Rating initialisiert",
+    "score_changed": "Score geändert",
+    "return_changed": "Zielrendite geändert",
+    "rating_approved": "Rating freigegeben",
+    "rating_unlocked": "Rating wieder freigeschaltet",
+    "rating_recalculated": "Rating neu berechnet",
+    "unknown": "Rating-Aktivität"
+  },
+  "activity": {
+    "created": "Vorläufiges Objektrating wurde erzeugt.",
+    "approved": "Objektrating wurde freigegeben.",
+    "reopened": "Objektrating wurde wieder freigeschaltet."
+  },
+  "categories": {
+    "economics": "Wirtschaftliche Faktoren",
+    "microlocation": "Mikrolage",
+    "maintenance": "Instandhaltungsaufwand",
+    "property": "Immobilie",
+    "energy": "Energieausweis"
+  },
+  "criteria": {
+    "purchasePower": {"label":"Kaufkraft","description":"Kaufkraftindex am Standort.","scores":{"1":"< 85","2":"85 - 92","3":"92 - 100","4":"100 - 108","5":"108 - 118","6":"> 118"}},
+    "unemploymentRate": {"label":"Arbeitslosenquote","description":"Aktuelle Arbeitslosenquote am Standort.","scores":{"1":"> 8,5 %","2":"7,0 % bis < 8,5 %","3":"5,5 % bis < 7,0 %","4":"4,0 % bis < 5,5 %","5":"3,0 % bis < 4,0 %","6":"< 3,0 %"}},
+    "unemploymentTrend": {"label":"Entwicklung der Arbeitslosenquote letzte 5 Jahre","description":"Entwicklung der Arbeitslosenquote der letzten 5 Jahre.","scores":{"1":"stark steigend (> +1,5 %)","2":"steigend (+0,5 bis +1,5 %)","3":"leicht steigend (0 bis +0,5 %-Punkte)","4":"stabil (-0,5 % bis 0 %)","5":"leicht fallend (-0,5 % bis -1,5 %)","6":"stark fallend (< -1,5 %)"}},
+    "migrationBalance": {"label":"Wanderungssaldo","description":"Wanderungssaldo am Standort.","scores":{"1":"< -5","2":"-5 bis -2","3":"-2 bis 0","4":"0 bis +2","5":"+2 bis +5","6":"> +5"}},
+    "populationTrend": {"label":"Bevölkerungsentwicklung","description":"Bevölkerungsentwicklung über 10 Jahre.","scores":{"1":"< -10 % in 10 Jahren","2":"-5 % bis -10 % in 10 Jahren","3":"-1 % bis -5 % in 10 Jahren","4":"-1 % bis +2 % in 10 Jahren","5":"+2 % bis +6 % in 10 Jahren","6":"> +6 % in 10 Jahren"}},
+    "publicTransport": {"label":"Anbindung öffentlicher Nahverkehr","description":"Guidelines zur Bewertung der Anbindung an den öffentlichen Nahverkehr\nStadt: sehr schlecht = kaum alltagstaugliche ÖPNV-Anbindung, sehr geringe Taktung, zentrale Ziele nur schwer erreichbar, starke PKW-Abhängigkeit.\nStadt: schlecht = eingeschränkte Nutzbarkeit, geringe Flexibilität, zentrale Ziele nur mit deutlichem Zeitaufwand erreichbar.\nStadt: durchschnittlich = grundlegende Alltagstauglichkeit vorhanden, regelmäßige Verbindung, wichtige Ziele erreichbar.\nStadt: gut = gute alltagstaugliche Anbindung, regelmäßige und zuverlässige Verbindung, gute Erreichbarkeit zentraler Einrichtungen.\nStadt: sehr gut = überdurchschnittliche Mobilität ohne PKW möglich, schnelle Verbindung zu wichtigen Knotenpunkten, hohe Flexibilität im Alltag.\nStadt: exzellent = hervorragende Mobilitätsqualität, nahezu vollständige Alltagstauglichkeit ohne PKW, exzellente Erreichbarkeit zentraler Ziele.\nLändliche Lage: sehr schlecht = praktisch keine alltagstaugliche ÖPNV-Anbindung, starke PKW-Abhängigkeit, zentrale Einrichtungen nur schwer erreichbar.\nLändliche Lage: schlecht = eingeschränkte Nutzbarkeit im Alltag, geringe Flexibilität, wichtige Ziele nur mit deutlichem Zeitaufwand erreichbar.\nLändliche Lage: durchschnittlich = grundlegende Alltagstauglichkeit vorhanden, regelmäßige Verbindung vorhanden, regionale Versorgung erreichbar.\nLändliche Lage: gut = gute regionale ÖPNV-Anbindung, regelmäßige und zuverlässige Verbindungen, gute Erreichbarkeit umliegender Zentren.\nLändliche Lage: sehr gut = überdurchschnittliche ÖPNV-Anbindung für ländliche Lage, hohe Alltagstauglichkeit auch ohne PKW.\nLändliche Lage: exzellent = außergewöhnlich gute Mobilitätsqualität für ländliche Region, nahezu vollständige Alltagstauglichkeit ohne PKW.","scores":{"1":"Sehr schlecht","2":"Schlecht","3":"Durchschnittlich","4":"Gut","5":"Sehr gut","6":"Exzellent"}},
+    "individualTransport": {"label":"Individualverkehr","description":"Guidelines zur Bewertung des Individualverkehrs\nSehr schlecht: stark eingeschränkte Erreichbarkeit, abgelegene Lage, lange Fahrzeiten zu regionalen Zentren, schlechte Anbindung an Hauptverkehrsachsen.\nSchlecht: unterdurchschnittliche Verkehrsanbindung, eingeschränkte regionale Erreichbarkeit, längere Fahrzeiten zu wichtigen Zielen.\nDurchschnittlich: durchschnittliche Erreichbarkeit, regionale Zentren grundsätzlich erreichbar, akzeptable Verkehrssituation.\nGut: gute regionale Erreichbarkeit, Hauptverkehrsachsen gut erreichbar, gute Alltagstauglichkeit.\nSehr gut: sehr gute regionale und überregionale Erreichbarkeit, schnelle Verbindung zu wichtigen Zentren, hohe Pendlerattraktivität.\nExzellent: hervorragende regionale und überregionale Verkehrsanbindung, exzellente Erreichbarkeit zentraler Ziele, außergewöhnlich hohe Mobilitätsqualität.","scores":{"1":"Sehr schlecht","2":"Schlecht","3":"Durchschnittlich","4":"Gut","5":"Sehr gut","6":"Exzellent"}},
+    "infrastructure": {"label":"Infrastruktur des Viertels","description":"Guidelines zur Bewertung der Infrastruktur des Viertels\nSehr schlecht: kaum Nahversorgung im Umkreis.\nSchlecht: nur eingeschränkte Grundversorgung.\nDurchschnittlich: Supermarkt und Basisversorgung vorhanden.\nGut: Supermarkt, Ärzte, Schulen innerhalb 10-15 Minuten.\nSehr gut: mehrere Einkaufsmöglichkeiten, Ärzte und Gastronomie.\nExzellent: nahezu vollständige Infrastruktur fußläufig.","scores":{"1":"Sehr schlecht","2":"Schlecht","3":"Durchschnittlich","4":"Gut","5":"Sehr gut","6":"Exzellent"}},
+    "neighbourhoodCondition": {"label":"Häuserzustand der Nachbarschaft, Umgebung","description":"Keine zusätzliche Beschreibung hinterlegt.","scores":{"1":"sichtbarer Leerstand, starker Sanierungsstau","2":"mehrere ungepflegte Objekte","3":"gemischtes Straßenbild","4":"überwiegend gepflegte Bebauung","5":"hochwertige Wohnbebauung","6":"Premiumumfeld mit sehr hoher Wohnqualität"}},
+    "noiseEmissions": {"label":"Lärmbelastung, Emissionen","description":"Keine zusätzliche Beschreibung hinterlegt.","scores":{"1":"Einflugschneise, neben stark befahrener Autobahn / Hauptstraße / Bahnlinie","2":"neben stärker befahrener Straße, Autobahnabfahrt, Gewerbe- Industriegebiet","3":"neben innerstädtischer Hauptstraße, Bus- oder Straßenbahnlinien","4":"ruhige Nebenstraße, nahe Hauptverkehrsader","5":"ruhiges Wohngebiet, weit entfernt von Hauptstraßen, Grünflächen in der Nähe","6":"Vorort, ländliche Gegend, viele Grünflächen, Felder"}},
+    "heating": {"label":"Heizung / Wärmeversorgung","description":"Zustand und Modernität der Wärmeversorgung.","scores":{"1":"Stark veraltetes oder technisch problematisches Heizsystem; hoher kurzfristiger Austauschbedarf wahrscheinlich.","2":"Deutlich veraltetes System; erhöhter Investitionsbedarf mittelfristig wahrscheinlich.","3":"Älteres, aber funktionales System; Modernisierung perspektivisch sinnvoll.","4":"Ordentlicher und gepflegter Zustand; aktuell kein akuter Investitionsbedarf erkennbar.","5":"Modernes und effizientes Heizsystem; niedrige Investitionswahrscheinlichkeit mittelfristig.","6":"Neuwertiges oder umfassend modernisiertes Heizsystem; langfristig geringer Investitionsbedarf erwartbar."}},
+    "roof": {"label":"Dach","description":"Zustand und Instandhaltungsbedarf des Dachs.","scores":{"1":"Erhebliche sichtbare Schäden oder akuter Sanierungsbedarf.","2":"Deutliche Alterserscheinungen; mittelfristig hohe Investitionen wahrscheinlich.","3":"Älterer, aber funktionaler Zustand; Modernisierung perspektivisch sinnvoll.","4":"Technisch ordentlicher und gepflegter Zustand.","5":"Modernisiert oder sehr gepflegt; niedriger Investitionsbedarf.","6":"Neuwertig oder umfassend saniert; langfristig geringes CAPEX-Risiko."}},
+    "flatRoof": {"label":"Flachdach","description":"Zustand und Risiko bei Flachdachanteilen.","scores":{"1":"Erhebliche Schäden oder Undichtigkeiten; akuter Sanierungsbedarf.","2":"Deutliche Alterserscheinungen; mittelfristige Sanierung wahrscheinlich.","3":"Funktionaler älterer Zustand; perspektivischer Modernisierungsbedarf.","4":"Ordentlicher technischer Zustand; keine wesentlichen Mängel erkennbar.","5":"Moderne oder sanierte Abdichtung; gepflegter Zustand.","6":"Neuwertiges oder umfassend erneuertes Flachdachsystem."}},
+    "facade": {"label":"Fassade","description":"Zustand der Fassade.","scores":{"1":"Erhebliche sichtbare Schäden; hoher kurzfristiger Investitionsbedarf.","2":"Deutliche Alterserscheinungen; Modernisierungsbedarf erkennbar.","3":"Funktionaler älterer Zustand; perspektivischer Modernisierungsbedarf.","4":"Gepflegter und ordentlicher Zustand.","5":"Modernisierte oder sehr gepflegte Fassade.","6":"Neuwertige oder umfassend sanierte Gebäudehülle."}},
+    "masonry": {"label":"Mauerwerk/Bauausführung","description":"Baukonstruktion, Mauerwerk und Ausführungsqualität.","scores":{"1":"Erhebliche bauliche Mängel oder Feuchtigkeitsschäden.","2":"Deutliche bauliche Schwächen; erhöhter Sanierungsbedarf.","3":"Durchschnittliche ältere Bauausführung.","4":"Ordentliche und solide Bauausführung.","5":"Hochwertige oder modernisierte Bauausführung.","6":"Sehr hochwertige oder neuwertige Bauausführung."}},
+    "bathrooms": {"label":"Sanitär / Bäder","description":"Zustand und Modernität von Sanitär und Bädern.","scores":{"1":"Stark veraltete Ausstattung; erheblicher Modernisierungsbedarf.","2":"Ältere Ausstattung mit deutlichen Gebrauchsspuren.","3":"Funktionaler älterer Zustand.","4":"Gepflegte und ordentliche Ausstattung.","5":"Modernisierte Sanitärbereiche.","6":"Neuwertige oder hochwertig modernisierte Sanitärbereiche."}},
+    "electrical": {"label":"Elektro","description":"Zustand und Modernität der Elektroinstallation.","scores":{"1":"Stark veraltete Installation oder erkennbare Sicherheitsrisiken.","2":"Ältere Installation mit deutlichem Erneuerungsbedarf.","3":"Ältere, aber funktionale Installation.","4":"Ordentlicher technischer Zustand.","5":"Modernisierte Elektroinstallation.","6":"Neuwertige oder umfassend erneuerte Elektroinstallation."}},
+    "windows": {"label":"Fenster","description":"Zustand und Modernität der Fenster.","scores":{"1":"Stark veraltete oder beschädigte Fenster.","2":"Ältere Fenster mit erkennbarem Modernisierungsbedarf.","3":"Funktionale ältere Fenster.","4":"Gepflegte und ordentliche Fenster.","5":"Modernisierte Fenster mit gutem energetischem Standard.","6":"Neuwertige energieeffiziente Fenster."}},
+    "layout": {"label":"Grundriss / Funktionalität","description":"Funktionalität und Marktgängigkeit des Grundrisses.","scores":{"1":"stark unpraktischer oder schwer nutzbarer Grundriss","2":"deutliche funktionale Einschränkungen","3":"durchschnittliche Nutzbarkeit","4":"funktionaler und marktgängiger Grundriss","5":"sehr guter und flexibler Grundriss","6":"außergewöhnlich gut nutzbarer, flexibler und sehr marktgängiger Grundriss"}},
+    "livingQuality": {"label":"Wohngefühl / Attraktivität","description":"Subjektive Attraktivität und Wohngefühl des Objekts.","scores":{"1":"stark unattraktiver oder veralteter Gesamteindruck","2":"einfacher, veralteter oder wenig ansprechender Gesamteindruck","3":"durchschnittliche Wohnqualität","4":"gepflegte und ansprechende Wohnqualität","5":"hochwertiger und moderner Gesamteindruck","6":"außergewöhnlich hochwertige und emotional sehr attraktive Wohnqualität"}},
+    "light": {"label":"Belichtung","description":"Belichtung und Helligkeit des Objekts.","scores":{"1":"sehr dunkle Wohnsituation","2":"eingeschränkte natürliche Belichtung","3":"durchschnittliche Lichtverhältnisse, ausreichende natürliche Belichtung","4":"gute natürliche Belichtung, angenehme Lichtverhältnisse","5":"sehr helle Wohnsituation mit hoher Aufenthaltsqualität","6":"außergewöhnlich helle und hochwertige Wohnsituation"}},
+    "outdoorArea": {"label":"Außenbereich","description":"Qualität und Nutzbarkeit von Balkon, Terrasse, Garten oder Außenflächen.","scores":{"1":"kein sinnvoll nutzbarer Außenbereich","2":"stark eingeschränkter Außenbereich","3":"grundlegender Außenbereich vorhanden, durchschnittliche Nutzbarkeit","4":"gut nutzbarer Außenbereich","5":"hochwertiger und gut nutzbarer Außenbereich","6":"außergewöhnlich attraktiver und hochwertig nutzbarer Außenbereich mit hohem Wohnwert"}},
+    "energyCertificate": {"label":"Energieausweis","description":"Energieeffizienzklasse aus dem Energieausweis.","scores":{"1":"G/H","2":"F","3":"E","4":"D","5":"C","6":"A/B"}}
+  }
+}
