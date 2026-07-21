@@ -156,6 +156,7 @@
   "messages": {
     "saveSuccess": "Pre-Check saved.",
     "saveFailed": "The Pre-Check could not be saved.",
+    "invalidNumber": "Please enter a valid number.",
     "requestSuccess": "Exception review requested.",
     "approveSuccess": "Exception review approved.",
     "rejectSuccess": "Exception review rejected."

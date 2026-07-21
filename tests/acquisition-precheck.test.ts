@@ -1,6 +1,7 @@
 ﻿import assert from "node:assert/strict";
 import test from "node:test";
 import { evaluateAcquisitionPrecheck } from "../lib/acquisition-precheck.ts";
+import { parseLocaleNumberInput } from "../lib/utils/numberParsing.ts";
 
 function caseView(overrides: any = {}) {
   return {
@@ -62,6 +63,19 @@ test("acquisition precheck parses German preliminary market values before valida
   assert.equal(lowerPassed.result, "acquirable");
   assert.equal(upperPassed.result, "acquirable");
   assert.equal(upperFailed.result, "not_acquirable");
+});
+
+test("English preliminary market value is parsed before pre-check evaluation", () => {
+  const parsedMarketValue = parseLocaleNumberInput("400,000", "en-GB");
+  const result = evaluateAcquisitionPrecheck(caseView({
+    acquisitionPrecheck: { preliminaryMarketValue: parsedMarketValue }
+  }));
+  const marketValue = result.criteria.find((item) => item.key === "market_value");
+
+  assert.equal(parsedMarketValue, 400000);
+  assert.equal(marketValue?.currentValue, "400.000 €");
+  assert.equal(marketValue?.status, "passed");
+  assert.equal(result.result, "acquirable");
 });
 
 test("acquisition precheck is incomplete without preliminary market value", () => {

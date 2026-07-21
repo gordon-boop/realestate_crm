@@ -194,7 +194,8 @@
     "acceptedModelInternalOnly": "The accepted model can only be recorded by an internal user.",
     "acceptedModelRequired": "Please select the accepted model.",
     "modelNotOffered": "The selected model was not offered.",
-    "workflowNotPrepared": "This process step is not available."
+    "workflowNotPrepared": "This process step is not available.",
+    "invalidNumber": "Please enter a valid number."
   },
   "activity": {
     "indicativeCalculated": "Indicative Offer calculated.",

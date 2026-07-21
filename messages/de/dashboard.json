@@ -105,5 +105,17 @@
       "portfolio": "Ankauf / Bestand",
       "closed": "Abgeschlossen / Verloren"
     }
+  },
+  "caseList": {
+    "eyebrowInternal": "Intern · CRM",
+    "eyebrowPartner": "Partnerportal",
+    "count": "Fälle",
+    "sorted": "Sortiert nach letzter Aktivität",
+    "empty": "Keine Fälle in „{title}“.",
+    "emptyGeneric": "Keine Fälle vorhanden.",
+    "titles": {"drafts": "Entwürfe", "in_progress": "In Bearbeitung", "portfolio": "Bestand", "sold": "Verkauft", "rejected": "Abgelehnt", "fallback": "Fälle"},
+    "subtitles": {"drafts": "Entwürfe, die noch nicht eingereicht wurden.", "in_progress": "Alle aktiven Vorgänge von Einreichung bis Freigabe.", "portfolio": "Fälle im Bestand oder in der Kundenphase nach Versand.", "sold": "Weiterverkaufte oder final abgeschlossene Objekte.", "rejected": "Abgelehnte Vorgänge mit dokumentiertem Grund für den Makler.", "fallback": "Gefilterte Fallliste."},
+    "columns": {"case": "Fall", "origin": "Herkunft", "customer": "Kunde", "partner": "Partner", "property": "Objekt", "status": "Status", "rejection": "Ablehnungsgrund", "lastActivity": "Letzte Aktivität", "currentStep": "Aktueller Schritt", "completion": "Vollständigkeit", "assignee": "Bearbeiter", "lastEdited": "Zuletzt bearbeitet"},
+    "drafts": {"empty": "Keine Entwürfe vorhanden.", "broker": "Makler", "internal": "Interne Bearbeitung", "unassigned": "Nicht zugewiesen", "incomplete": "Unvollständiger Entwurf", "notRecorded": "Noch nicht erfasst", "continue": "Erfassung fortsetzen", "steps": {"1": "Persönliche Daten", "2": "Wunschmodell", "3": "Immobiliendaten", "4": "Modernisierungen", "5": "Dokumente"}}
   }
 }

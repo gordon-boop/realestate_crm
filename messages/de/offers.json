@@ -194,7 +194,8 @@
     "acceptedModelInternalOnly": "Das angenommene Modell kann nur intern erfasst werden.",
     "acceptedModelRequired": "Bitte wählen Sie das angenommene Modell aus.",
     "modelNotOffered": "Das ausgewählte Modell wurde nicht angeboten.",
-    "workflowNotPrepared": "Dieser Prozessschritt ist nicht vorbereitet."
+    "workflowNotPrepared": "Dieser Prozessschritt ist nicht vorbereitet.",
+    "invalidNumber": "Bitte geben Sie eine gültige Zahl ein."
   },
   "activity": {
     "indicativeCalculated": "Unverbindliches Angebot wurde berechnet.",

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
 import { formatAddress } from "@/lib/address";
+import { parseLocaleNumberInput } from "@/lib/utils/numberParsing";
 
 const residentialRightYears = Array.from({ length: 11 }, (_, index) => index + 5);
 
@@ -29,10 +30,9 @@ const buildingConditionFields = [
   ["Other", "other"]
 ] as const;
 
-function numberValue(value: FormDataEntryValue | null): number | undefined {
+function numberValue(value: FormDataEntryValue | null, locale: string): number | undefined {
   if (value === null || value === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return parseLocaleNumberInput(value, locale) ?? undefined;
 }
 
 function stringValue(value: FormDataEntryValue | null): string | undefined {
@@ -43,6 +43,7 @@ function stringValue(value: FormDataEntryValue | null): string | undefined {
 
 export function NewCaseForm() {
   const t = useTranslations("customers.intake");
+  const locale = useLocale();
   const [error, setError] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [maritalStatus, setMaritalStatus] = useState("");
@@ -128,14 +129,14 @@ export function NewCaseForm() {
       street: form.get("propertyStreet"),
       postalCode: form.get("propertyPostalCode"),
       city: form.get("propertyCity"),
-      livingAreaSqm: numberValue(form.get("livingAreaSqm")),
-      plotAreaSqm: numberValue(form.get("plotAreaSqm")),
-      usableAreaSqm: numberValue(form.get("usableAreaSqm")),
-      yearBuilt: numberValue(form.get("yearBuilt")),
+      livingAreaSqm: numberValue(form.get("livingAreaSqm"), locale),
+      plotAreaSqm: numberValue(form.get("plotAreaSqm"), locale),
+      usableAreaSqm: numberValue(form.get("usableAreaSqm"), locale),
+      yearBuilt: numberValue(form.get("yearBuilt"), locale),
       condition: "average",
       desiredModel: form.get("desiredModel"),
       residentialRightRecipients: form.get("residentialRightRecipients"),
-      desiredResidentialRightYears: desiredModel === "fixed_residential_right" ? numberValue(form.get("desiredResidentialRightYears")) : undefined,
+      desiredResidentialRightYears: desiredModel === "fixed_residential_right" ? numberValue(form.get("desiredResidentialRightYears"), locale) : undefined,
       fixedTermReason: desiredModel === "fixed_residential_right" ? form.get("fixedTermReason") : undefined,
       modelReason: form.get("modelReason"),
       rentalModelDisclosureAccepted: desiredModel === "sale_and_leaseback" ? form.get("rentalModelDisclosureAccepted") === "on" : false,
@@ -143,20 +144,20 @@ export function NewCaseForm() {
       secondResidentialRightWanted: false,
       additionalOfferRequested: form.get("additionalOfferRequested") === "on",
       additionalOfferModel: form.get("additionalOfferRequested") === "on" ? form.get("additionalOfferModel") : undefined,
-      additionalOfferResidentialRightYears: form.get("additionalOfferModel") === "fixed_residential_right" ? numberValue(form.get("additionalOfferResidentialRightYears")) : undefined,
+      additionalOfferResidentialRightYears: form.get("additionalOfferModel") === "fixed_residential_right" ? numberValue(form.get("additionalOfferResidentialRightYears"), locale) : undefined,
       additionalOfferReason: form.get("additionalOfferRequested") === "on" ? form.get("additionalOfferReason") : undefined,
       coOwnershipShares: propertyType === "apartment" ? form.get("coOwnershipShares") : undefined,
       parkingAvailable: hasParking,
       parkingType: hasParking ? form.get("parkingType") : undefined,
-      parkingCount: hasParking ? numberValue(form.get("parkingCount")) : undefined,
+      parkingCount: hasParking ? numberValue(form.get("parkingCount"), locale) : undefined,
       basementType: form.get("basementType"),
       heatingType: form.get("heatingType"),
       heatingEnergySource: form.get("heatingEnergySource"),
       heatingEnergySourceOther: form.get("heatingEnergySource") === "other" ? form.get("heatingEnergySourceOther") : undefined,
-      heatingYear: numberValue(form.get("heatingYear")),
+      heatingYear: numberValue(form.get("heatingYear"), locale),
       energyCarriers: ["photovoltaik", "solarthermie", "batteriespeicher"].filter((name) => form.get(name) === "on"),
       windowMaterial: form.get("windowMaterial"),
-      windowInstallationYear: numberValue(form.get("windowInstallationYear")),
+      windowInstallationYear: numberValue(form.get("windowInstallationYear"), locale),
       asbestosRoofKnown: form.get("asbestosRoofKnown") === "yes",
       energyCertificateAvailable: energyAvailable,
       energyCertificateType: energyAvailable ? form.get("energyCertificateType") : undefined,
@@ -167,7 +168,7 @@ export function NewCaseForm() {
       leaseholdOrMonument: form.get("leasehold") === "on" || form.get("monumentProtection") === "on",
       knownDefects: form.get("knownDefects"),
       remainingDebtKnown: debtKnown,
-      remainingDebtAmount: debtKnown ? numberValue(form.get("remainingDebtAmount")) : undefined,
+      remainingDebtAmount: debtKnown ? numberValue(form.get("remainingDebtAmount"), locale) : undefined,
       modernization: Object.fromEntries(
         modernizationFields.map((key) => [
           key,
@@ -295,9 +296,9 @@ export function NewCaseForm() {
         <label className="field"><span>{t("personal.street")}</span><input name="propertyStreet" required /></label>
         <label className="field"><span>{t("personal.postalCode")}</span><input name="propertyPostalCode" required /></label>
         <label className="field"><span>{t("personal.city")}</span><input name="propertyCity" required /></label>
-        <label className="field"><span>{t("property.livingArea")}</span><input name="livingAreaSqm" type="number" min="1" required /></label>
-        <label className="field"><span>{t("property.plotArea")}</span><input name="plotAreaSqm" type="number" min="0" required /></label>
-        <label className="field"><span>{t("property.usableArea")}</span><input name="usableAreaSqm" type="number" min="0" /></label>
+        <label className="field"><span>{t("property.livingArea")}</span><input name="livingAreaSqm" type="text" inputMode="decimal" required /></label>
+        <label className="field"><span>{t("property.plotArea")}</span><input name="plotAreaSqm" type="text" inputMode="decimal" required /></label>
+        <label className="field"><span>{t("property.usableArea")}</span><input name="usableAreaSqm" type="text" inputMode="decimal" /></label>
         <label className="field"><span>{t("property.yearBuilt")}</span><input name="yearBuilt" type="number" min="1800" max="2026" /></label>
         {propertyType === "apartment" ? (
           <label className="field"><span>{t("property.coOwnership")}</span><input name="coOwnershipShares" placeholder={t("standalone.coOwnershipPlaceholder")} /></label>
@@ -360,7 +361,7 @@ export function NewCaseForm() {
         <div className="panel panel-pad grid two" style={{ gridColumn: "1 / -1" }}>
           <h3 style={{ margin: 0, gridColumn: "1 / -1" }}>{t("property.remainingDebt")}</h3>
           <label className="field"><span>{t("standalone.remainingDebtQuestion")}</span><select name="remainingDebtKnown" value={remainingDebtKnown} onChange={(event) => setRemainingDebtKnown(event.target.value)}><option value="no">{t("common.no")}</option><option value="yes">{t("common.yes")}</option></select></label>
-          {remainingDebtKnown === "yes" ? <label className="field"><span>{t("standalone.remainingDebtAmount")}</span><input name="remainingDebtAmount" type="number" min="0" step="1000" required /></label> : null}
+          {remainingDebtKnown === "yes" ? <label className="field"><span>{t("standalone.remainingDebtAmount")}</span><input name="remainingDebtAmount" type="text" inputMode="decimal" required /></label> : null}
         </div>
         <div className="panel panel-pad" style={{ gridColumn: "1 / -1" }}>
           <h3 style={{ marginTop: 0 }}>{t("standalone.requiredDocuments")}</h3>

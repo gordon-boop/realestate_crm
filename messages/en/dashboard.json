@@ -105,5 +105,17 @@
       "portfolio": "Acquisition / Portfolio",
       "closed": "Completed / Lost"
     }
+  },
+  "caseList": {
+    "eyebrowInternal": "Internal · CRM",
+    "eyebrowPartner": "Partner Portal",
+    "count": "Cases",
+    "sorted": "Sorted by Last Activity",
+    "empty": "No cases in “{title}”.",
+    "emptyGeneric": "No cases available.",
+    "titles": {"drafts": "Drafts", "in_progress": "In Progress", "portfolio": "Portfolio", "sold": "Sold", "rejected": "Rejected", "fallback": "Cases"},
+    "subtitles": {"drafts": "Drafts that have not yet been submitted.", "in_progress": "All active cases from submission through approval.", "portfolio": "Cases in the portfolio or post-submission customer phase.", "sold": "Resold or finally completed properties.", "rejected": "Rejected cases with a documented reason for the broker.", "fallback": "Filtered case list."},
+    "columns": {"case": "Case", "origin": "Source", "customer": "Customer", "partner": "Partner", "property": "Property", "status": "Status", "rejection": "Reason for Rejection", "lastActivity": "Last Activity", "currentStep": "Current Step", "completion": "Completion", "assignee": "Assignee", "lastEdited": "Last Edited"},
+    "drafts": {"empty": "No drafts available.", "broker": "Broker", "internal": "Internal Processing", "unassigned": "Unassigned", "incomplete": "Incomplete Draft", "notRecorded": "Not yet recorded", "continue": "Continue Intake", "steps": {"1": "Personal Details", "2": "Preferred Model", "3": "Property Details", "4": "Modernisations", "5": "Documents"}}
   }
 }

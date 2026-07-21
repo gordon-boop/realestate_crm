@@ -156,6 +156,7 @@
   "messages": {
     "saveSuccess": "Vorprüfung gespeichert.",
     "saveFailed": "Die Vorprüfung konnte nicht gespeichert werden.",
+    "invalidNumber": "Bitte geben Sie eine gültige Zahl ein.",
     "requestSuccess": "Ausnahmeprüfung beantragt.",
     "approveSuccess": "Ausnahmeprüfung freigegeben.",
     "rejectSuccess": "Ausnahmeprüfung abgelehnt."

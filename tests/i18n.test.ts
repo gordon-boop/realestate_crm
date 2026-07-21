@@ -13,6 +13,12 @@ function leafValues(value: unknown): string[] {
   return Object.values(value).flatMap(leafValues);
 }
 
+function leafKeys(value: unknown, prefix = ""): string[] {
+  if (typeof value === "string") return [prefix];
+  if (!value || typeof value !== "object") return [];
+  return Object.entries(value).flatMap(([key, child]) => leafKeys(child, prefix ? `${prefix}.${key}` : key));
+}
+
 test("de-DE exposes the German navigation", () => {
   const navigation = catalog("de", "navigation");
   assert.equal(navigation.drafts, "Entwürfe");
@@ -32,7 +38,7 @@ test("en-GB exposes the English navigation without offer abbreviations", () => {
 
 test("catalogs contain display text and no raw translation keys", () => {
   for (const locale of ["de", "en"] as const) {
-    for (const name of ["common", "navigation", "dashboard", "leads", "customers", "precheck", "rating", "offers", "closing"]) {
+    for (const name of ["common", "navigation", "dashboard", "leads", "customers", "precheck", "rating", "offers", "closing", "portfolio"]) {
       const values = leafValues(catalog(locale, name));
       assert.ok(values.length > 0);
       for (const value of values) {
@@ -165,6 +171,29 @@ test("offer and closing catalogs use the agreed English terminology", () => {
   assert.doesNotMatch(leafValues({ englishOffers, englishClosing }).join(" "), /\b(?:UVA|VA)\b|Non-Binding Offer/);
   assert.match(prototype, /useTranslations\('offers'\)/);
   assert.match(prototype, /useTranslations\('closing'\)/);
+});
+
+test("portfolio and sales catalogs are complete and used by the case views", () => {
+  const german = catalog("de", "portfolio");
+  const english = catalog("en", "portfolio");
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  const portfolioView = prototype.slice(prototype.indexOf("activeTab === 'bestand'"), prototype.indexOf("activeTab === 'indag'"));
+
+  assert.deepEqual(leafKeys(english).sort(), leafKeys(german).sort());
+  assert.equal(english.title, "Portfolio Management");
+  assert.equal(english.inPortfolio, "In Portfolio");
+  assert.equal(english.summary.finalModel, "Final Model");
+  assert.equal(english.salesProcess, "Sales Process");
+  assert.equal(english.actions.reportDeceased, "Report Resident as Deceased");
+  assert.equal(english.fields.keyHandoverPlannedAt, "Key Handover Planned For");
+  assert.equal(english.sections.documents, "Property Documents");
+  assert.equal(english.sections.communication, "Communication");
+  assert.equal(english.quickActions.residentRequest.title, "Record Resident Enquiry");
+  assert.doesNotMatch(leafValues(english).join(" "), /Bestand|Bewohner|Verkaufsprozess|Räumung|Wiedervorlage|Objektunterlagen/);
+  assert.match(prototype, /useTranslations\('portfolio'\)/);
+  assert.match(prototype, /useTranslations\('portfolio\.dashboard'\)/);
+  assert.match(prototype, /useTranslations\('portfolio\.quickActions'\)/);
+  assert.doesNotMatch(portfolioView, />\s*(?:Bestandsverwaltung|Bewohnerverwaltung|Verkaufsprozess|Objektunterlagen|Kommunikation|Offene Aufgaben|Keine offenen Aufgaben)[^<{]*</);
 });
 
 test("locale aliases normalise to the supported locales", () => {

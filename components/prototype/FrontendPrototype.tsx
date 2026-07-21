@@ -21,7 +21,7 @@ import {
 import { isInventoryCase } from '@/lib/acquisition-workflow';
 import { evaluateAcquisitionPrecheck } from '@/lib/acquisition-precheck';
 import { getLifetimeResidentialRightEligibility } from '@/lib/residential-right-eligibility';
-import { parseGermanNumberInput as parseGermanNumberValue, parseGermanPercentInput } from '@/lib/utils/numberParsing';
+import { parseLocaleNumberInput as parseLocaleNumberValue, parseLocalePercentInput as parseLocalePercentValue } from '@/lib/utils/numberParsing';
 import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 import { hausVorteilDesignTokens } from '@/lib/design/tokens';
 import { formatAddress, splitStreetAndHouseNumber } from '@/lib/address';
@@ -282,6 +282,17 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
   const notificationCount = notifications.length;
   const visibleChatNotifications = chatNotifications.slice(0, 8);
   const chatCount = chatNotifications.length;
+  const notificationStepLabel = (item) => {
+    const knownTypes = new Set([
+      'chat_message_created', 'indicative_offer_sent', 'offer_accepted', 'expert_opinion_ordered',
+      'expert_opinion_received', 'binding_offer_sent', 'binding_offer_accepted',
+      'notary_appointment_ordered', 'contract_signed', 'resident_status_changed',
+      'workflow_reset', 'property_rejected', 'feedback_received'
+    ]);
+    return knownTypes.has(item.type)
+      ? t(`notificationSteps.${item.type}`)
+      : t('notificationSteps.case_updated');
+  };
 
   return (
     <div className="crm-header" style={{ background: theme.surface, borderBottom: `1px solid ${theme.border}`, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, boxShadow: '0 1px 4px rgba(20, 40, 61, 0.04)', position: 'relative', zIndex: 30 }}>
@@ -340,7 +351,7 @@ const Header = ({ role, user, onRoleToggle, canToggleRole = false, onLogout, onP
                         <span style={{ fontSize: 12.5, fontWeight: 800, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.customerName}</span>
                         <span style={{ fontSize: 10.5, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(item.date || item.createdAt)}</span>
                       </div>
-                      <div style={{ fontSize: 12.5, color: theme.aubergine, fontWeight: 700 }}>{item.step || item.processStep || item.title}</div>
+                      <div style={{ fontSize: 12.5, color: theme.aubergine, fontWeight: 700 }}>{notificationStepLabel(item)}</div>
                       <div style={{ fontSize: 11.5, color: `${theme.ink}88`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.caseNumber}</div>
                     </button>
                   ))}
@@ -874,14 +885,82 @@ function formatEuroCents(value) {
   return new Intl.NumberFormat(uiLocale, { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));
 }
 
-function formatGermanIntegerInput(value) {
+function formatLocaleIntegerInput(value) {
   const digits = String(value ?? '').replace(/\D/g, '');
   if (!digits) return '';
   return new Intl.NumberFormat(uiLocale, { maximumFractionDigits: 0 }).format(Number(digits));
 }
 
-function parseGermanNumberInput(value) {
-  return parseGermanNumberValue(value) ?? NaN;
+function parseUiNumberValue(value) {
+  return parseLocaleNumberValue(value, uiLocale);
+}
+
+function parseUiNumberInput(value) {
+  return parseUiNumberValue(value) ?? NaN;
+}
+
+function parseUiPercentValue(value) {
+  return parseLocalePercentValue(value, uiLocale);
+}
+
+function parseOptionalUiNumber(value, invalidMessage) {
+  if (value === null || value === undefined || String(value).trim() === '') return undefined;
+  const parsed = parseUiNumberValue(value);
+  if (parsed === null) throw new Error(invalidMessage);
+  return parsed;
+}
+
+const offerPercentInputFields = new Set([
+  'interestRate',
+  'targetReturn',
+  'acquisitionCostRate',
+  'salesCostRate',
+  'selectedIndexationScenario',
+  'exitValueGrowthRate',
+  'maintenanceUsageRate',
+  'saleAndLeasebackPayoutRate',
+  'bankDisbursementRate',
+  'brokerageFeeRate',
+  'transferTaxNotaryRate',
+  'sellingCostRate',
+  'safetyDiscountRate',
+  'safetyDiscount',
+]);
+
+const offerNumberInputFields = new Set([
+  'manualMarketValue',
+  'marketValue',
+  'expertOpinionValue',
+  'monthlyRentPerSqm',
+  'garageMonthlyRent',
+  'garageRentMonthly',
+  'residentialMonthlyRent',
+  'residentialRightYears',
+  'livingAreaSqm',
+  'garageCount',
+  'maintenancePledge',
+  'serviceChargeMonthly',
+  'insuranceAnnual',
+  'propertyTaxAnnual',
+  'landChargeCost',
+  'annualRentIncome',
+]);
+
+function normalizeOfferCalculationInputs(params = {}, invalidMessage) {
+  return Object.fromEntries(Object.entries(params).flatMap(([key, value]) => {
+    if (value === null || value === undefined || String(value).trim() === '') return [];
+    if (offerPercentInputFields.has(key)) {
+      const parsed = parseUiPercentValue(value);
+      if (parsed === null) throw new Error(invalidMessage);
+      return [[key, parsed]];
+    }
+    if (offerNumberInputFields.has(key)) {
+      const parsed = parseUiNumberValue(value);
+      if (parsed === null) throw new Error(invalidMessage);
+      return [[key, parsed]];
+    }
+    return [[key, value]];
+  }));
 }
 
 function formatPercent(value) {
@@ -1006,11 +1085,12 @@ function residentialRightOfferComparisonRows(offers = []) {
 }
 
 function dateLabel(value) {
-  if (!value) return 'Gerade eben';
+  const fallback = uiLocale === 'en-GB' ? 'Just now' : 'Gerade eben';
+  if (!value) return fallback;
   try {
     return new Intl.DateTimeFormat(uiLocale, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
   } catch {
-    return 'Gerade eben';
+    return fallback;
   }
 }
 
@@ -1859,35 +1939,9 @@ const lifetimeEligibilityForDraft = (draft = {}) => getLifetimeResidentialRightE
   recipients: draft.residentialRightRecipients,
   residentialRightPerson: draft.residentialRightPerson,
 });
-const residentStatusLabels = {
-  ACTIVE: 'Bewohner bleibt im Objekt',
-  MOVE_OUT_PLANNED: 'Bewohner zieht aus',
-  MOVED_OUT: 'Bewohner ausgezogen',
-  DECEASED: 'Bewohner verstorben',
-};
 const closedModelFromProperty = (property = {}) => property.bindingAcceptedOfferModel || property.indicativeAcceptedOfferModel || '';
-const closedModelLabel = (property = {}) => {
-  const model = closedModelFromProperty(property);
-  return model ? labelFrom(productModelLabels, model) : 'Nicht hinterlegt';
-};
-const exitTerminationReasonLabels = {
-  move_out: 'Auszug',
-  resident_death: 'Tod des Bewohners',
-  fixed_term_expired: 'Ende des Wohnrechts',
-  waiver_agreement: 'Verzicht / Aufhebungsvereinbarung',
-  other: 'sonstiger Grund',
-};
-const exitSalesStatusLabels = {
-  under_review: 'in Prüfung',
-  access_pending: 'Objektzugang offen',
-  inspection_scheduled: 'Begehung geplant',
-  clearance_pending: 'Räumung offen',
-  repairs_pending: 'Sanierung / Reparatur offen',
-  sales_preparation: 'Verkaufsvorbereitung',
-  marketing: 'in Vermarktung',
-  sold: 'verkauft',
-  completed: 'abgeschlossen',
-};
+const exitTerminationReasons = ['move_out', 'resident_death', 'fixed_term_expired', 'waiver_agreement', 'other'];
+const exitSalesStatuses = ['under_review', 'access_pending', 'inspection_scheduled', 'clearance_pending', 'repairs_pending', 'sales_preparation', 'marketing', 'sold', 'completed'];
 const offerStatusLabels = {
   draft: 'Entwurf',
   review: 'In Prüfung',
@@ -2011,17 +2065,6 @@ function soldScreenStatus(item) {
   return item.status === 'SOLD' || item.raw?.property?.exitProcess?.salesStatus === 'sold'
     ? 'SOLD'
     : 'EXIT_COMPLETED';
-}
-
-function menuScreenTitle(screen) {
-  const labels = {
-    drafts: 'Entwürfe',
-    in_progress: 'In Bearbeitung',
-    portfolio: 'Bestand',
-    sold: 'Verkauft',
-    rejected: 'Abgelehnt',
-  };
-  return labels[screen] || 'Fälle';
 }
 
 function calculateAgeFromBirthDate(dateString) {
@@ -2186,7 +2229,7 @@ const normalizedParkingEntries = (draft) => {
 
 const primaryParkingType = (entries) => entries.find((entry) => entry.type && entry.type !== 'other')?.type;
 const parkingCountTotal = (entries) => entries.reduce((sum, entry) => {
-  const count = parseGermanNumberValue(entry.count);
+  const count = parseUiNumberValue(entry.count);
   return sum + (count && count > 0 ? count : 0);
 }, 0);
 
@@ -2293,7 +2336,32 @@ function draftFromCaseView(caseView) {
 
 function serializableIntakeDraft(draft) {
   const { documentUploads: _documentUploads, documentFile: _documentFile, ...serializable } = draft || {};
-  return serializable;
+  const numericFields = [
+    'ageAtSubmission',
+    'livingAreaSqm',
+    'plotAreaSqm',
+    'usableAreaSqm',
+    'yearBuilt',
+    'desiredResidentialRightYears',
+    'additionalOfferResidentialRightYears',
+    'heatingYear',
+    'windowInstallationYear',
+    'remainingDebtAmount',
+  ];
+  const normalized = { ...serializable };
+  for (const field of numericFields) {
+    if (normalized[field] === null || normalized[field] === undefined || normalized[field] === '') continue;
+    const parsed = parseUiNumberValue(normalized[field]);
+    if (parsed !== null) normalized[field] = parsed;
+  }
+  if (Array.isArray(normalized.parkingEntries)) {
+    normalized.parkingEntries = normalized.parkingEntries.map((entry) => ({
+      ...entry,
+      count: parseUiNumberValue(entry?.count) ?? entry?.count,
+      monthlyRent: parseUiNumberValue(entry?.monthlyRent) ?? entry?.monthlyRent,
+    }));
+  }
+  return normalized;
 }
 
 function intakeDraftFingerprint(draft, internalIntakeSource = '') {
@@ -3416,30 +3484,17 @@ const AdminDashboard = ({ cases = mockCases, leads = [], onOpenCase, onNewCase, 
 };
 
 const quickActionConfig = {
-  reminder: {
-    title: 'Wiedervorlage anlegen',
-    intro: 'Lege eine konkrete Wiedervorlage an einem bestehenden Fall an.',
-    submitLabel: 'Wiedervorlage speichern',
-  },
-  repair: {
-    title: 'Reparatur erfassen',
-    intro: 'Erfasse ein Reparaturthema als operative Aufgabe in der Fallakte.',
-    submitLabel: 'Reparatur speichern',
-  },
-  billing: {
-    title: 'Abrechnung erfassen',
-    intro: 'Erfasse eine Abrechnungsaufgabe, damit sie im Fall nachverfolgt wird.',
-    submitLabel: 'Abrechnung speichern',
-  },
-  'resident-request': {
-    title: 'Bewohneranfrage erfassen',
-    intro: 'Erfasse eine Bewohneranfrage als Aufgabe für die weitere Bearbeitung.',
-    submitLabel: 'Bewohneranfrage speichern',
-  },
+  reminder: 'reminder',
+  repair: 'repair',
+  billing: 'billing',
+  'resident-request': 'residentRequest',
 };
 
 const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false }) => {
-  const config = quickActionConfig[action?.key] || quickActionConfig.reminder;
+  const t = useTranslations('portfolio.quickActions');
+  const tButtons = useTranslations('common.buttons');
+  const tLeads = useTranslations('leads');
+  const configKey = quickActionConfig[action?.key] || quickActionConfig.reminder;
   const [propertyId, setPropertyId] = useState('');
   const [dueAt, setDueAt] = useState(tomorrowDateInputValue);
   const [title, setTitle] = useState('');
@@ -3456,7 +3511,7 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
     setDueAt(tomorrowDateInputValue());
     setTitle('');
     setNote('');
-    setType(action?.key === 'billing' ? 'Hausgeld / Nebenkosten' : action?.key === 'repair' ? 'Instandhaltung / Reparatur' : action?.key === 'resident-request' ? 'Bewohneranfrage' : 'Allgemein');
+    setType(action?.key === 'billing' ? t('values.serviceCharges') : action?.key === 'repair' ? t('values.repair') : action?.key === 'resident-request' ? t('values.residentEnquiry') : t('values.general'));
     setPriority('normal');
     setAmount('');
     setVendor('');
@@ -3466,11 +3521,21 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
 
   if (!action) return null;
 
+  const localizedCaseProperty = (item) => {
+    const property = item.raw?.property;
+    if (!property) return item.objekt;
+    const propertyTypeKey = property.propertyType === 'row_house' ? 'terraced' : property.propertyType;
+    const propertyType = propertyTypeKey && tLeads.has(`propertyTypes.${propertyTypeKey}`)
+      ? tLeads(`propertyTypes.${propertyTypeKey}`)
+      : tLeads('propertyTypes.unknown');
+    const city = property.city === 'Ort offen' ? t('values.locationPending') : property.city;
+    return [propertyType, city].filter(Boolean).join(' ');
+  };
   const caseOptions = cases
     .filter((item) => item.propertyId || item.id)
     .map((item) => ({
       value: item.propertyId || item.id,
-      label: `${item.id} · ${item.kunde} · ${item.objekt}`,
+      label: `${item.id} · ${item.kunde} · ${localizedCaseProperty(item)}`,
     }));
 
   const buildReason = () => {
@@ -3478,43 +3543,43 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
     const cleanNote = note.trim();
     const parts = [];
     if (action.key === 'repair') {
-      parts.push(`Reparatur: ${type || 'Reparatur'}`);
+      parts.push(t('reasonParts.repair', { type: type || t('values.repair') }));
       if (cleanTitle) parts.push(cleanTitle);
-      if (vendor.trim()) parts.push(`Dienstleister: ${vendor.trim()}`);
-      if (amount) parts.push(`Kostenschätzung: ${amount} €`);
-      parts.push(`Priorität: ${priority === 'high' ? 'hoch' : priority === 'low' ? 'niedrig' : 'normal'}`);
+      if (vendor.trim()) parts.push(t('reasonParts.provider', { value: vendor.trim() }));
+      if (amount) parts.push(t('reasonParts.estimatedCost', { value: amount }));
+      parts.push(t('reasonParts.priority', { value: t(`values.${priority}`) }));
     } else if (action.key === 'billing') {
-      parts.push(`Abrechnung: ${type || 'Abrechnung'}`);
-      if (period.trim()) parts.push(`Zeitraum: ${period.trim()}`);
-      if (amount) parts.push(`Betrag: ${amount} €`);
+      parts.push(t('reasonParts.billing', { type: type || t('billing.title') }));
+      if (period.trim()) parts.push(t('reasonParts.period', { value: period.trim() }));
+      if (amount) parts.push(t('reasonParts.amount', { value: amount }));
       if (cleanTitle) parts.push(cleanTitle);
     } else if (action.key === 'resident-request') {
-      parts.push(`Bewohneranfrage: ${type || 'Anfrage'}`);
+      parts.push(t('reasonParts.residentEnquiry', { type: type || t('reasonParts.enquiry') }));
       if (cleanTitle) parts.push(cleanTitle);
-      parts.push(`Priorität: ${priority === 'high' ? 'hoch' : priority === 'low' ? 'niedrig' : 'normal'}`);
+      parts.push(t('reasonParts.priority', { value: t(`values.${priority}`) }));
     } else {
-      parts.push(`Wiedervorlage: ${cleanTitle}`);
+      parts.push(t('reasonParts.reminder', { title: cleanTitle }));
     }
-    if (cleanNote) parts.push(`Notiz: ${cleanNote}`);
+    if (cleanNote) parts.push(t('reasonParts.note', { value: cleanNote }));
     return parts.filter(Boolean).join(' · ');
   };
 
   const submit = () => {
     setError('');
     if (!propertyId) {
-      setError('Bitte wählen Sie einen Fall aus.');
+      setError(t('errors.case'));
       return;
     }
     if (!dueAt) {
-      setError('Bitte erfassen Sie eine Frist / Wiedervorlage.');
+      setError(t('errors.deadline'));
       return;
     }
     if (!title.trim() && action.key === 'reminder') {
-      setError('Bitte erfassen Sie den Grund der Wiedervorlage.');
+      setError(t('errors.reason'));
       return;
     }
     if (!title.trim() && ['repair', 'billing', 'resident-request'].includes(action.key)) {
-      setError('Bitte erfassen Sie eine kurze Beschreibung.');
+      setError(t('errors.description'));
       return;
     }
     onSubmit?.({ propertyId, dueAt, reason: buildReason(), actionKey: action.key });
@@ -3525,48 +3590,48 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
       <div style={{ width: 'min(720px, 96vw)', maxHeight: '88vh', overflowY: 'auto', background: 'white', border: `1px solid ${theme.border}`, borderRadius: 12, boxShadow: '0 24px 70px rgba(42, 26, 53, 0.22)' }}>
         <div style={{ padding: '18px 20px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
           <div>
-            <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 5 }}>Schnellfunktion</div>
-            <div style={{ fontSize: 19, color: theme.aubergine, fontWeight: 800 }}>{config.title}</div>
-            <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>{config.intro}</div>
+            <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 5 }}>{t('eyebrow')}</div>
+            <div style={{ fontSize: 19, color: theme.aubergine, fontWeight: 800 }}>{t(`${configKey}.title`)}</div>
+            <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>{t(`${configKey}.intro`)}</div>
           </div>
-          <button onClick={onClose} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, width: 34, height: 34, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} title={tButtons('close')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, width: 34, height: 34, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={16} />
           </button>
         </div>
 
         <div style={{ padding: 20, display: 'grid', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.6fr', gap: 12 }}>
-            <Field label="Fall" required>
+            <Field label={t('fields.case')} required>
               <Select value={propertyId} onChange={(event) => setPropertyId(event.target.value)}>
-                <option value="">Fall auswählen</option>
+                <option value="">{t('fields.selectCase')}</option>
                 {caseOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </Select>
             </Field>
-            <Field label="Frist / Wiedervorlage" required>
+            <Field label={t('fields.deadline')} required>
               <Input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
             </Field>
           </div>
 
           {action.key !== 'reminder' && (
             <div style={{ display: 'grid', gridTemplateColumns: action.key === 'billing' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12 }}>
-              <Field label={action.key === 'billing' ? 'Abrechnungsart' : action.key === 'repair' ? 'Reparaturart' : 'Anfrageart'}>
+              <Field label={action.key === 'billing' ? t('fields.billingType') : action.key === 'repair' ? t('fields.repairType') : t('fields.enquiryType')}>
                 <Input value={type} onChange={(event) => setType(event.target.value)} />
               </Field>
               {action.key === 'billing' ? (
-                <Field label="Zeitraum">
-                  <Input value={period} onChange={(event) => setPeriod(event.target.value)} placeholder="z.B. 2026 / Q2" />
+                <Field label={t('fields.period')}>
+                  <Input value={period} onChange={(event) => setPeriod(event.target.value)} placeholder={t('placeholders.period')} />
                 </Field>
               ) : (
-                <Field label="Priorität">
+                <Field label={t('fields.priority')}>
                   <Select value={priority} onChange={(event) => setPriority(event.target.value)}>
-                    <option value="low">Niedrig</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">Hoch</option>
+                    <option value="low">{t('values.low')}</option>
+                    <option value="normal">{t('values.normal')}</option>
+                    <option value="high">{t('values.high')}</option>
                   </Select>
                 </Field>
               )}
               {action.key === 'billing' && (
-                <Field label="Betrag (€)">
+                <Field label={t('fields.amount')}>
                   <Input type="text" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
                 </Field>
               )}
@@ -3575,19 +3640,19 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
 
           {action.key === 'repair' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.6fr', gap: 12 }}>
-              <Field label="Dienstleister / Kontakt">
+              <Field label={t('fields.provider')}>
                 <Input value={vendor} onChange={(event) => setVendor(event.target.value)} />
               </Field>
-              <Field label="Kostenschätzung (€)">
+              <Field label={t('fields.estimatedCost')}>
                 <Input type="text" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
               </Field>
             </div>
           )}
 
-          <Field label={action.key === 'reminder' ? 'Grund der Wiedervorlage' : 'Kurzbeschreibung'} required>
-            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={action.key === 'repair' ? 'z.B. Heizungsprüfung beauftragen' : action.key === 'billing' ? 'z.B. Hausgeldabrechnung prüfen' : action.key === 'resident-request' ? 'z.B. Bewohner bittet um Rückruf' : 'z.B. Unterlagen nachfassen'} />
+          <Field label={action.key === 'reminder' ? t('fields.reason') : t('fields.summary')} required>
+            <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={action.key === 'repair' ? t('placeholders.repair') : action.key === 'billing' ? t('placeholders.billing') : action.key === 'resident-request' ? t('placeholders.residentRequest') : t('placeholders.reminder')} />
           </Field>
-          <Field label="Interne Notiz">
+          <Field label={t('fields.internalNote')}>
             <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '9px 11px', fontSize: 13.5, color: theme.ink, fontFamily: 'inherit', resize: 'vertical' }} />
           </Field>
 
@@ -3597,9 +3662,9 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button onClick={onClose} disabled={busy} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 800, cursor: busy ? 'default' : 'pointer' }}>Abbrechen</button>
+          <button onClick={onClose} disabled={busy} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 800, cursor: busy ? 'default' : 'pointer' }}>{tButtons('cancel')}</button>
           <button onClick={submit} disabled={busy} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 6, padding: '9px 15px', fontSize: 13, fontWeight: 800, cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-            <Save size={14} /> {busy ? 'Speichert...' : config.submitLabel}
+            <Save size={14} /> {busy ? t('saving') : t(`${configKey}.submit`)}
           </button>
         </div>
       </div>
@@ -3607,13 +3672,15 @@ const QuickActionModal = ({ action, cases = [], onClose, onSubmit, busy = false 
   );
 };
 
-const DraftCasesTable = ({ cases = [], onContinue, role }) => (
+const DraftCasesTable = ({ cases = [], onContinue, role }) => {
+  const t = useTranslations('dashboard.caseList');
+  return (
   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-    {cases.length === 0 ? <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>Keine Entwürfe vorhanden.</div> : (
+    {cases.length === 0 ? <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{t('drafts.empty')}</div> : (
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 940 }}>
           <thead><tr style={{ background: theme.mintLight }}>
-            {['Fall', 'Kunde', 'Objekt', 'Aktueller Schritt', 'Vollständigkeit', 'Bearbeiter', 'Zuletzt bearbeitet', ''].map((label) => <th key={label} style={{ textAlign: 'left', padding: '9px 13px', color: theme.oliv, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</th>)}
+            {[t('columns.case'), t('columns.customer'), t('columns.property'), t('columns.currentStep'), t('columns.completion'), t('columns.assignee'), t('columns.lastEdited'), ''].map((label) => <th key={label} style={{ textAlign: 'left', padding: '9px 13px', color: theme.oliv, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</th>)}
           </tr></thead>
           <tbody>{cases.map((row) => {
             const formDraft = draftFromCaseView(row.raw);
@@ -3622,55 +3689,53 @@ const DraftCasesTable = ({ cases = [], onContinue, role }) => (
             const missing = checked.reduce((sum, result) => sum + result.fields.length, 0);
             const completion = total ? Math.round(((total - missing) / total) * 100) : 0;
             const draftStep = Math.min(5, Math.max(1, Number(row.raw?.property?.draftIntakeStep || 1)));
-            const responsible = role === 'partner' ? row.partner || 'Makler' : row.raw?.property?.assignedAdvisorUserId ? 'Interne Bearbeitung' : row.partner || 'Nicht zugewiesen';
+            const responsible = role === 'partner' ? row.partner || t('drafts.broker') : row.raw?.property?.assignedAdvisorUserId ? t('drafts.internal') : row.partner || t('drafts.unassigned');
             return <tr key={row.propertyId || row.id} style={{ borderTop: `1px solid ${theme.borderSoft}` }}>
               <td style={{ padding: '11px 13px', color: theme.aubergine, fontFamily: 'ui-monospace, monospace', fontWeight: 750 }}>{row.id}</td>
-              <td style={{ padding: '11px 13px', fontWeight: 700 }}>{row.kunde || 'Unvollständiger Entwurf'}</td>
-              <td style={{ padding: '11px 13px', color: `${theme.ink}AA` }}>{row.objekt || 'Noch nicht erfasst'}</td>
-              <td style={{ padding: '11px 13px' }}>{draftStep}. {['', 'Persönliche Daten', 'Wunschmodell', 'Immobiliendaten', 'Modernisierungen', 'Dokumente'][draftStep]}</td>
+              <td style={{ padding: '11px 13px', fontWeight: 700 }}>{row.kunde || t('drafts.incomplete')}</td>
+              <td style={{ padding: '11px 13px', color: `${theme.ink}AA` }}>{row.objekt || t('drafts.notRecorded')}</td>
+              <td style={{ padding: '11px 13px' }}>{draftStep}. {t(`drafts.steps.${draftStep}`)}</td>
               <td style={{ padding: '11px 13px' }}><span style={{ color: completion === 100 ? theme.success : theme.warning, fontWeight: 800 }}>{completion} %</span></td>
               <td style={{ padding: '11px 13px', color: `${theme.ink}99` }}>{responsible}</td>
               <td style={{ padding: '11px 13px', color: `${theme.ink}88` }}>{formatDate(row.raw?.property?.updatedAt)}</td>
-              <td style={{ padding: '11px 13px', textAlign: 'right' }}><button type="button" onClick={() => onContinue(row.propertyId || row.id)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '7px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>Erfassung fortsetzen</button></td>
+              <td style={{ padding: '11px 13px', textAlign: 'right' }}><button type="button" onClick={() => onContinue(row.propertyId || row.id)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '7px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('drafts.continue')}</button></td>
             </tr>;
           })}</tbody>
         </table>
       </div>
     )}
   </div>
-);
+  );
+};
 
 const CaseMenuScreen = ({ screen, cases = [], onOpenCase, onContinueDraft, role }) => {
+  const t = useTranslations('dashboard.caseList');
   const filteredCases = filterCasesForScreen(cases, screen);
-  const title = menuScreenTitle(screen);
-  const subtitle = {
-    drafts: 'Entwürfe, die noch nicht eingereicht wurden.',
-    in_progress: 'Alle aktiven Vorgänge von Einreichung bis Freigabe.',
-    portfolio: 'Fälle im Bestand oder in der Kundenphase nach Versand.',
-    sold: 'Weiterverkaufte oder final abgeschlossene Objekte.',
-    rejected: 'Abgelehnte Vorgänge mit dokumentiertem Grund für den Makler.',
-  }[screen] || 'Gefilterte Fallliste.';
+  const supportedScreens = ['drafts', 'in_progress', 'portfolio', 'sold', 'rejected'];
+  const screenKey = supportedScreens.includes(screen) ? screen : 'fallback';
+  const title = t(`titles.${screenKey}`);
+  const subtitle = t(`subtitles.${screenKey}`);
 
   return (
     <div style={{ padding: '20px 28px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
         <div>
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
-            {role === 'admin' ? 'Intern · CRM' : 'Partnerportal'}
+            {role === 'admin' ? t('eyebrowInternal') : t('eyebrowPartner')}
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>{title}</h1>
           <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>{subtitle}</div>
         </div>
         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 14px', minWidth: 120, textAlign: 'right' }}>
           <div style={{ fontSize: 22, fontWeight: 700, color: theme.aubergine, lineHeight: 1 }}>{filteredCases.length}</div>
-          <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>Fälle</div>
+          <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3 }}>{t('count')}</div>
         </div>
       </div>
 
       {screen === 'drafts' ? <DraftCasesTable cases={filteredCases} onContinue={onContinueDraft || onOpenCase} role={role} /> : (
         <CaseTableCard
           title={title}
-          emptyText={`Keine Fälle in "${title}".`}
+          emptyText={t('empty', { title })}
           cases={filteredCases}
           onOpenCase={onOpenCase}
           showPartner={role === 'admin'}
@@ -3680,55 +3745,6 @@ const CaseMenuScreen = ({ screen, cases = [], onOpenCase, onContinueDraft, role 
       )}
     </div>
   );
-};
-
-const acquisitionStages = [
-  {
-    title: 'UVA angenommen',
-    statuses: ['OFFER_ACCEPTED'],
-    icon: CheckCircle2,
-    tone: theme.success,
-    text: 'Kunde hat das unverbindliche Angebot bestätigt. Gutachten beauftragen.',
-  },
-  {
-    title: 'Gutachten',
-    statuses: ['EXPERT_OPINION_ORDERED', 'EXPERT_OPINION_RECEIVED'],
-    icon: Briefcase,
-    tone: theme.aubergineSoft,
-    text: 'Gutachten ist beauftragt oder bereits eingegangen.',
-  },
-  {
-    title: 'VA / Notartermin',
-    statuses: ['BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT'],
-    icon: Calendar,
-    tone: theme.oliv,
-    text: 'Verbindliches Angebot und Notartermin laufen.',
-  },
-  {
-    title: 'Kaufvertrag',
-    statuses: ['NOTARY_APPOINTMENT'],
-    icon: Calendar,
-    tone: theme.oliv,
-    text: 'Kaufvertrag steht vor Abschluss.',
-  },
-  {
-    title: 'Im Bestand',
-    statuses: ['IN_PORTFOLIO', 'WON'],
-    icon: Archive,
-    tone: theme.success,
-    text: 'Objekt ist in der Bestandsverwaltung angekommen.',
-  },
-];
-
-const nextPortfolioAction = {
-  OFFER_ACCEPTED: 'Gutachten beauftragen',
-  EXPERT_OPINION_ORDERED: 'Gutachteneingang dokumentieren',
-  EXPERT_OPINION_RECEIVED: 'VA abgeben',
-  BINDING_OFFER_SENT: 'VA nachfassen',
-  BINDING_OFFER_ACCEPTED: 'Notartermin vereinbaren',
-  NOTARY_APPOINTMENT: 'Kaufvertrag abschließen',
-  IN_PORTFOLIO: 'Bestandsdaten prüfen',
-  WON: 'Bestandsdaten prüfen',
 };
 
 function portfolioCompletion(property = {}) {
@@ -3840,6 +3856,7 @@ function exitProcessFormFromProperty(property = {}) {
 }
 
 const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
+  const t = useTranslations('portfolio.dashboard');
   const [activeBucket, setActiveBucket] = useState(() => parsePortfolioBucket(''));
 
   useEffect(() => {
@@ -3853,7 +3870,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
     return (
       <div style={{ padding: '28px' }}>
         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '20px 22px', color: theme.ink }}>
-          Die interne Bestandsverwaltung ist nur für WohnKapital-Mitarbeiter sichtbar.
+          {t('restricted')}
         </div>
       </div>
     );
@@ -3877,9 +3894,9 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   const bucketDefinitions = [
     {
       key: 'purchase-processing',
-      title: 'Kaufvertragsabwicklung',
-      description: 'Vom Kaufvertragsabschluss bis zur Kaufpreiszahlung und Grundbucheintragung.',
-      action: 'Abwicklung prüfen',
+      title: t('buckets.purchaseTitle'),
+      description: t('buckets.purchaseDescription'),
+      action: t('buckets.purchaseAction'),
       cases: purchaseHandlingCases,
       icon: Briefcase,
       tone: theme.aubergine,
@@ -3887,9 +3904,9 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
     },
     {
       key: 'inventory-management',
-      title: 'Bestandsverwaltung',
-      description: 'Bewohner, Reparaturen, Abrechnungen und laufende Verwaltung.',
-      action: 'Bestand prüfen',
+      title: t('buckets.portfolioTitle'),
+      description: t('buckets.portfolioDescription'),
+      action: t('buckets.portfolioAction'),
       cases: inventoryCases,
       icon: Archive,
       tone: theme.success,
@@ -3897,9 +3914,9 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
     },
     {
       key: 'sale-objects',
-      title: 'Verkaufsprozess',
-      description: 'Nach Wohnrechtsende oder Ende des Rückmietverkaufs: Zugang, Vorbereitung, Vermarktung und Verkauf.',
-      action: 'Verkauf prüfen',
+      title: t('buckets.salesTitle'),
+      description: t('buckets.salesDescription'),
+      action: t('buckets.salesAction'),
       cases: saleObjectCases,
       icon: AlertCircle,
       tone: theme.gold,
@@ -3907,17 +3924,28 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
     },
   ];
   const activeBucketDefinition = bucketDefinitions.find((item) => item.key === activeBucket);
+  const nextActionKeyByStatus = {
+    OFFER_ACCEPTED: 'commissionAppraisal',
+    EXPERT_OPINION_ORDERED: 'recordAppraisal',
+    EXPERT_OPINION_RECEIVED: 'submitBinding',
+    BINDING_OFFER_SENT: 'followBinding',
+    BINDING_OFFER_ACCEPTED: 'arrangeNotary',
+    NOTARY_APPOINTMENT: 'completeAgreement',
+    IN_PORTFOLIO: 'reviewPortfolioData',
+    WON: 'reviewPortfolioData',
+  };
+  const nextActionLabel = (status) => nextActionKeyByStatus[status] ? t(`actions.${nextActionKeyByStatus[status]}`) : '';
   const phaseForCase = (item) => {
-    if (saleObjectCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Verkaufsprozess';
-    if (purchaseHandlingCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Kaufvertragsabwicklung';
-    if (inventoryCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'Bestandsverwaltung';
-    return 'Ankauf';
+    if (saleObjectCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'sales';
+    if (purchaseHandlingCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'purchase';
+    if (inventoryCases.some((entry) => (entry.propertyId || entry.id) === (item.propertyId || item.id))) return 'portfolio';
+    return 'acquisition';
   };
   const targetTabForCase = (item, preferActiveBucket = true) => {
     if (preferActiveBucket && activeBucketDefinition?.tab) return activeBucketDefinition.tab;
     const phase = phaseForCase(item);
-    if (phase === 'Kaufvertragsabwicklung') return 'kvabwicklung';
-    if (phase === 'Verkaufsprozess') return 'verwertung';
+    if (phase === 'purchase') return 'kvabwicklung';
+    if (phase === 'sales') return 'verwertung';
     return 'bestand';
   };
   const dueDateForCase = (item) => {
@@ -3951,7 +3979,7 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   };
   const visibleCases = sortCases(activeBucketDefinition ? activeBucketDefinition.cases : openCases);
   const deadlineCases = sortCases(openCases.filter((item) => dueDateForCase(item))).slice(0, 5);
-  const tableTitle = activeBucketDefinition?.title || 'Alle offenen Vorgänge';
+  const tableTitle = activeBucketDefinition?.title || t('allOpen');
 
   const selectBucket = (bucket) => {
     const nextBucket = normalizePortfolioBucket(bucket, '');
@@ -3968,16 +3996,16 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
         <div>
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
-            Intern · Ankauf und Bestand
+            {t('eyebrow')}
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Ankaufs- und Bestandsabwicklung</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>{t('title')}</h1>
           <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginTop: 5 }}>
-            Arbeitskörbe filtern die Vorgangsliste. Der konkrete Fall wird erst aus der Liste geöffnet.
+            {t('subtitle')}
           </div>
         </div>
         {activeBucket && (
           <button onClick={() => selectBucket('')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
-            Alle Vorgänge anzeigen
+            {t('showAll')}
           </button>
         )}
       </div>
@@ -4016,17 +4044,17 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
           <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>{tableTitle}</span>
-            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{visibleCases.length} Vorgänge</span>
+            <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{t('count', { count: visibleCases.length })}</span>
           </div>
           {visibleCases.length === 0 ? (
             <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>
-              {activeBucketDefinition ? 'Keine offenen Vorgänge in diesem Arbeitskorb.' : 'Aktuell keine offenen Vorgänge in Ankauf oder Bestand.'}
+              {activeBucketDefinition ? t('emptyBucket') : t('emptyAll')}
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: theme.mintLight }}>
-                  {['Fall', 'Kunde / Bewohner', 'Objekt', ...(!activeBucketDefinition ? ['Phase'] : []), 'Nächster Schritt', 'Frist / Wiedervorlage', 'Status', 'Öffnen'].map((h) => (
+                  {[t('columns.case'), t('columns.customerResident'), t('columns.property'), ...(!activeBucketDefinition ? [t('columns.phase')] : []), t('columns.nextStep'), t('columns.deadline'), t('columns.status'), t('columns.open')].map((h) => (
                     <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -4039,13 +4067,13 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
                       <td style={{ padding: '11px 12px', fontFamily: 'ui-monospace, monospace', fontSize: 12, color: theme.aubergine, fontWeight: 700 }}>{item.id}</td>
                       <td style={{ padding: '11px 12px', color: theme.ink, fontWeight: 650 }}>{property.residentName || item.kunde}</td>
                       <td style={{ padding: '11px 12px', color: `${theme.ink}cc` }}>{item.objekt}</td>
-                      {!activeBucketDefinition && <td style={{ padding: '11px 12px', color: `${theme.ink}aa`, fontSize: 12.5 }}>{phaseForCase(item)}</td>}
-                      <td style={{ padding: '11px 12px', color: theme.ink }}>{nextPortfolioAction[item.status] || (targetTabForCase(item) === 'verwertung' ? 'Verkauf prüfen' : 'Bestandsakte prüfen')}</td>
+                      {!activeBucketDefinition && <td style={{ padding: '11px 12px', color: `${theme.ink}aa`, fontSize: 12.5 }}>{t(`phases.${phaseForCase(item)}`)}</td>}
+                      <td style={{ padding: '11px 12px', color: theme.ink }}>{nextActionLabel(item.status) || (targetTabForCase(item) === 'verwertung' ? t('actions.reviewSale') : t('actions.reviewPortfolio'))}</td>
                       <td style={{ padding: '11px 12px', color: `${theme.ink}99`, fontSize: 12.5 }}>{formatDate(dueDateForCase(item))}</td>
                       <td style={{ padding: '11px 12px' }}><StatusBadge status={item.status} /></td>
                       <td style={{ padding: '11px 12px', textAlign: 'right' }}>
                         <button onClick={() => openCaseFromList(item)} style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '5px 9px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
-                          Öffnen
+                          {t('columns.open')}
                         </button>
                       </td>
                     </tr>
@@ -4058,16 +4086,16 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
 
         <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
           <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
-            <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Nächste Fristen</div>
+            <div style={{ padding: '13px 16px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 14, fontWeight: 700, color: theme.aubergine }}>{t('nextDeadlines')}</div>
             {deadlineCases.length === 0 ? (
-              <div style={{ padding: 16, color: `${theme.ink}88`, fontSize: 12.5 }}>Keine offenen Fristen.</div>
+              <div style={{ padding: 16, color: `${theme.ink}88`, fontSize: 12.5 }}>{t('noDeadlines')}</div>
             ) : deadlineCases.map((item, index) => (
               <button key={item.propertyId || item.id} onClick={() => openCaseFromList(item, false)} style={{ width: '100%', background: 'white', border: 'none', borderTop: index ? `1px solid ${theme.borderSoft}` : 'none', padding: '11px 16px', textAlign: 'left', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <span style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700 }}>{item.kunde}</span>
                   <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>{formatDate(dueDateForCase(item))}</span>
                 </div>
-                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{item.id} · {nextPortfolioAction[item.status] || 'Wiedervorlage prüfen'}</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 3 }}>{item.id} · {nextActionLabel(item.status) || t('actions.reviewFollowUp')}</div>
               </button>
             ))}
           </div>
@@ -4077,19 +4105,21 @@ const PortfolioScreen = ({ cases = [], onOpenCase, role }) => {
   );
 };
 
-const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, showRejection = false, emptyText = 'Keine Fälle vorhanden.', statusForCase = (row) => row.status }) => (
+const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, showRejection = false, emptyText, statusForCase = (row) => row.status }) => {
+  const t = useTranslations('dashboard.caseList');
+  return (
   <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
     <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>{title}</span>
-      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Sortiert nach letzter Aktivität</span>
+      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{t('sorted')}</span>
     </div>
     {cases.length === 0 ? (
-      <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{emptyText}</div>
+      <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{emptyText || t('emptyGeneric')}</div>
     ) : (
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: theme.mintLight }}>
-            {['Fall', 'Herkunft', 'Kunde', showPartner ? 'Partner' : null, 'Objekt', 'Status', showRejection ? 'Ablehnungsgrund' : null, 'Letzte Aktivität', ''].filter(Boolean).map((h, i) => (
+            {[t('columns.case'), t('columns.origin'), t('columns.customer'), showPartner ? t('columns.partner') : null, t('columns.property'), t('columns.status'), showRejection ? t('columns.rejection') : null, t('columns.lastActivity'), ''].filter(Boolean).map((h, i) => (
               <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
             ))}
           </tr>
@@ -4117,7 +4147,8 @@ const CaseTableCard = ({ title, cases = [], onOpenCase, showPartner = false, sho
       </table>
     )}
   </div>
-);
+  );
+};
 
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -5321,6 +5352,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const tRating = useTranslations('rating');
   const tOffers = useTranslations('offers');
   const tClosing = useTranslations('closing');
+  const tPortfolio = useTranslations('portfolio');
   const tCommonButtons = useTranslations('common.buttons');
   const [activeTab, setActiveTab] = useState(normalizeCaseTab(initialTab));
   const [showAcquisitionHistory, setShowAcquisitionHistory] = useState(false);
@@ -5439,7 +5471,13 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   }, [property?.id, property?.updatedAt, property?.exitProcess?.updatedAt]);
 
   useEffect(() => {
-    setPrecheckDraft(property?.acquisitionPrecheck || {});
+    const precheck = property?.acquisitionPrecheck || {};
+    setPrecheckDraft({
+      ...precheck,
+      preliminaryMarketValue: precheck.preliminaryMarketValue === null || precheck.preliminaryMarketValue === undefined
+        ? ''
+        : formatLocaleIntegerInput(precheck.preliminaryMarketValue),
+    });
   }, [property?.id, property?.updatedAt]);
 
   useEffect(() => {
@@ -5489,7 +5527,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   }, [activeTabIsAcquisitionHistory]);
   useEffect(() => {
     const existingExpertOpinionValue = bindingOffers[0]?.marketValue;
-    setExpertOpinionValue(existingExpertOpinionValue ? formatGermanIntegerInput(existingExpertOpinionValue) : '');
+    setExpertOpinionValue(existingExpertOpinionValue ? formatLocaleIntegerInput(existingExpertOpinionValue) : '');
   }, [property?.id, bindingOffers[0]?.marketValue]);
   const canPrepareBindingOffer = Boolean(property?.expertOpinionReceivedAt) || ['EXPERT_OPINION_RECEIVED', 'BINDING_OFFER_SENT', 'BINDING_OFFER_ACCEPTED', 'NOTARY_APPOINTMENT', 'IN_PORTFOLIO', 'WON'].includes(property?.status);
   const lifetimeEligibility = customer
@@ -5542,6 +5580,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     fileType: document.fileType,
     storageUrl: document.storageUrl,
     category: document.category,
+    requirementLevel: document.requirementLevel,
     type: labelFrom(requirementLabels, document.requirementLevel),
     date: dateLabel(document.createdAt),
     status: document.status,
@@ -5704,13 +5743,13 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const openReminders = caseView?.reminders?.filter((reminder) => reminder.status === 'open') || [];
   const missingDocuments = documents.filter((document) => ['missing', 'review_required', 'rejected'].includes(document.status));
   const taskRows = [
-    ...openReminders.map((reminder) => ({ title: 'Rückfrage', text: reminder.reason, meta: `fällig ${dateLabel(reminder.dueAt)}`, tone: 'warning' })),
+    ...openReminders.map((reminder) => ({ title: tPortfolio('tasks.followUp'), text: reminder.reason, meta: tPortfolio('tasks.dueOn', { date: dateLabel(reminder.dueAt) }), tone: 'warning' })),
     ...missingDocuments.map((document) => ({
-      title: document.statusLabel,
+      title: tPortfolio(`documents.${document.status === 'ok' ? 'reviewed' : document.status === 'review_required' ? 'reviewRequired' : document.status}`),
       text: document.name,
       meta: document.missingReason || document.type,
       documentCategory: document.category,
-      requirementLevel: document.type === 'Pflicht' ? 'required' : document.type === 'Empfohlen' ? 'recommended' : 'optional',
+      requirementLevel: document.requirementLevel || 'optional',
       tone: document.status === 'rejected' ? 'danger' : 'warning'
     })),
   ];
@@ -5756,15 +5795,25 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const ratingCompactLabel = objectRating
     ? `Rating ${formatRatingScore(objectRating.totalScore)} · ${ratingInvestmentFilter.treatmentLabel}`
     : '';
+  const preliminaryMarketValue = Number.isFinite(parseUiNumberInput(precheckDraft.preliminaryMarketValue))
+    ? parseUiNumberInput(precheckDraft.preliminaryMarketValue)
+    : undefined;
+  const parsedPrecheckLandValue = parseUiNumberValue(precheckDraft.landValuePerSqm) ?? undefined;
+  const parsedPrecheckUsefulLife = parseUiNumberValue(precheckDraft.remainingUsefulLifeYears) ?? undefined;
   const precheckView = caseView && property
     ? evaluateAcquisitionPrecheck({
         ...caseView,
-        property: { ...property, acquisitionPrecheck: precheckDraft }
+        property: {
+          ...property,
+          acquisitionPrecheck: {
+            ...precheckDraft,
+            preliminaryMarketValue,
+            landValuePerSqm: parsedPrecheckLandValue,
+            remainingUsefulLifeYears: parsedPrecheckUsefulLife,
+          },
+        }
       })
     : null;
-  const preliminaryMarketValue = Number.isFinite(parseGermanNumberInput(precheckDraft.preliminaryMarketValue))
-    ? parseGermanNumberInput(precheckDraft.preliminaryMarketValue)
-    : undefined;
   const preliminaryMarketValueLabel = preliminaryMarketValue
     ? formatEuro(preliminaryMarketValue)
     : tPrecheck('values.notRecorded');
@@ -5791,8 +5840,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const localizePrecheckCriterion = (item) => {
     const key = item.key;
     const currentRatingScore = ratingScoreNumber(objectRating?.totalScore);
-    const parsedLandValue = parseGermanNumberInput(precheckDraft.landValuePerSqm);
-    const parsedUsefulLife = parseGermanNumberInput(precheckDraft.remainingUsefulLifeYears);
+    const parsedLandValue = parseUiNumberInput(precheckDraft.landValuePerSqm);
+    const parsedUsefulLife = parseUiNumberInput(precheckDraft.remainingUsefulLifeYears);
     const energyClass = String(property?.energyClass || '').trim().toUpperCase();
     const currentValueByKey = {
       region: precheckDraft.postbankRegionCategory ? labelFrom(localizedPostbankRegionLabels, precheckDraft.postbankRegionCategory) : tPrecheck('values.notRecorded'),
@@ -6040,7 +6089,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     setRatingScoreInputs({});
   }, { success: tRating('messages.changesSaved'), error: tRating('messages.actionFailed') });
   const saveRatingReturn = () => runCaseAction(tRating('actions.saveTargetReturn'), async () => {
-    const parsed = parseGermanPercentInput(ratingReturnPercent);
+    const parsed = parseUiPercentValue(ratingReturnPercent);
     if (!Number.isFinite(parsed)) throw new Error(tRating('messages.invalidTargetReturn'));
     await patchJson(`/api/properties/${c.propertyId}/rating/final-return`, { finalTargetReturn: parsed }).catch(() => {
       throw new Error(tRating('messages.actionFailed'));
@@ -6085,7 +6134,16 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
           ? tPrecheck('actions.requestException')
           : tPrecheck('actions.save'),
     async () => {
-      await patchJson(`/api/properties/${c.propertyId}/precheck`, { ...precheckDraft, action }).catch(() => {
+      const parsedMarketValue = parseOptionalUiNumber(precheckDraft.preliminaryMarketValue, tPrecheck('messages.invalidNumber'));
+      const parsedLandValue = parseOptionalUiNumber(precheckDraft.landValuePerSqm, tPrecheck('messages.invalidNumber'));
+      const parsedUsefulLife = parseOptionalUiNumber(precheckDraft.remainingUsefulLifeYears, tPrecheck('messages.invalidNumber'));
+      await patchJson(`/api/properties/${c.propertyId}/precheck`, {
+        ...precheckDraft,
+        preliminaryMarketValue: parsedMarketValue,
+        landValuePerSqm: parsedLandValue,
+        remainingUsefulLifeYears: parsedUsefulLife,
+        action,
+      }).catch(() => {
         throw new Error(tPrecheck('messages.saveFailed'));
       });
     },
@@ -6113,16 +6171,17 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       if (!preliminaryMarketValue) {
         throw new Error(tOffers('validation.preliminaryValueRequired'));
       }
+      const normalizedParams = normalizeOfferCalculationInputs(params, tOffers('validation.invalidNumber'));
       await postJson(`/api/properties/${c.propertyId}/offer/calculate`, {
         model,
         inputs: {
-          ...params,
+          ...normalizedParams,
           manualMarketValue: preliminaryMarketValue,
-          monthlyRentPerSqm: params.monthlyRentPerSqm ?? '',
-          ...(property?.parkingAvailable ? { garageMonthlyRent: params.garageMonthlyRent ?? '' } : {}),
-          residentialRightYears: params.residentialRightYears || modelRequest?.residentialRightYears || property?.desiredResidentialRightYears,
-          livingAreaSqm: params.livingAreaSqm || property?.livingAreaSqm,
-          garageCount: params.garageCount ?? (property?.parkingAvailable ? property?.parkingCount : 0),
+          monthlyRentPerSqm: normalizedParams.monthlyRentPerSqm,
+          ...(property?.parkingAvailable ? { garageMonthlyRent: normalizedParams.garageMonthlyRent } : {}),
+          residentialRightYears: normalizedParams.residentialRightYears ?? modelRequest?.residentialRightYears ?? property?.desiredResidentialRightYears,
+          livingAreaSqm: normalizedParams.livingAreaSqm ?? property?.livingAreaSqm,
+          garageCount: normalizedParams.garageCount ?? (property?.parkingAvailable ? property?.parkingCount : 0),
         }
       });
       await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
@@ -6189,23 +6248,24 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     if (!canPrepareBindingOffer) {
       throw new Error(tOffers('validation.appraisalReceivedRequired'));
     }
-    const parsedExpertOpinionValue = parseGermanNumberInput(expertOpinionValue);
+    const parsedExpertOpinionValue = parseUiNumberInput(expertOpinionValue);
     if (!Number.isFinite(parsedExpertOpinionValue) || parsedExpertOpinionValue <= 0) {
       throw new Error(tOffers('validation.appraisedValueRequired'));
     }
     const key = `binding-${modelRequest.key}-${index}`;
     const params = calculationParams[key] || {};
+    const normalizedParams = normalizeOfferCalculationInputs(params, tOffers('validation.invalidNumber'));
     await postJson(`/api/properties/${c.propertyId}/offer/calculate`, {
       kind: 'binding',
       model: modelRequest.model,
       inputs: {
-        ...params,
-        monthlyRentPerSqm: params.monthlyRentPerSqm ?? '',
-        ...(property?.parkingAvailable ? { garageMonthlyRent: params.garageMonthlyRent ?? '' } : {}),
+        ...normalizedParams,
+        monthlyRentPerSqm: normalizedParams.monthlyRentPerSqm,
+        ...(property?.parkingAvailable ? { garageMonthlyRent: normalizedParams.garageMonthlyRent } : {}),
         expertOpinionValue: parsedExpertOpinionValue,
-        residentialRightYears: params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears,
-        livingAreaSqm: params.livingAreaSqm || property?.livingAreaSqm,
-        garageCount: params.garageCount ?? (property?.parkingAvailable ? property?.parkingCount : 0),
+        residentialRightYears: normalizedParams.residentialRightYears ?? modelRequest.residentialRightYears ?? property?.desiredResidentialRightYears,
+        livingAreaSqm: normalizedParams.livingAreaSqm ?? property?.livingAreaSqm,
+        garageCount: normalizedParams.garageCount ?? (property?.parkingAvailable ? property?.parkingCount : 0),
       }
     });
     await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
@@ -6901,9 +6961,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       </div>
     );
   };
-  const uploadDocument = () => runCaseAction('Dokument-Upload', async () => {
+  const uploadDocument = () => runCaseAction(portfolioActionLabels.uploadDocument, async () => {
     if (!uploadFile) {
-      throw new Error('Bitte zuerst eine Datei auswählen.');
+      throw new Error(tPortfolio('messages.selectFile'));
     }
     const formData = new FormData();
     formData.append('file', uploadFile);
@@ -6915,14 +6975,14 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     setUploadFile(null);
     setUploadNote('');
   });
-  const deleteDocument = (document) => runCaseAction('Dokument löschen', async () => {
+  const deleteDocument = (document) => runCaseAction(portfolioActionLabels.deleteDocument, async () => {
     if (!document.id || document.id.startsWith('mock-')) {
-      throw new Error('Dieses Mock-Dokument kann nicht gelöscht werden.');
+      throw new Error(tPortfolio('messages.mockDelete'));
     }
-    if (!window.confirm(`Unterlage "${document.name}" wirklich löschen?`)) return;
+    if (!window.confirm(tPortfolio('messages.confirmDelete', { name: document.name }))) return;
     const response = await fetch(`/api/properties/${c.propertyId}/documents/${document.id}`, { method: 'DELETE' });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'Löschen fehlgeschlagen');
+    if (!response.ok) throw new Error(payload.error || tPortfolio('messages.deleteFailed'));
   });
   const updateDocumentReviewInput = (documentId, patch) => {
     setDocumentReviewInputs((current) => ({
@@ -6930,9 +6990,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       [documentId]: { ...(current[documentId] || {}), ...patch },
     }));
   };
-  const reviewDocument = (document) => runCaseAction('Dokument prüfen', async () => {
+  const reviewDocument = (document) => runCaseAction(portfolioActionLabels.reviewDocument, async () => {
     if (!document.id || document.id.startsWith('mock-')) {
-      throw new Error('Dieses Mock-Dokument kann nicht geprüft werden.');
+      throw new Error(tPortfolio('messages.mockReview'));
     }
     const input = documentReviewInputs[document.id] || {};
     await patchJson(`/api/properties/${c.propertyId}/documents/${document.id}`, {
@@ -6943,14 +7003,14 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       missingReason: input.missingReason,
     });
   });
-  const sendChatMessage = () => runCaseAction('Chat-Nachricht senden', async () => {
+  const sendChatMessage = () => runCaseAction(portfolioActionLabels.sendMessage, async () => {
     const message = chatInput.trim();
     if (!message && !chatAttachmentFiles.length) {
-      throw new Error('Bitte eine Nachricht eingeben.');
+      throw new Error(tPortfolio('messages.enterMessage'));
     }
     if (chatAttachmentFiles.length) {
       const formData = new FormData();
-      formData.append('message', message || 'Anhang');
+      formData.append('message', message || tPortfolio('messages.attachmentOnly'));
       formData.append('visibility', role === 'admin' ? chatVisibility : 'shared');
       chatAttachmentFiles.slice(0, 5).forEach((file) => formData.append('attachments', file));
       await postFormData(`/api/properties/${c.propertyId}/chat`, formData);
@@ -6967,18 +7027,34 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   });
   const updatePortfolioForm = (patch) => setPortfolioForm((current) => ({ ...current, ...patch }));
   const updateExitProcessForm = (patch) => setExitProcessForm((current) => ({ ...current, ...patch }));
-  const portfolioSaveActionLabel = activeTab === 'kvabwicklung' ? tClosing('actions.save') : 'Bestandsakte speichern';
+  const portfolioActionLabels = {
+    savePortfolio: tPortfolio('actions.savePortfolio'),
+    saveSales: tPortfolio('actions.saveSales'),
+    saveResidentStatus: tPortfolio('residentStatus'),
+    uploadDocument: tPortfolio('actions.upload'),
+    deleteDocument: tPortfolio('actions.delete'),
+    reviewDocument: tPortfolio('actions.review'),
+    sendMessage: tPortfolio('actions.send'),
+  };
+  const localizedClosedModelLabel = () => {
+    const model = closedModelFromProperty(property);
+    if (!model) return tPortfolio('summary.notRecorded');
+    if (model === 'sale_and_leaseback') return tOffers('models.rentBack');
+    if (model === 'lifelong_residential_right') return tOffers('models.lifetime');
+    return tOffers('models.rightOfResidence');
+  };
+  const portfolioSaveActionLabel = activeTab === 'kvabwicklung' ? tClosing('actions.save') : portfolioActionLabels.savePortfolio;
   const savePortfolioFile = () => runCaseAction(portfolioSaveActionLabel, async () => {
     const payload = {
       purchaseContractNumber: portfolioForm.purchaseContractNumber,
       purchaseContractSignedAt: portfolioForm.purchaseContractSignedAt,
-      purchasePrice: portfolioForm.purchasePrice,
+      purchasePrice: parseOptionalUiNumber(portfolioForm.purchasePrice, tPortfolio('messages.invalidNumber')),
       payoutPaidAt: portfolioForm.payoutPaidAt,
       ownershipTransferAt: portfolioForm.ownershipTransferAt,
       landRegisterEntryAt: portfolioForm.landRegisterEntryAt,
-      monthlyRent: portfolioForm.monthlyRent,
+      monthlyRent: parseOptionalUiNumber(portfolioForm.monthlyRent, tPortfolio('messages.invalidNumber')),
       rentStartAt: portfolioForm.rentStartAt,
-      rentDeposit: portfolioForm.rentDeposit,
+      rentDeposit: parseOptionalUiNumber(portfolioForm.rentDeposit, tPortfolio('messages.invalidNumber')),
       residentialRightStartAt: portfolioForm.residentialRightStartAt,
       residentialRightEndAt: portfolioForm.residentialRightEndAt,
       residentialRightNotes: portfolioForm.residentialRightNotes,
@@ -7000,7 +7076,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       residentName: portfolioForm.residentName,
       usageRightStartsAt: portfolioForm.usageRightStartsAt,
       usageRightEndsAt: portfolioForm.usageRightEndsAt,
-      monthlyUsageFee: portfolioForm.monthlyUsageFee,
+      monthlyUsageFee: parseOptionalUiNumber(portfolioForm.monthlyUsageFee, tPortfolio('messages.invalidNumber')),
       residentContactName: portfolioForm.residentContactName,
       residentEmergencyContact: portfolioForm.residentEmergencyContact,
       propertyManagerName: portfolioForm.propertyManagerName,
@@ -7012,7 +7088,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       maintenancePlan: {
         nextReviewDate: portfolioForm.maintenanceNextReviewDate,
         responsible: portfolioForm.maintenanceResponsible,
-        annualBudget: parseGermanNumberValue(portfolioForm.maintenanceBudget),
+        annualBudget: parseOptionalUiNumber(portfolioForm.maintenanceBudget, tPortfolio('messages.invalidNumber')),
         notes: portfolioForm.maintenanceNotes,
       },
       portfolioTasks: {
@@ -7024,20 +7100,23 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     };
     await patchJson(`/api/properties/${c.propertyId}/portfolio`, payload);
   });
-  const saveExitProcess = () => runCaseAction('Verkaufsprozess speichern', async () => {
-    await patchJson(`/api/properties/${c.propertyId}/exit`, exitProcessForm);
+  const saveExitProcess = () => runCaseAction(portfolioActionLabels.saveSales, async () => {
+    await patchJson(`/api/properties/${c.propertyId}/exit`, {
+      ...exitProcessForm,
+      salePriceIndication: parseOptionalUiNumber(exitProcessForm.salePriceIndication, tPortfolio('messages.invalidNumber')),
+      salePriceFinal: parseOptionalUiNumber(exitProcessForm.salePriceFinal, tPortfolio('messages.invalidNumber')),
+    });
   });
   const startResidentStatusAction = (action) => {
     if (!inventoryCase) {
-      setNotice?.('Bewohnerstatus kann erst nach Bestandsübernahme geändert werden.');
+      setNotice?.(tPortfolio('messages.inventoryRequired'));
       return;
     }
-    const label = action === 'deceased' ? 'verstorben' : 'zieht aus';
     const firstQuestion = action === 'deceased'
-      ? 'Möchten Sie den Bewohnerstatus auf „verstorben“ setzen?'
-      : 'Möchten Sie den Bewohnerstatus auf „zieht aus“ setzen?';
+      ? tPortfolio('messages.confirmDeceased')
+      : tPortfolio('messages.confirmMoveOut');
     if (!window.confirm(firstQuestion)) return;
-    if (!window.confirm('Diese Änderung startet den Verkaufsprozess. Bitte bestätigen Sie erneut.')) return;
+    if (!window.confirm(tPortfolio('messages.confirmSalesStart'))) return;
     setResidentStatusAction(action);
     setResidentStatusForm({
       moveOutDate: action === 'move_out' ? dateInputValue(property?.residentMoveOutDate || property?.exitProcess?.usageRightEndedAt) : '',
@@ -7046,11 +7125,11 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       note: '',
       relativesOrEstateContact: property?.residentEmergencyContact || property?.exitProcess?.relativesOrEstateContact || ''
     });
-    setNotice?.(`Bewohnerstatus „${label}“ vorbereiten.`);
+    setNotice?.(action === 'deceased' ? tPortfolio('messages.prepareDeceased') : tPortfolio('messages.prepareMoveOut'));
   };
-  const submitResidentStatusAction = () => runCaseAction('Bewohnerstatus speichern', async () => {
+  const submitResidentStatusAction = () => runCaseAction(portfolioActionLabels.saveResidentStatus, async () => {
     if (!inventoryCase) {
-      throw new Error('Bewohnerstatus kann erst nach Bestandsübernahme geändert werden.');
+      throw new Error(tPortfolio('messages.inventoryRequired'));
     }
     await postJson(`/api/properties/${c.propertyId}/resident-status`, {
       action: residentStatusAction,
@@ -7097,7 +7176,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     const bindingRentBackMetrics = isRentBack && bindingOffer ? rentBackCalculationFromOffer(bindingOffer) : null;
     const indicativeRentBackMetrics = isRentBack && indicativeOffer ? rentBackCalculationFromOffer(indicativeOffer) : null;
     const deltaMarket = bindingOffer && indicativeOffer ? bindingOffer.marketValue - indicativeOffer.marketValue : undefined;
-    const appraisalDeviationWarning = preliminaryMarketValue && parseGermanNumberInput(expertOpinionValue) && Math.abs(parseGermanNumberInput(expertOpinionValue) - preliminaryMarketValue) / preliminaryMarketValue >= 0.1
+    const appraisalDeviationWarning = preliminaryMarketValue && parseUiNumberInput(expertOpinionValue) && Math.abs(parseUiNumberInput(expertOpinionValue) - preliminaryMarketValue) / preliminaryMarketValue >= 0.1
       ? tOffers('messages.appraisalDeviation')
       : '';
     const deltaPayout = bindingOffer && indicativeOffer
@@ -7231,7 +7310,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               <Field label={tOffers('inputs.appraisedMarketValue')} required>
-                <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder={tOffers('inputs.marketValuePlaceholder')} inputMode="numeric" />
+                <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(event.target.value)} placeholder={tOffers('inputs.marketValuePlaceholder')} inputMode="decimal" />
               </Field>
               {residentialRightCalculationFields(modelRequest, property, true, offerInputLabels).map(([field, label, fallbackValue]) => (
                 <Field key={field} label={label}>
@@ -7503,43 +7582,43 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
           <div style={{ width: 'min(560px, 94vw)', background: 'white', borderRadius: ci.radius.modal, border: `1px solid ${theme.border}`, boxShadow: theme.elevatedShadow, overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', background: theme.goldSoft, borderBottom: `1px solid ${theme.gold}33`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>{residentStatusAction === 'deceased' ? 'Bewohner verstorben melden' : 'Bewohner zieht aus'}</div>
-                <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>Diese Aktion startet den Verkaufsprozess und wird im Aktivitätslog gespeichert.</div>
+                <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>{residentStatusAction === 'deceased' ? tPortfolio('actions.reportDeceased') : tPortfolio('actions.reportMoveOut')}</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>{tPortfolio('messages.residentActionLog')}</div>
               </div>
-              <button onClick={() => setResidentStatusAction('')} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <button onClick={() => setResidentStatusAction('')} title={tCommonButtons('close')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <X size={15} />
               </button>
             </div>
             <div style={{ padding: '20px 22px', display: 'grid', gap: 14 }}>
               {residentStatusAction === 'move_out' ? (
-                <Field label="Auszugsdatum oder geplantes Auszugsdatum" required>
+                <Field label={tPortfolio('residentDialog.moveOutDate')} required>
                   <Input type="date" value={residentStatusForm.moveOutDate} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, moveOutDate: event.target.value })} />
                 </Field>
               ) : (
                 <>
-                  <Field label="Sterbedatum, falls bekannt">
+                  <Field label={tPortfolio('residentDialog.deathDate')}>
                     <Input type="date" value={residentStatusForm.deathDate} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, deathDate: event.target.value })} />
                   </Field>
-                  <Field label="Meldedatum" required>
+                  <Field label={tPortfolio('residentDialog.reportedAt')} required>
                     <Input type="date" value={residentStatusForm.reportedAt} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, reportedAt: event.target.value })} />
                   </Field>
-                  <Field label="Ansprechpartner Angehörige / Nachlass">
+                  <Field label={tPortfolio('residentDialog.estateContact')}>
                     <Input value={residentStatusForm.relativesOrEstateContact} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, relativesOrEstateContact: event.target.value })} />
                   </Field>
                 </>
               )}
-              <Field label="Interne Notiz" required>
-                <textarea value={residentStatusForm.note} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, note: event.target.value })} rows={4} placeholder="Kurz dokumentieren, wer informiert hat und was als nächstes zu tun ist." style={{ width: '100%', minHeight: 96, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+              <Field label={tPortfolio('residentDialog.internalNote')} required>
+                <textarea value={residentStatusForm.note} onChange={(event) => setResidentStatusForm({ ...residentStatusForm, note: event.target.value })} rows={4} placeholder={tPortfolio('placeholders.residentNote')} style={{ width: '100%', minHeight: 96, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
               </Field>
             </div>
             <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button onClick={() => setResidentStatusAction('')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
+              <button onClick={() => setResidentStatusAction('')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{tCommonButtons('cancel')}</button>
               <button
                 onClick={submitResidentStatusAction}
                 disabled={Boolean(busyAction) || !residentStatusForm.note.trim() || (residentStatusAction === 'move_out' && !residentStatusForm.moveOutDate) || (residentStatusAction === 'deceased' && !residentStatusForm.reportedAt)}
                 style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', opacity: Boolean(busyAction) || !residentStatusForm.note.trim() || (residentStatusAction === 'move_out' && !residentStatusForm.moveOutDate) || (residentStatusAction === 'deceased' && !residentStatusForm.reportedAt) ? 0.55 : 1 }}
               >
-                {busyAction === 'Bewohnerstatus speichern' ? 'Wird gespeichert...' : 'Verkaufsprozess starten'}
+                {busyAction === portfolioActionLabels.saveResidentStatus ? tPortfolio('actions.saving') : tPortfolio('actions.startSales')}
               </button>
             </div>
           </div>
@@ -7707,7 +7786,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                   <div style={{ display: 'grid', gridTemplateColumns: canManageResidentStatus ? '1fr auto' : '1fr', gap: 16, alignItems: 'start' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                       {[
-                        [t('fields.status'), labelFrom(residentStatusLabels, property?.residentStatus || 'ACTIVE')],
+                        [t('fields.status'), tPortfolio(`residentStatuses.${property?.residentStatus || 'ACTIVE'}`)],
                         [t('fields.residentRemains'), localizedYesNo(property?.residentStaysInProperty !== false)],
                         [t('fields.moveOutDate'), formatDate(property?.residentMoveOutDate)],
                         [t('fields.deathDate'), formatDate(property?.residentDeathDate)],
@@ -7723,10 +7802,10 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                     {canManageResidentStatus && (
                       <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
                         <button onClick={() => startResidentStatusAction('move_out')} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                          Bewohner zieht aus
+                          {tPortfolio('actions.reportMoveOut')}
                         </button>
                         <button onClick={() => startResidentStatusAction('deceased')} disabled={Boolean(busyAction)} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}55`, color: theme.error, borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                          Bewohner verstorben melden
+                          {tPortfolio('actions.reportDeceased')}
                         </button>
                       </div>
                     )}
@@ -7921,7 +8000,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                         <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>{tPrecheck('manualValues')}</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
                           <Field label={tPrecheck('fields.preliminaryMarketValue')}>
-                            <Input value={precheckDraft.preliminaryMarketValue ? formatGermanIntegerInput(precheckDraft.preliminaryMarketValue) : ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValue: formatGermanIntegerInput(event.target.value) })} placeholder={tPrecheck('placeholders.marketValue')} inputMode="numeric" />
+                            <Input type="text" value={precheckDraft.preliminaryMarketValue ?? ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValue: event.target.value })} placeholder={tPrecheck('placeholders.marketValue')} inputMode="decimal" />
                           </Field>
                           <Field label={tPrecheck('fields.source')}>
                             <select value={precheckDraft.preliminaryMarketValueSource || ''} onChange={(event) => setPrecheckDraft({ ...precheckDraft, preliminaryMarketValueSource: event.target.value || undefined })} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', fontSize: 13, color: theme.ink, background: 'white' }}>
@@ -8498,7 +8577,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 {canManagePortfolio ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={savePortfolioFile} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                      <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'Vollzugsdaten speichern'}
+                      <Save size={14} /> {busyAction === tClosing('actions.save') ? tClosing('actions.saving') : tPortfolio('actions.saveClosing')}
                     </button>
                   </div>
                 ) : null}
@@ -8510,23 +8589,23 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Bestandsverwaltung</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Bewohnerverwaltung, Reparaturen und laufende Abrechnungsthemen</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{tPortfolio('title')}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>{tPortfolio('summary.subtitle')}</div>
                 </div>
                 <StatusBadge status={property?.status || 'DRAFT'} />
               </div>
               <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
                 {property?.status !== 'IN_PORTFOLIO' && property?.status !== 'WON' && property?.status !== 'PURCHASED' ? (
                   <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '11px 13px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
-                    Die Bestandsakte wird vollständig relevant, sobald der Kaufvertrag abgeschlossen wurde. Daten können intern bereits vorbereitet werden.
+                    {tPortfolio('summary.preparationHint')}
                   </div>
                 ) : null}
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   {[
-                    ['Bestandsübernahme', formatDate(property?.portfolioEnteredAt)],
-                    ['Bewohner', property?.residentName || property?.customer?.displayName || c.kunde || '-'],
-                    ['Abgeschlossenes Modell', closedModelLabel(property)],
+                    [tPortfolio('summary.onboarding'), formatDate(property?.portfolioEnteredAt)],
+                    [tPortfolio('summary.resident'), property?.residentName || property?.customer?.displayName || c.kunde || '-'],
+                    [tPortfolio('summary.finalModel'), localizedClosedModelLabel()],
                   ].map(([label, value]) => (
                     <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '11px 13px' }}>
                       <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
@@ -8536,48 +8615,48 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Bestandsübernahme & Bewohnerverwaltung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tPortfolio('sections.onboardingResident')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Objekt in Bestand übernommen am"><Input type="date" value={portfolioForm.portfolioEnteredAt} onChange={(event) => updatePortfolioForm({ portfolioEnteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Bewohner bleibt im Objekt">
+                    <Field label={tPortfolio('fields.portfolioEnteredAt')}><Input type="date" value={portfolioForm.portfolioEnteredAt} onChange={(event) => updatePortfolioForm({ portfolioEnteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.residentStays')}>
                       <input type="checkbox" checked={portfolioForm.residentStaysInProperty} onChange={(event) => updatePortfolioForm({ residentStaysInProperty: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
-                    <Field label="Bewohnername"><Input value={portfolioForm.residentName} onChange={(event) => updatePortfolioForm({ residentName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Wohnrecht / Nutzungsrecht aktiv ab"><Input type="date" value={portfolioForm.usageRightStartsAt} onChange={(event) => updatePortfolioForm({ usageRightStartsAt: event.target.value, residentialRightStartAt: event.target.value, rentStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Wohnrecht / Nutzungsrecht befristet bis"><Input type="date" value={portfolioForm.usageRightEndsAt} onChange={(event) => updatePortfolioForm({ usageRightEndsAt: event.target.value, residentialRightEndAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Monatliches Nutzungsentgelt / Miete (€)"><Input type="text" inputMode="decimal" value={portfolioForm.monthlyUsageFee} onChange={(event) => updatePortfolioForm({ monthlyUsageFee: event.target.value, monthlyRent: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Ansprechpartner Bewohner"><Input value={portfolioForm.residentContactName} onChange={(event) => updatePortfolioForm({ residentContactName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Notfallkontakt / Angehöriger"><Input value={portfolioForm.residentEmergencyContact} onChange={(event) => updatePortfolioForm({ residentEmergencyContact: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verwalter / WEG-Verwaltung"><Input value={portfolioForm.propertyManagerName} onChange={(event) => updatePortfolioForm({ propertyManagerName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Gebäudeversicherung"><Input value={portfolioForm.buildingInsurance} onChange={(event) => updatePortfolioForm({ buildingInsurance: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Hausgeld / Nebenkostenstatus"><Input value={portfolioForm.serviceChargeStatus} onChange={(event) => updatePortfolioForm({ serviceChargeStatus: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Reparaturmeldeweg geklärt">
+                    <Field label={tPortfolio('fields.residentName')}><Input value={portfolioForm.residentName} onChange={(event) => updatePortfolioForm({ residentName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.usageRightStartsAt')}><Input type="date" value={portfolioForm.usageRightStartsAt} onChange={(event) => updatePortfolioForm({ usageRightStartsAt: event.target.value, residentialRightStartAt: event.target.value, rentStartAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.usageRightEndsAt')}><Input type="date" value={portfolioForm.usageRightEndsAt} onChange={(event) => updatePortfolioForm({ usageRightEndsAt: event.target.value, residentialRightEndAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.monthlyUsageFee')}><Input type="text" inputMode="decimal" value={portfolioForm.monthlyUsageFee} onChange={(event) => updatePortfolioForm({ monthlyUsageFee: event.target.value, monthlyRent: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.residentContact')}><Input value={portfolioForm.residentContactName} onChange={(event) => updatePortfolioForm({ residentContactName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.emergencyContact')}><Input value={portfolioForm.residentEmergencyContact} onChange={(event) => updatePortfolioForm({ residentEmergencyContact: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.propertyManager')}><Input value={portfolioForm.propertyManagerName} onChange={(event) => updatePortfolioForm({ propertyManagerName: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.buildingInsurance')}><Input value={portfolioForm.buildingInsurance} onChange={(event) => updatePortfolioForm({ buildingInsurance: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.serviceChargeStatus')}><Input value={portfolioForm.serviceChargeStatus} onChange={(event) => updatePortfolioForm({ serviceChargeStatus: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.repairChannel')}>
                       <input type="checkbox" checked={portfolioForm.repairReportingChannelClarified} onChange={(event) => updatePortfolioForm({ repairReportingChannelClarified: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
-                    <Field label="Zustandsdokumentation vorhanden">
+                    <Field label={tPortfolio('fields.conditionDocumentation')}>
                       <input type="checkbox" checked={portfolioForm.conditionDocumentationAvailable} onChange={(event) => updatePortfolioForm({ conditionDocumentationAvailable: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
                   </div>
-                  <Field label="Hinweise zur Nutzung">
-                    <textarea value={portfolioForm.residentialRightNotes} onChange={(event) => updatePortfolioForm({ residentialRightNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} placeholder="z.B. besondere Vereinbarungen, Ansprechpartner, Bewohnerkommunikation" style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
+                  <Field label={tPortfolio('fields.usageNotes')}>
+                    <textarea value={portfolioForm.residentialRightNotes} onChange={(event) => updatePortfolioForm({ residentialRightNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} placeholder={tPortfolio('placeholders.usageNotes')} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
                   </Field>
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Bestandsverwaltung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tPortfolio('sections.management')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Nächste Objektprüfung"><Input type="date" value={portfolioForm.maintenanceNextReviewDate} onChange={(event) => updatePortfolioForm({ maintenanceNextReviewDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Zuständig"><Input value={portfolioForm.maintenanceResponsible} onChange={(event) => updatePortfolioForm({ maintenanceResponsible: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Jahresbudget (€)"><Input type="text" inputMode="decimal" value={portfolioForm.maintenanceBudget} onChange={(event) => updatePortfolioForm({ maintenanceBudget: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Nächster Termin"><Input type="date" value={portfolioForm.nextAppointmentDate} onChange={(event) => updatePortfolioForm({ nextAppointmentDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Terminart"><Input value={portfolioForm.nextAppointmentType} onChange={(event) => updatePortfolioForm({ nextAppointmentType: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Terminnotiz"><Input value={portfolioForm.nextAppointmentNote} onChange={(event) => updatePortfolioForm({ nextAppointmentNote: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.nextReview')}><Input type="date" value={portfolioForm.maintenanceNextReviewDate} onChange={(event) => updatePortfolioForm({ maintenanceNextReviewDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.responsible')}><Input value={portfolioForm.maintenanceResponsible} onChange={(event) => updatePortfolioForm({ maintenanceResponsible: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.annualBudget')}><Input type="text" inputMode="decimal" value={portfolioForm.maintenanceBudget} onChange={(event) => updatePortfolioForm({ maintenanceBudget: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.nextAppointment')}><Input type="date" value={portfolioForm.nextAppointmentDate} onChange={(event) => updatePortfolioForm({ nextAppointmentDate: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.appointmentType')}><Input value={portfolioForm.nextAppointmentType} onChange={(event) => updatePortfolioForm({ nextAppointmentType: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.appointmentNote')}><Input value={portfolioForm.nextAppointmentNote} onChange={(event) => updatePortfolioForm({ nextAppointmentNote: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <Field label="Instandhaltungshinweise">
+                    <Field label={tPortfolio('fields.maintenanceNotes')}>
                       <textarea value={portfolioForm.maintenanceNotes} onChange={(event) => updatePortfolioForm({ maintenanceNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
                     </Field>
-                    <Field label="Interne Bestandsnotizen">
+                    <Field label={tPortfolio('fields.internalPortfolioNotes')}>
                       <textarea value={portfolioForm.portfolioNotes} onChange={(event) => updatePortfolioForm({ portfolioNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
                     </Field>
                   </div>
@@ -8586,7 +8665,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 {canManagePortfolio ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={savePortfolioFile} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                      <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'Bestandsakte speichern'}
+                      <Save size={14} /> {busyAction === portfolioActionLabels.savePortfolio ? tPortfolio('actions.saving') : tPortfolio('actions.savePortfolio')}
                     </button>
                   </div>
                 ) : null}
@@ -8596,9 +8675,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
           {activeTab === 'verwertung' && role === 'admin' && !salesProcessActive && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Verkaufsprozess</div>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{tPortfolio('salesProcess')}</div>
               <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', fontSize: 13, color: theme.ink, lineHeight: 1.5 }}>
-                Der Verkaufsprozess beginnt erst nach Ende des Wohnrechts oder Rückmietverkaufs.
+                {tPortfolio('messages.salesInactive')}
               </div>
             </div>
           )}
@@ -8607,84 +8686,84 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Verkaufsprozess</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Exitphase nach Auszug, Tod, Ablauf oder Aufgabe des Nutzungsrechts</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{tPortfolio('salesProcess')}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>{tPortfolio('messages.salesSubtitle')}</div>
                 </div>
                 <span style={{ background: `${theme.aubergine}12`, color: theme.aubergine, borderRadius: 10, padding: '4px 10px', fontSize: 11, fontWeight: 800 }}>
-                  {labelFrom(exitSalesStatusLabels, exitProcessForm.salesStatus)}
+                  {tPortfolio(`salesStatuses.${exitProcessForm.salesStatus || 'under_review'}`)}
                 </span>
               </div>
               <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
                 <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '11px 13px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
-                  Dieser Bereich beginnt erst, wenn das Wohnrecht oder Nutzungsrecht endet. Erst hier sind Objektzugang, Schlüssel, Begehung und Räumung fachlich korrekt.
+                  {tPortfolio('messages.salesContext')}
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Beendigung Nutzungsrecht</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tPortfolio('sections.usageTermination')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Wohnrecht / Rückmietverkauf beendet am"><Input type="date" value={exitProcessForm.usageRightEndedAt} onChange={(event) => updateExitProcessForm({ usageRightEndedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Grund der Beendigung">
+                    <Field label={tPortfolio('fields.usageRightEndedAt')}><Input type="date" value={exitProcessForm.usageRightEndedAt} onChange={(event) => updateExitProcessForm({ usageRightEndedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.terminationReason')}>
                       <Select value={exitProcessForm.terminationReason} onChange={(event) => updateExitProcessForm({ terminationReason: event.target.value })}>
-                        {Object.entries(exitTerminationReasonLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        {exitTerminationReasons.map((value) => <option key={value} value={value}>{tPortfolio(`terminationReasons.${value}`)}</option>)}
                       </Select>
                     </Field>
-                    <Field label="Beendigungsnachweis vorhanden">
+                    <Field label={tPortfolio('fields.terminationProof')}>
                       <input type="checkbox" checked={exitProcessForm.terminationProofAvailable} onChange={(event) => updateExitProcessForm({ terminationProofAvailable: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
-                    <Field label="Ansprechpartner Angehörige / Nachlass / Betreuer"><Input value={exitProcessForm.relativesOrEstateContact} onChange={(event) => updateExitProcessForm({ relativesOrEstateContact: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Rücksprache mit Angehörigen erfolgt am"><Input type="date" value={exitProcessForm.relativesContactedAt} onChange={(event) => updateExitProcessForm({ relativesContactedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Wiedervorlage / Frist"><Input type="date" value={exitProcessForm.followUpAt} onChange={(event) => updateExitProcessForm({ followUpAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.estateContact')}><Input value={exitProcessForm.relativesOrEstateContact} onChange={(event) => updateExitProcessForm({ relativesOrEstateContact: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.relativesContactedAt')}><Input type="date" value={exitProcessForm.relativesContactedAt} onChange={(event) => updateExitProcessForm({ relativesContactedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.followUpDeadline')}><Input type="date" value={exitProcessForm.followUpAt} onChange={(event) => updateExitProcessForm({ followUpAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Objektzugang & Vorbereitung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tPortfolio('sections.accessPreparation')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Objektzugang geklärt">
+                    <Field label={tPortfolio('fields.propertyAccess')}>
                       <input type="checkbox" checked={exitProcessForm.propertyAccessClarified} onChange={(event) => updateExitProcessForm({ propertyAccessClarified: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
-                    <Field label="Schlüsselübergabe geplant am"><Input type="date" value={exitProcessForm.keyHandoverPlannedAt} onChange={(event) => updateExitProcessForm({ keyHandoverPlannedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Schlüssel erhalten am"><Input type="date" value={exitProcessForm.keysReceivedAt} onChange={(event) => updateExitProcessForm({ keysReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Objektbegehung geplant am"><Input type="date" value={exitProcessForm.inspectionPlannedAt} onChange={(event) => updateExitProcessForm({ inspectionPlannedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Objektbegehung erfolgt am"><Input type="date" value={exitProcessForm.inspectionCompletedAt} onChange={(event) => updateExitProcessForm({ inspectionCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Zustandsprotokoll nach Auszug vorhanden">
+                    <Field label={tPortfolio('fields.keyHandoverPlannedAt')}><Input type="date" value={exitProcessForm.keyHandoverPlannedAt} onChange={(event) => updateExitProcessForm({ keyHandoverPlannedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.keysReceivedAt')}><Input type="date" value={exitProcessForm.keysReceivedAt} onChange={(event) => updateExitProcessForm({ keysReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.inspectionPlannedAt')}><Input type="date" value={exitProcessForm.inspectionPlannedAt} onChange={(event) => updateExitProcessForm({ inspectionPlannedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.inspectionCompletedAt')}><Input type="date" value={exitProcessForm.inspectionCompletedAt} onChange={(event) => updateExitProcessForm({ inspectionCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.conditionReport')}>
                       <input type="checkbox" checked={exitProcessForm.postMoveOutConditionReportAvailable} onChange={(event) => updateExitProcessForm({ postMoveOutConditionReportAvailable: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
-                    <Field label="Räumung erforderlich">
+                    <Field label={tPortfolio('fields.clearanceRequired')}>
                       <input type="checkbox" checked={exitProcessForm.clearanceRequired} onChange={(event) => updateExitProcessForm({ clearanceRequired: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
-                    <Field label="Räumung beauftragt am"><Input type="date" value={exitProcessForm.clearanceOrderedAt} onChange={(event) => updateExitProcessForm({ clearanceOrderedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Räumung erledigt am"><Input type="date" value={exitProcessForm.clearanceCompletedAt} onChange={(event) => updateExitProcessForm({ clearanceCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verkehrssicherung geprüft">
+                    <Field label={tPortfolio('fields.clearanceOrderedAt')}><Input type="date" value={exitProcessForm.clearanceOrderedAt} onChange={(event) => updateExitProcessForm({ clearanceOrderedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.clearanceCompletedAt')}><Input type="date" value={exitProcessForm.clearanceCompletedAt} onChange={(event) => updateExitProcessForm({ clearanceCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.safetyChecked')}>
                       <input type="checkbox" checked={exitProcessForm.safetyInspectionCompleted} onChange={(event) => updateExitProcessForm({ safetyInspectionCompleted: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
-                    <Field label="Versicherungsschutz geprüft">
+                    <Field label={tPortfolio('fields.insuranceChecked')}>
                       <input type="checkbox" checked={exitProcessForm.insuranceCoverageChecked} onChange={(event) => updateExitProcessForm({ insuranceCoverageChecked: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
-                    <Field label="Reparatur-/Sanierungsbedarf erfasst">
+                    <Field label={tPortfolio('fields.repairNeedCaptured')}>
                       <input type="checkbox" checked={exitProcessForm.repairNeedCaptured} onChange={(event) => updateExitProcessForm({ repairNeedCaptured: event.target.checked })} disabled={!canManagePortfolio} style={{ accentColor: theme.aubergine }} />
                     </Field>
                   </div>
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Vermarktung & Abschluss</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tPortfolio('sections.marketingCompletion')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Verkaufsvorbereitung gestartet am"><Input type="date" value={exitProcessForm.salesPreparationStartedAt} onChange={(event) => updateExitProcessForm({ salesPreparationStartedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Makler beauftragt am"><Input type="date" value={exitProcessForm.brokerMandatedAt} onChange={(event) => updateExitProcessForm({ brokerMandatedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Vermarktungsstart am"><Input type="date" value={exitProcessForm.marketingStartedAt} onChange={(event) => updateExitProcessForm({ marketingStartedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verkaufspreisindikation (€)"><Input type="text" inputMode="decimal" value={exitProcessForm.salePriceIndication} onChange={(event) => updateExitProcessForm({ salePriceIndication: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verkaufspreis festgelegt (€)"><Input type="text" inputMode="decimal" value={exitProcessForm.salePriceFinal} onChange={(event) => updateExitProcessForm({ salePriceFinal: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verkaufsstatus">
+                    <Field label={tPortfolio('fields.salesPreparationStartedAt')}><Input type="date" value={exitProcessForm.salesPreparationStartedAt} onChange={(event) => updateExitProcessForm({ salesPreparationStartedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.brokerMandatedAt')}><Input type="date" value={exitProcessForm.brokerMandatedAt} onChange={(event) => updateExitProcessForm({ brokerMandatedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.marketingStartedAt')}><Input type="date" value={exitProcessForm.marketingStartedAt} onChange={(event) => updateExitProcessForm({ marketingStartedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.salePriceIndication')}><Input type="text" inputMode="decimal" value={exitProcessForm.salePriceIndication} onChange={(event) => updateExitProcessForm({ salePriceIndication: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.salePriceFinal')}><Input type="text" inputMode="decimal" value={exitProcessForm.salePriceFinal} onChange={(event) => updateExitProcessForm({ salePriceFinal: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.salesStatus')}>
                       <Select value={exitProcessForm.salesStatus} onChange={(event) => updateExitProcessForm({ salesStatus: event.target.value })}>
-                        {Object.entries(exitSalesStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        {exitSalesStatuses.map((value) => <option key={value} value={value}>{tPortfolio(`salesStatuses.${value}`)}</option>)}
                       </Select>
                     </Field>
-                    <Field label="Verkauf beurkundet am"><Input type="date" value={exitProcessForm.saleNotarizedAt} onChange={(event) => updateExitProcessForm({ saleNotarizedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Kaufpreis erhalten am"><Input type="date" value={exitProcessForm.salePriceReceivedAt} onChange={(event) => updateExitProcessForm({ salePriceReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verkaufsprozess abgeschlossen am"><Input type="date" value={exitProcessForm.exitCompletedAt} onChange={(event) => updateExitProcessForm({ exitCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.saleNotarizedAt')}><Input type="date" value={exitProcessForm.saleNotarizedAt} onChange={(event) => updateExitProcessForm({ saleNotarizedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.salePriceReceivedAt')}><Input type="date" value={exitProcessForm.salePriceReceivedAt} onChange={(event) => updateExitProcessForm({ salePriceReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tPortfolio('fields.exitCompletedAt')}><Input type="date" value={exitProcessForm.exitCompletedAt} onChange={(event) => updateExitProcessForm({ exitCompletedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
-                  <Field label="Interne Notiz">
+                  <Field label={tPortfolio('fields.internalNote')}>
                     <textarea value={exitProcessForm.internalNote} onChange={(event) => updateExitProcessForm({ internalNote: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 12px', fontSize: 13.5, color: theme.ink, background: !canManagePortfolio ? theme.mintLighter : 'white', fontFamily: 'inherit', resize: 'vertical' }} />
                   </Field>
                 </div>
@@ -8692,7 +8771,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 {canManagePortfolio ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={saveExitProcess} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                      <Save size={14} /> {busyAction === 'Verkaufsprozess speichern' ? 'Speichert...' : 'Verkaufsprozess speichern'}
+                      <Save size={14} /> {busyAction === portfolioActionLabels.saveSales ? tPortfolio('actions.saving') : tPortfolio('actions.saveSales')}
                     </button>
                   </div>
                 ) : null}
@@ -8703,41 +8782,41 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
           {activeTab === 'doks' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Objektunterlagen</span>
-                <span style={{ fontSize: 11, color: `${theme.ink}88` }}>Upload mit Kategorie und Prüfstatus</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>{tPortfolio('sections.documents')}</span>
+                <span style={{ fontSize: 11, color: `${theme.ink}88` }}>{tPortfolio('messages.documentUploadHint')}</span>
               </div>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, background: 'white' }}>
-                <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Neue Unterlage hochladen</div>
+                <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{tPortfolio('sections.documentUpload')}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.8fr', gap: 10, alignItems: 'end' }}>
-                  <Field label="Datei">
+                  <Field label={tPortfolio('fields.file')}>
                     <input type="file" accept="application/pdf,image/*" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, boxSizing: 'border-box' }} />
                   </Field>
-                  <Field label="Typ">
+                  <Field label={tPortfolio('fields.type')}>
                     <Select value={uploadCategory} onChange={(event) => setUploadCategory(event.target.value)}>
-                      {Object.entries(documentCategoryLabels).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
+                      {Object.keys(documentCategoryLabels).map((value) => (
+                        <option key={value} value={value}>{tIntake(`documents.categories.${value}`)}</option>
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Pflichtstatus">
+                  <Field label={tPortfolio('fields.requirement')}>
                     <Select value={uploadRequirementLevel} onChange={(event) => setUploadRequirementLevel(event.target.value)}>
-                      <option value="required">Pflicht</option>
-                      <option value="recommended">Empfohlen</option>
-                      <option value="optional">Optional</option>
+                      <option value="required">{tPortfolio('documents.required')}</option>
+                      <option value="recommended">{tPortfolio('documents.recommended')}</option>
+                      <option value="optional">{tPortfolio('documents.optional')}</option>
                     </Select>
                   </Field>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end', marginTop: 10 }}>
-                  <Field label="Hinweis">
-                    <Input value={uploadNote} onChange={(event) => setUploadNote(event.target.value)} placeholder="Optionaler Hinweis zur Unterlage" />
+                  <Field label={tPortfolio('fields.note')}>
+                    <Input value={uploadNote} onChange={(event) => setUploadNote(event.target.value)} placeholder={tPortfolio('placeholders.documentNote')} />
                   </Field>
                   <button onClick={uploadDocument} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '9px 14px', borderRadius: 5, fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: busyAction ? 'wait' : 'pointer', height: 38 }}>
-                    <Upload size={13} /> {busyAction === 'Dokument-Upload' ? 'Lädt...' : 'Hochladen'}
+                    <Upload size={13} /> {busyAction === portfolioActionLabels.uploadDocument ? tPortfolio('actions.uploading') : tPortfolio('actions.upload')}
                   </button>
                 </div>
               </div>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.mintLighter }}>
-                <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Pflichtdokumente</div>
+                <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{tPortfolio('sections.requiredDocuments')}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {requiredDocumentRows.map((requirement) => {
                     const isMissing = requirement.status === 'missing' || requirement.status === 'rejected';
@@ -8750,10 +8829,10 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                           <CheckCircle size={15} style={{ color: theme.success, flexShrink: 0, marginTop: 1 }} />
                         )}
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, lineHeight: 1.25 }}>{requirement.label}</div>
+                          <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, lineHeight: 1.25 }}>{tIntake(`documents.categories.${requirement.category}`)}</div>
                           <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 3, lineHeight: 1.35 }}>
-                            <span style={{ fontWeight: 700, color: isMissing || needsReview ? theme.warning : theme.success }}>{requirement.statusLabel}</span>
-                            {requirement.note ? <span> · {requirement.note}</span> : null}
+                            <span style={{ fontWeight: 700, color: isMissing || needsReview ? theme.warning : theme.success }}>{tPortfolio(`documents.${requirement.status === 'ok' ? 'reviewed' : requirement.status === 'review_required' ? 'reviewRequired' : requirement.status}`)}</span>
+                            {requirement.note ? <span> · {tIntake(`documents.notes.${requirement.category}`)}</span> : null}
                             {requirement.fileName ? <span> · {requirement.fileName}</span> : null}
                             {requirement.missingReason ? <span> · {requirement.missingReason}</span> : null}
                           </div>
@@ -8763,7 +8842,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                   })}
                 </div>
               </div>
-              <div style={{ padding: '12px 18px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Hochgeladene Unterlagen</div>
+              <div style={{ padding: '12px 18px', borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tPortfolio('sections.uploadedDocuments')}</div>
               {documents.map((d, i) => (
                 <div key={i} style={{ padding: '12px 18px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', gap: 12 }}>
                   {d.storageUrl ? (
@@ -8786,12 +8865,12 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                       ) : d.name}
                     </div>
                     <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 2 }}>
-                      <span style={{ color: d.type === 'Pflicht' ? theme.gold : `${theme.ink}66`, fontWeight: 600 }}>{d.type}</span>
-                      {d.date && <span> · hochgeladen {d.date}</span>}
+                      <span style={{ color: (d.requirementLevel || (d.type === 'Pflicht' ? 'required' : 'optional')) === 'required' ? theme.gold : `${theme.ink}66`, fontWeight: 600 }}>{tPortfolio(`documents.${d.requirementLevel || (d.type === 'Pflicht' ? 'required' : d.type === 'Empfohlen' ? 'recommended' : 'optional')}`)}</span>
+                      {d.date && <span> · {tPortfolio('documents.uploadedOn', { date: d.date })}</span>}
                       <span> · V{d.currentVersion || 1}</span>
-                      <span> · {d.scanStatusLabel}</span>
+                      <span> · {tPortfolio(`documents.${d.scanStatus === 'clean' ? 'scanClean' : d.scanStatus === 'suspicious' ? 'scanSuspicious' : d.scanStatus === 'failed' ? 'scanFailed' : 'scanPending'}`)}</span>
                       {d.missingReason && <span> · {d.missingReason}</span>}
-                      {d.storageUrl && <span> · <a href={d.storageUrl} target="_blank" rel="noreferrer" style={{ color: theme.aubergine, fontWeight: 700 }}>Ansehen</a></span>}
+                      {d.storageUrl && <span> · <a href={d.storageUrl} target="_blank" rel="noreferrer" style={{ color: theme.aubergine, fontWeight: 700 }}>{tPortfolio('documents.view')}</a></span>}
                     </div>
                     {canReviewDocuments && d.storageUrl && !d.id?.startsWith('mock-') && (
                       <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '130px 150px 1fr auto', gap: 7, alignItems: 'center' }}>
@@ -8800,46 +8879,46 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                           onChange={(event) => updateDocumentReviewInput(d.id, { status: event.target.value })}
                           style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 8px', fontSize: 11.5, color: theme.ink, background: 'white' }}
                         >
-                          <option value="pending">eingereicht</option>
-                          <option value="ok">geprüft</option>
-                          <option value="review_required">Prüfung nötig</option>
-                          <option value="missing">fehlt</option>
-                          <option value="rejected">abgelehnt</option>
+                          <option value="pending">{tPortfolio('documents.submitted')}</option>
+                          <option value="ok">{tPortfolio('documents.reviewed')}</option>
+                          <option value="review_required">{tPortfolio('documents.reviewRequired')}</option>
+                          <option value="missing">{tPortfolio('documents.missing')}</option>
+                          <option value="rejected">{tPortfolio('documents.rejected')}</option>
                         </select>
                         <select
                           value={documentReviewInputs[d.id]?.scanStatus || d.scanStatus || 'pending'}
                           onChange={(event) => updateDocumentReviewInput(d.id, { scanStatus: event.target.value })}
                           style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 8px', fontSize: 11.5, color: theme.ink, background: 'white' }}
                         >
-                          <option value="pending">Scan offen</option>
-                          <option value="clean">Scan ok</option>
-                          <option value="suspicious">auffällig</option>
-                          <option value="failed">Scan fehlgeschlagen</option>
+                          <option value="pending">{tPortfolio('documents.scanPending')}</option>
+                          <option value="clean">{tPortfolio('documents.scanClean')}</option>
+                          <option value="suspicious">{tPortfolio('documents.scanSuspicious')}</option>
+                          <option value="failed">{tPortfolio('documents.scanFailed')}</option>
                         </select>
                         <input
                           value={documentReviewInputs[d.id]?.missingReason ?? ''}
                           onChange={(event) => updateDocumentReviewInput(d.id, { missingReason: event.target.value })}
-                          placeholder="Prüfhinweis / fehlende Angabe"
+                          placeholder={tPortfolio('placeholders.reviewNote')}
                           style={{ minWidth: 0, border: `1px solid ${theme.border}`, borderRadius: 5, padding: '6px 8px', fontSize: 11.5, color: theme.ink, background: 'white' }}
                         />
                         <button onClick={() => reviewDocument(d)} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '6px 10px', fontSize: 11.5, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer' }}>
-                          Prüfen
+                          {tPortfolio('actions.review')}
                         </button>
                       </div>
                     )}
                     {d.versions?.length ? (
                       <div style={{ fontSize: 10.5, color: `${theme.ink}77`, marginTop: 5 }}>
-                        {d.versions.length} gespeicherte Version{d.versions.length === 1 ? '' : 'en'} · letzte Prüfung {d.reviewedAt ? dateLabel(d.reviewedAt) : 'offen'}
+                        {tPortfolio('documents.savedVersions', { count: d.versions.length })} · {tPortfolio('documents.lastReview', { date: d.reviewedAt ? dateLabel(d.reviewedAt) : tPortfolio('documents.open') })}
                       </div>
                     ) : null}
                   </div>
                   {d.storageUrl && !d.id?.startsWith('mock-') && canDeleteDocuments && (
                     <button onClick={() => deleteDocument(d)} disabled={Boolean(busyAction)} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, color: theme.error, fontSize: 11.5, fontWeight: 700, padding: '6px 10px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer' }}>
-                      {busyAction === 'Dokument löschen' ? 'Löscht...' : 'Löschen'}
+                      {busyAction === portfolioActionLabels.deleteDocument ? tPortfolio('actions.deleting') : tPortfolio('actions.delete')}
                     </button>
                   )}
                   {d.status === 'missing' ? (
-                    <span style={{ fontSize: 11, fontWeight: 700, color: theme.gold }}>fehlt</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: theme.gold }}>{tPortfolio('documents.missing')}</span>
                   ) : d.status === 'review_required' || d.status === 'rejected' ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: theme.error }}>{d.statusLabel}</span>
                   ) : (
@@ -8855,15 +8934,15 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <MessageSquare size={15} style={{ color: theme.aubergine }} />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>Kommunikation</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>{tPortfolio('sections.communication')}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {chatReturnTab && (
                     <button onClick={() => onReturnToTab?.(chatReturnTab)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '6px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
-                      Zurück zu {tabs.find((tab) => tab.id === chatReturnTab)?.label || 'vorherigem Reiter'}
+                      {tPortfolio('actions.backToTab', { tab: tabs.find((tab) => tab.id === chatReturnTab)?.label || tPortfolio('actions.previousTab') })}
                     </button>
                   )}
-                  <span style={{ fontSize: 11, color: `${theme.ink}88` }}>fallbezogene Kommunikation</span>
+                  <span style={{ fontSize: 11, color: `${theme.ink}88` }}>{tPortfolio('messages.communicationContext')}</span>
                 </div>
               </div>
               <div style={{ padding: '16px 18px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}` }}>
@@ -8871,13 +8950,13 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                   <textarea
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
-                    placeholder="Nachricht zum Kundenfall schreiben..."
+                    placeholder={tPortfolio('placeholders.message')}
                     rows={4}
                     style={{ width: '100%', resize: 'vertical', padding: '10px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 6, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.45 }}
                   />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 10px', borderRadius: 5, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-                      <Upload size={13} /> Anhang hinzufügen
+                      <Upload size={13} /> {tPortfolio('actions.addAttachment')}
                       <input
                         type="file"
                         multiple
@@ -8890,20 +8969,20 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                         {chatAttachmentFiles.map((file) => file.name).join(', ')}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Optional: Bild oder Datei zum Fall anhängen.</span>
+                      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{tPortfolio('messages.attachmentHint')}</span>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                     {role === 'admin' ? (
                       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: theme.ink, fontWeight: 600 }}>
                         <input type="checkbox" checked={chatVisibility === 'internal'} onChange={(event) => setChatVisibility(event.target.checked ? 'internal' : 'shared')} style={{ accentColor: theme.aubergine }} />
-                        Nur intern sichtbar
+                        {tPortfolio('messages.internalOnly')}
                       </label>
                     ) : (
-                      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Nachrichten sind für WohnKapital und den zuständigen Makler sichtbar.</span>
+                      <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{tPortfolio('messages.sharedVisibility')}</span>
                     )}
                     <button onClick={sendChatMessage} disabled={Boolean(busyAction) || (!chatInput.trim() && !chatAttachmentFiles.length)} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '9px 14px', borderRadius: 5, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, cursor: busyAction || (!chatInput.trim() && !chatAttachmentFiles.length) ? 'default' : 'pointer', opacity: busyAction || (!chatInput.trim() && !chatAttachmentFiles.length) ? 0.55 : 1 }}>
-                      <Send size={13} /> {busyAction === 'Chat-Nachricht senden' ? 'Sendet...' : 'Senden'}
+                      <Send size={13} /> {busyAction === portfolioActionLabels.sendMessage ? tPortfolio('actions.sending') : tPortfolio('actions.send')}
                     </button>
                   </div>
                 </div>
@@ -8916,9 +8995,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                     <div key={message.id} style={{ border: `1px solid ${isInternal ? `${theme.gold}66` : theme.borderSoft}`, borderRadius: 8, padding: '11px 13px', background: isInternal ? theme.goldSoft : isAdminMessage ? theme.mintLighter : 'white' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 5 }}>
                         <div style={{ fontSize: 12.5, fontWeight: 800, color: theme.aubergine }}>
-                          {message.userName || (isAdminMessage ? 'WohnKapital' : 'Makler')}
-                          <span style={{ color: `${theme.ink}88`, fontWeight: 600 }}> · {isAdminMessage ? 'Admin' : 'Makler'}</span>
-                          {isInternal && <span style={{ marginLeft: 8, color: theme.warning, fontSize: 11, fontWeight: 800 }}>Intern</span>}
+                          {message.userName || (isAdminMessage ? 'WohnKapital' : tPortfolio('communication.broker'))}
+                          <span style={{ color: `${theme.ink}88`, fontWeight: 600 }}> · {isAdminMessage ? tPortfolio('communication.admin') : tPortfolio('communication.broker')}</span>
+                          {isInternal && <span style={{ marginLeft: 8, color: theme.warning, fontSize: 11, fontWeight: 800 }}>{tPortfolio('communication.internal')}</span>}
                         </div>
                         <div style={{ fontSize: 11, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{dateLabel(message.createdAt)}</div>
                       </div>
@@ -8936,7 +9015,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                   );
                 }) : (
                   <div style={{ padding: '18px 14px', border: `1px dashed ${theme.border}`, borderRadius: 8, fontSize: 13, color: `${theme.ink}88`, lineHeight: 1.5, background: theme.mintLighter }}>
-                    Noch keine Nachrichten zu diesem Kundenfall.
+                    {tPortfolio('messages.noMessages')}
                   </div>
                 )}
               </div>
@@ -8945,9 +9024,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
           {activeTab === 'aufgaben' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Offene Aufgaben</div>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{tPortfolio('sections.openTasks')}</div>
               {taskRows.length === 0 ? (
-                <div style={{ fontSize: 13, color: `${theme.ink}88` }}>Keine offenen Aufgaben.</div>
+                <div style={{ fontSize: 13, color: `${theme.ink}88` }}>{tPortfolio('messages.noTasks')}</div>
               ) : taskRows.map((task, i) => (
                 <div key={i} style={{ borderTop: i ? `1px solid ${theme.borderSoft}` : 'none', padding: i ? '12px 0 0' : '0 0 12px', marginTop: i ? 12 : 0, display: 'flex', gap: 10 }}>
                   <AlertCircle size={15} style={{ color: task.tone === 'danger' ? theme.error : theme.warning, flexShrink: 0, marginTop: 1 }} />
@@ -9386,7 +9465,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                         <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
                           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 360px)', gap: 10, marginBottom: 12 }}>
                             <Field label="Gutachtenwert (€)" required>
-                              <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder="z.B. 520.000" inputMode="numeric" />
+                              <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(event.target.value)} placeholder={tOffers('inputs.marketValuePlaceholder')} inputMode="decimal" />
                             </Field>
                           </div>
                           <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction) || !canPrepareBindingOffer} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: busyAction ? 'wait' : canPrepareBindingOffer ? 'pointer' : 'default', opacity: busyAction || !canPrepareBindingOffer ? 0.55 : 1 }}>
@@ -9854,8 +9933,8 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
       const payloadStreet = draft.street || (incompleteDraftSave ? t('draftFallback.pending') : '');
       const payloadPostalCode = draft.postalCode || (incompleteDraftSave ? '00000' : '');
       const payloadCity = draft.city || (incompleteDraftSave ? t('draftFallback.cityPending') : '');
-      const payloadLivingAreaSqm = parseGermanNumberValue(draft.livingAreaSqm) || (incompleteDraftSave ? 1 : 0);
-      const payloadPlotAreaSqm = parseGermanNumberValue(draft.plotAreaSqm) || 0;
+      const payloadLivingAreaSqm = parseUiNumberValue(draft.livingAreaSqm) || (incompleteDraftSave ? 1 : 0);
+      const payloadPlotAreaSqm = parseUiNumberValue(draft.plotAreaSqm) || 0;
       const customerPayload = {
         partnerId: isInternalCase ? undefined : 'partner_heimwert',
         assignedAdvisorUserId: isInternalCase ? user?.id : undefined,
@@ -9863,7 +9942,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
         firstName: draft.firstName || (incompleteDraftSave ? t('draftFallback.firstName') : ''),
         lastName: draft.lastName || (incompleteDraftSave ? t('draftFallback.lastName') : ''),
         displayName: [draft.title, draft.firstName || (incompleteDraftSave ? t('draftFallback.firstName') : ''), draft.lastName || (incompleteDraftSave ? t('draftFallback.lastName') : '')].filter(Boolean).join(' '),
-        ageAtSubmission: parseGermanNumberValue(draft.ageAtSubmission) || undefined,
+        ageAtSubmission: parseUiNumberValue(draft.ageAtSubmission) || undefined,
         gender: draft.gender,
         dateOfBirth: draft.dateOfBirth,
         maritalStatus: draft.maritalStatus,
@@ -9901,26 +9980,26 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
         city: payloadCity,
         livingAreaSqm: payloadLivingAreaSqm,
         plotAreaSqm: payloadPlotAreaSqm,
-        yearBuilt: parseGermanNumberValue(draft.yearBuilt) || undefined,
+        yearBuilt: parseUiNumberValue(draft.yearBuilt) || undefined,
         condition: draft.condition || 'average',
         desiredModel: payloadDesiredModel,
         usageModel: residentialRightUsageModelFromDraft({ ...draft, desiredModel: payloadDesiredModel }),
         residentialRightRecipients: payloadDesiredModel === 'fixed_residential_right' ? (draft.residentialRightRecipients || 'one_person') : undefined,
         residentialRightPerson: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightRecipients === 'one_person' ? draft.residentialRightPerson || undefined : undefined,
-        desiredResidentialRightYears: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightVariant !== 'lifetime' ? parseGermanNumberValue(draft.desiredResidentialRightYears) || undefined : undefined,
+        desiredResidentialRightYears: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightVariant !== 'lifetime' ? parseUiNumberValue(draft.desiredResidentialRightYears) || undefined : undefined,
         rentalModelDisclosureAccepted: Boolean(draft.rentalModelDisclosureAccepted),
         additionalOfferRequested: Boolean(draft.additionalOfferRequested),
         additionalOfferModel: draft.additionalOfferRequested ? draft.additionalOfferModel : undefined,
         additionalOfferResidentialRightRecipients: draft.additionalOfferRequested ? draft.additionalOfferResidentialRightRecipients || undefined : undefined,
         additionalOfferResidentialRightPerson: draft.additionalOfferRequested && draft.additionalOfferResidentialRightRecipients === 'one_person' ? draft.additionalOfferResidentialRightPerson || undefined : undefined,
-        additionalOfferResidentialRightYears: draft.additionalOfferRequested ? parseGermanNumberValue(draft.additionalOfferResidentialRightYears) || undefined : undefined,
+        additionalOfferResidentialRightYears: draft.additionalOfferRequested ? parseUiNumberValue(draft.additionalOfferResidentialRightYears) || undefined : undefined,
         additionalOfferReason: draft.additionalOfferRequested ? draft.additionalOfferReason : undefined,
         additionalOfferRentalModelDisclosureAccepted: draft.additionalOfferRequested ? Boolean(draft.additionalOfferRentalModelDisclosureAccepted) : false,
         secondResidentialRightWanted: false,
         secondResidentialRightYears: undefined,
         fixedTermReason: payloadDesiredModel === 'fixed_residential_right' && draft.residentialRightVariant !== 'lifetime' ? draft.fixedTermReason : undefined,
         rentalOptionDeselected: false,
-        usableAreaSqm: parseGermanNumberValue(draft.usableAreaSqm) || undefined,
+        usableAreaSqm: parseUiNumberValue(draft.usableAreaSqm) || undefined,
         coOwnershipShares: payloadPropertyType === 'apartment' ? draft.coOwnershipShares || undefined : undefined,
         hasElevator: payloadPropertyType === 'apartment' && (draft.hasElevator === true || draft.hasElevator === false) ? draft.hasElevator : undefined,
         parkingAvailable: draft.parkingAvailable === true,
@@ -9930,10 +10009,10 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
         heatingType: draft.heatingType,
         heatingEnergySource: draft.heatingEnergySource,
         heatingEnergySourceOther: draft.heatingEnergySource === 'other' ? draft.heatingEnergySourceOther : undefined,
-        heatingYear: parseGermanNumberValue(draft.heatingYear) || undefined,
+        heatingYear: parseUiNumberValue(draft.heatingYear) || undefined,
         energyCarriers: draft.energyCarriers,
         windowMaterial: draft.windowMaterial,
-        windowInstallationYear: parseGermanNumberValue(draft.windowInstallationYear) || undefined,
+        windowInstallationYear: parseUiNumberValue(draft.windowInstallationYear) || undefined,
         asbestosRoofKnown: draft.asbestosRoofKnown === 'yes',
         energyCertificateAvailable: draft.energyCertificateAvailable === true,
         energyCertificateType: draft.energyCertificateAvailable ? draft.energyCertificateType : undefined,
@@ -9949,7 +10028,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
         moistureDamageDescription: draft.moistureDamageStatus === 'MINOR' || draft.moistureDamageStatus === 'SIGNIFICANT' ? draft.moistureDamageDescription : undefined,
         accessibilityAssessment: draft.accessibilityAssessment,
         remainingDebtKnown: draft.remainingDebtKnown === true,
-        remainingDebtAmount: draft.remainingDebtKnown ? parseGermanNumberValue(draft.remainingDebtAmount) || undefined : undefined,
+        remainingDebtAmount: draft.remainingDebtKnown ? parseUiNumberValue(draft.remainingDebtAmount) || undefined : undefined,
         modernization: draft.modernization,
         buildingCondition: draft.buildingCondition,
         generalPropertyNotes: draft.generalPropertyNotes,

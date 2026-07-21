@@ -40,8 +40,24 @@
     "caseChats": "Chat zu Kundenfällen",
     "chatMessages": "Chat-Nachrichten",
     "openProfile": "Profil öffnen",
-    "messages": "{count} Nachrichten",
-    "noMessages": "Keine neuen Nachrichten vorhanden."
+      "messages": "{count} Nachrichten",
+      "noMessages": "Keine neuen Nachrichten vorhanden.",
+      "notificationSteps": {
+        "chat_message_created": "Neue Chat-Nachricht",
+        "indicative_offer_sent": "Unverbindliches Angebot abgegeben",
+        "offer_accepted": "Unverbindliches Angebot angenommen",
+        "expert_opinion_ordered": "Gutachten beauftragt",
+        "expert_opinion_received": "Gutachten eingegangen",
+        "binding_offer_sent": "Verbindliches Angebot abgegeben",
+        "binding_offer_accepted": "Verbindliches Angebot angenommen",
+        "notary_appointment_ordered": "Notartermin vereinbart",
+        "contract_signed": "Kaufvertrag abgeschlossen",
+        "resident_status_changed": "Verkaufsprozess gestartet",
+        "workflow_reset": "Prozessschritt zurückgesetzt",
+        "property_rejected": "Fall abgelehnt",
+        "feedback_received": "Kundenrückmeldung eingegangen",
+        "case_updated": "Änderung im Kundenfall"
+      }
   },
   "feedback": {
     "crmLoading": "CRM wird geladen...",

@@ -40,8 +40,24 @@
     "caseChats": "Case messages",
     "chatMessages": "Chat messages",
     "openProfile": "Open profile",
-    "messages": "{count} messages",
-    "noMessages": "No new messages."
+      "messages": "{count} messages",
+      "noMessages": "No new messages.",
+      "notificationSteps": {
+        "chat_message_created": "New Chat Message",
+        "indicative_offer_sent": "Indicative Offer Submitted",
+        "offer_accepted": "Indicative Offer Accepted",
+        "expert_opinion_ordered": "Appraisal Commissioned",
+        "expert_opinion_received": "Appraisal Received",
+        "binding_offer_sent": "Binding Offer Submitted",
+        "binding_offer_accepted": "Binding Offer Accepted",
+        "notary_appointment_ordered": "Notary Appointment Arranged",
+        "contract_signed": "Purchase Agreement Completed",
+        "resident_status_changed": "Sales Process Started",
+        "workflow_reset": "Process Step Reset",
+        "property_rejected": "Case Rejected",
+        "feedback_received": "Customer Response Received",
+        "case_updated": "Customer Case Updated"
+      }
   },
   "feedback": {
     "crmLoading": "Loading CRM...",
