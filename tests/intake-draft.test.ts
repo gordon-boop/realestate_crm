@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertCurrentDraftVersion, draftSummary, hasMeaningfulDraftData, intakeDraftRequestSchema } from "../lib/intake-draft.ts";
+import { assertCurrentDraftVersion, DraftVersionConflictError, draftSummary, hasMeaningfulDraftData, intakeDraftRequestSchema } from "../lib/intake-draft.ts";
 
 test("unvollständige Entwürfe erhalten sichere technische Platzhalter", () => {
   const summary = draftSummary({ firstName: "Renate", city: "Tübingen", livingAreaSqm: "142" });
@@ -25,8 +25,14 @@ test("Autosave erkennt sinnvolle Eingaben, aber keine leere Upload-Struktur", ()
 test("Optimistic Locking akzeptiert nur den aktuellen updatedAt-Stand", () => {
   const current = new Date("2026-07-20T12:00:00.000Z");
   assert.doesNotThrow(() => assertCurrentDraftVersion(current, "2026-07-20T12:00:00.000Z"));
-  assert.throws(
-    () => assertCurrentDraftVersion(current, "2026-07-20T11:59:59.000Z"),
-    /zwischenzeitlich geändert/
-  );
+  let error: DraftVersionConflictError | undefined;
+  try {
+    assertCurrentDraftVersion(current, "2026-07-20T11:59:59.000Z");
+  } catch (caught) {
+    assert.ok(caught instanceof DraftVersionConflictError);
+    error = caught;
+  }
+  assert.ok(error);
+  assert.equal(error.code, "DRAFT_VERSION_CONFLICT");
+  assert.equal(error.currentUpdatedAt, "2026-07-20T12:00:00.000Z");
 });

@@ -54,6 +54,35 @@ test("lead management and customer intake expose the agreed English terminology"
   assert.doesNotMatch(leafValues({leads, customers}).join(" "), /Sale-and-Leaseback|\bUVA\b|\bVA\b/);
 });
 
+test("customer intake covers both the prototype flow and the standalone partner form", () => {
+  const german = catalog("de", "customers").intake;
+  const english = catalog("en", "customers").intake;
+  const standaloneForm = readFileSync(new URL("../components/NewCaseForm.tsx", import.meta.url), "utf8");
+  const standalonePage = readFileSync(new URL("../app/partner/cases/new/page.tsx", import.meta.url), "utf8");
+
+  assert.equal(english.standalone.pageTitle, "New Case");
+  assert.equal(english.standalone.createCase, "Create Case");
+  assert.equal(english.standalone.additionalDetailsDocuments, "Additional Details and Documents");
+  assert.equal(german.standalone.pageTitle, "Neuer Fall");
+  assert.deepEqual(Object.keys(english.standalone).sort(), Object.keys(german.standalone).sort());
+  assert.match(standaloneForm, /useTranslations\("customers\.intake"\)/);
+  assert.match(standalonePage, /getTranslations\("customers\.intake"\)/);
+  assert.doesNotMatch(standaloneForm, />\s*(?:Bitte|Kunde|Immobilie|Dokumente|Wunschmodell|Zurück|Weiter|Einreichen)[^<{]*</);
+});
+
+test("customer intake catalog contains the required property, document and validation copy", () => {
+  const customers = catalog("en", "customers").intake;
+  assert.equal(customers.personal.spouse, "Spouse / Second Eligible Occupant");
+  assert.equal(customers.property.energyCertificate, "Energy Performance Certificate");
+  assert.equal(customers.modernisations.barrierFree, "Barrier-Free");
+  assert.equal(customers.documents.categories.land_register, "Land Register Extract");
+  assert.equal(customers.validation.submitBlocked, "Submission is not yet possible. Please complete the following information:");
+  assert.equal(customers.messages.customerCreateFailed, "The customer could not be created.");
+  assert.equal(customers.messages.propertyCreateFailed, "The property could not be created.");
+  assert.equal(customers.saveStatus.conflict, "Draft Conflict");
+  assert.equal(customers.conflict.loadLatest, "Load Latest Version");
+});
+
 test("lead and intake components use shared translation namespaces", () => {
   const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
   assert.match(prototype, /useTranslations\('leads'\)/);
@@ -67,6 +96,20 @@ test("case detail receives its translated back label from the app scope", () => 
   assert.match(prototype, /const FallDetail = \(\{[^}]*backLabel/);
   assert.match(prototype, /<ArrowLeft size=\{15\} \/> \{backLabel\}/);
   assert.match(prototype, /backLabel=\{tButtons\('back'\)\}/);
+});
+
+test("case detail uses the shared bilingual case-view catalog", () => {
+  const german = catalog("de", "customers").caseView;
+  const english = catalog("en", "customers").caseView;
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+
+  assert.deepEqual(Object.keys(english).sort(), Object.keys(german).sort());
+  assert.equal(english.stepper.title, "Acquisition Process");
+  assert.equal(english.tabs.indicativeOffer, "Indicative Offer");
+  assert.equal(english.sections.personal, "Personal Details");
+  assert.equal(english.activity.title, "Activity Log");
+  assert.doesNotMatch(leafValues(english).join(" "), /\b(?:UVA|VA)\b/);
+  assert.match(prototype, /useTranslations\('customers\.caseView'\)/);
 });
 
 test("locale aliases normalise to the supported locales", () => {

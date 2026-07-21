@@ -26,6 +26,7 @@ import { PropertyMapWidget } from '@/components/dashboard/PropertyMapWidget';
 import { hausVorteilDesignTokens } from '@/lib/design/tokens';
 import { formatAddress, splitStreetAndHouseNumber } from '@/lib/address';
 import { getDefaultLocale } from '@/i18n/config';
+import { createLatestTaskQueue } from '@/lib/latest-task-queue';
 
 const uiLocale = getDefaultLocale();
 
@@ -768,6 +769,50 @@ const internalIntakeSourceLabels = {
   other: 'Sonstige Quelle',
 };
 
+class ApiRequestError extends Error {
+  constructor(message, { status, code, payload } = {}) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.code = code;
+    this.payload = payload;
+  }
+}
+
+const draftSaveReasonPriority = { autosave: 0, step: 1, manual: 2, submit: 3 };
+
+function mergeDraftSaveRequests(current, incoming) {
+  const currentPriority = draftSaveReasonPriority[current.reason] ?? 0;
+  const incomingPriority = draftSaveReasonPriority[incoming.reason] ?? 0;
+  const higherPriority = incomingPriority >= currentPriority ? incoming : current;
+  return {
+    ...current,
+    ...incoming,
+    reason: higherPriority.reason,
+    uploadDocuments: higherPriority.reason === 'submit' ? false : incoming.uploadDocuments ?? current.uploadDocuments,
+  };
+}
+
+function mergeUploadedDraftState(latestDraft, sourceDraft, savedDraft) {
+  const sourceUploads = sourceDraft.documentUploads || {};
+  const remainingUploads = Object.fromEntries(
+    Object.entries(latestDraft.documentUploads || {})
+      .map(([category, files]) => {
+        const uploadedFiles = new Set(sourceUploads[category] || []);
+        return [category, (files || []).filter((file) => !uploadedFiles.has(file))];
+      })
+      .filter(([, files]) => files.length)
+  );
+  return {
+    ...latestDraft,
+    documentUploads: remainingUploads,
+    existingDocumentCategories: Array.from(new Set([
+      ...(latestDraft.existingDocumentCategories || []),
+      ...(savedDraft.existingDocumentCategories || []),
+    ])),
+  };
+}
+
 async function postJson(url, body) {
   const response = await fetch(url, {
     method: 'POST',
@@ -786,7 +831,13 @@ async function patchJson(url, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || 'Aktion fehlgeschlagen');
+  if (!response.ok) {
+    throw new ApiRequestError(payload.message || payload.error || 'Aktion fehlgeschlagen', {
+      status: response.status,
+      code: payload.error,
+      payload,
+    });
+  }
   return payload;
 }
 
@@ -2240,12 +2291,12 @@ function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== '';
 }
 
-function customerOneName(draft) {
-  return [draft.firstName, draft.lastName].filter(Boolean).join(' ').trim() || 'Kunde 1';
+function customerOneName(draft, fallback) {
+  return [draft.firstName, draft.lastName].filter(Boolean).join(' ').trim() || fallback;
 }
 
-function customerTwoName(draft) {
-  return [draft.spouseFirstName, draft.spouseLastName].filter(Boolean).join(' ').trim() || 'Kunde 2';
+function customerTwoName(draft, fallback) {
+  return [draft.spouseFirstName, draft.spouseLastName].filter(Boolean).join(' ').trim() || fallback;
 }
 
 function documentFilesForCategory(draft, category) {
@@ -4865,9 +4916,9 @@ function isToday(value) {
     && date.getDate() === today.getDate();
 }
 
-function processDateLabel(value, isCurrent) {
+function processDateLabel(value, isCurrent, todayLabel = 'heute') {
   if (!value) return '–';
-  if (isCurrent && isToday(value)) return 'heute';
+  if (isCurrent && isToday(value)) return todayLabel;
   try {
     return new Intl.DateTimeFormat(uiLocale, { day: '2-digit', month: '2-digit' }).format(new Date(value));
   } catch {
@@ -4875,46 +4926,46 @@ function processDateLabel(value, isCurrent) {
   }
 }
 
-function buildAcquisitionTimelineSteps(property = {}) {
+function buildAcquisitionTimelineSteps(property = {}, labels = {}) {
   const steps = [
     {
       key: 'submitted',
-      label: 'Eingereicht',
+      label: labels.submitted || 'Eingereicht',
       date: firstProcessDate(property?.submittedAt, property?.createdAt),
     },
     {
       key: 'uva-submitted',
-      label: 'UVA abgegeben',
+      label: labels.indicativeSubmitted || 'Unverbindliches Angebot abgegeben',
       date: firstProcessDate(property?.nonBindingOfferSubmittedAt, property?.indicativeOfferSentAt),
     },
     {
       key: 'uva-accepted',
-      label: 'UVA angenommen',
+      label: labels.indicativeAccepted || 'Unverbindliches Angebot angenommen',
       date: firstProcessDate(property?.nonBindingOfferAcceptedAt, property?.offerAcceptedAt),
     },
     {
       key: 'appraisal-ordered',
-      label: 'Gutachten beauftragt',
+      label: labels.appraisalCommissioned || 'Gutachten beauftragt',
       date: firstProcessDate(property?.appraisalOrderedAt, property?.expertOpinionOrderedAt),
     },
     {
       key: 'appraisal-received',
-      label: 'Gutachten eingegangen',
+      label: labels.appraisalReceived || 'Gutachten eingegangen',
       date: firstProcessDate(property?.appraisalReceivedAt, property?.expertOpinionReceivedAt),
     },
     {
       key: 'va-submitted',
-      label: 'VA abgegeben',
+      label: labels.bindingSubmitted || 'Verbindliches Angebot abgegeben',
       date: firstProcessDate(property?.bindingOfferSubmittedAt, property?.bindingOfferSentAt),
     },
     {
       key: 'va-accepted',
-      label: 'VA angenommen',
+      label: labels.bindingAccepted || 'Verbindliches Angebot angenommen',
       date: property?.bindingOfferAcceptedAt,
     },
     {
       key: 'notary-contract',
-      label: 'Notar & Kaufvertrag',
+      label: labels.notaryContract || 'Notar & Kaufvertrag',
       date: firstProcessDate(property?.notaryAppointmentAt, property?.purchaseContractSignedAt, property?.purchasedAt, property?.portfolioEnteredAt),
     },
   ];
@@ -4928,23 +4979,33 @@ function buildAcquisitionTimelineSteps(property = {}) {
   }));
 }
 
-function buildAcquisitionCompletedSummary(property = {}) {
+function buildAcquisitionCompletedSummary(property = {}, labels = {}) {
   const parts = [];
   const purchaseContractDate = firstProcessDate(property?.purchaseContractSignedAt, property?.purchasedAt);
   const purchasePricePaidDate = firstProcessDate(property?.purchasePricePaidAt, property?.payoutPaidAt);
   const landRegisterDate = firstProcessDate(property?.landRegisterEntryAt, property?.residentialRightRegisteredAt);
   const portfolioDate = property?.portfolioEnteredAt;
 
-  if (purchaseContractDate) parts.push(`Kaufvertrag abgeschlossen am ${formatDate(purchaseContractDate)}`);
-  if (purchasePricePaidDate) parts.push(`Kaufpreis gezahlt am ${formatDate(purchasePricePaidDate)}`);
-  if (landRegisterDate) parts.push(`Grundbucheintragung abgeschlossen am ${formatDate(landRegisterDate)}`);
-  if (portfolioDate) parts.push(`Im Bestand seit ${formatDate(portfolioDate)}`);
+  if (purchaseContractDate) parts.push(labels.purchaseContractCompleted?.(formatDate(purchaseContractDate)) || `Kaufvertrag abgeschlossen am ${formatDate(purchaseContractDate)}`);
+  if (purchasePricePaidDate) parts.push(labels.purchasePricePaid?.(formatDate(purchasePricePaidDate)) || `Kaufpreis gezahlt am ${formatDate(purchasePricePaidDate)}`);
+  if (landRegisterDate) parts.push(labels.landRegisterCompleted?.(formatDate(landRegisterDate)) || `Grundbucheintragung abgeschlossen am ${formatDate(landRegisterDate)}`);
+  if (portfolioDate) parts.push(labels.portfolioSince?.(formatDate(portfolioDate)) || `Im Bestand seit ${formatDate(portfolioDate)}`);
 
-  return parts.length ? parts.join(' · ') : 'Objekt befindet sich im Bestand';
+  return parts.length ? parts.join(' · ') : (labels.portfolioFallback || 'Objekt befindet sich im Bestand');
 }
 
 const AcquisitionProcessStepper = ({ property }) => {
-  const steps = buildAcquisitionTimelineSteps(property);
+  const t = useTranslations('customers.caseView.stepper');
+  const steps = buildAcquisitionTimelineSteps(property, {
+    submitted: t('submitted'),
+    indicativeSubmitted: t('indicativeSubmitted'),
+    indicativeAccepted: t('indicativeAccepted'),
+    appraisalCommissioned: t('appraisalCommissioned'),
+    appraisalReceived: t('appraisalReceived'),
+    bindingSubmitted: t('bindingSubmitted'),
+    bindingAccepted: t('bindingAccepted'),
+    notaryContract: t('notaryContract'),
+  });
   const currentIndex = Math.max(0, steps.findIndex((step) => step.current));
   const lineOffsetPercent = 100 / (steps.length * 2);
   const completedLineWidth = currentIndex === 0
@@ -4962,9 +5023,9 @@ const AcquisitionProcessStepper = ({ property }) => {
   const fullStepper = (
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, padding: '18px 20px 16px', boxShadow: theme.cardShadow }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>ANKAUFSPROZESS</div>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{t('title')}</div>
         <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}66`, color: theme.aubergine, borderRadius: 999, padding: '5px 10px', fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-          SIE SIND HIER · SCHRITT {currentIndex + 1} VON {steps.length}
+          {t('position', { current: currentIndex + 1, total: steps.length })}
         </div>
       </div>
       <div className="acquisition-stepper-scroll" style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: 2, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -5000,7 +5061,7 @@ const AcquisitionProcessStepper = ({ property }) => {
                   {step.label}
                 </div>
                 <div style={{ fontSize: 11.5, color: step.current ? theme.aubergine : `${theme.ink}77`, fontWeight: step.current ? 800 : 600 }}>
-                  {processDateLabel(step.date, step.current)}
+                  {processDateLabel(step.date, step.current, t('today'))}
                 </div>
               </div>
             );
@@ -5018,12 +5079,18 @@ const AcquisitionProcessStepper = ({ property }) => {
       <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, padding: '12px 16px', boxShadow: theme.cardShadow, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0, flex: 1 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: theme.successSoft, border: `1px solid ${theme.success}33`, color: theme.success, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
-            <CheckCircle size={14} /> Im Bestand
+            <CheckCircle size={14} /> {t('inPortfolio')}
           </span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 850 }}>Ankaufsprozess abgeschlossen</div>
+            <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 850 }}>{t('completed')}</div>
             <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 2, lineHeight: 1.35 }}>
-              {buildAcquisitionCompletedSummary(property)}
+              {buildAcquisitionCompletedSummary(property, {
+                purchaseContractCompleted: (date) => t('purchaseContractCompleted', { date }),
+                purchasePricePaid: (date) => t('purchasePricePaid', { date }),
+                landRegisterCompleted: (date) => t('landRegisterCompleted', { date }),
+                portfolioSince: (date) => t('portfolioSince', { date }),
+                portfolioFallback: t('portfolioFallback'),
+              })}
             </div>
           </div>
         </div>
@@ -5032,7 +5099,7 @@ const AcquisitionProcessStepper = ({ property }) => {
           onClick={() => setShowCompletedDetails((value) => !value)}
           style={{ background: 'white', border: `1px solid ${theme.aubergine}33`, color: theme.aubergine, borderRadius: 6, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
-          {showCompletedDetails ? 'Details ausblenden' : 'Details anzeigen'}
+          {showCompletedDetails ? t('hideDetails') : t('showDetails')}
           <ChevronDown size={14} style={{ transform: showCompletedDetails ? 'rotate(180deg)' : 'none', transition: 'transform 160ms ease' }} />
         </button>
       </div>
@@ -5041,7 +5108,7 @@ const AcquisitionProcessStepper = ({ property }) => {
   );
 };
 
-const SidePanelCard = ({ title, count, children, actionLabel, onAction }) => (
+const SidePanelCard = ({ title, count, children, actionLabel, onAction, unavailableLabel }) => (
   <div style={{ background: 'white', borderRadius: theme.cardRadius, border: `1px solid ${theme.borderSoft}`, padding: '17px 18px', boxShadow: theme.cardShadow }}>
     <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 16 }}>
       {title}{Number.isFinite(count) ? ` · ${count}` : ''}
@@ -5051,7 +5118,7 @@ const SidePanelCard = ({ title, count, children, actionLabel, onAction }) => (
       <button
         onClick={onAction}
         disabled={!onAction}
-        title={!onAction ? 'Noch nicht verfügbar' : actionLabel}
+        title={!onAction ? unavailableLabel : actionLabel}
         style={{ marginTop: 14, background: 'transparent', border: 'none', borderBottom: `1px solid ${onAction ? theme.gold : theme.border}`, color: onAction ? theme.aubergine : `${theme.ink}66`, padding: '0 0 3px', fontSize: 12, fontWeight: 700, cursor: onAction ? 'pointer' : 'not-allowed' }}
       >
         {actionLabel}
@@ -5060,7 +5127,15 @@ const SidePanelCard = ({ title, count, children, actionLabel, onAction }) => (
   </div>
 );
 
+function localizedCaseActivityText(activity, t) {
+  const message = String(activity?.text || activity?.message || '');
+  const convertedLead = message.match(/^Lead\s+(.+?)\s+wurde in einen Kundenfall umgewandelt\.?$/i);
+  if (convertedLead) return t('activity.leadConverted', { leadNumber: convertedLead[1] });
+  return message;
+}
+
 const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onShowTasks, onShowDocuments }) => {
+  const t = useTranslations('customers.caseView');
   const visibleActivities = (activities || []).slice(0, 3);
   const visibleTasks = (taskRows || []).slice(0, 3);
   const importantDocuments = (documents || [])
@@ -5073,21 +5148,21 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
 
   return (
     <div style={{ display: 'grid', gap: 16, height: 'fit-content' }}>
-      <SidePanelCard title="Aktivität" actionLabel="Alle anzeigen" onAction={onShowActivities}>
+      <SidePanelCard title={t('sidePanel.activity')} actionLabel={t('sidePanel.showAll')} onAction={onShowActivities} unavailableLabel={t('sidePanel.notAvailable')}>
         {visibleActivities.length ? visibleActivities.map((activity, index) => (
           <div key={activity.id || index} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 12, padding: index === 0 ? '0 0 12px' : '12px 0', borderBottom: index < visibleActivities.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
             <div style={{ fontSize: 11.5, color: `${theme.ink}88`, fontWeight: 700 }}>{activity.time || dateLabel(activity.createdAt)}</div>
             <div>
-              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35 }}>{activity.text || activity.message}</div>
-              <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{activity.actor || activity.source || activity.userId || 'intern'}</div>
+              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35 }}>{localizedCaseActivityText(activity, t)}</div>
+              <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{activity.actor || activity.source || activity.userId || t('activity.internal')}</div>
             </div>
           </div>
         )) : (
-          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Keine Aktivitäten vorhanden.</div>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{t('sidePanel.noActivity')}</div>
         )}
       </SidePanelCard>
 
-      <SidePanelCard title="Offene Aufgaben" count={visibleTasks.length} actionLabel="Neue Aufgabe" onAction={onShowTasks}>
+      <SidePanelCard title={t('sidePanel.openTasks')} count={visibleTasks.length} actionLabel={t('sidePanel.newTask')} onAction={onShowTasks} unavailableLabel={t('sidePanel.notAvailable')}>
         {visibleTasks.length ? visibleTasks.map((task, index) => (
           <div key={`${task.title}-${index}`} style={{ display: 'grid', gridTemplateColumns: '18px 1fr', gap: 10, padding: index === 0 ? '0 0 12px' : '12px 0', borderBottom: index < visibleTasks.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
             <div style={{ width: 14, height: 14, border: `1px solid ${theme.aubergine}66`, borderRadius: 3, marginTop: 2 }} />
@@ -5097,11 +5172,11 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
             </div>
           </div>
         )) : (
-          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Keine offenen Aufgaben.</div>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{t('sidePanel.noTasks')}</div>
         )}
       </SidePanelCard>
 
-      <SidePanelCard title="Objektunterlagen" actionLabel="Alle Dokumente" onAction={onShowDocuments}>
+      <SidePanelCard title={t('sidePanel.documents')} actionLabel={t('sidePanel.allDocuments')} onAction={onShowDocuments} unavailableLabel={t('sidePanel.notAvailable')}>
         {visibleDocuments.length ? visibleDocuments.map((document, index) => (
           <div key={document.id || index} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: index === 0 ? '0 0 10px' : '10px 0', borderBottom: index < visibleDocuments.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
             <FileText size={15} style={{ color: theme.aubergine, flex: '0 0 auto' }} />
@@ -5115,11 +5190,11 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
                   document.name || document.fileName
                 )}
               </div>
-              <div style={{ fontSize: 10.8, color: `${theme.ink}77`, marginTop: 2 }}>{document.statusLabel || document.type || 'Unterlage'}</div>
+              <div style={{ fontSize: 10.8, color: `${theme.ink}77`, marginTop: 2 }}>{document.statusLabel || document.type || t('sidePanel.document')}</div>
             </div>
           </div>
         )) : (
-          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Keine Dokumente vorhanden.</div>
+          <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{t('sidePanel.noDocuments')}</div>
         )}
       </SidePanelCard>
     </div>
@@ -5130,6 +5205,8 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
 const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde', returnTab = '', onTabChange, onReturnToTab }) => {
+  const t = useTranslations('customers.caseView');
+  const tIntake = useTranslations('customers.intake');
   const [activeTab, setActiveTab] = useState(normalizeCaseTab(initialTab));
   const [showAcquisitionHistory, setShowAcquisitionHistory] = useState(false);
   const [busyAction, setBusyAction] = useState('');
@@ -5191,6 +5268,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const canDeleteDocuments = role === 'admin' || property?.status === 'DRAFT';
   const inventoryCase = isInventoryCase(property);
   const canManageResidentStatus = inventoryCase && role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
+  const localizePendingAddress = (value) => String(value || '-').replace(/^Noch offen(?=,|$)/, t('values.pending'));
+  const displayedCaseAddress = localizePendingAddress(c.adresse);
 
   useEffect(() => {
     setActiveTab(normalizeCaseTab(initialTab));
@@ -5241,10 +5320,10 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     ['MOVE_OUT_PLANNED', 'MOVED_OUT', 'DECEASED'].includes(property?.residentStatus)
   ));
   const acquisitionHistoryTabs = [
-    ...(role === 'admin' ? [{ id: 'rating', label: 'Objektrating' }] : []),
-    { id: 'indag', label: 'Unverbindliches Angebot' },
-    { id: 'verbag', label: 'Verbindliches Angebot' },
-    ...(role === 'admin' ? [{ id: 'kvabwicklung', label: 'KV-Abwicklung' }] : []),
+    ...(role === 'admin' ? [{ id: 'rating', label: t('tabs.rating') }] : []),
+    { id: 'indag', label: t('tabs.indicativeOffer') },
+    { id: 'verbag', label: t('tabs.bindingOffer') },
+    ...(role === 'admin' ? [{ id: 'kvabwicklung', label: t('tabs.closing') }] : []),
   ];
   const acquisitionHistoryTabIds = acquisitionHistoryTabs.map((tab) => tab.id);
   const activeTabIsAcquisitionHistory = inventoryCase && acquisitionHistoryTabIds.includes(activeTab);
@@ -5336,106 +5415,133 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       missingReason: matchedDocument?.missingReason,
     };
   });
+  const localizedGenderLabels = {
+    female: t('values.female'), male: t('values.male'), diverse: t('values.diverse'), no_answer: t('values.noAnswer'),
+  };
+  const localizedMaritalLabels = {
+    single: t('values.single'), married: t('values.married'), widowed: t('values.widowed'), divorced: t('values.divorced'),
+  };
+  const localizedIncomeLabels = {
+    under_1000: t('values.incomeUnder'), '1000_2000': t('values.income1000To2000'), '2000_3000': t('values.income2000To3000'), over_3000: t('values.incomeOver'),
+  };
+  const localizedRecipientLabels = { one_person: t('values.onePerson'), both: t('values.bothPeople') };
+  const localizedOwnerLabels = { customer_1: t('values.customer1'), customer_2: t('values.customer2'), both: t('values.both') };
+  const localizedYesNo = (value) => value ? t('values.yes') : t('values.no');
+  const localizedOptionalYesNo = (value) => value == null ? t('values.notRecorded') : localizedYesNo(value);
   const customerDetails = customer ? [
-    ['Name', customer.displayName || `${customer.firstName} ${customer.lastName}`],
-    ['Geschlecht', labelFrom(genderLabels, customer.gender)],
-    ['Geburtsdatum', `${formatDate(customer.dateOfBirth)}${customer.ageAtSubmission ? ` (${customer.ageAtSubmission} Jahre)` : ''}`],
-    ['Familienstand', labelFrom(maritalLabels, customer.maritalStatus)],
-    ['Adresse', formatAddress(customer) || '-'],
-    ['Telefon', customer.phone || '-'],
-    ['Mobil', customer.mobile || '-'],
-    ['E-Mail', customer.email || '-'],
-    ['Monatl. Einkünfte', labelFrom(incomeLabels, customer.monthlyIncomeRange)],
-    ['Einwilligung', customer.consentDataProcessing ? `erteilt am ${dateLabel(customer.createdAt)}` : 'fehlt'],
-  ] : [
-    ['Name', 'Eva Schmidt'],
-    ['Geschlecht', 'weiblich'],
-    ['Geburtsdatum', '12.03.1953 (72 Jahre)'],
-    ['Familienstand', 'verwitwet'],
-    ['Adresse', 'Hauptstraße 14, 70563 Stuttgart'],
-    ['Telefon', '0711 / 23 45 67'],
-    ['Mobil', '0172 / 12 34 567'],
-    ['E-Mail', 'eva.schmidt@web.de'],
-    ['Monatl. Einkünfte', '1.000 - 2.000 €'],
-    ['Einwilligung', 'erteilt am 18.05.2026'],
-  ];
+    [t('fields.name'), customer.displayName || `${customer.firstName} ${customer.lastName}`],
+    [t('fields.gender'), labelFrom(localizedGenderLabels, customer.gender)],
+    [t('fields.dateOfBirth'), `${formatDate(customer.dateOfBirth)}${customer.ageAtSubmission ? ` (${t('values.years', { value: customer.ageAtSubmission })})` : ''}`],
+    [t('fields.maritalStatus'), labelFrom(localizedMaritalLabels, customer.maritalStatus)],
+    [t('fields.address'), localizePendingAddress(formatAddress(customer))],
+    [t('fields.telephone'), customer.phone || '-'],
+    [t('fields.mobile'), customer.mobile || '-'],
+    [t('fields.email'), customer.email || '-'],
+    [t('fields.monthlyIncome'), labelFrom(localizedIncomeLabels, customer.monthlyIncomeRange)],
+    [t('fields.consent'), customer.consentDataProcessing ? t('values.grantedOn', { date: dateLabel(customer.createdAt) }) : t('values.missing')],
+  ] : [];
   const spouseDetails = customer?.maritalStatus === 'married' ? [
-    ['Name', [customer.spouseTitle, customer.spouseFirstName, customer.spouseLastName].filter(Boolean).join(' ') || '-'],
-    ['Geschlecht', labelFrom(genderLabels, customer.spouseGender)],
-    ['Geburtsdatum', formatDate(customer.spouseDateOfBirth)],
-    ['Adresse', formatAddress(customer) || '-'],
-    ['Telefon', customer.phone || '-'],
-    ['Mobil', customer.mobile || '-'],
-    ['E-Mail', customer.email || '-'],
-    ['Beteiligung / Eigentum', labelFrom({ customer_1: 'Kunde 1', customer_2: 'Kunde 2', both: 'Beide Personen' }, customer.propertyOwnership)],
+    [t('fields.name'), [customer.spouseTitle, customer.spouseFirstName, customer.spouseLastName].filter(Boolean).join(' ') || '-'],
+    [t('fields.gender'), labelFrom(localizedGenderLabels, customer.spouseGender)],
+    [t('fields.dateOfBirth'), formatDate(customer.spouseDateOfBirth)],
+    [t('fields.address'), localizePendingAddress(formatAddress(customer))],
+    [t('fields.telephone'), customer.phone || '-'],
+    [t('fields.mobile'), customer.mobile || '-'],
+    [t('fields.email'), customer.email || '-'],
+    [t('fields.ownership'), labelFrom(localizedOwnerLabels, customer.propertyOwnership)],
   ] : [];
   const modelDetails = property ? [
-    ['Wohnrechtsberechtigte', labelFrom(recipientLabels, property.residentialRightRecipients)],
-    ['Person mit Wohnrecht', property.residentialRightPerson ? labelFrom({ customer_1: 'Kunde 1', customer_2: 'Kunde 2' }, property.residentialRightPerson) : '-'],
-    ['Dauer Wohnrecht', property.desiredResidentialRightYears ? `${property.desiredResidentialRightYears} Jahre` : '-'],
-    ['Zweite Laufzeit gewünscht', property.secondResidentialRightWanted ? `ja${property.secondResidentialRightYears ? `, ${property.secondResidentialRightYears} Jahre` : ''}` : 'nein'],
-    ['Befristungsgrund', property.fixedTermReason || '-'],
-    ['Spätere Anmietoption abgewählt', yesNo(property.rentalOptionDeselected)],
-  ] : [
-    ['Wohnrechtsberechtigte', 'eine Person'],
-    ['Dauer Wohnrecht', '10 Jahre'],
-    ['Zweite Laufzeit gewünscht', 'ja, 5 Jahre'],
-    ['Befristungsgrund', 'Familienplanung'],
-    ['Spätere Anmietoption abgewählt', 'nein'],
-  ];
+    [t('fields.eligibleOccupants'), labelFrom(localizedRecipientLabels, property.residentialRightRecipients)],
+    [t('fields.occupant'), property.residentialRightPerson ? labelFrom(localizedOwnerLabels, property.residentialRightPerson) : '-'],
+    [t('fields.term'), property.desiredResidentialRightYears ? t('values.years', { value: property.desiredResidentialRightYears }) : '-'],
+    [t('fields.secondTerm'), property.secondResidentialRightWanted ? `${t('values.yes')}${property.secondResidentialRightYears ? `, ${t('values.years', { value: property.secondResidentialRightYears })}` : ''}` : t('values.no')],
+    [t('fields.fixedTermReason'), property.fixedTermReason || '-'],
+    [t('fields.laterRentalDeclined'), localizedYesNo(property.rentalOptionDeselected)],
+  ] : [];
+  const localizedPropertyTypeLabels = {
+    house: tIntake('property.singleFamily'), single_family: tIntake('property.singleFamily'), semi_detached: tIntake('property.semiDetached'),
+    row_house: tIntake('property.terraced'), apartment: tIntake('property.apartment'), other: t('values.notSpecified'),
+  };
+  const localizedRatingLabels = {
+    very_good: tIntake('property.veryGood'), good: tIntake('property.good'), medium: tIntake('property.average'),
+    moderate: tIntake('property.fair'), bad: tIntake('property.poor'), very_bad: tIntake('property.veryPoor'), unknown: t('values.unknown'),
+  };
+  const localizedHeatingTypeLabels = {
+    GAS: tIntake('property.gas'), gas: tIntake('property.gas'), OIL: tIntake('property.oil'), oil: tIntake('property.oil'),
+    DISTRICT_HEATING: tIntake('property.districtHeating'), district_heating: tIntake('property.districtHeating'), HEAT_PUMP: tIntake('property.heatPump'), heat_pump: tIntake('property.heatPump'),
+    ELECTRIC: tIntake('property.electricHeating'), electric: tIntake('property.electricHeating'), CENTRAL: tIntake('property.centralHeating'), central: tIntake('property.centralHeating'),
+    FLOOR: tIntake('property.floorHeating'), floor: tIntake('property.floorHeating'), SINGLE_STOVE: tIntake('property.singleStove'), single_stove: tIntake('property.singleStove'),
+    OTHER: tIntake('property.other'), other: tIntake('property.other'), NONE: tIntake('common.none'), none: tIntake('common.none'),
+  };
+  const localizedHeatingEnergyLabels = {
+    GAS: tIntake('property.gas'), gas: tIntake('property.gas'), OIL: tIntake('property.oil'), oil: tIntake('property.oil'),
+    DISTRICT_HEATING: tIntake('property.districtHeating'), district_heating: tIntake('property.districtHeating'), district: tIntake('property.districtHeating'),
+    HEAT_PUMP: tIntake('property.heatPump'), heat_pump: tIntake('property.heatPump'), ELECTRIC: tIntake('property.electricity'), electric: tIntake('property.electricity'), electricity: tIntake('property.electricity'),
+    PELLET: tIntake('property.woodPellets'), pellet: tIntake('property.woodPellets'), wood_pellets: tIntake('property.woodPellets'), hybrid: tIntake('property.hybrid'),
+    OTHER: tIntake('property.other'), other: tIntake('property.other'),
+  };
+  const localizedHeatingLabel = [
+    labelFrom(localizedHeatingTypeLabels, property?.heatingType),
+    property?.heatingEnergySource === 'other' ? (property?.heatingEnergySourceOther || tIntake('property.other')) : labelFrom(localizedHeatingEnergyLabels, property?.heatingEnergySource),
+    property?.heatingYear ? String(property.heatingYear) : null,
+  ].filter((value) => value && value !== '-').join(' · ') || '-';
+  const localizedCertificateLabels = { demand: tIntake('property.demandCertificate'), consumption: tIntake('property.consumptionCertificate') };
+  const localizedWindowLabels = { wood: tIntake('property.wood'), aluminium: tIntake('property.aluminium'), plastic: tIntake('property.plastic') };
+  const localizedParkingLabels = {
+    garage: tIntake('property.parkingTypes.garage'), carport: tIntake('property.parkingTypes.carport'), outdoor_space: tIntake('property.parkingTypes.outdoor_space'),
+    underground: tIntake('property.parkingTypes.duplex'), duplex: tIntake('property.parkingTypes.duplex'), other: tIntake('property.parkingTypes.other'),
+  };
+  const localizedBasementLabels = { none: tIntake('property.noBasement'), partial: tIntake('property.partialBasement'), full: tIntake('property.fullBasement') };
+  const localizedEnergyCarrierLabels = { photovoltaik: tIntake('property.photovoltaics'), solarthermie: tIntake('property.solarThermal'), batteriespeicher: tIntake('property.batteryStorage') };
+  const localizedMoistureLabels = { NONE: t('values.no'), MINOR: tIntake('modernisations.minor'), SIGNIFICANT: tIntake('modernisations.significant') };
+  const localizedAccessibilityLabels = {
+    LOW_BARRIER: tIntake('modernisations.barrierFree'), PARTIALLY_RESTRICTED: tIntake('modernisations.partiallyRestricted'), STRONGLY_RESTRICTED: tIntake('modernisations.stronglyRestricted'),
+  };
   const objectDetails = property ? [
-    ['Typ', propertyTypeLabel(property.propertyType)],
-    ['Baujahr', property.yearBuilt || '-'],
-    ['Wohnfläche', `${property.livingAreaSqm} m²`],
-    ['Grundstück', property.plotAreaSqm ? `${property.plotAreaSqm} m²` : '-'],
-    ['Nutzfläche', property.usableAreaSqm ? `${property.usableAreaSqm} m²` : '-'],
-    ['Miteigentumsanteile', property.coOwnershipShares || '-'],
-    ['Aufzug vorhanden', property.propertyType === 'apartment' ? yesNoOptional(property.hasElevator) : 'nicht relevant'],
-    ['Optik', labelFrom(ratingLabels, property.visualConditionRating)],
-    ['Heizung', formatHeatingLabel(property)],
-    ['Energieausweis', `${yesNo(property.energyCertificateAvailable)}${property.energyCertificateType ? `, ${labelFrom(energyCertificateLabels, property.energyCertificateType)}` : ''}`],
-    ['Energieklasse', property.energyClass || '-'],
-    ['Fenster', property.windowMaterial ? `${labelFrom(windowLabels, property.windowMaterial)}${property.windowInstallationYear ? ` (${property.windowInstallationYear})` : ''}` : '-'],
-    ['Parkplatz', property.parkingAvailable ? `${property.parkingCount || 1}x ${labelFrom(parkingLabels, property.parkingType)}` : 'nein'],
-    ['Keller', labelFrom(basementLabels, property.basementType)],
-    ['Asbest Dach bekannt', yesNo(property.asbestosRoofKnown)],
-    ['PV / Solar', property.energyCarriers?.length ? property.energyCarriers.map((item) => labelFrom(energyCarrierLabels, item)).join(', ') : '-'],
-    ['Erbbau/Denkmal', property.leasehold || property.monumentProtection ? 'ja' : 'nein'],
-    ['Restschuld', property.remainingDebtAmount ? formatEuro(property.remainingDebtAmount) : '-'],
-    ['Größere Instandhaltungen oder Sonderumlagen', yesNoOptional(property.knownMajorMaintenanceOrSpecialAssessments)],
-    ['Beschreibung Instandhaltungen / Sonderumlagen', property.knownMajorMaintenanceOrSpecialAssessmentsDescription || '-'],
-    ['Feuchtigkeit, Schimmel oder Wasserschäden', labelFrom(moistureDamageLabels, property.moistureDamageStatus)],
-    ['Beschreibung Feuchtigkeit / Schäden', property.moistureDamageDescription || '-'],
-    ['Einschätzung Zugänglichkeit', labelFrom(accessibilityAssessmentLabels, property.accessibilityAssessment)],
-    ['Bekannte Mängel', property.knownDefects || '-'],
-  ] : [
-    ['Typ', 'Einfamilienhaus'],
-    ['Baujahr', '1978'],
-    ['Wohnfläche', '142 m²'],
-    ['Grundstück', '380 m²'],
-    ['Heizung', 'Gas-Brennwert (2015)'],
-    ['Energieklasse', 'D (Bedarf)'],
-    ['Optik', 'gut'],
-    ['Fenster', 'Kunststoff (2012)'],
-    ['Parkplatz', '1x Garage'],
-    ['Keller', 'vollunterkellert'],
-    ['PV / Solar', 'PV seit 2020'],
-    ['Erbbau/Denkmal', 'nein'],
-  ];
+    [t('fields.type'), labelFrom(localizedPropertyTypeLabels, property.propertyType)],
+    [t('fields.yearBuilt'), property.yearBuilt || '-'],
+    [t('fields.livingArea'), property.livingAreaSqm ? `${property.livingAreaSqm} m²` : '-'],
+    [t('fields.plotArea'), property.plotAreaSqm ? `${property.plotAreaSqm} m²` : '-'],
+    [t('fields.usableArea'), property.usableAreaSqm ? `${property.usableAreaSqm} m²` : '-'],
+    [t('fields.coOwnership'), property.coOwnershipShares || '-'],
+    [t('fields.lift'), property.propertyType === 'apartment' ? localizedOptionalYesNo(property.hasElevator) : t('values.notRecorded')],
+    [t('fields.appearance'), labelFrom(localizedRatingLabels, property.visualConditionRating)],
+    [t('fields.heating'), localizedHeatingLabel],
+    [t('fields.energyCertificate'), `${localizedYesNo(property.energyCertificateAvailable)}${property.energyCertificateType ? `, ${labelFrom(localizedCertificateLabels, property.energyCertificateType)}` : ''}`],
+    [t('fields.energyClass'), property.energyClass || '-'],
+    [t('fields.windows'), property.windowMaterial ? `${labelFrom(localizedWindowLabels, property.windowMaterial)}${property.windowInstallationYear ? ` (${property.windowInstallationYear})` : ''}` : '-'],
+    [t('fields.parking'), property.parkingAvailable ? `${property.parkingCount || 1}x ${labelFrom(localizedParkingLabels, property.parkingType)}` : t('values.no')],
+    [t('fields.basement'), labelFrom(localizedBasementLabels, property.basementType)],
+    [t('fields.asbestos'), localizedYesNo(property.asbestosRoofKnown)],
+    [t('fields.solar'), property.energyCarriers?.length ? property.energyCarriers.map((item) => labelFrom(localizedEnergyCarrierLabels, item)).join(', ') : '-'],
+    [t('fields.leaseholdListed'), localizedYesNo(property.leasehold || property.monumentProtection)],
+    [t('fields.outstandingDebt'), property.remainingDebtAmount ? formatEuro(property.remainingDebtAmount) : '-'],
+    [t('fields.majorMaintenance'), localizedOptionalYesNo(property.knownMajorMaintenanceOrSpecialAssessments)],
+    [t('fields.maintenanceDescription'), property.knownMajorMaintenanceOrSpecialAssessmentsDescription || '-'],
+    [t('fields.moisture'), labelFrom(localizedMoistureLabels, property.moistureDamageStatus)],
+    [t('fields.moistureDescription'), property.moistureDamageDescription || '-'],
+    [t('fields.accessibility'), labelFrom(localizedAccessibilityLabels, property.accessibilityAssessment)],
+    [t('fields.knownDefects'), property.knownDefects || '-'],
+  ] : [];
+  const localizedComponentLabels = Object.fromEntries(
+    ['heating', 'roof', 'facade', 'windows', 'lines', 'bathrooms', 'masonry', 'basement', 'electric', 'sanitary', 'interior', 'outdoor', 'other']
+      .map((key) => [key, tIntake(`modernisations.components.${key}`)])
+  );
+  const localizedModernizationLabels = { none: tIntake('modernisations.none'), partial: tIntake('modernisations.partial'), complete: tIntake('modernisations.complete') };
   const modernizationDetails = property?.modernization ? Object.entries(property.modernization)
     .filter(([, value]) => value?.scope && value.scope !== 'none')
     .map(([key, value]) => ({
-      label: labelFrom(modernizationComponentLabels, key, key),
-      year: value?.year || 'unbekannt',
-      scope: labelFrom(modernizationLabels, value?.scope, 'unbekannt'),
+      label: labelFrom(localizedComponentLabels, key, key),
+      year: value?.year || t('values.unknown'),
+      scope: labelFrom(localizedModernizationLabels, value?.scope, t('values.unknown')),
       note: value?.note || '-',
     })) : [];
   const buildingConditionDetails = property?.buildingCondition ? Object.entries(property.buildingCondition)
     .map(([key, value]) => {
       const normalized = buildingConditionValue(value);
       return {
-        label: labelFrom(buildingConditionComponentLabels, key, key),
-        rating: labelFrom(ratingLabels, normalized.rating, '-'),
+        label: labelFrom(localizedComponentLabels, key, key),
+        rating: labelFrom(localizedRatingLabels, normalized.rating, '-'),
         description: normalized.description || '-',
       };
     })
@@ -6664,28 +6770,28 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const openTaskCount = taskRows.length;
   const unreadCommunicationCount = chatMessages.filter((message) => !message.readByCurrentUser).length;
   const acquisitionTabs = [
-    { id: 'kunde', label: 'Kunde' },
-    { id: 'objekt', label: 'Objekt' },
-    ...(role === 'admin' ? [{ id: 'rating', label: 'Objektrating' }] : []),
-    { id: 'indag', label: 'Unverbindliches Angebot' },
-    { id: 'verbag', label: 'Verbindliches Angebot' },
+    { id: 'kunde', label: t('tabs.customer') },
+    { id: 'objekt', label: t('tabs.property') },
+    ...(role === 'admin' ? [{ id: 'rating', label: t('tabs.rating') }] : []),
+    { id: 'indag', label: t('tabs.indicativeOffer') },
+    { id: 'verbag', label: t('tabs.bindingOffer') },
     ...(role === 'admin' ? [
-      { id: 'kvabwicklung', label: 'KV-Abwicklung' },
-      { id: 'bestand', label: 'Bestandsverwaltung' },
-      { id: 'verwertung', label: 'Verkaufsprozess', disabled: !salesProcessActive },
+      { id: 'kvabwicklung', label: t('tabs.closing') },
+      { id: 'bestand', label: t('tabs.portfolio') },
+      { id: 'verwertung', label: t('tabs.sales'), disabled: !salesProcessActive },
     ] : []),
-    { id: 'doks', label: 'Objektunterlagen' },
-    ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben', tool: true, icon: ClipboardList, badge: openTaskCount }] : []),
-    { id: 'chat', label: 'Kommunikation', tool: true, icon: MessageSquare, badge: unreadCommunicationCount },
+    { id: 'doks', label: t('tabs.documents') },
+    ...(role === 'admin' ? [{ id: 'aufgaben', label: t('tabs.tasks'), tool: true, icon: ClipboardList, badge: openTaskCount }] : []),
+    { id: 'chat', label: t('tabs.communication'), tool: true, icon: MessageSquare, badge: unreadCommunicationCount },
   ];
   const inventoryTabs = [
-    { id: 'kunde', label: 'Kunde' },
-    { id: 'objekt', label: 'Objekt' },
-    ...(role === 'admin' ? [{ id: 'bestand', label: 'Bestandsverwaltung' }] : []),
-    ...(role === 'admin' && salesProcessActive ? [{ id: 'verwertung', label: 'Verkaufsprozess' }] : []),
-    { id: 'doks', label: 'Objektunterlagen' },
-    ...(role === 'admin' ? [{ id: 'aufgaben', label: 'Aufgaben', tool: true, icon: ClipboardList, badge: openTaskCount }] : []),
-    { id: 'chat', label: 'Kommunikation', tool: true, icon: MessageSquare, badge: unreadCommunicationCount },
+    { id: 'kunde', label: t('tabs.customer') },
+    { id: 'objekt', label: t('tabs.property') },
+    ...(role === 'admin' ? [{ id: 'bestand', label: t('tabs.portfolio') }] : []),
+    ...(role === 'admin' && salesProcessActive ? [{ id: 'verwertung', label: t('tabs.sales') }] : []),
+    { id: 'doks', label: t('tabs.documents') },
+    ...(role === 'admin' ? [{ id: 'aufgaben', label: t('tabs.tasks'), tool: true, icon: ClipboardList, badge: openTaskCount }] : []),
+    { id: 'chat', label: t('tabs.communication'), tool: true, icon: MessageSquare, badge: unreadCommunicationCount },
   ];
   const tabs = inventoryCase ? inventoryTabs : acquisitionTabs;
   const renderBindingOfferCard = (modelRequest, index) => {
@@ -6960,24 +7066,24 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             )}
             {c.followUp && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: theme.warningSoft, color: theme.warning, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10 }}>
-                <AlertCircle size={12} /> Rückfrage offen
+                <AlertCircle size={12} /> {t('header.openQuery')}
               </span>
             )}
           </div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 4 }}>{c.kunde} <span style={{ color: `${theme.ink}77`, fontSize: 14 }}>· {c.alter} Jahre</span></div>
-          <div style={{ fontSize: 12, color: `${theme.ink}aa`, marginTop: 2 }}>{c.adresse} · {c.flaeche} m² Wohnfläche{c.grundstueck ? ` · ${c.grundstueck} m² Grundstück` : ''}</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 4 }}>{c.kunde} <span style={{ color: `${theme.ink}77`, fontSize: 14 }}>· {t('header.years', { value: c.alter || '–' })}</span></div>
+          <div style={{ fontSize: 12, color: `${theme.ink}aa`, marginTop: 2 }}>{displayedCaseAddress} · {t('header.livingArea', { value: c.flaeche || '–' })}{c.grundstueck ? ` · ${t('header.plotArea', { value: c.grundstueck })}` : ''}</div>
         </div>
         {canEditCaseData && (
-          <button onClick={() => onEdit?.(c.propertyId || c.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>Bearbeiten</button>
+          <button onClick={() => onEdit?.(c.propertyId || c.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 600, padding: '8px 14px', borderRadius: 5, cursor: 'pointer' }}>{t('header.edit')}</button>
         )}
         {canRejectCase && property?.status !== 'REJECTED' && (
           <button onClick={() => setRejectModalOpen(true)} disabled={Boolean(busyAction)} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}55`, color: theme.error, fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
-            Fall ablehnen
+            {t('header.reject')}
           </button>
         )}
         {canOpenResetWorkflow && (
           <button onClick={openResetWorkflowModal} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}`, color: theme.aubergine, fontSize: 12.5, fontWeight: 700, padding: '8px 14px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer', opacity: busyAction ? 0.75 : 1 }}>
-            Schritt zurücksetzen
+            {t('header.resetStep')}
           </button>
         )}
       </div>
@@ -7167,10 +7273,10 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
         <div style={{ background: theme.warningSoft, borderBottom: `1px solid ${theme.warning}55`, padding: '12px 28px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <AlertCircle size={16} style={{ color: theme.warning }} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.ink }}>Rückfrage offen: <span style={{ fontWeight: 400 }}>{c.followUpReason}</span></div>
-            <div style={{ fontSize: 11, color: `${theme.ink}99`, marginTop: 2 }}>Wiedervorlage: heute · Letzte Erinnerung vor 1 Tag</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.ink }}>{t('header.openQuery')}: <span style={{ fontWeight: 400 }}>{c.followUpReason}</span></div>
+            <div style={{ fontSize: 11, color: `${theme.ink}99`, marginTop: 2 }}>{t('header.queryReminder')}</div>
           </div>
-          <button onClick={markFeedbackReceived} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}44`, color: theme.aubergine, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer' }}>Kundenrückmeldung eingegangen</button>
+          <button onClick={markFeedbackReceived} disabled={Boolean(busyAction)} style={{ background: 'white', border: `1px solid ${theme.aubergine}44`, color: theme.aubergine, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 5, cursor: busyAction ? 'wait' : 'pointer' }}>{t('header.feedbackReceived')}</button>
         </div>
       )}
 
@@ -7215,9 +7321,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
         <div style={{ background: theme.surfaceSoft, borderBottom: `1px solid ${theme.borderSoft}`, padding: '10px 28px', display: 'grid', gap: showAcquisitionHistory ? 10 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Abgeschlossener Ankauf</div>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{t('tabs.completedAcquisition')}</div>
               <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 2 }}>
-                Angebots-, Rating- und KV-Daten sind als Ankaufshistorie weiterhin erreichbar.
+                {t('tabs.historyHint')}
               </div>
             </div>
             <button
@@ -7225,7 +7331,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               onClick={() => setShowAcquisitionHistory((value) => !value)}
               style={{ background: 'white', border: `1px solid ${theme.aubergine}33`, color: theme.aubergine, borderRadius: 6, padding: '8px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              {showAcquisitionHistory ? 'Ankaufshistorie ausblenden' : 'Ankaufshistorie anzeigen'}
+              {showAcquisitionHistory ? t('tabs.hideHistory') : t('tabs.showHistory')}
               <ChevronDown size={14} style={{ transform: showAcquisitionHistory ? 'rotate(180deg)' : 'none', transition: 'transform 160ms ease' }} />
             </button>
           </div>
@@ -7252,7 +7358,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               ))}
               {activeTabIsAcquisitionHistory && (
                 <span style={{ marginLeft: 4, fontSize: 11.5, color: `${theme.ink}77`, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  Historische Ankaufsdaten
+                  {t('tabs.historicalData')}
                 </span>
               )}
             </div>
@@ -7265,7 +7371,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
         <div>
           {activeTab === 'kunde' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Persönliche Daten</div>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.personal')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                 {customerDetails.map(([k, v], i) => (
                   <div key={i}>
@@ -7278,7 +7384,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               {spouseDetails.length > 0 && (
                 <>
                   <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Kunde 2 / Ehepartner</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.spouse')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                     {spouseDetails.map(([k, v], i) => (
                       <div key={i}>
@@ -7291,7 +7397,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               )}
 
               <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Wunschmodell</div>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.preferredModel')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                 {modelDetails.map(([k, v], i) => (
                   <div key={i}>
@@ -7304,16 +7410,16 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               {inventoryCase && (
                 <>
                   <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Bewohnerstatus</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.residentStatus')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: canManageResidentStatus ? '1fr auto' : '1fr', gap: 16, alignItems: 'start' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px' }}>
                       {[
-                        ['Status', labelFrom(residentStatusLabels, property?.residentStatus || 'ACTIVE')],
-                        ['Bewohner bleibt im Objekt', yesNo(property?.residentStaysInProperty !== false)],
-                        ['Auszugsdatum', formatDate(property?.residentMoveOutDate)],
-                        ['Sterbedatum', formatDate(property?.residentDeathDate)],
-                        ['Letzte Änderung', formatDate(property?.residentStatusChangedAt)],
-                        ['Interne Notiz', property?.residentStatusNote || '-'],
+                        [t('fields.status'), labelFrom(residentStatusLabels, property?.residentStatus || 'ACTIVE')],
+                        [t('fields.residentRemains'), localizedYesNo(property?.residentStaysInProperty !== false)],
+                        [t('fields.moveOutDate'), formatDate(property?.residentMoveOutDate)],
+                        [t('fields.deathDate'), formatDate(property?.residentDeathDate)],
+                        [t('fields.lastChange'), formatDate(property?.residentStatusChangedAt)],
+                        [t('fields.internalNote'), property?.residentStatusNote || '-'],
                       ].map(([k, v], i) => (
                         <div key={i}>
                           <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{k}</div>
@@ -7339,7 +7445,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
           {activeTab === 'objekt' && (
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '20px 22px' }}>
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Objektdaten</div>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.property')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px 32px' }}>
                 {objectDetails.map(([k, v], i) => (
                   <div key={i}>
@@ -7351,24 +7457,24 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               {modernizationDetails.length > 0 && (
                 <>
                   <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Modernisierung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.modernisations')}</div>
                   <div style={{ display: 'grid', gap: 8 }}>
                     {modernizationDetails.map((item, i) => (
                       <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 0.7fr 0.9fr 1.5fr', gap: 12, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '9px 11px', background: theme.mintLighter }}>
                         <div>
-                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Maßnahme</div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{t('modernisations.measure')}</div>
                           <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: 650 }}>{item.label}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Jahr</div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{t('modernisations.year')}</div>
                           <div style={{ fontSize: 13.5, color: theme.ink }}>{item.year}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Umfang</div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{t('modernisations.scope')}</div>
                           <div style={{ fontSize: 13.5, color: theme.ink }}>{item.scope}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Beschreibung</div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{t('modernisations.description')}</div>
                           <div style={{ fontSize: 13.5, color: theme.ink }}>{item.note}</div>
                         </div>
                       </div>
@@ -7379,20 +7485,20 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               {buildingConditionDetails.length > 0 && (
                 <>
                   <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Zustand</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.buildingCondition')}</div>
                   <div style={{ display: 'grid', gap: 8 }}>
                     {buildingConditionDetails.map((item, i) => (
                       <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '9px 11px', background: 'white' }}>
                         <div>
-                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Bauteil</div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{t('modernisations.component')}</div>
                           <div style={{ fontSize: 13.5, color: theme.ink, fontWeight: 650 }}>{item.label}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Zustandsbewertung</div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{t('modernisations.conditionRating')}</div>
                           <div style={{ fontSize: 13.5, color: theme.ink }}>{item.rating}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>Zustandsbeschreibung</div>
+                          <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 600, marginBottom: 3 }}>{t('modernisations.conditionDescription')}</div>
                           <div style={{ fontSize: 13.5, color: theme.ink }}>{item.description}</div>
                         </div>
                       </div>
@@ -9105,7 +9211,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Activity size={14} style={{ color: theme.aubergine }} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: theme.aubergine }}>Aktivitätslog</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: theme.aubergine }}>{t('activity.title')}</span>
           </div>
           <div style={{ position: 'relative' }}>
             <div style={{ position: 'absolute', left: 5, top: 8, bottom: 8, width: 1, background: theme.borderSoft }} />
@@ -9113,7 +9219,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               <div key={i} style={{ position: 'relative', paddingLeft: 18, paddingBottom: 12 }}>
                 <div style={{ position: 'absolute', left: 2, top: 4, width: 8, height: 8, borderRadius: '50%', background: i === 0 ? theme.gold : theme.aubergine, border: `2px solid white`, boxShadow: `0 0 0 1px ${theme.border}` }} />
                 <div style={{ fontSize: 11, color: `${theme.ink}88`, marginBottom: 2 }}>{a.time || dateLabel(a.createdAt)}</div>
-                <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.4 }}>{a.text || a.message}</div>
+                <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.4 }}>{localizedCaseActivityText(a, t)}</div>
                 <div style={{ fontSize: 11, color: `${theme.ink}99`, marginTop: 2 }}>{a.actor || a.source || a.userId}</div>
               </div>
             ))}
@@ -9145,13 +9251,23 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
   const [isDirty, setIsDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState(initialCase?.property?.updatedAt ? new Date(initialCase.property.updatedAt) : null);
   const [saveError, setSaveError] = useState('');
+  const [draftConflict, setDraftConflict] = useState(null);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [leaveDialog, setLeaveDialog] = useState(null);
   const [manualSaveSuccess, setManualSaveSuccess] = useState(false);
   const draftRef = useRef(draft);
   const stepRef = useRef(step);
   const persistedDraftRef = useRef(persistedDraft);
   const savedFingerprintRef = useRef(intakeDraftFingerprint(draft, internalIntakeSource));
-  const savePromiseRef = useRef(null);
+  const draftConflictRef = useRef(null);
+  const draftSaveExecutorRef = useRef(null);
+  const saveQueueRef = useRef(null);
+  if (!saveQueueRef.current) {
+    saveQueueRef.current = createLatestTaskQueue(
+      (request) => draftSaveExecutorRef.current(request),
+      mergeDraftSaveRequests
+    );
+  }
   const mountedRef = useRef(true);
   const bypassGuardRef = useRef(false);
   const editMode = Boolean(persistedDraft.propertyId);
@@ -9197,13 +9313,20 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
     savedFingerprintRef.current = intakeDraftFingerprint(nextDraft, internalIntakeSource);
     setIsDirty(false);
     setSaveError('');
+    setDraftConflict(null);
+    setConflictDialogOpen(false);
+    draftConflictRef.current = null;
+    saveQueueRef.current?.clearPending();
     setLastSavedAt(initialCase?.property?.updatedAt ? new Date(initialCase.property.updatedAt) : null);
   }, [initialCase?.property?.id]);
 
   useEffect(() => { draftRef.current = draft; }, [draft]);
   useEffect(() => { stepRef.current = step; }, [step]);
   useEffect(() => { persistedDraftRef.current = persistedDraft; }, [persistedDraft]);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   useEffect(() => {
     if (!draftMode) return;
     const dirty = intakeDraftFingerprint(draft, internalIntakeSource) !== savedFingerprintRef.current;
@@ -9216,8 +9339,9 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
 
   async function uploadPendingDraftDocuments(propertyId, sourceDraft) {
     const uploads = Object.entries(sourceDraft.documentUploads || {});
-    if (!uploads.some(([, files]) => files?.length)) return sourceDraft;
+    if (!uploads.some(([, files]) => files?.length)) return { draft: sourceDraft, updatedAt: null };
     const uploadedCategories = new Set(sourceDraft.existingDocumentCategories || []);
+    let updatedAt = null;
     for (const [category, files] of uploads) {
       for (const file of files || []) {
         const documentForm = new FormData();
@@ -9227,90 +9351,128 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
           || (category === 'power_of_attorney' && !hasUploadedDocument(sourceDraft, 'land_register'));
         documentForm.append('requirementLevel', required ? 'required' : 'optional');
         documentForm.append('status', 'pending');
-        await postFormData(`/api/properties/${propertyId}/documents`, documentForm);
+        const response = await postFormData(`/api/properties/${propertyId}/documents`, documentForm);
+        updatedAt = response.updatedAt || updatedAt;
         uploadedCategories.add(category);
       }
     }
-    return { ...sourceDraft, documentUploads: {}, existingDocumentCategories: Array.from(uploadedCategories) };
+    return {
+      draft: { ...sourceDraft, documentUploads: {}, existingDocumentCategories: Array.from(uploadedCategories) },
+      updatedAt,
+    };
   }
 
-  async function persistDraft({ reason = 'autosave', targetStep = stepRef.current, uploadDocuments = true } = {}) {
-    if (!draftMode) return persistedDraftRef.current;
-    if (savePromiseRef.current) {
-      await savePromiseRef.current;
-      if (intakeDraftFingerprint(draftRef.current, internalIntakeSource) === savedFingerprintRef.current) return persistedDraftRef.current;
+  function isDraftVersionConflict(error) {
+    return error instanceof ApiRequestError
+      && (error.status === 409 || error.code === 'DRAFT_VERSION_CONFLICT');
+  }
+
+  async function executeDraftSave({ reason = 'autosave', targetStep = stepRef.current, uploadDocuments = true } = {}) {
+    if (draftConflictRef.current) {
+      throw new ApiRequestError(t('messages.draftConflict'), { status: 409, code: 'DRAFT_VERSION_CONFLICT' });
     }
     const sourceDraft = draftRef.current;
+    const sourceIntakeSource = internalIntakeSource;
     if (!persistedDraftRef.current.propertyId && !hasMeaningfulIntakeData(sourceDraft) && reason === 'autosave') return persistedDraftRef.current;
-    const fingerprintAtStart = intakeDraftFingerprint(sourceDraft, internalIntakeSource);
-    const operation = (async () => {
-      setSaving(reason === 'submit' ? 'submit' : 'draft');
-      setSaveError('');
+    const fingerprintAtStart = intakeDraftFingerprint(sourceDraft, sourceIntakeSource);
+    setSaving(reason === 'submit' ? 'submit' : 'draft');
+    setSaveError('');
+    try {
       let state = persistedDraftRef.current;
       const payload = {
         draft: serializableIntakeDraft(sourceDraft),
         currentStep: targetStep,
-        internalIntakeSource: isInternalCase ? internalIntakeSource : undefined,
+        internalIntakeSource: isInternalCase ? sourceIntakeSource : undefined,
         expectedUpdatedAt: state.updatedAt || undefined,
       };
       const response = state.propertyId
         ? await patchJson(`/api/properties/${state.propertyId}/draft`, payload)
         : await postJson('/api/properties/draft', payload);
       state = {
-        propertyId: response.property.id,
+        propertyId: response.draftId || response.property.id,
         customerId: response.customer.id,
-        updatedAt: response.property.updatedAt,
+        updatedAt: response.updatedAt || response.property.updatedAt,
       };
       persistedDraftRef.current = state;
       if (mountedRef.current) setPersistedDraft(state);
-      onDraftCreated?.(state.propertyId, targetStep, {
-        updatedAt: response.property.updatedAt,
-        intakeDraft: payload.draft,
-        customer: response.customer,
-        property: response.property,
-      });
 
       let savedDraft = sourceDraft;
       if (uploadDocuments) {
-        savedDraft = await uploadPendingDraftDocuments(state.propertyId, sourceDraft);
+        const uploadResult = await uploadPendingDraftDocuments(state.propertyId, sourceDraft);
+        savedDraft = uploadResult.draft;
+        if (uploadResult.updatedAt) {
+          state = { ...state, updatedAt: uploadResult.updatedAt };
+          persistedDraftRef.current = state;
+          if (mountedRef.current) setPersistedDraft(state);
+        }
         if (savedDraft !== sourceDraft) {
-          draftRef.current = savedDraft;
-          if (mountedRef.current) setDraft(savedDraft);
+          const mergedDraft = mergeUploadedDraftState(draftRef.current, sourceDraft, savedDraft);
+          draftRef.current = mergedDraft;
+          if (mountedRef.current) setDraft(mergedDraft);
         }
       }
-      savedFingerprintRef.current = intakeDraftFingerprint(savedDraft, internalIntakeSource);
+      onDraftCreated?.(state.propertyId, targetStep, {
+        updatedAt: state.updatedAt,
+        intakeDraft: payload.draft,
+        customer: response.customer,
+        property: { ...response.property, updatedAt: state.updatedAt },
+      });
+      savedFingerprintRef.current = intakeDraftFingerprint(savedDraft, sourceIntakeSource);
       if (mountedRef.current) {
-        setLastSavedAt(new Date());
-        setIsDirty(intakeDraftFingerprint(draftRef.current, internalIntakeSource) !== savedFingerprintRef.current);
+        setLastSavedAt(new Date(state.updatedAt));
+        setIsDirty(intakeDraftFingerprint(draftRef.current, sourceIntakeSource) !== savedFingerprintRef.current);
         if (reason === 'manual') setManualSaveSuccess(true);
       }
       return state;
-    })();
-    savePromiseRef.current = operation;
-    try {
-      return await operation;
     } catch (err) {
-      const message = uiLocale === 'de-DE' && err instanceof Error ? err.message : t('messages.draftFailed');
       if (mountedRef.current) {
-        setSaveError(message);
+        if (isDraftVersionConflict(err)) {
+          const conflict = { currentUpdatedAt: err.payload?.currentUpdatedAt || null };
+          draftConflictRef.current = conflict;
+          saveQueueRef.current?.clearPending();
+          setDraftConflict(conflict);
+          setConflictDialogOpen(true);
+          setSaveError(t('messages.draftConflict'));
+        } else {
+          const message = uiLocale === 'de-DE' && err instanceof Error ? err.message : t('messages.draftFailed');
+          setSaveError(message);
+        }
         setIsDirty(true);
       }
       throw err;
     } finally {
-      if (savePromiseRef.current === operation) savePromiseRef.current = null;
       if (mountedRef.current) setSaving('');
-      if (fingerprintAtStart !== intakeDraftFingerprint(draftRef.current, internalIntakeSource)) setIsDirty(true);
+      if (fingerprintAtStart !== intakeDraftFingerprint(draftRef.current, sourceIntakeSource)) setIsDirty(true);
     }
   }
 
+  draftSaveExecutorRef.current = executeDraftSave;
+
+  async function persistDraft(options = {}) {
+    if (!draftMode) return persistedDraftRef.current;
+    if (draftConflictRef.current) {
+      throw new ApiRequestError(t('messages.draftConflict'), { status: 409, code: 'DRAFT_VERSION_CONFLICT' });
+    }
+    const request = {
+      reason: 'autosave',
+      targetStep: stepRef.current,
+      uploadDocuments: true,
+      ...options,
+    };
+    if (!persistedDraftRef.current.propertyId && !hasMeaningfulIntakeData(draftRef.current) && request.reason === 'autosave') {
+      return persistedDraftRef.current;
+    }
+    return saveQueueRef.current.enqueue(request);
+  }
+
   useEffect(() => {
-    if (!draftMode || !isDirty || saveError || !hasMeaningfulIntakeData(draft)) return undefined;
+    if (!draftMode || !isDirty || saveError || draftConflict || !hasMeaningfulIntakeData(draft)) return undefined;
     const hasPendingUploads = Object.values(draft.documentUploads || {}).some((files) => files?.length);
     const timer = window.setTimeout(() => {
       persistDraft({ reason: 'autosave', targetStep: step }).catch(() => {});
     }, hasPendingUploads ? 100 : 1500);
     return () => window.clearTimeout(timer);
-  }, [draft, internalIntakeSource, step, isDirty, saveError, draftMode]);
+  }, [draft, internalIntakeSource, step, isDirty, saveError, draftConflict, draftMode]);
 
   useEffect(() => {
     if (!isDirty) return undefined;
@@ -9527,16 +9689,18 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
     }
   }
 
-  const saveStatusLabel = saving === 'draft'
-    ? t('saveStatus.saving')
-    : saveError
+  const saveStatusLabel = draftConflict
+    ? t('saveStatus.conflict')
+    : saving === 'draft'
+      ? t('saveStatus.saving')
+      : saveError
       ? t('saveStatus.failed')
       : isDirty
         ? t('saveStatus.notSaved')
         : lastSavedAt
-          ? t('saveStatus.savedAt', {time: formatSavedAt(lastSavedAt)})
+          ? t('saveStatus.saved')
           : t('saveStatus.notSaved');
-  const saveStatusColor = saveError ? theme.error : isDirty ? theme.warning : lastSavedAt ? theme.success : `${theme.ink}88`;
+  const saveStatusColor = draftConflict || saveError ? theme.error : isDirty ? theme.warning : lastSavedAt ? theme.success : `${theme.ink}88`;
 
   async function saveAndLeave() {
     try {
@@ -9572,7 +9736,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
           <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 2 }}>{editMode ? t('editTitle') : isInternalCase ? t('internalTitle') : t('defaultTitle')}</div>
         </div>
         <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: 7, color: saveStatusColor, fontSize: 12, fontWeight: 700 }}>
-          {saving === 'draft' ? <Clock size={14} /> : saveError ? <AlertCircle size={14} /> : lastSavedAt && !isDirty ? <CheckCircle size={14} /> : <Save size={14} />}
+          {saving === 'draft' ? <Clock size={14} /> : draftConflict || saveError ? <AlertCircle size={14} /> : lastSavedAt && !isDirty ? <CheckCircle size={14} /> : <Save size={14} />}
           {saveStatusLabel}
         </div>
       </div>
@@ -9658,7 +9822,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
             </button>
             <div role="status" aria-live="polite" style={{ textAlign: 'center', color: saveStatusColor, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>
               <div>{saveStatusLabel}</div>
-              {manualSaveSuccess && !isDirty && !saveError ? <div style={{ marginTop: 3, color: theme.success, fontSize: 11.5 }}>{t('saveStatus.savedLong')}</div> : null}
+              {manualSaveSuccess && !isDirty && !saveError && !draftConflict ? <div style={{ marginTop: 3, color: theme.success, fontSize: 11.5 }}>{t('saveStatus.savedLong')}</div> : null}
               {saveError ? <div style={{ marginTop: 3, fontWeight: 600 }}>{saveError}</div> : null}
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -9744,6 +9908,18 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
           </div>
         </div>
       </div>
+      {conflictDialogOpen && draftConflict && (
+        <div role="presentation" style={{ position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(39, 15, 53, 0.32)', display: 'grid', placeItems: 'center', padding: 20 }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="draft-conflict-title" style={{ width: 'min(520px, 100%)', background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 10, boxShadow: theme.elevatedShadow, padding: 22 }}>
+            <h2 id="draft-conflict-title" style={{ margin: 0, color: theme.aubergine, fontSize: 19 }}>{t('conflict.title')}</h2>
+            <p style={{ margin: '9px 0 0', color: `${theme.ink}AA`, fontSize: 13.5, lineHeight: 1.55 }}>{t('conflict.body')}</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 9, marginTop: 20 }}>
+              <button type="button" onClick={() => setConflictDialogOpen(false)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, padding: '9px 13px', fontSize: 12.5, fontWeight: 750, cursor: 'pointer' }}>{t('conflict.stay')}</button>
+              <button type="button" onClick={() => window.location.reload()} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 6, padding: '9px 14px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{t('conflict.loadLatest')}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {leaveDialog && (
         <div role="presentation" style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(39, 15, 53, 0.32)', display: 'grid', placeItems: 'center', padding: 20 }}>
           <div role="dialog" aria-modal="true" aria-labelledby="unsaved-title" style={{ width: 'min(520px, 100%)', background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 10, boxShadow: theme.elevatedShadow, padding: 22 }}>
@@ -10048,7 +10224,7 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => {
       <div style={{ background: errors.includes('rentalModelDisclosureAccepted') ? theme.errorSoft : theme.warningSoft, border: `1px solid ${errors.includes('rentalModelDisclosureAccepted') ? `${theme.error}66` : `${theme.warning}55`}`, borderLeft: `4px solid ${errors.includes('rentalModelDisclosureAccepted') ? theme.error : theme.warning}`, borderRadius: 8, padding: '13px 15px', marginBottom: 18 }}>
         <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
           <input type="checkbox" checked={draft.rentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, rentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
-          <span><strong>{t('model.rentBackDisclosure')}:</strong> {t('model.rentBackDisclosureText')}</span>
+          <span><strong>{t('model.rentBackDisclosure')}</strong> {t('model.rentBackDisclosureText')}</span>
         </label>
       </div>
     )}
@@ -10070,8 +10246,8 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => {
         <Field label={t('model.whichPerson')} required invalid={errors.includes('residentialRightPerson')}>
           <Select value={draft.residentialRightPerson} onChange={(event) => setDraft({ ...draft, residentialRightPerson: event.target.value })}>
             <option value="">{t('common.select')}</option>
-            <option value="customer_1">{customerOneName(draft)}</option>
-            <option value="customer_2">{customerTwoName(draft)}</option>
+            <option value="customer_1">{customerOneName(draft, t('personal.customer1'))}</option>
+            <option value="customer_2">{customerTwoName(draft, t('personal.customer2'))}</option>
           </Select>
         </Field>
       </div>
@@ -10153,8 +10329,8 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => {
             <Field label={t('model.whichPerson')} required invalid={errors.includes('additionalOfferResidentialRightPerson')}>
               <Select value={draft.additionalOfferResidentialRightPerson} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightPerson: event.target.value })}>
                 <option value="">{t('common.select')}</option>
-                <option value="customer_1">{customerOneName(draft)}</option>
-                <option value="customer_2">{customerTwoName(draft)}</option>
+                <option value="customer_1">{customerOneName(draft, t('personal.customer1'))}</option>
+                <option value="customer_2">{customerTwoName(draft, t('personal.customer2'))}</option>
               </Select>
             </Field>
           )}
@@ -10162,7 +10338,7 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => {
             <div style={{ gridColumn: '1 / -1', background: errors.includes('additionalOfferRentalModelDisclosureAccepted') ? theme.errorSoft : theme.warningSoft, border: `1px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? `${theme.error}66` : `${theme.warning}55`}`, borderLeft: `4px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? theme.error : theme.warning}`, borderRadius: 8, padding: '12px 14px' }}>
               <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
                 <input type="checkbox" checked={draft.additionalOfferRentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, additionalOfferRentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
-                <span><strong>{t('model.rentBackDisclosure')}:</strong> {t('model.rentBackDisclosureShort')}</span>
+                <span><strong>{t('model.rentBackDisclosure')}</strong> {t('model.rentBackDisclosureShort')}</span>
               </label>
             </div>
           )}
