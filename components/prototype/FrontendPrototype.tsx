@@ -2369,6 +2369,67 @@ const validationFieldLabels = {
   'document:maintenance_reserve': 'Dokumente: Nachweis Instandhaltungsrücklage',
 };
 
+function localizedIntakeValidationLabel(t, field) {
+  const keys = {
+    firstName: 'personal.firstName', lastName: 'personal.lastName', gender: 'personal.gender', dateOfBirth: 'personal.dateOfBirth',
+    maritalStatus: 'personal.maritalStatus', monthlyIncomeRange: 'personal.monthlyIncome', email: 'personal.email', phone: 'personal.telephone',
+    street: 'personal.street', houseNumber: 'personal.houseNumber', postalCode: 'personal.postalCode', city: 'personal.city',
+    consentDataProcessing: 'personal.consent', spouseFirstName: 'personal.spouseFirstName', spouseLastName: 'personal.spouseLastName',
+    spouseGender: 'personal.spouseGender', spouseDateOfBirth: 'personal.spouseDateOfBirth', propertyOwnership: 'personal.ownership',
+    desiredModel: 'model.main', residentialRightVariant: 'model.variant', residentialRightRecipients: 'model.recipients',
+    residentialRightPerson: 'model.whichPerson', desiredResidentialRightYears: 'model.duration', fixedTermReason: 'model.fixedTermReason',
+    rentalModelDisclosureAccepted: 'model.rentBackDisclosure', additionalOfferModel: 'model.secondModel', additionalOfferResidentialRightVariant: 'model.variant',
+    additionalOfferResidentialRightRecipients: 'model.recipients', additionalOfferResidentialRightPerson: 'model.whichPerson',
+    additionalOfferResidentialRightYears: 'model.term', additionalOfferReason: 'model.reason', additionalOfferRentalModelDisclosureAccepted: 'model.rentBackDisclosure',
+    propertyType: 'property.type', yearBuilt: 'property.yearBuilt', livingAreaSqm: 'property.livingArea', plotAreaSqm: 'property.plotArea',
+    usableAreaSqm: 'property.usableArea', coOwnershipShares: 'property.coOwnership', visualConditionRating: 'property.appearance',
+    heatingType: 'property.heatingType', heatingEnergySource: 'property.energySource', heatingEnergySourceOther: 'property.energySourceDescription',
+    heatingYear: 'property.heatingYear', energyCertificateAvailable: 'property.energyCertificate', energyCertificateType: 'property.certificateType',
+    energyClass: 'property.energyClass', basementType: 'property.basement', windowMaterial: 'property.windowMaterial',
+    windowInstallationYear: 'property.windowYear', asbestosRoofKnown: 'property.asbestos', parkingType: 'property.parkingType',
+    parkingAvailable: 'property.parkingAvailable', parkingCount: 'property.parkingCount', hasElevator: 'property.elevator',
+    knownMajorMaintenanceOrSpecialAssessments: 'property.majorMaintenance', knownMajorMaintenanceOrSpecialAssessmentsDescription: 'property.explain',
+    moistureDamageStatus: 'modernisations.moisture', moistureDamageDescription: 'modernisations.moistureDescription',
+    accessibilityAssessment: 'modernisations.accessibility', remainingDebtKnown: 'property.remainingDebtKnown', remainingDebtAmount: 'property.remainingDebtAmount'
+  };
+  if (keys[field]) return t(keys[field]);
+  if (field.startsWith('document:')) {
+    const category = field.replace('document:', '') === 'land_register_or_power' ? 'land_register' : field.replace('document:', '');
+    return t.has(`documents.categories.${category}`) ? t(`documents.categories.${category}`) : t('documents.required');
+  }
+  if (field.startsWith('buildingCondition')) {
+    const key = field.replace('buildingCondition', '').replace(/^./, (value) => value.toLowerCase());
+    return t.has(`modernisations.components.${key}`) ? t(`modernisations.components.${key}`) : t('modernisations.condition');
+  }
+  if (field.startsWith('modernizationYear')) {
+    const key = field.replace('modernizationYear', '').replace(/^./, (value) => value.toLowerCase());
+    const component = t.has(`modernisations.components.${key}`) ? t(`modernisations.components.${key}`) : t('modernisations.modernisation');
+    return `${component} · ${t('modernisations.year')}`;
+  }
+  return t('validation.required');
+}
+
+function localizedIntakeValidation(t, result) {
+  const grouped = new Map();
+  for (const field of result.fields || []) {
+    let section = 'other';
+    if (field.startsWith('document:')) section = 'documents';
+    else if (field.startsWith('buildingCondition') || field.startsWith('modernizationYear') || ['moistureDamageStatus', 'moistureDamageDescription', 'accessibilityAssessment'].includes(field)) section = 'condition';
+    else if (['desiredModel', 'residentialRightVariant', 'residentialRightRecipients', 'residentialRightPerson', 'desiredResidentialRightYears', 'fixedTermReason', 'rentalModelDisclosureAccepted'].includes(field) || field.startsWith('additionalOffer')) section = 'model';
+    else if (['propertyType', 'yearBuilt', 'livingAreaSqm', 'plotAreaSqm', 'usableAreaSqm', 'coOwnershipShares', 'visualConditionRating', 'heatingType', 'heatingEnergySource', 'heatingEnergySourceOther', 'heatingYear', 'energyCertificateAvailable', 'energyCertificateType', 'energyClass', 'basementType', 'windowMaterial', 'windowInstallationYear', 'asbestosRoofKnown', 'parkingType', 'parkingAvailable', 'parkingCount', 'hasElevator', 'remainingDebtKnown', 'remainingDebtAmount'].includes(field)) section = 'property';
+    else if (['knownMajorMaintenanceOrSpecialAssessments', 'knownMajorMaintenanceOrSpecialAssessmentsDescription'].includes(field)) section = 'exclusion';
+    else if (['firstName', 'lastName', 'gender', 'dateOfBirth', 'maritalStatus', 'monthlyIncomeRange', 'email', 'phone', 'street', 'houseNumber', 'postalCode', 'city', 'consentDataProcessing', 'spouseFirstName', 'spouseLastName', 'spouseGender', 'spouseDateOfBirth', 'propertyOwnership'].includes(field)) section = 'personal';
+    if (!grouped.has(section)) grouped.set(section, []);
+    const label = localizedIntakeValidationLabel(t, field);
+    grouped.get(section).push({field, message: t('validation.fieldMissing', {field: label})});
+  }
+  return {
+    fields: result.fields || [],
+    message: t('validation.submitBlocked'),
+    groups: Array.from(grouped, ([section, items]) => ({section: t(`validation.sections.${section}`), items}))
+  };
+}
+
 function validationMessageFor(step, fields) {
   if (!fields.length) return '';
   const labels = fields.map((field) => validationFieldLabels[field] || field);
@@ -5068,7 +5129,7 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
 // =====================================================================
 // SCREEN 3 — FALLDETAIL
 // =====================================================================
-const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde', returnTab = '', onTabChange, onReturnToTab }) => {
+const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee', cases = mockCases, onRefresh, onNotificationsRefresh, setNotice, onEdit, initialTab = 'kunde', returnTab = '', onTabChange, onReturnToTab }) => {
   const [activeTab, setActiveTab] = useState(normalizeCaseTab(initialTab));
   const [showAcquisitionHistory, setShowAcquisitionHistory] = useState(false);
   const [busyAction, setBusyAction] = useState('');
@@ -6873,7 +6934,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
       {/* Top Bar */}
       <div style={{ padding: '14px 28px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', gap: 16 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: theme.aubergine, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>
-          <ArrowLeft size={15} /> Zurück
+          <ArrowLeft size={15} /> {backLabel}
         </button>
         <div style={{ width: 1, height: 18, background: theme.border }} />
         <div style={{ flex: 1 }}>
@@ -9069,6 +9130,7 @@ const FallDetail = ({ caseId, onBack, role, internalRole = 'employee', cases = m
 // SCREEN 4 — ERFASSUNGSBOGEN SCHRITT 1
 // =====================================================================
 const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, setNotice, initialCase, role = 'partner', internalRole = 'employee', user }) => {
+  const t = useTranslations('customers.intake');
   const initialStep = Math.min(5, Math.max(1, Number(initialCase?.property?.draftIntakeStep || 1)));
   const [step, setStep] = useState(initialStep);
   const [saving, setSaving] = useState('');
@@ -9098,11 +9160,11 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
   const isInternalCase = role === 'admin';
   const modelLockedForPortfolio = Boolean(editMode && (initialCase?.property?.status === 'IN_PORTFOLIO' || initialCase?.property?.portfolioEnteredAt));
   const steps = [
-    { n: 1, label: 'Persönliche Daten' },
-    { n: 2, label: 'Wunschmodell' },
-    { n: 3, label: 'Immobiliendaten' },
-    { n: 4, label: 'Modernisierungen' },
-    { n: 5, label: 'Dokumente' },
+    { n: 1, label: t('steps.personal') },
+    { n: 2, label: t('steps.model') },
+    { n: 3, label: t('steps.property') },
+    { n: 4, label: t('steps.modernisations') },
+    { n: 5, label: t('steps.documents') },
   ];
   const stepProgressRows = steps.map((item) => {
     const result = validateCaseStep(item.n, draft);
@@ -9113,7 +9175,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
       total,
       missing,
       complete: total > 0 && missing === 0,
-      missingLabels: result.fields.slice(0, 3).map((field) => validationFieldLabels[field] || field)
+      missingLabels: result.fields.slice(0, 3).map((field) => localizedIntakeValidationLabel(t, field))
     };
   });
   const totalRequiredFields = stepProgressRows.reduce((sum, item) => sum + item.total, 0);
@@ -9228,7 +9290,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
     try {
       return await operation;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Entwurf konnte nicht gespeichert werden.';
+      const message = uiLocale === 'de-DE' && err instanceof Error ? err.message : t('messages.draftFailed');
       if (mountedRef.current) {
         setSaveError(message);
         setIsDirty(true);
@@ -9286,29 +9348,29 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
     if (!submit && draftMode) {
       try {
         await persistDraft({ reason: 'manual', targetStep: step });
-        setNotice?.('Entwurf wurde gespeichert. Sie können die Erfassung später fortsetzen.');
+        setNotice?.(t('saveStatus.savedLong'));
       } catch (err) {
-        setNotice?.(err instanceof Error ? err.message : 'Entwurf konnte nicht gespeichert werden.');
+        setNotice?.(uiLocale === 'de-DE' && err instanceof Error ? err.message : t('messages.draftFailed'));
       }
       return;
     }
     if (submit && (draft.leasehold || draft.monumentProtection)) {
-      setNotice?.('Erbbaurecht oder Denkmalschutz ist ein Ausschlusskriterium. Der Fall kann so nicht eingereicht werden.');
+      setNotice?.(t('messages.exclusionBlocked'));
       return;
     }
     if (submit) {
       const result = validateForSubmit(draft);
       if (!result.valid) {
-        setValidation({ fields: result.fields, message: result.message, groups: result.groups || [] });
+        setValidation(localizedIntakeValidation(t, result));
         setStep(result.step);
-        setNotice?.(result.message);
+        setNotice?.(t('validation.submitBlocked'));
         return;
       }
     } else {
       const result = validateForDraftSave(draft, { allowIncomplete: true });
       if (!result.valid) {
-        setValidation({ fields: result.fields, message: result.message, groups: [] });
-        setNotice?.(result.message);
+        setValidation(localizedIntakeValidation(t, result));
+        setNotice?.(t('validation.submitBlocked'));
         return;
       }
     }
@@ -9317,7 +9379,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
       try {
         await persistDraft({ reason: 'submit', targetStep: step, uploadDocuments: false });
       } catch (err) {
-        setNotice?.(err instanceof Error ? err.message : 'Entwurf konnte vor dem Einreichen nicht gespeichert werden.');
+        setNotice?.(uiLocale === 'de-DE' && err instanceof Error ? err.message : t('messages.submitDraftFailed'));
         return;
       }
     }
@@ -9328,18 +9390,18 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
       const payloadDesiredModel = modelLockedForPortfolio
         ? (initialCase?.property?.desiredModel || 'fixed_residential_right')
         : draft.desiredModel || (incompleteDraftSave ? 'other' : '');
-      const payloadStreet = draft.street || (incompleteDraftSave ? 'Noch offen' : '');
+      const payloadStreet = draft.street || (incompleteDraftSave ? t('draftFallback.pending') : '');
       const payloadPostalCode = draft.postalCode || (incompleteDraftSave ? '00000' : '');
-      const payloadCity = draft.city || (incompleteDraftSave ? 'Ort offen' : '');
+      const payloadCity = draft.city || (incompleteDraftSave ? t('draftFallback.cityPending') : '');
       const payloadLivingAreaSqm = parseGermanNumberValue(draft.livingAreaSqm) || (incompleteDraftSave ? 1 : 0);
       const payloadPlotAreaSqm = parseGermanNumberValue(draft.plotAreaSqm) || 0;
       const customerPayload = {
         partnerId: isInternalCase ? undefined : 'partner_heimwert',
         assignedAdvisorUserId: isInternalCase ? user?.id : undefined,
         title: draft.title,
-        firstName: draft.firstName || (incompleteDraftSave ? 'Entwurf' : ''),
-        lastName: draft.lastName || (incompleteDraftSave ? 'Neukunde' : ''),
-        displayName: [draft.title, draft.firstName || (incompleteDraftSave ? 'Entwurf' : ''), draft.lastName || (incompleteDraftSave ? 'Neukunde' : '')].filter(Boolean).join(' '),
+        firstName: draft.firstName || (incompleteDraftSave ? t('draftFallback.firstName') : ''),
+        lastName: draft.lastName || (incompleteDraftSave ? t('draftFallback.lastName') : ''),
+        displayName: [draft.title, draft.firstName || (incompleteDraftSave ? t('draftFallback.firstName') : ''), draft.lastName || (incompleteDraftSave ? t('draftFallback.lastName') : '')].filter(Boolean).join(' '),
         ageAtSubmission: parseGermanNumberValue(draft.ageAtSubmission) || undefined,
         gender: draft.gender,
         dateOfBirth: draft.dateOfBirth,
@@ -9371,7 +9433,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
       const propertyPayload = {
         customerId: customerResult.customer.id,
         caseSource: isInternalCase ? 'INTERNAL' : 'PARTNER',
-        objectTitle: `${propertyTypeLabel(payloadPropertyType)} ${payloadCity}`.trim(),
+        objectTitle: `${t(`property.${payloadPropertyType === 'single_family' ? 'singleFamily' : payloadPropertyType === 'semi_detached' ? 'semiDetached' : payloadPropertyType === 'row_house' ? 'terraced' : 'apartment'}`)} ${payloadCity}`.trim(),
         propertyType: payloadPropertyType,
         street: payloadStreet,
         postalCode: payloadPostalCode,
@@ -9454,26 +9516,26 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
       if (submit) {
         await postJson(`/api/properties/${propertyResult.property.id}/submit`);
       }
-      setNotice?.(submit ? 'Fall wurde gespeichert und eingereicht.' : 'Änderungen wurden gespeichert.');
+      setNotice?.(submit ? t('messages.savedSubmitted') : t('messages.changesSaved'));
       savedFingerprintRef.current = intakeDraftFingerprint(draftRef.current, internalIntakeSource);
       setIsDirty(false);
       await onSaved?.(propertyResult.property.id);
     } catch (err) {
-      setNotice?.(err instanceof Error ? err.message : 'Fall konnte nicht gespeichert werden');
+      setNotice?.(uiLocale === 'de-DE' && err instanceof Error ? err.message : t('messages.caseSaveFailed'));
     } finally {
       setSaving('');
     }
   }
 
   const saveStatusLabel = saving === 'draft'
-    ? 'Änderungen werden gespeichert …'
+    ? t('saveStatus.saving')
     : saveError
-      ? 'Speichern fehlgeschlagen'
+      ? t('saveStatus.failed')
       : isDirty
-        ? 'Noch nicht gespeichert'
+        ? t('saveStatus.notSaved')
         : lastSavedAt
-          ? `Entwurf gespeichert um ${formatSavedAt(lastSavedAt)} Uhr`
-          : 'Noch nicht gespeichert';
+          ? t('saveStatus.savedAt', {time: formatSavedAt(lastSavedAt)})
+          : t('saveStatus.notSaved');
   const saveStatusColor = saveError ? theme.error : isDirty ? theme.warning : lastSavedAt ? theme.success : `${theme.ink}88`;
 
   async function saveAndLeave() {
@@ -9484,7 +9546,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
       setLeaveDialog(null);
       action?.();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Entwurf konnte nicht gespeichert werden.';
+      const message = uiLocale === 'de-DE' && err instanceof Error ? err.message : t('messages.draftFailed');
       setLeaveDialog((current) => current ? { ...current, error: message } : current);
     }
   }
@@ -9502,12 +9564,12 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
       {/* Top Bar */}
       <div style={{ padding: '14px 28px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', gap: 16 }}>
         <button onClick={() => requestLeave(onBack)} style={{ background: 'transparent', border: 'none', color: theme.aubergine, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}>
-          <ArrowLeft size={15} /> Zurück
+          <ArrowLeft size={15} /> {t('buttons.back')}
         </button>
         <div style={{ width: 1, height: 18, background: theme.border }} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{editMode ? `${initialCase?.property?.caseNumber || 'Entwurf'} · Entwurf bearbeiten` : isInternalCase ? 'Neuer interner Fall · Entwurf' : 'Neuer Fall · Entwurf'}</div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 2 }}>{editMode ? 'Erfassung ergänzen' : isInternalCase ? 'Direktberatung erfassen' : 'Erfassung'}</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{editMode ? `${initialCase?.property?.caseNumber || t('draft')} · ${t('editTitle')}` : isInternalCase ? t('newInternalDraft') : t('newDraft')}</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: theme.ink, marginTop: 2 }}>{editMode ? t('editTitle') : isInternalCase ? t('internalTitle') : t('defaultTitle')}</div>
         </div>
         <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: 7, color: saveStatusColor, fontSize: 12, fontWeight: 700 }}>
           {saving === 'draft' ? <Clock size={14} /> : saveError ? <AlertCircle size={14} /> : lastSavedAt && !isDirty ? <CheckCircle size={14} /> : <Save size={14} />}
@@ -9546,17 +9608,17 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
         <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '24px 28px' }}>
           {isInternalCase && !editMode && (
             <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderLeft: `4px solid ${theme.aubergine}`, borderRadius: 8, padding: '12px 14px', marginBottom: 20 }}>
-              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>Interne Direkterfassung</div>
+              <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>{t('internal.title')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14, alignItems: 'end' }}>
-                <Field label="Kontaktquelle">
+                <Field label={t('internal.source')}>
                   <Select value={internalIntakeSource} onChange={(event) => setInternalIntakeSource(event.target.value)}>
-                    {Object.entries(internalIntakeSourceLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
+                    {Object.keys(internalIntakeSourceLabels).map((value) => (
+                      <option key={value} value={value}>{t(`internal.sources.${value}`)}</option>
                     ))}
                   </Select>
                 </Field>
                 <div style={{ fontSize: 12.5, color: `${theme.ink}99`, lineHeight: 1.45 }}>
-                  Für Kunden aus Telefonaten, Empfehlungen oder Offline-Anzeigen wird kein Vertriebspartner hinterlegt. Der Fall bleibt intern und kann direkt beraten und kalkuliert werden.
+                  {t('internal.hint')}
                 </div>
               </div>
             </div>
@@ -9592,30 +9654,30 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
               onClick={() => goToStep(Math.max(1, step - 1))}
               disabled={step === 1}
               style={{ background: 'transparent', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 5, cursor: step === 1 ? 'not-allowed' : 'pointer', opacity: step === 1 ? 0.4 : 1 }}>
-              Zurück
+              {t('buttons.back')}
             </button>
             <div role="status" aria-live="polite" style={{ textAlign: 'center', color: saveStatusColor, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>
               <div>{saveStatusLabel}</div>
-              {manualSaveSuccess && !isDirty && !saveError ? <div style={{ marginTop: 3, color: theme.success, fontSize: 11.5 }}>Entwurf wurde gespeichert. Sie können die Erfassung später fortsetzen.</div> : null}
+              {manualSaveSuccess && !isDirty && !saveError ? <div style={{ marginTop: 3, color: theme.success, fontSize: 11.5 }}>{t('saveStatus.savedLong')}</div> : null}
               {saveError ? <div style={{ marginTop: 3, fontWeight: 600 }}>{saveError}</div> : null}
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               {!(step === 5 && !canSubmitCase) && (
                 <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, fontSize: 13, fontWeight: 600, padding: '9px 16px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer' }}>
-                  {saving === 'draft' ? 'Speichert...' : draftMode ? 'Entwurf speichern' : 'Änderungen speichern'}
+                  {saving === 'draft' ? t('buttons.saving') : draftMode ? t('buttons.saveDraft') : t('buttons.saveChanges')}
                 </button>
               )}
               {step < 5 ? (
                 <button onClick={() => goToStep(Math.min(5, step + 1))} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  Weiter <ChevronRight size={15} />
+                  {t('buttons.continue')} <ChevronRight size={15} />
                 </button>
               ) : canSubmitCase ? (
                 <button onClick={() => saveCase(true)} disabled={Boolean(saving)} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Send size={13} /> {saving === 'submit' ? 'Reicht ein...' : 'Einreichen'}
+                  <Send size={13} /> {saving === 'submit' ? t('buttons.submitting') : t('buttons.submit')}
                 </button>
               ) : (
                 <button onClick={() => saveCase(false)} disabled={Boolean(saving)} style={{ background: theme.aubergine, color: 'white', border: 'none', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 5, cursor: saving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Save size={13} /> {saving === 'draft' ? 'Speichert...' : 'Änderungen speichern'}
+                  <Save size={13} /> {saving === 'draft' ? t('buttons.saving') : t('buttons.saveChanges')}
                 </button>
               )}
             </div>
@@ -9625,22 +9687,22 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
         {/* Hilfe-Sidebar */}
         <div>
           <div style={{ background: theme.mintLight, borderRadius: 8, padding: '16px 18px', marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>Hinweis</div>
+            <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>{t('sidebar.hint')}</div>
             <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.55 }}>
-              Sie können den Fall jederzeit als Entwurf speichern. Die vollständige Prüfung erfolgt erst beim Einreichen.
+              {t('sidebar.hintText')}
             </div>
           </div>
           <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, padding: '16px 18px' }}>
-            <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Fortschritt</div>
+            <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{t('sidebar.progress')}</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
               <span style={{ fontSize: 24, fontWeight: 700, color: theme.aubergine }}>{progress}%</span>
-              <span style={{ fontSize: 12, color: `${theme.ink}88` }}>Pflichtfelder</span>
+              <span style={{ fontSize: 12, color: `${theme.ink}88` }}>{t('sidebar.requiredFields')}</span>
             </div>
             <div style={{ height: 6, background: theme.borderSoft, borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ width: `${progress}%`, height: '100%', background: theme.aubergine, borderRadius: 3 }} />
             </div>
             <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 8, lineHeight: 1.4 }}>
-              {completedRequiredFields} von {totalRequiredFields} relevanten Pflichtpunkten erledigt · Schritt {step} von 5 ({stepProgress}%)
+              {t('sidebar.progressText', {completed: completedRequiredFields, total: totalRequiredFields, step, progress: stepProgress})}
             </div>
             <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
               {stepProgressRows.map((item) => (
@@ -9668,7 +9730,7 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
                       padding: '2px 7px',
                       whiteSpace: 'nowrap'
                     }}>
-                      {item.complete ? 'vollständig' : `${item.missing} offen`}
+                      {item.complete ? t('sidebar.complete') : t('sidebar.open', {count: item.missing})}
                     </span>
                   </div>
                   {!item.complete && item.missingLabels.length ? (
@@ -9687,16 +9749,16 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
           <div role="dialog" aria-modal="true" aria-labelledby="unsaved-title" style={{ width: 'min(520px, 100%)', background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 10, boxShadow: theme.elevatedShadow, padding: 22 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
               <div>
-                <h2 id="unsaved-title" style={{ margin: 0, color: theme.aubergine, fontSize: 19 }}>Ungespeicherte Änderungen</h2>
-                <p style={{ margin: '9px 0 0', color: `${theme.ink}AA`, fontSize: 13.5, lineHeight: 1.55 }}>Sie haben Änderungen vorgenommen, die noch nicht gespeichert wurden. Möchten Sie den Entwurf speichern, bevor Sie die Seite verlassen?</p>
+                <h2 id="unsaved-title" style={{ margin: 0, color: theme.aubergine, fontSize: 19 }}>{t('unsaved.title')}</h2>
+                <p style={{ margin: '9px 0 0', color: `${theme.ink}AA`, fontSize: 13.5, lineHeight: 1.55 }}>{t('unsaved.body')}</p>
               </div>
-              <button type="button" aria-label="Dialog schließen" onClick={() => setLeaveDialog(null)} style={{ background: 'transparent', border: 'none', color: theme.inkSoft, cursor: 'pointer', padding: 2 }}><X size={18} /></button>
+              <button type="button" aria-label={t('buttons.closeDialog')} onClick={() => setLeaveDialog(null)} style={{ background: 'transparent', border: 'none', color: theme.inkSoft, cursor: 'pointer', padding: 2 }}><X size={18} /></button>
             </div>
             {leaveDialog.error ? <div style={{ marginTop: 14, borderRadius: 7, background: theme.errorSoft, color: theme.error, padding: '10px 12px', fontSize: 12.5, fontWeight: 700 }}>{leaveDialog.error}</div> : null}
             <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 9, marginTop: 20 }}>
-              <button type="button" onClick={() => setLeaveDialog(null)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, padding: '9px 13px', fontSize: 12.5, fontWeight: 750, cursor: 'pointer' }}>Auf Seite bleiben</button>
-              <button type="button" onClick={leaveWithoutSaving} style={{ background: 'white', border: `1px solid ${theme.error}55`, color: theme.error, borderRadius: 6, padding: '9px 13px', fontSize: 12.5, fontWeight: 750, cursor: 'pointer' }}>Ohne Speichern verlassen</button>
-              <button type="button" onClick={saveAndLeave} disabled={Boolean(saving)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 6, padding: '9px 14px', fontSize: 12.5, fontWeight: 800, cursor: saving ? 'wait' : 'pointer' }}>{saving ? 'Speichert …' : 'Entwurf speichern und verlassen'}</button>
+              <button type="button" onClick={() => setLeaveDialog(null)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 6, padding: '9px 13px', fontSize: 12.5, fontWeight: 750, cursor: 'pointer' }}>{t('buttons.stay')}</button>
+              <button type="button" onClick={leaveWithoutSaving} style={{ background: 'white', border: `1px solid ${theme.error}55`, color: theme.error, borderRadius: 6, padding: '9px 13px', fontSize: 12.5, fontWeight: 750, cursor: 'pointer' }}>{t('buttons.leave')}</button>
+              <button type="button" onClick={saveAndLeave} disabled={Boolean(saving)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 6, padding: '9px 14px', fontSize: 12.5, fontWeight: 800, cursor: saving ? 'wait' : 'pointer' }}>{saving ? t('buttons.saving') : t('buttons.saveAndLeave')}</button>
             </div>
           </div>
         </div>
@@ -9706,22 +9768,19 @@ const Erfassung = ({ onBack, onSaved, onDraftCreated, registerNavigationGuard, s
 };
 
 // Form-Felder als wiederverwendbare Komponenten
-const fieldErrorMessages = {
-  desiredModel: 'Bitte wählen Sie ein Wunschmodell aus.',
-  knownMajorMaintenanceOrSpecialAssessments: 'Bitte wählen Sie aus, ob größere Instandhaltungen, Sanierungsmaßnahmen oder Sonderumlagen bekannt oder absehbar sind.',
-  knownMajorMaintenanceOrSpecialAssessmentsDescription: 'Bitte kurz erläutern.',
+const Field = ({ label, required, children, hint, width = '100%', invalid = false, errorMessage }) => {
+  const t = useTranslations('customers.intake');
+  return (
+    <div style={{ width, border: invalid ? `1px solid ${theme.error}55` : 'none', background: invalid ? theme.errorSoft : 'transparent', borderRadius: theme.buttonRadius, padding: invalid ? 7 : 0, boxSizing: 'border-box' }}>
+      <label style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: theme.ink, marginBottom: 6, letterSpacing: '0.01em' }}>
+        {label}{required && <span style={{ color: theme.error, marginLeft: 3 }}>*</span>}
+      </label>
+      {children}
+      {hint && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 4 }}>{hint}</div>}
+      {invalid && <div style={{ fontSize: 11, color: theme.error, fontWeight: 700, marginTop: 5 }}>{errorMessage || t('common.pleaseComplete')}</div>}
+    </div>
+  );
 };
-
-const Field = ({ label, required, children, hint, width = '100%', invalid = false, errorMessage }) => (
-  <div style={{ width, border: invalid ? `1px solid ${theme.error}55` : 'none', background: invalid ? theme.errorSoft : 'transparent', borderRadius: theme.buttonRadius, padding: invalid ? 7 : 0, boxSizing: 'border-box' }}>
-    <label style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: theme.ink, marginBottom: 6, letterSpacing: '0.01em' }}>
-      {label}{required && <span style={{ color: theme.error, marginLeft: 3 }}>*</span>}
-    </label>
-    {children}
-    {hint && <div style={{ fontSize: 11, color: `${theme.ink}88`, marginTop: 4 }}>{hint}</div>}
-    {invalid && <div style={{ fontSize: 11, color: theme.error, fontWeight: 700, marginTop: 5 }}>{errorMessage || 'Bitte ausfüllen.'}</div>}
-  </div>
-);
 const Input = ({ placeholder, defaultValue, type = 'text', value, onChange, checked, readOnly, disabled, inputRef, inputMode }) => (
   <input ref={inputRef} type={type} placeholder={placeholder} defaultValue={defaultValue} value={value} onChange={onChange} onInput={onChange} checked={checked} readOnly={readOnly} disabled={disabled} inputMode={inputMode} style={{
     width: '100%', minHeight: 40, padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`,
@@ -9758,10 +9817,11 @@ const RadioGroup = ({ options, name, defaultValue, value, onChange }) => (
 );
 
 const ResidentialRightVariantSelector = ({ value = 'fixed_term', eligibility, onChange, disabled = false }) => {
+  const t = useTranslations('customers.intake');
   const lifetimeDisabled = disabled || !eligibility?.eligible;
   const options = [
-    { value: 'fixed_term', label: 'Befristetes Wohnrecht', disabled },
-    { value: 'lifetime', label: 'Lebenslanges Wohnrecht', disabled: lifetimeDisabled },
+    { value: 'fixed_term', label: t('model.fixedTerm'), disabled },
+    { value: 'lifetime', label: t('model.lifetime'), disabled: lifetimeDisabled },
   ];
   return (
     <div>
@@ -9794,47 +9854,49 @@ const ResidentialRightVariantSelector = ({ value = 'fixed_term', eligibility, on
       </div>
       <div style={{ marginTop: 8, fontSize: 12, color: eligibility?.eligibleSoon ? theme.oliv : eligibility?.eligible ? `${theme.ink}99` : theme.warning, lineHeight: 1.45 }}>
         {eligibility?.eligibleSoon
-          ? 'Die jüngere Person erreicht innerhalb von 3 Monaten das Mindestalter von 75 Jahren.'
+          ? t('model.eligibleSoon')
           : eligibility?.eligible
-            ? 'Das lebenslange Wohnrecht ist auswählbar.'
-            : 'Das lebenslange Wohnrecht ist erst ab 75 Jahren möglich. Bei zwei Personen ist die jüngere Person maßgeblich.'}
+            ? t('model.eligible')
+            : t('model.notEligible')}
       </div>
     </div>
   );
 };
 
-const FormStep1 = ({ draft, setDraft, errors = [] }) => (
+const FormStep1 = ({ draft, setDraft, errors = [] }) => {
+  const t = useTranslations('customers.intake');
+  return (
   <div>
-    <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Persönliche Daten</h2>
-    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte erfasse die Stammdaten des Eigentümers.</div>
+    <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>{t('personal.title')}</h2>
+    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>{t('personal.intro')}</div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '0.7fr 1.25fr 1.4fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Titel">
+      <Field label={t('personal.titleField')}>
         <Select value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })}>
-          <option value="">kein Titel</option>
+          <option value="">{t('personal.noTitle')}</option>
           <option value="Dr.">Dr.</option>
           <option value="Prof.">Prof.</option>
           <option value="Prof. Dr.">Prof. Dr.</option>
         </Select>
       </Field>
-      <Field label="Vorname" required invalid={errors.includes('firstName')}><Input placeholder="Vorname" value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></Field>
-      <Field label="Nachname" required invalid={errors.includes('lastName')}><Input placeholder="Nachname" value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></Field>
-      <Field label="Geschlecht" required invalid={errors.includes('gender')}>
+      <Field label={t('personal.firstName')} required invalid={errors.includes('firstName')}><Input placeholder={t('personal.firstName')} value={draft.firstName} onChange={(event) => setDraft({ ...draft, firstName: event.target.value })} /></Field>
+      <Field label={t('personal.lastName')} required invalid={errors.includes('lastName')}><Input placeholder={t('personal.lastName')} value={draft.lastName} onChange={(event) => setDraft({ ...draft, lastName: event.target.value })} /></Field>
+      <Field label={t('personal.gender')} required invalid={errors.includes('gender')}>
         <Select value={draft.gender} onChange={(event) => setDraft({ ...draft, gender: event.target.value })}>
-          <option value="">Bitte wählen</option>
-          <option value="female">weiblich</option>
-          <option value="male">männlich</option>
-          <option value="diverse">divers</option>
+          <option value="">{t('common.select')}</option>
+          <option value="female">{t('personal.female')}</option>
+          <option value="male">{t('personal.male')}</option>
+          <option value="diverse">{t('personal.diverse')}</option>
         </Select>
       </Field>
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Geburtsdatum" required invalid={errors.includes('dateOfBirth')}><Input type="date" value={draft.dateOfBirth} onChange={(event) => setDraft({ ...draft, dateOfBirth: event.target.value, ageAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
-      <Field label="Alter">
-        <Input placeholder="wird berechnet" value={draft.ageAtSubmission} readOnly />
+      <Field label={t('personal.dateOfBirth')} required invalid={errors.includes('dateOfBirth')}><Input type="date" value={draft.dateOfBirth} onChange={(event) => setDraft({ ...draft, dateOfBirth: event.target.value, ageAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
+      <Field label={t('personal.age')}>
+        <Input placeholder={t('personal.calculated')} value={draft.ageAtSubmission} readOnly />
       </Field>
-      <Field label="Familienstand" required invalid={errors.includes('maritalStatus')}>
+      <Field label={t('personal.maritalStatus')} required invalid={errors.includes('maritalStatus')}>
         <Select value={draft.maritalStatus} onChange={(event) => setDraft({
           ...draft,
           maritalStatus: event.target.value,
@@ -9844,47 +9906,47 @@ const FormStep1 = ({ draft, setDraft, errors = [] }) => (
           additionalOfferResidentialRightRecipients: event.target.value === 'married' ? draft.additionalOfferResidentialRightRecipients : (draft.additionalOfferResidentialRightRecipients === 'both' ? 'one_person' : draft.additionalOfferResidentialRightRecipients),
           additionalOfferResidentialRightPerson: event.target.value === 'married' ? draft.additionalOfferResidentialRightPerson : '',
         })}>
-          <option value="">Bitte wählen</option>
-          <option value="single">ledig</option>
-          <option value="married">verheiratet</option>
-          <option value="widowed">verwitwet</option>
-          <option value="divorced">geschieden</option>
+          <option value="">{t('common.select')}</option>
+          <option value="single">{t('personal.single')}</option>
+          <option value="married">{t('personal.married')}</option>
+          <option value="widowed">{t('personal.widowed')}</option>
+          <option value="divorced">{t('personal.divorced')}</option>
         </Select>
       </Field>
     </div>
 
     {draft.maritalStatus === 'married' && (
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Kunde 2 / Ehepartner</div>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('personal.spouse')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '0.7fr 1.2fr 1.2fr 1fr', gap: 16, marginBottom: 16 }}>
-          <Field label="Titel Kunde 2">
+          <Field label={t('personal.spouseTitle')}>
             <Select value={draft.spouseTitle} onChange={(event) => setDraft({ ...draft, spouseTitle: event.target.value })}>
-              <option value="">kein Titel</option>
+              <option value="">{t('personal.noTitle')}</option>
               <option value="Dr.">Dr.</option>
               <option value="Prof.">Prof.</option>
               <option value="Prof. Dr.">Prof. Dr.</option>
             </Select>
           </Field>
-          <Field label="Vorname Kunde 2" required invalid={errors.includes('spouseFirstName')}><Input value={draft.spouseFirstName} onChange={(event) => setDraft({ ...draft, spouseFirstName: event.target.value })} /></Field>
-          <Field label="Nachname Kunde 2" required invalid={errors.includes('spouseLastName')}><Input value={draft.spouseLastName} onChange={(event) => setDraft({ ...draft, spouseLastName: event.target.value })} /></Field>
-          <Field label="Geschlecht Kunde 2" required invalid={errors.includes('spouseGender')}>
+          <Field label={t('personal.spouseFirstName')} required invalid={errors.includes('spouseFirstName')}><Input value={draft.spouseFirstName} onChange={(event) => setDraft({ ...draft, spouseFirstName: event.target.value })} /></Field>
+          <Field label={t('personal.spouseLastName')} required invalid={errors.includes('spouseLastName')}><Input value={draft.spouseLastName} onChange={(event) => setDraft({ ...draft, spouseLastName: event.target.value })} /></Field>
+          <Field label={t('personal.spouseGender')} required invalid={errors.includes('spouseGender')}>
             <Select value={draft.spouseGender} onChange={(event) => setDraft({ ...draft, spouseGender: event.target.value })}>
-              <option value="">Bitte wählen</option>
-              <option value="female">weiblich</option>
-              <option value="male">männlich</option>
-              <option value="diverse">divers</option>
-              <option value="not_specified">keine Angabe</option>
+              <option value="">{t('common.select')}</option>
+              <option value="female">{t('personal.female')}</option>
+              <option value="male">{t('personal.male')}</option>
+              <option value="diverse">{t('personal.diverse')}</option>
+              <option value="not_specified">{t('personal.noAnswer')}</option>
             </Select>
           </Field>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.7fr 2fr', gap: 16 }}>
-          <Field label="Geburtsdatum Kunde 2" required invalid={errors.includes('spouseDateOfBirth')}><Input type="date" value={draft.spouseDateOfBirth} onChange={(event) => setDraft({ ...draft, spouseDateOfBirth: event.target.value, spouseAgeAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
-          <Field label="Alter Kunde 2"><Input placeholder="wird berechnet" value={draft.spouseAgeAtSubmission} readOnly /></Field>
-          <Field label="Eigentümer-Auswahl" required invalid={errors.includes('propertyOwnership')}>
+          <Field label={t('personal.spouseDateOfBirth')} required invalid={errors.includes('spouseDateOfBirth')}><Input type="date" value={draft.spouseDateOfBirth} onChange={(event) => setDraft({ ...draft, spouseDateOfBirth: event.target.value, spouseAgeAtSubmission: calculateAgeFromBirthDate(event.target.value) })} /></Field>
+          <Field label={t('personal.spouseAge')}><Input placeholder={t('personal.calculated')} value={draft.spouseAgeAtSubmission} readOnly /></Field>
+          <Field label={t('personal.ownership')} required invalid={errors.includes('propertyOwnership')}>
             <RadioGroup name="propertyOwnership" value={draft.propertyOwnership} onChange={(value) => setDraft({ ...draft, propertyOwnership: value })} options={[
-              { value: 'customer_1', label: 'Kunde 1' },
-              { value: 'customer_2', label: 'Kunde 2' },
-              { value: 'both', label: 'Beide' },
+              { value: 'customer_1', label: t('personal.customer1') },
+              { value: 'customer_2', label: t('personal.customer2') },
+              { value: 'both', label: t('personal.both') },
             ]} />
           </Field>
         </div>
@@ -9892,25 +9954,25 @@ const FormStep1 = ({ draft, setDraft, errors = [] }) => (
     )}
 
     <div className="customer-address-grid" style={{ display: 'grid', gap: 16, marginBottom: 16 }}>
-      <Field label="Straße" required invalid={errors.includes('street')}><Input placeholder="Straße" autoComplete="address-line1" value={draft.street} onChange={(event) => setDraft({ ...draft, street: event.target.value })} /></Field>
-      <Field label="Hausnummer" required invalid={errors.includes('houseNumber')} errorMessage="Bitte geben Sie die Hausnummer an."><Input type="text" placeholder="Hausnr." autoComplete="address-line2" value={draft.houseNumber} onChange={(event) => setDraft({ ...draft, houseNumber: event.target.value })} /></Field>
-      <Field label="PLZ" required invalid={errors.includes('postalCode')}><Input placeholder="PLZ" value={draft.postalCode} onChange={(event) => setDraft({ ...draft, postalCode: event.target.value })} /></Field>
-      <Field label="Ort" required invalid={errors.includes('city')}><Input placeholder="Ort" value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></Field>
+      <Field label={t('personal.street')} required invalid={errors.includes('street')}><Input placeholder={t('personal.street')} autoComplete="address-line1" value={draft.street} onChange={(event) => setDraft({ ...draft, street: event.target.value })} /></Field>
+      <Field label={t('personal.houseNumber')} required invalid={errors.includes('houseNumber')}><Input type="text" placeholder={t('personal.houseNumberShort')} autoComplete="address-line2" value={draft.houseNumber} onChange={(event) => setDraft({ ...draft, houseNumber: event.target.value })} /></Field>
+      <Field label={t('personal.postalCode')} required invalid={errors.includes('postalCode')}><Input placeholder={t('personal.postalCode')} value={draft.postalCode} onChange={(event) => setDraft({ ...draft, postalCode: event.target.value })} /></Field>
+      <Field label={t('personal.city')} required invalid={errors.includes('city')}><Input placeholder={t('personal.city')} value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></Field>
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Telefon" required invalid={errors.includes('phone')}><Input placeholder="z.B. 0711 / 23 45 67" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></Field>
-      <Field label="Mobil"><Input placeholder="z.B. 0172 / 12 34 567" value={draft.mobile} onChange={(event) => setDraft({ ...draft, mobile: event.target.value })} /></Field>
-      <Field label="E-Mail" required invalid={errors.includes('email')}><Input type="email" placeholder="adresse@example.com" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></Field>
+      <Field label={t('personal.telephone')} required invalid={errors.includes('phone')}><Input placeholder={t('personal.telephonePlaceholder')} value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></Field>
+      <Field label={t('personal.mobile')}><Input placeholder={t('personal.mobilePlaceholder')} value={draft.mobile} onChange={(event) => setDraft({ ...draft, mobile: event.target.value })} /></Field>
+      <Field label={t('personal.email')} required invalid={errors.includes('email')}><Input type="email" placeholder={t('personal.emailPlaceholder')} value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></Field>
     </div>
 
     <div style={{ marginBottom: 20 }}>
-      <Field label="Monatliche Einkünfte" required invalid={errors.includes('monthlyIncomeRange')}>
+      <Field label={t('personal.monthlyIncome')} required invalid={errors.includes('monthlyIncomeRange')}>
         <RadioGroup name="income" value={draft.monthlyIncomeRange} onChange={(value) => setDraft({ ...draft, monthlyIncomeRange: value })} options={[
-          { value: 'under_1000', label: 'unter 1.000 €' },
-          { value: 'from_1000_to_2000', label: '1.000 – 2.000 €' },
-          { value: 'from_2000_to_3000', label: '2.000 – 3.000 €' },
-          { value: 'over_3000', label: 'über 3.000 €' },
+          { value: 'under_1000', label: t('personal.incomeUnder') },
+          { value: 'from_1000_to_2000', label: t('personal.income1000To2000') },
+          { value: 'from_2000_to_3000', label: t('personal.income2000To3000') },
+          { value: 'over_3000', label: t('personal.incomeOver') },
         ]} />
       </Field>
     </div>
@@ -9918,28 +9980,31 @@ const FormStep1 = ({ draft, setDraft, errors = [] }) => (
     <div style={{ background: errors.includes('consentDataProcessing') ? theme.errorSoft : theme.mintLight, border: `1px solid ${errors.includes('consentDataProcessing') ? `${theme.error}33` : 'transparent'}`, borderRadius: 6, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
       <input type="checkbox" checked={Boolean(draft.consentDataProcessing)} onChange={(event) => setDraft({ ...draft, consentDataProcessing: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
       <div>
-        <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 500 }}>Einwilligung zur Datenverarbeitung <span style={{ color: theme.gold }}>*</span></div>
-        <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 3, lineHeight: 1.5 }}>Der Kunde willigt ein, dass seine Daten zum Zweck der Angebotserstellung verarbeitet und an WohnKapital übermittelt werden.</div>
+        <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 500 }}>{t('personal.consent')} <span style={{ color: theme.gold }}>*</span></div>
+        <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 3, lineHeight: 1.5 }}>{t('personal.consentText')}</div>
       </div>
     </div>
   </div>
-);
+  );
+};
 
-const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
+const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => {
+  const t = useTranslations('customers.intake');
+  return (
   <div>
-    <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Wunschmodell</h2>
-    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte wähle zunächst das gewünschte Hauptmodell. Danach erscheinen nur die passenden Felder.</div>
+    <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>{t('model.title')}</h2>
+    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>{t('model.intro')}</div>
     {modelLocked && (
       <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45, marginBottom: 14 }}>
-        Das Modell kann bei Bestandskunden nicht mehr geändert werden.
+        {t('model.locked')}
       </div>
     )}
 
-    <Field label="Hauptmodell" required invalid={errors.includes('desiredModel')} errorMessage={fieldErrorMessages.desiredModel}>
+    <Field label={t('model.main')} required invalid={errors.includes('desiredModel')} errorMessage={t('validation.selectModel')}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
         {[
-          { value: 'fixed_residential_right', title: 'Wohnrecht', text: 'Kunde verkauft und behält ein vertraglich geregeltes Wohnrecht.' },
-          { value: 'sale_and_leaseback', title: 'Rückmietverkauf', text: 'Kunde verkauft und bleibt anschließend als Mieter/Bewohner im Objekt.' },
+          { value: 'fixed_residential_right', title: t('model.residentialRight'), text: t('model.residentialRightDescription') },
+          { value: 'sale_and_leaseback', title: t('model.rentBackSale'), text: t('model.rentBackSaleDescription') },
         ].map((option) => {
           const active = draft.desiredModel === option.value;
           return (
@@ -9975,7 +10040,7 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
 
     {!draft.desiredModel && (
       <div style={{ background: errors.includes('desiredModel') ? theme.errorSoft : theme.mintLight, border: `1px solid ${errors.includes('desiredModel') ? `${theme.error}55` : 'transparent'}`, borderRadius: 6, padding: '12px 14px', fontSize: 12.5, color: errors.includes('desiredModel') ? theme.error : `${theme.ink}99`, marginBottom: 18, fontWeight: errors.includes('desiredModel') ? 750 : 500 }}>
-        {errors.includes('desiredModel') ? fieldErrorMessages.desiredModel : 'Bitte wähle ein Modell, damit die passenden Angaben geöffnet werden.'}
+        {errors.includes('desiredModel') ? t('validation.selectModel') : t('model.selectHint')}
       </div>
     )}
 
@@ -9983,28 +10048,28 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
       <div style={{ background: errors.includes('rentalModelDisclosureAccepted') ? theme.errorSoft : theme.warningSoft, border: `1px solid ${errors.includes('rentalModelDisclosureAccepted') ? `${theme.error}66` : `${theme.warning}55`}`, borderLeft: `4px solid ${errors.includes('rentalModelDisclosureAccepted') ? theme.error : theme.warning}`, borderRadius: 8, padding: '13px 15px', marginBottom: 18 }}>
         <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
           <input type="checkbox" checked={draft.rentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, rentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
-          <span><strong>Belehrung Rückmietverkauf:</strong> Beim Rückmietverkauf fällt ab Tag 1 nach Verkauf eine laufende Miete an. Diese Information muss vor Einreichung mit dem Kunden besprochen werden.</span>
+          <span><strong>{t('model.rentBackDisclosure')}:</strong> {t('model.rentBackDisclosureText')}</span>
         </label>
       </div>
     )}
 
     {draft.desiredModel === 'fixed_residential_right' && (
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 18px', marginBottom: 18 }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Wohnrecht</div>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('model.residentialRight')}</div>
     <div style={{ marginBottom: 18 }}>
-      <Field label="Wer soll das Wohnrecht bekommen?" required invalid={errors.includes('residentialRightRecipients')}>
+      <Field label={t('model.recipients')} required invalid={errors.includes('residentialRightRecipients')}>
         <RadioGroup name="recipient" value={draft.residentialRightRecipients} onChange={(value) => setDraft({ ...draft, residentialRightRecipients: value, residentialRightPerson: value === 'one_person' ? draft.residentialRightPerson : '' })} options={[
-          { value: 'one_person', label: 'Eine Person' },
-          ...(draft.maritalStatus === 'married' ? [{ value: 'both', label: 'Beide Personen' }] : []),
+          { value: 'one_person', label: t('model.onePerson') },
+          ...(draft.maritalStatus === 'married' ? [{ value: 'both', label: t('model.bothPeople') }] : []),
         ]} />
       </Field>
     </div>
 
     {draft.maritalStatus === 'married' && draft.residentialRightRecipients === 'one_person' && (
       <div style={{ marginBottom: 18 }}>
-        <Field label="Welche Person erhält das Wohnrecht?" required invalid={errors.includes('residentialRightPerson')}>
+        <Field label={t('model.whichPerson')} required invalid={errors.includes('residentialRightPerson')}>
           <Select value={draft.residentialRightPerson} onChange={(event) => setDraft({ ...draft, residentialRightPerson: event.target.value })}>
-            <option value="">Bitte wählen</option>
+            <option value="">{t('common.select')}</option>
             <option value="customer_1">{customerOneName(draft)}</option>
             <option value="customer_2">{customerTwoName(draft)}</option>
           </Select>
@@ -10013,7 +10078,7 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
     )}
 
     <div style={{ marginBottom: 18 }}>
-      <Field label="Wohnrechtsmodell" required invalid={errors.includes('residentialRightVariant')}>
+      <Field label={t('model.variant')} required invalid={errors.includes('residentialRightVariant')}>
         <ResidentialRightVariantSelector
           value={draft.residentialRightVariant || 'fixed_term'}
           eligibility={lifetimeEligibilityForDraft(draft)}
@@ -10031,16 +10096,16 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
     {(draft.residentialRightVariant || 'fixed_term') !== 'lifetime' && (
       <>
         <div style={{ marginBottom: 18 }}>
-          <Field label="Dauer des Wohnrechts" required hint="Zwischen 5 und 15 Jahren wählbar." invalid={errors.includes('desiredResidentialRightYears')}>
+          <Field label={t('model.duration')} required hint={t('model.durationHint')} invalid={errors.includes('desiredResidentialRightYears')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <input type="range" min="5" max="15" value={draft.desiredResidentialRightYears || 10} onChange={(event) => setDraft({ ...draft, desiredResidentialRightYears: Number(event.target.value) })} style={{ flex: 1, accentColor: theme.aubergine }} />
-              <div style={{ minWidth: 80, padding: '6px 12px', background: theme.aubergine, color: 'white', borderRadius: 5, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>{draft.desiredResidentialRightYears || 10} Jahre</div>
+              <div style={{ minWidth: 80, padding: '6px 12px', background: theme.aubergine, color: 'white', borderRadius: 5, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>{draft.desiredResidentialRightYears || 10} {t('model.years')}</div>
             </div>
           </Field>
         </div>
 
-        <Field label="Grund der Befristung" required invalid={errors.includes('fixedTermReason')}>
-          <Input placeholder="z.B. Familienplanung, gesundheitliche Gründe" value={draft.fixedTermReason} onChange={(event) => setDraft({ ...draft, fixedTermReason: event.target.value })} />
+        <Field label={t('model.fixedTermReason')} required invalid={errors.includes('fixedTermReason')}>
+          <Input placeholder={t('model.fixedTermReasonPlaceholder')} value={draft.fixedTermReason} onChange={(event) => setDraft({ ...draft, fixedTermReason: event.target.value })} />
         </Field>
       </>
     )}
@@ -10050,11 +10115,11 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px' }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.ink, fontWeight: 700 }}>
         <input type="checkbox" checked={draft.additionalOfferRequested} disabled={modelLocked} onChange={(event) => setDraft({ ...draft, additionalOfferRequested: event.target.checked })} style={{ accentColor: theme.aubergine }} />
-        Zweites Angebot zusätzlich erstellen
+        {t('model.additionalOffer')}
       </label>
       {draft.additionalOfferRequested && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 16, marginTop: 14 }}>
-          <Field label="Zweites Modell" required invalid={errors.includes('additionalOfferModel')}>
+          <Field label={t('model.secondModel')} required invalid={errors.includes('additionalOfferModel')}>
             <Select value={draft.additionalOfferModel} disabled={modelLocked} onChange={(event) => setDraft({
               ...draft,
               additionalOfferModel: event.target.value,
@@ -10062,32 +10127,32 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
               additionalOfferResidentialRightPerson: event.target.value === 'fixed_residential_right' ? draft.additionalOfferResidentialRightPerson : '',
               additionalOfferRentalModelDisclosureAccepted: event.target.value === 'sale_and_leaseback' ? draft.additionalOfferRentalModelDisclosureAccepted : false,
             })}>
-              <option value="">Bitte wählen</option>
-              <option value="fixed_residential_right">Wohnrecht</option>
-              <option value="sale_and_leaseback">Rückmietverkauf</option>
+              <option value="">{t('common.select')}</option>
+              <option value="fixed_residential_right">{t('model.residentialRight')}</option>
+              <option value="sale_and_leaseback">{t('model.rentBackSale')}</option>
             </Select>
           </Field>
           {draft.additionalOfferModel === 'fixed_residential_right' && (
             <>
-              <Field label="Wer soll das Wohnrecht bekommen?" required invalid={errors.includes('additionalOfferResidentialRightRecipients')}>
+              <Field label={t('model.recipients')} required invalid={errors.includes('additionalOfferResidentialRightRecipients')}>
                 <RadioGroup name="additionalRecipient" value={draft.additionalOfferResidentialRightRecipients} onChange={(value) => setDraft({ ...draft, additionalOfferResidentialRightRecipients: value, additionalOfferResidentialRightPerson: value === 'one_person' ? draft.additionalOfferResidentialRightPerson : '' })} options={[
-                  { value: 'one_person', label: 'Eine Person' },
-                  ...(draft.maritalStatus === 'married' ? [{ value: 'both', label: 'Beide Personen' }] : []),
+                  { value: 'one_person', label: t('model.onePerson') },
+                  ...(draft.maritalStatus === 'married' ? [{ value: 'both', label: t('model.bothPeople') }] : []),
                 ]} />
               </Field>
-              <Field label="Laufzeit" required invalid={errors.includes('additionalOfferResidentialRightYears')}>
+              <Field label={t('model.term')} required invalid={errors.includes('additionalOfferResidentialRightYears')}>
                 <Select value={String(draft.additionalOfferResidentialRightYears || 10)} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightYears: Number(event.target.value) })}>
-                  <option value="5">5 Jahre</option>
-                  <option value="10">10 Jahre</option>
-                  <option value="15">15 Jahre</option>
+                  <option value="5">{t('model.fiveYears')}</option>
+                  <option value="10">{t('model.tenYears')}</option>
+                  <option value="15">{t('model.fifteenYears')}</option>
                 </Select>
               </Field>
             </>
           )}
           {draft.additionalOfferModel === 'fixed_residential_right' && draft.maritalStatus === 'married' && draft.additionalOfferResidentialRightRecipients === 'one_person' && (
-            <Field label="Welche Person erhält das Wohnrecht?" required invalid={errors.includes('additionalOfferResidentialRightPerson')}>
+            <Field label={t('model.whichPerson')} required invalid={errors.includes('additionalOfferResidentialRightPerson')}>
               <Select value={draft.additionalOfferResidentialRightPerson} onChange={(event) => setDraft({ ...draft, additionalOfferResidentialRightPerson: event.target.value })}>
-                <option value="">Bitte wählen</option>
+                <option value="">{t('common.select')}</option>
                 <option value="customer_1">{customerOneName(draft)}</option>
                 <option value="customer_2">{customerTwoName(draft)}</option>
               </Select>
@@ -10097,122 +10162,125 @@ const FormStep2 = ({ draft, setDraft, errors = [], modelLocked = false }) => (
             <div style={{ gridColumn: '1 / -1', background: errors.includes('additionalOfferRentalModelDisclosureAccepted') ? theme.errorSoft : theme.warningSoft, border: `1px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? `${theme.error}66` : `${theme.warning}55`}`, borderLeft: `4px solid ${errors.includes('additionalOfferRentalModelDisclosureAccepted') ? theme.error : theme.warning}`, borderRadius: 8, padding: '12px 14px' }}>
               <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: theme.ink, fontSize: 12.5, lineHeight: 1.45 }}>
                 <input type="checkbox" checked={draft.additionalOfferRentalModelDisclosureAccepted} onChange={(event) => setDraft({ ...draft, additionalOfferRentalModelDisclosureAccepted: event.target.checked })} style={{ marginTop: 2, accentColor: theme.aubergine }} />
-                <span><strong>Belehrung Rückmietverkauf:</strong> Beim Rückmietverkauf fällt ab Tag 1 nach Verkauf eine laufende Miete an.</span>
+                <span><strong>{t('model.rentBackDisclosure')}:</strong> {t('model.rentBackDisclosureShort')}</span>
               </label>
             </div>
           )}
-          <Field label={draft.additionalOfferModel === 'fixed_residential_right' ? 'Grund / Hinweis' : 'Hinweis zum zweiten Angebot'} required={draft.additionalOfferModel === 'fixed_residential_right'} invalid={errors.includes('additionalOfferReason')}>
-            <Input value={draft.additionalOfferReason} onChange={(event) => setDraft({ ...draft, additionalOfferReason: event.target.value })} placeholder="z.B. Vergleich für Kundengespräch" />
+          <Field label={draft.additionalOfferModel === 'fixed_residential_right' ? t('model.reason') : t('model.secondOfferHint')} required={draft.additionalOfferModel === 'fixed_residential_right'} invalid={errors.includes('additionalOfferReason')}>
+            <Input value={draft.additionalOfferReason} onChange={(event) => setDraft({ ...draft, additionalOfferReason: event.target.value })} placeholder={t('model.secondOfferPlaceholder')} />
           </Field>
         </div>
       )}
     </div>
   </div>
-);
+  );
+};
 
-const FormStep3 = ({ draft, setDraft, errors = [] }) => (
+const FormStep3 = ({ draft, setDraft, errors = [] }) => {
+  const t = useTranslations('customers.intake');
+  return (
   <div>
-    <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Immobiliendaten</h2>
-    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Erfasse die wesentlichen Eigenschaften der Immobilie.</div>
+    <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>{t('property.title')}</h2>
+    <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>{t('property.intro')}</div>
 
-    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Grunddaten</div>
+    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('property.basic')}</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Immobilientyp" required invalid={errors.includes('propertyType')}>
-        <Select value={draft.propertyType} onChange={(event) => setDraft({ ...draft, propertyType: event.target.value, hasElevator: event.target.value === 'apartment' ? draft.hasElevator : '' })}><option value="">Bitte wählen</option><option value="single_family">Einfamilienhaus</option><option value="semi_detached">Doppelhaushälfte</option><option value="row_house">Reihenhaus</option><option value="apartment">Eigentumswohnung</option></Select>
+      <Field label={t('property.type')} required invalid={errors.includes('propertyType')}>
+        <Select value={draft.propertyType} onChange={(event) => setDraft({ ...draft, propertyType: event.target.value, hasElevator: event.target.value === 'apartment' ? draft.hasElevator : '' })}><option value="">{t('common.select')}</option><option value="single_family">{t('property.singleFamily')}</option><option value="semi_detached">{t('property.semiDetached')}</option><option value="row_house">{t('property.terraced')}</option><option value="apartment">{t('property.apartment')}</option></Select>
       </Field>
-      <Field label="Baujahr" required invalid={errors.includes('yearBuilt')}><Input type="text" inputMode="numeric" placeholder="z.B. 1978" value={draft.yearBuilt} onChange={(event) => setDraft({ ...draft, yearBuilt: event.target.value })} /></Field>
-      <Field label="Wohnfläche (m²)" required invalid={errors.includes('livingAreaSqm')}><Input type="text" inputMode="decimal" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
+      <Field label={t('property.yearBuilt')} required invalid={errors.includes('yearBuilt')}><Input type="text" inputMode="numeric" placeholder="1978" value={draft.yearBuilt} onChange={(event) => setDraft({ ...draft, yearBuilt: event.target.value })} /></Field>
+      <Field label={t('property.livingArea')} required invalid={errors.includes('livingAreaSqm')}><Input type="text" inputMode="decimal" placeholder="142" value={draft.livingAreaSqm} onChange={(event) => setDraft({ ...draft, livingAreaSqm: event.target.value })} /></Field>
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: draft.propertyType === 'apartment' ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Grundstück (m²)" required invalid={errors.includes('plotAreaSqm')}><Input type="text" inputMode="decimal" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
-      <Field label="Nutzfläche (m²)" invalid={errors.includes('usableAreaSqm')}><Input type="text" inputMode="decimal" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
+      <Field label={t('property.plotArea')} required invalid={errors.includes('plotAreaSqm')}><Input type="text" inputMode="decimal" placeholder="380" value={draft.plotAreaSqm} onChange={(event) => setDraft({ ...draft, plotAreaSqm: event.target.value })} /></Field>
+      <Field label={t('property.usableArea')} invalid={errors.includes('usableAreaSqm')}><Input type="text" inputMode="decimal" value={draft.usableAreaSqm} onChange={(event) => setDraft({ ...draft, usableAreaSqm: event.target.value })} /></Field>
       {draft.propertyType === 'apartment' && (
         <>
-          <Field label="Miteigentumsanteile" required hint="Nur bei Eigentumswohnungen" invalid={errors.includes('coOwnershipShares')}><Input placeholder="z.B. 124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
-          <Field label="Aufzug vorhanden" required invalid={errors.includes('hasElevator')}>
+          <Field label={t('property.coOwnership')} required hint={t('property.coOwnershipHint')} invalid={errors.includes('coOwnershipShares')}><Input placeholder="124/1000" value={draft.coOwnershipShares} onChange={(event) => setDraft({ ...draft, coOwnershipShares: event.target.value })} /></Field>
+          <Field label={t('property.elevator')} required invalid={errors.includes('hasElevator')}>
             <RadioGroup name="hasElevator" value={draft.hasElevator === true ? 'yes' : draft.hasElevator === false ? 'no' : ''} onChange={(value) => setDraft({ ...draft, hasElevator: value === 'yes' })} options={[
-              { value: 'yes', label: 'Ja' },
-              { value: 'no', label: 'Nein' },
+              { value: 'yes', label: t('common.yes') },
+              { value: 'no', label: t('common.no') },
             ]} />
           </Field>
         </>
       )}
     </div>
 
-    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Objekteindruck</div>
+    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('property.impression')}</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Optik" required invalid={errors.includes('visualConditionRating')}>
+      <Field label={t('property.appearance')} required invalid={errors.includes('visualConditionRating')}>
         <Select value={draft.visualConditionRating} onChange={(event) => setDraft({ ...draft, visualConditionRating: event.target.value })}>
-          <option value="">Bitte wählen</option>
-          <option value="very_good">sehr gut</option>
-          <option value="good">gut</option>
-          <option value="medium">mittel</option>
-          <option value="moderate">mäßig</option>
-          <option value="bad">schlecht</option>
-          <option value="very_bad">sehr schlecht</option>
+          <option value="">{t('common.select')}</option>
+          <option value="very_good">{t('property.veryGood')}</option>
+          <option value="good">{t('property.good')}</option>
+          <option value="medium">{t('property.average')}</option>
+          <option value="moderate">{t('property.fair')}</option>
+          <option value="bad">{t('property.poor')}</option>
+          <option value="very_bad">{t('property.veryPoor')}</option>
         </Select>
       </Field>
       <div style={{ background: theme.mintLight, borderRadius: 6, padding: '10px 12px', fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>
-        Weitere fachliche Einschätzungen werden intern aus Unterlagen, Rückfragen und Bewertung abgeleitet. Im Erfassungsbogen wird nur der sichtbare Objekteindruck abgefragt.
+        {t('property.impressionHint')}
       </div>
     </div>
 
-    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Technik und Energie</div>
+    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('property.technologyEnergy')}</div>
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Heizungsart" required invalid={errors.includes('heatingType')}>
+      <Field label={t('property.heatingType')} required invalid={errors.includes('heatingType')}>
         <Select value={draft.heatingType} onChange={(event) => setDraft({ ...draft, heatingType: event.target.value })}>
-          <option value="">Bitte wählen</option>
-          <option value="central">Zentralheizung</option>
-          <option value="floor">Etagenheizung</option>
-          <option value="electric">Elektroheizung</option>
-          <option value="single_stove">Einzelofen</option>
-          <option value="none">Keine</option>
+          <option value="">{t('common.select')}</option>
+          <option value="central">{t('property.centralHeating')}</option>
+          <option value="floor">{t('property.floorHeating')}</option>
+          <option value="electric">{t('property.electricHeating')}</option>
+          <option value="single_stove">{t('property.singleStove')}</option>
+          <option value="none">{t('common.none')}</option>
         </Select>
       </Field>
-      <Field label="Energieträger / Wärmeerzeuger" required invalid={errors.includes('heatingEnergySource')}>
+      <Field label={t('property.energySource')} required invalid={errors.includes('heatingEnergySource')}>
         <Select value={draft.heatingEnergySource || ''} onChange={(event) => setDraft({ ...draft, heatingEnergySource: event.target.value })}>
-          <option value="">Bitte wählen</option>
-          <option value="gas">Gas</option>
-          <option value="oil">Öl</option>
-          <option value="district_heating">Fernwärme</option>
-          <option value="heat_pump">Wärmepumpe</option>
-          <option value="electricity">Strom</option>
-          <option value="wood_pellets">Holz/Pellets</option>
-          <option value="hybrid">Hybrid</option>
-          <option value="other">Sonstige</option>
+          <option value="">{t('common.select')}</option>
+          <option value="gas">{t('property.gas')}</option>
+          <option value="oil">{t('property.oil')}</option>
+          <option value="district_heating">{t('property.districtHeating')}</option>
+          <option value="heat_pump">{t('property.heatPump')}</option>
+          <option value="electricity">{t('property.electricity')}</option>
+          <option value="wood_pellets">{t('property.woodPellets')}</option>
+          <option value="hybrid">{t('property.hybrid')}</option>
+          <option value="other">{t('property.other')}</option>
         </Select>
       </Field>
-      <Field label="Heizungsjahr" required invalid={errors.includes('heatingYear')}><Input type="text" inputMode="numeric" value={draft.heatingYear} onChange={(event) => setDraft({ ...draft, heatingYear: event.target.value })} /></Field>
+      <Field label={t('property.heatingYear')} required invalid={errors.includes('heatingYear')}><Input type="text" inputMode="numeric" value={draft.heatingYear} onChange={(event) => setDraft({ ...draft, heatingYear: event.target.value })} /></Field>
     </div>
     {draft.heatingEnergySource === 'other' && (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-        <Field label="Beschreibung Energieträger" required invalid={errors.includes('heatingEnergySourceOther')}>
+        <Field label={t('property.energySourceDescription')} required invalid={errors.includes('heatingEnergySourceOther')}>
           <Input value={draft.heatingEnergySourceOther || ''} onChange={(event) => setDraft({ ...draft, heatingEnergySourceOther: event.target.value })} />
         </Field>
       </div>
     )}
 
     <div style={{ display: 'grid', gridTemplateColumns: draft.energyCertificateAvailable ? '1fr 1fr 1fr' : '1fr 2fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Energieausweis" required invalid={errors.includes('energyCertificateAvailable')}>
+      <Field label={t('property.energyCertificate')} required invalid={errors.includes('energyCertificateAvailable')}>
         <Select value={draft.energyCertificateAvailable === true ? 'yes' : draft.energyCertificateAvailable === false ? 'no' : ''} onChange={(event) => setDraft({ ...draft, energyCertificateAvailable: event.target.value === '' ? '' : event.target.value === 'yes' })}>
-          <option value="">Bitte wählen</option>
-          <option value="no">nicht vorhanden</option>
-          <option value="yes">vorhanden</option>
+          <option value="">{t('common.select')}</option>
+          <option value="no">{t('property.notAvailable')}</option>
+          <option value="yes">{t('property.available')}</option>
         </Select>
       </Field>
       {draft.energyCertificateAvailable && (
         <>
-          <Field label="Typ Energieausweis" required invalid={errors.includes('energyCertificateType')}>
+          <Field label={t('property.certificateType')} required invalid={errors.includes('energyCertificateType')}>
             <Select value={draft.energyCertificateType} onChange={(event) => setDraft({ ...draft, energyCertificateType: event.target.value })}>
-              <option value="">Bitte wählen</option>
-              <option value="demand">Bedarfsausweis</option>
-              <option value="consumption">Verbrauchsausweis</option>
+              <option value="">{t('common.select')}</option>
+              <option value="demand">{t('property.demandCertificate')}</option>
+              <option value="consumption">{t('property.consumptionCertificate')}</option>
             </Select>
           </Field>
-          <Field label="Energieklasse" required invalid={errors.includes('energyClass')}>
+          <Field label={t('property.energyClass')} required invalid={errors.includes('energyClass')}>
             <Select value={draft.energyClass || ''} onChange={(event) => setDraft({ ...draft, energyClass: event.target.value })}>
-              <option value="">Bitte wählen</option>
+              <option value="">{t('common.select')}</option>
               {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((energyClass) => (
                 <option key={energyClass} value={energyClass}>{energyClass}</option>
               ))}
@@ -10222,18 +10290,18 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
       )}
       {!draft.energyCertificateAvailable && (
         <div style={{ alignSelf: 'end', background: theme.mintLight, borderRadius: 6, padding: '9px 12px', fontSize: 12, color: `${theme.ink}99` }}>
-          Folgefelder erscheinen erst, wenn ein Energieausweis vorhanden ist.
+          {t('property.certificateHint')}
         </div>
       )}
     </div>
 
     <div style={{ background: theme.mintLight, borderRadius: 6, padding: '12px 14px', marginBottom: 16 }}>
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>PV / Solar / Speicher</div>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{t('property.solar')}</div>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, color: theme.ink }}>
         {[
-          ['photovoltaik', 'Photovoltaik'],
-          ['solarthermie', 'Solarthermie'],
-          ['batteriespeicher', 'Batteriespeicher'],
+          ['photovoltaik', t('property.photovoltaics')],
+          ['solarthermie', t('property.solarThermal')],
+          ['batteriespeicher', t('property.batteryStorage')],
         ].map(([value, label]) => (
           <label key={value} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input type="checkbox" checked={(draft.energyCarriers || []).includes(value)} onChange={() => {
@@ -10249,38 +10317,38 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Keller" required invalid={errors.includes('basementType')}>
+      <Field label={t('property.basement')} required invalid={errors.includes('basementType')}>
         <Select value={draft.basementType} onChange={(event) => setDraft({ ...draft, basementType: event.target.value })}>
-          <option value="">Bitte wählen</option>
-          <option value="none">kein Keller</option>
-          <option value="partial">teilunterkellert</option>
-          <option value="full">vollunterkellert</option>
+          <option value="">{t('common.select')}</option>
+          <option value="none">{t('property.noBasement')}</option>
+          <option value="partial">{t('property.partialBasement')}</option>
+          <option value="full">{t('property.fullBasement')}</option>
         </Select>
       </Field>
     </div>
 
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-      <Field label="Fenstermaterial" required invalid={errors.includes('windowMaterial')}>
+      <Field label={t('property.windowMaterial')} required invalid={errors.includes('windowMaterial')}>
         <Select value={draft.windowMaterial} onChange={(event) => setDraft({ ...draft, windowMaterial: event.target.value })}>
-          <option value="">Bitte wählen</option>
-          <option value="wood">Holz</option>
-          <option value="aluminium">Aluminium</option>
-          <option value="plastic">Kunststoff</option>
+          <option value="">{t('common.select')}</option>
+          <option value="wood">{t('property.wood')}</option>
+          <option value="aluminium">{t('property.aluminium')}</option>
+          <option value="plastic">{t('property.plastic')}</option>
         </Select>
       </Field>
-      <Field label="Fensterjahr" required invalid={errors.includes('windowInstallationYear')}><Input type="text" inputMode="numeric" value={draft.windowInstallationYear} onChange={(event) => setDraft({ ...draft, windowInstallationYear: event.target.value })} /></Field>
-      <Field label="Asbest im Dach bekannt?" required invalid={errors.includes('asbestosRoofKnown')}>
+      <Field label={t('property.windowYear')} required invalid={errors.includes('windowInstallationYear')}><Input type="text" inputMode="numeric" value={draft.windowInstallationYear} onChange={(event) => setDraft({ ...draft, windowInstallationYear: event.target.value })} /></Field>
+      <Field label={t('property.asbestos')} required invalid={errors.includes('asbestosRoofKnown')}>
         <Select value={draft.asbestosRoofKnown || ''} onChange={(event) => setDraft({ ...draft, asbestosRoofKnown: event.target.value })}>
-          <option value="">Bitte wählen</option>
-          <option value="no">nein</option>
-          <option value="yes">ja</option>
+          <option value="">{t('common.select')}</option>
+          <option value="no">{t('common.no')}</option>
+          <option value="yes">{t('common.yes')}</option>
         </Select>
       </Field>
     </div>
 
-    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Stellplätze / Garagen</div>
+    <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('property.parking')}</div>
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
-      <Field label="Sind Stellplätze, Garagen oder Carports vorhanden?" required invalid={errors.includes('parkingAvailable')}>
+      <Field label={t('property.parkingAvailable')} required invalid={errors.includes('parkingAvailable')}>
         <RadioGroup name="parkingAvailable" value={draft.parkingAvailable === true ? 'yes' : draft.parkingAvailable === false ? 'no' : ''} onChange={(value) => {
           const yes = value === 'yes';
           setDraft({
@@ -10291,36 +10359,36 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
             parkingCount: yes ? (parkingCountTotal(normalizedParkingEntries(draft)) || '1') : '',
           });
         }} options={[
-          { value: 'no', label: 'Nein' },
-          { value: 'yes', label: 'Ja' },
+          { value: 'no', label: t('common.no') },
+          { value: 'yes', label: t('common.yes') },
         ]} />
       </Field>
       {draft.parkingAvailable === true && (
         <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
           {normalizedParkingEntries(draft).map((entry, index) => (
             <div key={entry.id || index} style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.55fr 1fr 1.4fr auto', gap: 10, alignItems: 'end', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>
-              <Field label="Typ" required invalid={errors.includes('parkingType') && !entry.type}>
+              <Field label={t('property.parkingType')} required invalid={errors.includes('parkingType') && !entry.type}>
                 <Select value={entry.type || ''} onChange={(event) => {
                   const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, type: event.target.value } : item);
                   setDraft({ ...draft, parkingEntries: entries, parkingType: primaryParkingType(entries) || '' });
                 }}>
-                  <option value="">Bitte wählen</option>
-                  {Object.entries(parkingEntryTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  <option value="">{t('common.select')}</option>
+                  {Object.keys(parkingEntryTypeLabels).map((value) => <option key={value} value={value}>{t(`property.parkingTypes.${value}`)}</option>)}
                 </Select>
               </Field>
-              <Field label="Anzahl" required invalid={errors.includes('parkingCount') && !(Number(entry.count) > 0)}>
+              <Field label={t('property.parkingCount')} required invalid={errors.includes('parkingCount') && !(Number(entry.count) > 0)}>
                 <Input type="text" inputMode="numeric" value={entry.count || ''} onChange={(event) => {
                   const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, count: event.target.value } : item);
                   setDraft({ ...draft, parkingEntries: entries, parkingCount: parkingCountTotal(entries) || '' });
                 }} />
               </Field>
-              <Field label="Miete je Einheit optional">
+              <Field label={t('property.parkingRent')}>
                 <Input type="text" inputMode="decimal" value={entry.monthlyRent || ''} onChange={(event) => {
                   const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, monthlyRent: event.target.value } : item);
                   setDraft({ ...draft, parkingEntries: entries });
                 }} />
               </Field>
-              <Field label="Kommentar optional">
+              <Field label={t('property.parkingComment')}>
                 <Input value={entry.comment || ''} onChange={(event) => {
                   const entries = normalizedParkingEntries(draft).map((item, itemIndex) => itemIndex === index ? { ...item, comment: event.target.value } : item);
                   setDraft({ ...draft, parkingEntries: entries });
@@ -10330,7 +10398,7 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
                 const entries = normalizedParkingEntries(draft).filter((_, itemIndex) => itemIndex !== index);
                 setDraft({ ...draft, parkingEntries: entries, parkingAvailable: entries.length ? true : false, parkingType: entries.length ? primaryParkingType(entries) || '' : 'none', parkingCount: parkingCountTotal(entries) || '' });
               }} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
-                Entfernen
+                {t('buttons.remove')}
               </button>
             </div>
           ))}
@@ -10338,23 +10406,23 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
             const entries = [...normalizedParkingEntries(draft), newParkingEntry()];
             setDraft({ ...draft, parkingEntries: entries, parkingAvailable: true, parkingType: primaryParkingType(entries) || 'garage', parkingCount: parkingCountTotal(entries) || '1' });
           }} style={{ justifySelf: 'start', background: 'white', border: `1px solid ${theme.aubergine}44`, color: theme.aubergine, borderRadius: 5, padding: '8px 11px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
-            Stellplatz / Garage hinzufügen
+            {t('buttons.addParking')}
           </button>
         </div>
       )}
     </div>
 
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Restschuld</div>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('property.remainingDebt')}</div>
       <div style={{ display: 'grid', gridTemplateColumns: draft.remainingDebtKnown === true ? '1fr 1fr' : '1fr', gap: 16 }}>
-        <Field label="Ist eine Restschuld bekannt?" required invalid={errors.includes('remainingDebtKnown')}>
+        <Field label={t('property.remainingDebtKnown')} required invalid={errors.includes('remainingDebtKnown')}>
           <RadioGroup name="remainingDebtKnown" value={draft.remainingDebtKnown === true ? 'yes' : draft.remainingDebtKnown === false ? 'no' : ''} onChange={(value) => setDraft({ ...draft, remainingDebtKnown: value === 'yes', remainingDebtAmount: value === 'yes' ? draft.remainingDebtAmount : '' })} options={[
-            { value: 'no', label: 'Nein' },
-            { value: 'yes', label: 'Ja' },
+            { value: 'no', label: t('common.no') },
+            { value: 'yes', label: t('common.yes') },
           ]} />
         </Field>
         {draft.remainingDebtKnown === true && (
-          <Field label="Restschuld (€)" required invalid={errors.includes('remainingDebtAmount')}>
+          <Field label={t('property.remainingDebtAmount')} required invalid={errors.includes('remainingDebtAmount')}>
             <Input type="text" inputMode="decimal" value={draft.remainingDebtAmount} onChange={(event) => setDraft({ ...draft, remainingDebtAmount: event.target.value })} />
           </Field>
         )}
@@ -10365,76 +10433,78 @@ const FormStep3 = ({ draft, setDraft, errors = [] }) => (
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <AlertTriangle size={16} style={{ color: theme.error }} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.ink, marginBottom: 6 }}>Ausschlusskriterien</div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.ink, marginBottom: 6 }}>{t('property.exclusion')}</div>
           <div style={{ display: 'flex', gap: 20, fontSize: 12.5, color: theme.ink, flexWrap: 'wrap', marginBottom: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={draft.leasehold} onChange={(event) => setDraft({ ...draft, leasehold: event.target.checked })} style={{ accentColor: theme.error }} /> Erbbaurecht
+              <input type="checkbox" checked={draft.leasehold} onChange={(event) => setDraft({ ...draft, leasehold: event.target.checked })} style={{ accentColor: theme.error }} /> {t('property.leasehold')}
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={draft.monumentProtection} onChange={(event) => setDraft({ ...draft, monumentProtection: event.target.checked })} style={{ accentColor: theme.error }} /> Denkmalschutz
+              <input type="checkbox" checked={draft.monumentProtection} onChange={(event) => setDraft({ ...draft, monumentProtection: event.target.checked })} style={{ accentColor: theme.error }} /> {t('property.listed')}
             </label>
           </div>
           <div style={{ display: 'grid', gap: 10 }}>
-            <Field label="Sind größere Instandhaltungen, Sanierungsmaßnahmen oder Sonderumlagen bekannt oder absehbar?" required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessments')} errorMessage={fieldErrorMessages.knownMajorMaintenanceOrSpecialAssessments}>
+            <Field label={t('property.majorMaintenance')} required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessments')} errorMessage={t('validation.selectMaintenance')}>
               <RadioGroup name="knownMajorMaintenanceOrSpecialAssessments" value={draft.knownMajorMaintenanceOrSpecialAssessments === true ? 'yes' : draft.knownMajorMaintenanceOrSpecialAssessments === false ? 'no' : ''} onChange={(value) => setDraft({ ...draft, knownMajorMaintenanceOrSpecialAssessments: value === 'yes', knownMajorMaintenanceOrSpecialAssessmentsDescription: value === 'yes' ? draft.knownMajorMaintenanceOrSpecialAssessmentsDescription : '' })} options={[
-                { value: 'no', label: 'Nein' },
-                { value: 'yes', label: 'Ja' },
+                { value: 'no', label: t('common.no') },
+                { value: 'yes', label: t('common.yes') },
               ]} />
             </Field>
             {draft.knownMajorMaintenanceOrSpecialAssessments === true && (
-              <Field label="Bitte kurz erläutern" required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessmentsDescription')} errorMessage={fieldErrorMessages.knownMajorMaintenanceOrSpecialAssessmentsDescription}>
+              <Field label={t('property.explain')} required invalid={errors.includes('knownMajorMaintenanceOrSpecialAssessmentsDescription')} errorMessage={t('validation.explain')}>
                 <textarea value={draft.knownMajorMaintenanceOrSpecialAssessmentsDescription || ''} onChange={(event) => setDraft({ ...draft, knownMajorMaintenanceOrSpecialAssessmentsDescription: event.target.value })} rows={2} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
               </Field>
             )}
           </div>
-          <div style={{ fontSize: 11, color: theme.error, marginTop: 6 }}>Wenn aktiviert, kann der Fall nicht eingereicht werden.</div>
+          <div style={{ fontSize: 11, color: theme.error, marginTop: 6 }}>{t('property.exclusionHint')}</div>
         </div>
       </div>
     </div>
 
     <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderLeft: `4px solid ${theme.oliv}`, borderRadius: 8, padding: '12px 14px', marginTop: 12, marginBottom: 16 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.ink, marginBottom: 4 }}>Hinweis zur Vorprüfung</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.ink, marginBottom: 4 }}>{t('property.precheckHintTitle')}</div>
       <div style={{ fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45 }}>
-        Bitte prüfen Sie die folgenden Ausschlusskriterien sorgfältig. Wenn eines der Kriterien zutrifft, kann der Fall möglicherweise nicht weiterbearbeitet werden oder erfordert eine interne Prüfung.
+        {t('property.precheckHint')}
       </div>
     </div>
 
     <div style={{ marginTop: 16 }}>
-      <Field label="Bekannte Mängel / Hinweise">
-        <textarea value={draft.knownDefects} onChange={(event) => setDraft({ ...draft, knownDefects: event.target.value })} rows={3} placeholder="z.B. Feuchtigkeit, Reparaturen, Sanierungsdiskussionen" style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+      <Field label={t('property.knownDefects')}>
+        <textarea value={draft.knownDefects} onChange={(event) => setDraft({ ...draft, knownDefects: event.target.value })} rows={3} placeholder={t('property.knownDefectsPlaceholder')} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
       </Field>
     </div>
     <div style={{ marginTop: 16 }}>
-      <Field label="Allgemeine Notizen zur Immobilie">
-        <textarea value={draft.generalPropertyNotes} onChange={(event) => setDraft({ ...draft, generalPropertyNotes: event.target.value })} rows={3} placeholder="Interne Hinweise oder Besonderheiten für die Prüfung" style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+      <Field label={t('property.notes')}>
+        <textarea value={draft.generalPropertyNotes} onChange={(event) => setDraft({ ...draft, generalPropertyNotes: event.target.value })} rows={3} placeholder={t('property.notesPlaceholder')} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
       </Field>
     </div>
   </div>
-);
+  );
+};
 
 const modernizationFields = [
-  ['heating', 'Heizung'],
-  ['roof', 'Dach'],
-  ['facade', 'Fassade'],
-  ['windows', 'Fenster'],
-  ['lines', 'Leitungen'],
-  ['bathrooms', 'Bäder'],
+  ['heating'],
+  ['roof'],
+  ['facade'],
+  ['windows'],
+  ['lines'],
+  ['bathrooms'],
 ];
 
 const buildingConditionFields = [
-  ['roof', 'Dach'],
-  ['facade', 'Fassade'],
-  ['masonry', 'Mauerwerk'],
-  ['windows', 'Fenster'],
-  ['basement', 'Keller'],
-  ['electric', 'Elektrik'],
-  ['sanitary', 'Sanitär'],
-  ['interior', 'Innenausbau'],
-  ['outdoor', 'Außenanlagen'],
-  ['other', 'Sonstiges'],
+  ['roof'],
+  ['facade'],
+  ['masonry'],
+  ['windows'],
+  ['basement'],
+  ['electric'],
+  ['sanitary'],
+  ['interior'],
+  ['outdoor'],
+  ['other'],
 ];
 
 const FormStep4 = ({ draft, setDraft, errors = [] }) => {
+  const t = useTranslations('customers.intake');
   const setModernization = (key, patch) => setDraft({
     ...draft,
     modernization: {
@@ -10451,53 +10521,53 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
   });
   return (
     <div>
-      <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Modernisierungen</h2>
-      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>Bitte erfasse zuerst die durchgeführten Modernisierungen. Der aktuelle Zustand der Bauteile folgt separat darunter.</div>
+      <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>{t('modernisations.title')}</h2>
+      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 22 }}>{t('modernisations.intro')}</div>
 
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Modernisierung</div>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('modernisations.modernisation')}</div>
       <div style={{ display: 'grid', gap: 10, marginBottom: 22 }}>
-        {modernizationFields.map(([key, label]) => (
+        {modernizationFields.map(([key]) => (
           <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 0.85fr 0.9fr 1.6fr', gap: 10, alignItems: 'end', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>
-            <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, paddingBottom: 9 }}>{label}</div>
-            <Field label="Status">
+            <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, paddingBottom: 9 }}>{t(`modernisations.components.${key}`)}</div>
+            <Field label={t('modernisations.status')}>
               <Select value={draft.modernization?.[key]?.scope || 'none'} onChange={(event) => setModernization(key, { scope: event.target.value })}>
-                <option value="none">keine</option>
-                <option value="partial">teilweise</option>
-                <option value="complete">vollständig</option>
+                <option value="none">{t('modernisations.none')}</option>
+                <option value="partial">{t('modernisations.partial')}</option>
+                <option value="complete">{t('modernisations.complete')}</option>
               </Select>
             </Field>
-            <Field label="Jahr" required={draft.modernization?.[key]?.scope && draft.modernization[key].scope !== 'none'} invalid={errors.includes(`modernizationYear${key.charAt(0).toUpperCase()}${key.slice(1)}`)}>
-              <Input value={draft.modernization?.[key]?.year || ''} onChange={(event) => setModernization(key, { year: event.target.value })} placeholder="z.B. 2018" />
+            <Field label={t('modernisations.year')} required={draft.modernization?.[key]?.scope && draft.modernization[key].scope !== 'none'} invalid={errors.includes(`modernizationYear${key.charAt(0).toUpperCase()}${key.slice(1)}`)}>
+              <Input value={draft.modernization?.[key]?.year || ''} onChange={(event) => setModernization(key, { year: event.target.value })} placeholder="2018" />
             </Field>
-            <Field label="Hinweis">
-              <Input value={draft.modernization?.[key]?.note || ''} onChange={(event) => setModernization(key, { note: event.target.value })} placeholder="kurzer Hinweis" />
+            <Field label={t('modernisations.note')}>
+              <Input value={draft.modernization?.[key]?.note || ''} onChange={(event) => setModernization(key, { note: event.target.value })} placeholder={t('modernisations.notePlaceholder')} />
             </Field>
           </div>
         ))}
       </div>
 
-      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Zustand</div>
+      <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('modernisations.condition')}</div>
       <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
-        {buildingConditionFields.map(([key, label]) => {
+        {buildingConditionFields.map(([key]) => {
           const value = buildingConditionValue(draft.buildingCondition?.[key]);
           const errorKey = `buildingCondition${key.charAt(0).toUpperCase()}${key.slice(1)}`;
           return (
             <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 10, alignItems: 'end', background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>
-              <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, paddingBottom: 9 }}>{label}</div>
-              <Field label="Zustandsbewertung" required={key !== 'other'} invalid={errors.includes(errorKey)}>
+              <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 700, paddingBottom: 9 }}>{t(`modernisations.components.${key}`)}</div>
+              <Field label={t('modernisations.conditionRating')} required={key !== 'other'} invalid={errors.includes(errorKey)}>
                 <Select value={value.rating} onChange={(event) => setBuildingCondition(key, { rating: event.target.value })}>
-                  <option value="">Bitte wählen</option>
-                  <option value="very_good">sehr gut</option>
-                  <option value="good">gut</option>
-                  <option value="medium">mittel</option>
-                  <option value="moderate">mäßig</option>
-                  <option value="bad">schlecht</option>
-                  <option value="very_bad">sehr schlecht</option>
-                  <option value="unknown">unbekannt</option>
+                  <option value="">{t('common.select')}</option>
+                  <option value="very_good">{t('property.veryGood')}</option>
+                  <option value="good">{t('property.good')}</option>
+                  <option value="medium">{t('property.average')}</option>
+                  <option value="moderate">{t('property.fair')}</option>
+                  <option value="bad">{t('property.poor')}</option>
+                  <option value="very_bad">{t('property.veryPoor')}</option>
+                  <option value="unknown">{t('common.unknown')}</option>
                 </Select>
               </Field>
-              <Field label="Zustandsbeschreibung">
-                <Input value={value.description} onChange={(event) => setBuildingCondition(key, { description: event.target.value })} placeholder="z.B. keine sichtbaren Schäden" />
+              <Field label={t('modernisations.conditionDescription')}>
+                <Input value={value.description} onChange={(event) => setBuildingCondition(key, { description: event.target.value })} placeholder={t('modernisations.conditionPlaceholder')} />
               </Field>
             </div>
           );
@@ -10505,29 +10575,29 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
       </div>
 
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 20 }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>Objektprüfung</div>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{t('modernisations.inspection')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 16 }}>
-          <Field label="Sind Feuchtigkeit, Schimmel oder Wasserschäden bekannt?" required invalid={errors.includes('moistureDamageStatus')}>
+          <Field label={t('modernisations.moisture')} required invalid={errors.includes('moistureDamageStatus')}>
             <Select value={draft.moistureDamageStatus || ''} onChange={(event) => setDraft({ ...draft, moistureDamageStatus: event.target.value, moistureDamageDescription: event.target.value === 'NONE' ? '' : draft.moistureDamageDescription })}>
-              <option value="">Bitte wählen</option>
-              <option value="NONE">Nein</option>
-              <option value="MINOR">Ja, geringfügig</option>
-              <option value="SIGNIFICANT">Ja, erheblich</option>
+              <option value="">{t('common.select')}</option>
+              <option value="NONE">{t('common.no')}</option>
+              <option value="MINOR">{t('modernisations.minor')}</option>
+              <option value="SIGNIFICANT">{t('modernisations.significant')}</option>
             </Select>
           </Field>
         </div>
         {(draft.moistureDamageStatus === 'MINOR' || draft.moistureDamageStatus === 'SIGNIFICANT') && (
           <div style={{ marginBottom: 16 }}>
-            <Field label="Bitte Feuchtigkeit, Schimmel oder Wasserschäden beschreiben" required invalid={errors.includes('moistureDamageDescription')}>
+            <Field label={t('modernisations.moistureDescription')} required invalid={errors.includes('moistureDamageDescription')}>
               <textarea value={draft.moistureDamageDescription || ''} onChange={(event) => setDraft({ ...draft, moistureDamageDescription: event.target.value })} rows={3} style={{ width: '100%', padding: '8px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
             </Field>
           </div>
         )}
-        <Field label="Einschätzung Zugänglichkeit" required invalid={errors.includes('accessibilityAssessment')}>
+        <Field label={t('modernisations.accessibility')} required invalid={errors.includes('accessibilityAssessment')}>
           <RadioGroup name="accessibilityAssessment" value={draft.accessibilityAssessment || ''} onChange={(value) => setDraft({ ...draft, accessibilityAssessment: value })} options={[
-            { value: 'LOW_BARRIER', label: 'Barrierefrei' },
-            { value: 'PARTIALLY_RESTRICTED', label: 'Teilweise eingeschränkt' },
-            { value: 'STRONGLY_RESTRICTED', label: 'Stark eingeschränkt' },
+            { value: 'LOW_BARRIER', label: t('modernisations.barrierFree') },
+            { value: 'PARTIALLY_RESTRICTED', label: t('modernisations.partiallyRestricted') },
+            { value: 'STRONGLY_RESTRICTED', label: t('modernisations.stronglyRestricted') },
           ]} />
         </Field>
       </div>
@@ -10536,6 +10606,7 @@ const FormStep4 = ({ draft, setDraft, errors = [] }) => {
 };
 
 const FormStep5 = ({ draft, setDraft, errors = [] }) => {
+  const t = useTranslations('customers.intake');
   const requiredDocuments = getRequiredDocumentsForPropertyType(draft.propertyType);
   const optionalDocuments = getOptionalDocumentsForPropertyType(draft.propertyType).filter((item) => item.category !== 'power_of_attorney');
   const uploads = draft.documentUploads || {};
@@ -10565,25 +10636,27 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
     const files = uploads[item.category] || [];
     const existing = draft.existingDocumentCategories?.includes(item.category);
     const missing = level === 'required' && (customErrorKey ? errors.includes(customErrorKey) : errors.includes(`document:${item.category}`));
+    const itemLabel = t.has(`documents.categories.${item.category}`) ? t(`documents.categories.${item.category}`) : item.label;
+    const itemNote = t.has(`documents.notes.${item.category}`) ? t(`documents.notes.${item.category}`) : item.note;
     return (
       <div key={`${level}-${item.category}`} style={{ background: 'white', border: `1px solid ${missing ? `${theme.error}66` : theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             {files.length || existing ? <CheckCircle size={15} style={{ color: theme.success }} /> : <FileText size={15} style={{ color: missing ? theme.error : theme.aubergine }} />}
-            <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{item.label}</div>
+            <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{itemLabel}</div>
             <span style={{ fontSize: 10.5, fontWeight: 800, color: level === 'required' ? theme.gold : `${theme.ink}77`, background: level === 'required' ? theme.goldSoft : theme.mintLight, borderRadius: 12, padding: '2px 8px' }}>
-              {level === 'required' ? 'Pflicht' : 'Optional'}
+              {level === 'required' ? t('common.required') : t('common.optional')}
             </span>
           </div>
-          {item.note && <div style={{ fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.4 }}>{item.note}</div>}
-          {existing && <div style={{ fontSize: 11.5, color: theme.success, fontWeight: 800, marginTop: 6 }}>Bereits im Kundenordner vorhanden.</div>}
-          {missing && <div style={{ fontSize: 11.5, color: theme.error, fontWeight: 800, marginTop: 6 }}>Diese Unterlage fehlt noch.</div>}
+          {itemNote && <div style={{ fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.4 }}>{itemNote}</div>}
+          {existing && <div style={{ fontSize: 11.5, color: theme.success, fontWeight: 800, marginTop: 6 }}>{t('documents.existing')}</div>}
+          {missing && <div style={{ fontSize: 11.5, color: theme.error, fontWeight: 800, marginTop: 6 }}>{t('documents.missing')}</div>}
           {files.length > 0 && (
             <div style={{ display: 'grid', gap: 5, marginTop: 9 }}>
               {files.map((file, index) => (
                 <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: theme.ink, background: theme.mintLighter, borderRadius: 5, padding: '5px 7px' }}>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                  <button type="button" onClick={() => removeFile(item.category, index)} style={{ background: 'transparent', border: 'none', color: theme.error, cursor: 'pointer', display: 'flex', padding: 1 }} aria-label="Datei entfernen">
+                  <button type="button" onClick={() => removeFile(item.category, index)} style={{ background: 'transparent', border: 'none', color: theme.error, cursor: 'pointer', display: 'flex', padding: 1 }} aria-label={t('buttons.removeFile')}>
                     <X size={13} />
                   </button>
                 </div>
@@ -10592,7 +10665,7 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
           )}
         </div>
         <label style={{ background: theme.aubergine, color: 'white', borderRadius: 5, padding: '7px 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-          <Upload size={13} /> Datei hochladen
+          <Upload size={13} /> {t('buttons.uploadFile')}
           <input type="file" multiple accept="application/pdf,image/*" onChange={(event) => {
             appendFiles(item.category, event.target.files);
             event.target.value = '';
@@ -10604,31 +10677,31 @@ const FormStep5 = ({ draft, setDraft, errors = [] }) => {
 
   return (
     <div>
-      <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>Dokumente</h2>
-      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 12 }}>Bitte lade die Unterlagen direkt in der jeweiligen Zeile hoch. Pro Unterlage sind beliebig viele Dateien möglich.</div>
+      <h2 style={{ fontSize: 18, fontWeight: 600, color: theme.aubergine, margin: '0 0 4px' }}>{t('documents.title')}</h2>
+      <div style={{ fontSize: 12.5, color: `${theme.ink}99`, marginBottom: 12 }}>{t('documents.intro')}</div>
       <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', marginBottom: 16, fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
-        Vor dem Einreichen prüfen wir automatisch, ob alle erforderlichen Angaben und Dokumente vorhanden sind.
+        {t('documents.submitHint')}
       </div>
 
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px', marginBottom: 18 }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Pflichtdokumente</div>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{t('documents.required')}</div>
         <div style={{ display: 'grid', gap: 10 }}>
           {requiredDocuments.map((item) => row(item, 'required', item.category === 'land_register' ? 'document:land_register_or_power' : undefined))}
           {!hasUploadedDocument(draft, 'land_register') && row({
             category: 'power_of_attorney',
-            label: 'Vollmacht Grundbuch',
-            note: 'Nur erforderlich, solange kein aktueller Grundbuchauszug hochgeladen wurde.'
+            label: t('documents.powerOfAttorney'),
+            note: t('documents.powerHint')
           }, 'required', 'document:land_register_or_power')}
         </div>
         {draft.propertyType === 'apartment' && (
           <div style={{ marginTop: 10, background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 6, padding: '9px 11px', fontSize: 11.5, color: theme.ink, lineHeight: 1.45 }}>
-            Wohnungssonderfälle: Teilungserklärung, Hausgeld, Protokolle und Instandhaltungsrücklage sind für Eigentumswohnungen verpflichtend zu prüfen.
+            {t('documents.apartmentHint')}
           </div>
         )}
       </div>
 
       <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '14px 16px' }}>
-        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>Weitere Unterlagen</div>
+        <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{t('documents.additional')}</div>
         <div style={{ display: 'grid', gap: 10 }}>
           {optionalDocuments.map((item) => row(item, 'optional'))}
         </div>
@@ -10736,25 +10809,14 @@ const emptyLeadDraft = {
 };
 
 const germanFederalStates = [
-  'Baden-Württemberg',
-  'Bayern',
-  'Berlin',
-  'Brandenburg',
-  'Bremen',
-  'Hamburg',
-  'Hessen',
-  'Mecklenburg-Vorpommern',
-  'Niedersachsen',
-  'Nordrhein-Westfalen',
-  'Rheinland-Pfalz',
-  'Saarland',
-  'Sachsen',
-  'Sachsen-Anhalt',
-  'Schleswig-Holstein',
-  'Thüringen'
+  ['BW', 'Baden-Württemberg'], ['BY', 'Bayern'], ['BE', 'Berlin'], ['BB', 'Brandenburg'],
+  ['HB', 'Bremen'], ['HH', 'Hamburg'], ['HE', 'Hessen'], ['MV', 'Mecklenburg-Vorpommern'],
+  ['NI', 'Niedersachsen'], ['NW', 'Nordrhein-Westfalen'], ['RP', 'Rheinland-Pfalz'], ['SL', 'Saarland'],
+  ['SN', 'Sachsen'], ['ST', 'Sachsen-Anhalt'], ['SH', 'Schleswig-Holstein'], ['TH', 'Thüringen']
 ];
 
 const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'create', onSubmit, onCancel, submitting }) => {
+  const t = useTranslations('leads');
   const activePartners = partners.filter((partner) => partner.status === 'active');
   const advisorOptions = staff.filter((member) => ['employee', 'advisor', 'admin', 'super_admin'].includes(member.internalRole));
   const brokerLead = draft.source === 'partner';
@@ -10770,14 +10832,14 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'c
 
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
-      setPostalLookup({ status: 'loading', entry: null, message: 'PLZ wird geprüft...' });
+      setPostalLookup({ status: 'loading', entry: null, message: t('postalLookup.loading') });
       try {
         const response = await fetch(`/api/geo/postal-code?postalCode=${encodeURIComponent(postalCode)}`, {
           signal: controller.signal
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload.status !== 'FOUND') {
-          setPostalLookup({ status: 'missing', entry: null, message: 'Bundesland konnte nicht automatisch erkannt werden. Bitte manuell auswählen.' });
+          setPostalLookup({ status: 'missing', entry: null, message: t('postalLookup.notFound') });
           return;
         }
 
@@ -10794,11 +10856,11 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'c
         setPostalLookup({
           status: 'found',
           entry,
-          message: `Bundesland automatisch anhand der PLZ erkannt.${entry.city ? ` Ort: ${entry.city}.` : ''}`
+          message: t('postalLookup.found', {city: entry.city || ''})
         });
       } catch (error) {
         if (error?.name !== 'AbortError') {
-          setPostalLookup({ status: 'missing', entry: null, message: 'Bundesland konnte nicht automatisch erkannt werden. Bitte manuell auswählen.' });
+          setPostalLookup({ status: 'missing', entry: null, message: t('postalLookup.notFound') });
         }
       }
     }, 300);
@@ -10818,46 +10880,46 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'c
     <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '18px 20px', marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>Interne Lead-Erfassung</div>
-          <h2 style={{ margin: 0, color: theme.aubergine, fontSize: 20 }}>{mode === 'edit' ? 'Lead bearbeiten' : 'Lead erfassen'}</h2>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{t('sections.internalCapture')}</div>
+          <h2 style={{ margin: 0, color: theme.aubergine, fontSize: 20 }}>{mode === 'edit' ? t('edit') : t('create')}</h2>
           <p style={{ margin: '6px 0 0', color: `${theme.ink}99`, fontSize: 12.5, lineHeight: 1.45 }}>
-            Dieser Interessent ist noch kein Kundenfall. Nach Prüfung kann der Lead einem Makler zugewiesen oder in einen Kundenfall umgewandelt werden.
+            {t('intro')}
           </p>
         </div>
-        <button type="button" onClick={onCancel} style={{ alignSelf: 'start', background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '7px 10px', cursor: 'pointer', fontWeight: 800 }}>Schließen</button>
+        <button type="button" onClick={onCancel} style={{ alignSelf: 'start', background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '7px 10px', cursor: 'pointer', fontWeight: 800 }}>{t('buttons.close')}</button>
       </div>
 
       <div style={{ display: 'grid', gap: 16 }}>
         <section>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Interessent</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>{t('sections.prospect')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-            {field('Vorname', 'firstName')}
-            {field('Nachname', 'lastName')}
-            {field('Telefon', 'phone')}
-            {field('Mobil', 'mobilePhone')}
-            {field('E-Mail', 'email', { type: 'email' })}
-            {field('Straße', 'street')}
-            {field('Hausnummer', 'houseNumber', { type: 'text' })}
-            {field('PLZ', 'postalCode', { inputMode: 'numeric', maxLength: 5, autoComplete: 'postal-code' })}
-            {field('Ort', 'city')}
+            {field(t('fields.firstName'), 'firstName')}
+            {field(t('fields.lastName'), 'lastName')}
+            {field(t('fields.telephone'), 'phone')}
+            {field(t('fields.mobile'), 'mobilePhone')}
+            {field(t('fields.email'), 'email', { type: 'email' })}
+            {field(t('fields.street'), 'street')}
+            {field(t('fields.houseNumber'), 'houseNumber', { type: 'text' })}
+            {field(t('fields.postalCode'), 'postalCode', { inputMode: 'numeric', maxLength: 5, autoComplete: 'postal-code' })}
+            {field(t('fields.city'), 'city')}
             <label style={{ display: 'grid', gap: 5 }}>
-              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Bundesland</span>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.federalState')}</span>
               <select value={draft.federalState || ''} onChange={(event) => set('federalState', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
-                <option value="">Bitte auswählen</option>
-                {germanFederalStates.map((state) => <option key={state} value={state}>{state}</option>)}
+                <option value="">{t('placeholders.select')}</option>
+                {germanFederalStates.map(([key, state]) => <option key={key} value={state}>{t(`federalStates.${key}`)}</option>)}
               </select>
             </label>
             <label style={{ display: 'grid', gap: 5 }}>
-              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Bevorzugte Kontaktart</span>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.preferredContact')}</span>
               <select value={draft.preferredContactMethod || ''} onChange={(event) => set('preferredContactMethod', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
-                <option value="phone">Telefon</option>
-                <option value="mobile">Mobil</option>
-                <option value="email">E-Mail</option>
+                <option value="phone">{t('contactMethods.phone')}</option>
+                <option value="mobile">{t('contactMethods.mobile')}</option>
+                <option value="email">{t('contactMethods.email')}</option>
               </select>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 21, fontSize: 12.5, color: theme.ink, fontWeight: 650 }}>
               <input type="checkbox" checked={Boolean(draft.contactConsent)} onChange={(event) => set('contactConsent', event.target.checked)} style={{ accentColor: theme.aubergine }} />
-              Einwilligung zur Kontaktaufnahme
+              {t('fields.contactConsent')}
             </label>
           </div>
           {postalLookup.message ? (
@@ -10874,51 +10936,51 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'c
             </div>
           ) : null}
           <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
-            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Notiz zum Gespräch</span>
+            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.conversationNote')}</span>
             <textarea value={draft.message || ''} onChange={(event) => set('message', event.target.value)} rows={3} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit' }} />
           </label>
         </section>
 
         <section>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Objekt, soweit bekannt</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>{t('sections.propertyKnown')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-            {field('Objektadresse, falls abweichend', 'propertyStreet')}
-            {field('PLZ Objekt', 'propertyPostalCode')}
-            {field('Ort Objekt', 'propertyCity')}
+            {field(t('fields.propertyAddress'), 'propertyStreet')}
+            {field(t('fields.propertyPostalCode'), 'propertyPostalCode')}
+            {field(t('fields.propertyCity'), 'propertyCity')}
             <label style={{ display: 'grid', gap: 5 }}>
-              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Objekttyp</span>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.propertyType')}</span>
               <select value={draft.propertyType || ''} onChange={(event) => set('propertyType', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
-                <option value="">Noch offen</option>
-                <option value="single_family">Einfamilienhaus</option>
-                <option value="semi_detached">Doppelhaushälfte</option>
-                <option value="row_house">Reihenhaus</option>
-                <option value="apartment">Eigentumswohnung</option>
+                <option value="">{t('propertyTypes.unknown')}</option>
+                <option value="single_family">{t('propertyTypes.single_family')}</option>
+                <option value="semi_detached">{t('propertyTypes.semi_detached')}</option>
+                <option value="row_house">{t('propertyTypes.terraced')}</option>
+                <option value="apartment">{t('propertyTypes.apartment')}</option>
               </select>
             </label>
-            {field('Wohnfläche', 'livingAreaSqm', { type: 'text', inputMode: 'decimal' })}
-            {field('Grundstücksfläche', 'plotAreaSqm', { type: 'text', inputMode: 'decimal' })}
-            {field('Baujahr', 'yearBuilt', { type: 'text', inputMode: 'numeric' })}
+            {field(t('fields.livingArea'), 'livingAreaSqm', { type: 'text', inputMode: 'decimal' })}
+            {field(t('fields.plotArea'), 'plotAreaSqm', { type: 'text', inputMode: 'decimal' })}
+            {field(t('fields.yearBuilt'), 'yearBuilt', { type: 'text', inputMode: 'numeric' })}
             <label style={{ display: 'grid', gap: 5 }}>
-              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Gewünschtes Modell</span>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.desiredModel')}</span>
               <select value={draft.productInterest || ''} onChange={(event) => set('productInterest', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
-                <option value="">Noch unklar</option>
-                <option value="fixed_residential_right">Wohnrecht</option>
-                <option value="sale_and_leaseback">Rückmietverkauf</option>
-                <option value="other">Sonstiges</option>
+                <option value="">{t('models.unknown')}</option>
+                <option value="fixed_residential_right">{t('models.residentialRight')}</option>
+                <option value="sale_and_leaseback">{t('models.rentBackSale')}</option>
+                <option value="other">{t('models.other')}</option>
               </select>
             </label>
           </div>
           <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
-            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Grober Zustand / Notiz</span>
+            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.propertyNote')}</span>
             <textarea value={draft.propertyNote || ''} onChange={(event) => set('propertyNote', event.target.value)} rows={2} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit' }} />
           </label>
         </section>
 
         <section>
-          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Lead-Quelle und Routing</div>
+          <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>{t('sections.sourceRouting')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
             <label style={{ display: 'grid', gap: 5 }}>
-              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Lead-Quelle</span>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.source')}</span>
               <select value={draft.source || 'phone'} onChange={(event) => {
                 const nextSource = event.target.value;
                 setDraft((current) => ({
@@ -10929,54 +10991,55 @@ const LeadCreatePanel = ({ draft, setDraft, partners = [], staff = [], mode = 'c
                   routingReason: nextSource === current.source ? current.routingReason : ''
                 }));
               }} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
-                <option value="internal">Direktanfrage</option>
-                <option value="phone">Telefon</option>
-                <option value="website">Homepage</option>
-                <option value="referral">Empfehlung</option>
-                <option value="partner">Makler / Partner</option>
-                <option value="other">Sonstiges</option>
+                <option value="internal">{t('sources.website')}</option>
+                <option value="phone">{t('sources.phone')}</option>
+                <option value="website">{t('sources.homepage')}</option>
+                <option value="referral">{t('sources.referral')}</option>
+                <option value="partner">{t('sources.partner')}</option>
+                <option value="other">{t('sources.other')}</option>
               </select>
             </label>
-            {field('Region', 'region')}
+            {field(t('fields.region'), 'region')}
             <label style={{ display: brokerLead ? 'grid' : 'none', gap: 5 }}>
-              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Zuständiger Partner/Makler</span>
+              <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.assignedPartner')}</span>
               <select value={draft.assignedPartnerId || ''} onChange={(event) => set('assignedPartnerId', event.target.value)} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
-                <option value="">Noch nicht zuweisen</option>
+                <option value="">{t('placeholders.notAssigned')}</option>
                 {activePartners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
               </select>
             </label>
             {!brokerLead && (
               <label style={{ display: 'grid', gap: 5 }}>
-                <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Interner Bearbeiter</span>
+                <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('internalAssignee')}</span>
                 <select value={draft.assignedAdvisorUserId || ''} onChange={(event) => setDraft((current) => ({ ...current, assignedAdvisorUserId: event.target.value, assignedPartnerId: '' }))} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13 }}>
-                  <option value="">Aktueller Nutzer / spÃ¤ter zuweisen</option>
+                  <option value="">{t('placeholders.currentUser')}</option>
                   {advisorOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
                 </select>
               </label>
             )}
-            {brokerLead ? field('Routing-Grund', 'routingReason') : field('Interner Hinweis zur Zuweisung', 'routingReason')}
+            {field(brokerLead ? t('fields.routingReason') : t('placeholders.routingReason'), 'routingReason')}
           </div>
           {!brokerLead && (
             <div style={{ marginTop: 8, fontSize: 12, color: `${theme.ink}88`, lineHeight: 1.4 }}>
-              Direkt-Lead: Eine Partnerzuordnung ist nicht erforderlich. Ohne Auswahl wird der Lead dem aktuell eingeloggten internen Nutzer zugewiesen.
+              {t('routingHint')}
             </div>
           )}
           <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
-            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>Interne Notiz</span>
+            <span style={{ fontSize: 11.5, color: theme.ink, fontWeight: 700 }}>{t('fields.internalNote')}</span>
             <textarea value={draft.internalNote || ''} onChange={(event) => set('internalNote', event.target.value)} rows={2} style={{ border: `1px solid ${theme.border}`, borderRadius: 5, padding: '8px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit' }} />
           </label>
         </section>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
-        <button type="button" onClick={onCancel} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', cursor: 'pointer', fontWeight: 800 }}>Abbrechen</button>
-        <button type="button" disabled={submitting} onClick={() => onSubmit(draft)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 800, opacity: submitting ? 0.6 : 1 }}>{mode === 'edit' ? 'Änderungen speichern' : 'Lead speichern'}</button>
+        <button type="button" onClick={onCancel} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', cursor: 'pointer', fontWeight: 800 }}>{t('buttons.cancel')}</button>
+        <button type="button" disabled={submitting} onClick={() => onSubmit(draft)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 800, opacity: submitting ? 0.6 : 1 }}>{mode === 'edit' ? t('buttons.saveChanges') : t('buttons.save')}</button>
       </div>
     </div>
   );
 };
 
 const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads = role === 'admin', initialCreateOpen = false, initialSelectedLeadId = null, initialDraft = {}, onCreate, onUpdate, onAssign, onConvert, onMarkContacted, onUpdateStatus, loading }) => {
+  const t = useTranslations('leads');
   const [partnerSelection, setPartnerSelection] = useState({});
   const [partnerFilter, setPartnerFilter] = useState('ALL');
   const [search, setSearch] = useState('');
@@ -11028,20 +11091,20 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   const activePartnerCount = activePartners.length;
   const advisorOptions = staff.filter((member) => ['employee', 'advisor', 'admin', 'super_admin'].includes(member.internalRole));
   const assigneeOptions = [
-    ...activePartners.map((partner) => ({ value: `partner:${partner.id}`, label: `Partner · ${partner.contactName || partner.companyName}` })),
-    ...advisorOptions.map((member) => ({ value: `advisor:${member.id}`, label: `Intern · ${member.name}` })),
+    ...activePartners.map((partner) => ({ value: `partner:${partner.id}`, label: `${t('brokerPartner')} · ${partner.contactName || partner.companyName}` })),
+    ...advisorOptions.map((member) => ({ value: `advisor:${member.id}`, label: `${t('sources.admin')} · ${member.name}` })),
   ];
   const adminBuckets = [
-    { key: 'new-leads', label: 'Neue Leads', value: leadStats.new, sub: 'Neue Homepage-Leads und Kontaktanfragen.', action: 'Leads prüfen', icon: TrendingUp },
-    { key: 'qualification', label: 'Qualifizieren', value: leadStats.qualified, sub: 'Geprüfte Leads für die nächste Entscheidung.', action: 'Qualifizierung prüfen', icon: CheckCircle2 },
-    { key: 'assignment', label: 'Zuweisen', value: leadStats.assigned, sub: `${activePartnerCount} aktive Partner und interne Berater.`, action: 'Zuweisungen prüfen', icon: Users },
-    { key: 'follow-up', label: 'Nachfassen', value: leadStats.contacted, sub: 'Kontaktierte Leads mit offenem nächsten Schritt.', action: 'Nachfassen', icon: Phone },
-    { key: 'completed', label: 'Erledigt', value: leadStats.converted + leadStats.rejected, sub: 'Umgewandelte oder abgelehnte Leads.', action: 'Erledigte ansehen', icon: Archive },
+    { key: 'new-leads', label: t('buckets.new.title'), value: leadStats.new, sub: t('buckets.new.description'), action: t('buckets.new.action'), icon: TrendingUp },
+    { key: 'qualification', label: t('buckets.qualify.title'), value: leadStats.qualified, sub: t('buckets.qualify.description'), action: t('buckets.qualify.action'), icon: CheckCircle2 },
+    { key: 'assignment', label: t('buckets.assign.title'), value: leadStats.assigned, sub: t('buckets.assign.activeAssignees', {count: activePartnerCount}), action: t('buckets.assign.action'), icon: Users },
+    { key: 'follow-up', label: t('buckets.followUp.title'), value: leadStats.contacted, sub: t('buckets.followUp.description'), action: t('buckets.followUp.action'), icon: Phone },
+    { key: 'completed', label: t('buckets.completed.title'), value: leadStats.converted + leadStats.rejected, sub: t('buckets.completed.description'), action: t('buckets.completed.action'), icon: Archive },
   ];
   const partnerBuckets = [
-    { key: 'assigned', label: 'Neue Leads', value: leadStats.assigned, sub: 'Zugewiesene Leads prüfen und kontaktieren.', action: 'Leads prüfen', icon: TrendingUp },
-    { key: 'contacted', label: 'Nachfassen', value: leadStats.contacted, sub: 'Kontaktierte Leads als Kundenfall übernehmen.', action: 'Nachfassen', icon: Phone },
-    { key: 'converted', label: 'Umgewandelt', value: leadStats.converted, sub: 'Bereits als Kundenfall angelegte Leads.', action: 'Umgewandelte ansehen', icon: CheckCircle2 },
+    { key: 'assigned', label: t('buckets.assigned.title'), value: leadStats.assigned, sub: t('buckets.assigned.description'), action: t('buckets.assigned.action'), icon: TrendingUp },
+    { key: 'contacted', label: t('buckets.followUp.title'), value: leadStats.contacted, sub: t('buckets.followUp.partnerDescription'), action: t('buckets.followUp.action'), icon: Phone },
+    { key: 'converted', label: t('buckets.converted.title'), value: leadStats.converted, sub: t('buckets.converted.description'), action: t('buckets.converted.action'), icon: CheckCircle2 },
   ];
   const buckets = role === 'admin' ? adminBuckets : partnerBuckets;
   const rowsByBucket = role === 'admin'
@@ -11113,13 +11176,24 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
   const leadName = leadDisplayName;
   const partnerName = (partnerId) => {
     const partner = partners.find((item) => item.id === partnerId);
-    return partner ? `${partner.contactName || partner.companyName}` : 'nicht zugewiesen';
+    return partner ? `${partner.contactName || partner.companyName}` : t('unassigned');
   };
   const assigneeName = (lead) => {
     if (lead.assignedPartnerId) return partnerName(lead.assignedPartnerId);
     const advisor = staff.find((item) => item.id === lead.assignedAdvisorUserId);
-    return advisor ? `${advisor.name} (intern)` : 'nicht zugewiesen';
+    return advisor ? `${advisor.name} ${t('overview.internalSuffix')}` : t('unassigned');
   };
+  const translatedPropertyType = (value) => {
+    const key = value === 'row_house' ? 'terraced' : value;
+    return t.has(`propertyTypes.${key}`) ? t(`propertyTypes.${key}`) : propertyTypeLabel(value);
+  };
+  const translatedModel = (value) => {
+    if (value === 'fixed_residential_right') return t('models.residentialRight');
+    if (value === 'sale_and_leaseback') return t('models.rentBackSale');
+    if (value === 'other') return t('models.other');
+    return t('models.unknown');
+  };
+  const translatedSource = (value) => t.has(`sources.${value}`) ? t(`sources.${value}`) : t('sources.homepage');
   const submitLead = async (draft) => {
     setSavingLead(true);
     try {
@@ -11140,13 +11214,13 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
         <div>
           <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
-            {role === 'admin' ? 'Homepage · Leadverteilung' : 'Zugewiesene Homepage-Leads'}
+            {role === 'admin' ? t('overview.homepageDistribution') : t('overview.assignedHomepage')}
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>Leads</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 600, color: theme.aubergine, margin: 0, letterSpacing: '-0.01em' }}>{t('title')}</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ fontSize: 12, color: `${theme.ink}88` }}>
-            {loading ? 'Leads werden geladen...' : `${filteredLeads.length} von ${visibleLeads.length} Einträgen`}
+            {loading ? t('messages.loading') : t('overview.resultCount', {shown: filteredLeads.length, total: visibleLeads.length})}
           </div>
         </div>
       </div>
@@ -11171,36 +11245,36 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
           <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div>
               <span style={{ fontSize: 14, fontWeight: 600, color: theme.aubergine }}>
-                {activeBucketLabel || (role === 'admin' ? 'Leadverteilung' : 'Zur Bearbeitung')}
+                {activeBucketLabel || (role === 'admin' ? t('overview.distribution') : t('overview.processing'))}
               </span>
               <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>
-                {activeBucket ? 'Gefilterte Lead-Arbeitsliste.' : role === 'admin' ? 'Homepage-Leads qualifizieren, Partner auswählen und übergeben.' : 'Lead kontaktieren und als Kundenfall übernehmen.'}
+                {activeBucket ? t('overview.filteredList') : role === 'admin' ? t('overview.adminHint') : t('overview.brokerHint')}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <div style={{ display: 'flex', alignItems: 'center', background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 5, padding: '6px 10px', minWidth: 220 }}>
                 <Search size={14} style={{ color: `${theme.aubergine}88`, marginRight: 8 }} />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Lead, Ort, Kontakt suchen" style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: 12.5, color: theme.ink }} />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('placeholders.search')} style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontSize: 12.5, color: theme.ink }} />
               </div>
               {role === 'admin' && canAssignLeads && (
                 <select value={partnerFilter} onChange={(event) => setPartnerFilter(event.target.value)} style={{ padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: 'white', fontSize: 12 }}>
-                  <option value="ALL">Alle Zuweisungen</option>
-                  <option value="UNASSIGNED">Nicht zugewiesen</option>
+                  <option value="ALL">{t('overview.allAssignments')}</option>
+                  <option value="UNASSIGNED">{t('unassigned')}</option>
                   {activePartners.map((partner) => <option key={partner.id} value={partner.id}>{partner.contactName || partner.companyName}</option>)}
-                  {advisorOptions.map((member) => <option key={member.id} value={`advisor:${member.id}`}>{member.name} (intern)</option>)}
+                  {advisorOptions.map((member) => <option key={member.id} value={`advisor:${member.id}`}>{member.name} {t('overview.internalSuffix')}</option>)}
                 </select>
               )}
             </div>
           </div>
 
           {filteredLeads.length === 0 ? (
-            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{activeBucket ? 'Keine Vorgänge in diesem Arbeitskorb.' : 'Keine Leads für diesen Filter.'}</div>
+            <div style={{ padding: 28, color: `${theme.ink}88`, fontSize: 13 }}>{activeBucket ? t('empty.bucket') : t('empty.filter')}</div>
           ) : (
             <div className="lead-table-scroll" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: theme.mintLight }}>
-                  {['Lead', 'Kontakt', 'Objektinteresse', 'Status', role === 'admin' ? 'Zuweisung' : 'Aktion'].map((h, i) => (
+                  {[t('lead'), t('fields.contact'), t('fields.propertyInterest'), t('fields.status'), role === 'admin' ? t('fields.assignment') : t('fields.action')].map((h, i) => (
                     <th key={i} style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, fontWeight: 700, color: theme.oliv, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -11223,12 +11297,12 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                       <td style={{ padding: '12px 16px', color: theme.ink }}>
                         <div style={{ fontWeight: 600 }}>{leadName(lead)}</div>
                         <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
-                          {[lead.email, lead.phone].filter(Boolean).join(' · ') || 'Kontaktdaten offen'}
+                          {[lead.email, lead.phone].filter(Boolean).join(' · ') || t('empty.contact')}
                         </div>
                         {lead.message && <div style={{ color: `${theme.ink}99`, fontSize: 12, marginTop: 4, maxWidth: 340, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.message}</div>}
                       </td>
                       <td style={{ padding: '12px 16px', color: `${theme.ink}cc` }}>
-                        <div>{propertyTypeLabel(lead.propertyType)} {lead.propertyCity || lead.city || ''}</div>
+                        <div>{translatedPropertyType(lead.propertyType)} {lead.propertyCity || lead.city || ''}</div>
                         <div style={{ color: `${theme.ink}88`, fontSize: 12, marginTop: 2 }}>
                           {[lead.propertyPostalCode || lead.postalCode, lead.region, lead.estimatedPropertyValueRange && `${lead.estimatedPropertyValueRange} Tsd.`, lead.youngestOwnerAgeRange && `${lead.youngestOwnerAgeRange} Jahre`].filter(Boolean).join(' · ') || '-'}
                         </div>
@@ -11243,7 +11317,7 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                               disabled={assignmentLocked}
                               style={{ minWidth: 180, padding: '7px 10px', border: `1px solid ${theme.border}`, borderRadius: 5, color: theme.ink, background: assignmentLocked ? theme.mintLighter : 'white', opacity: assignmentLocked ? 0.65 : 1 }}
                             >
-                              {assigneeOptions.length === 0 && <option value="">Keine Zuweisung möglich</option>}
+                              {assigneeOptions.length === 0 && <option value="">{t('empty.assignmentUnavailable')}</option>}
                               {assigneeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                             </select>
                             <button
@@ -11251,16 +11325,16 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                               disabled={!selectedAssigneeValue || assignmentLocked}
                               style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: !selectedAssigneeValue || assignmentLocked ? 'not-allowed' : 'pointer', opacity: !selectedAssigneeValue || assignmentLocked ? 0.45 : 1 }}
                             >
-                              {['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status) ? 'Umgewandelt' : lead.status === 'REJECTED' ? 'Abgelehnt' : assignedPartner || assignedAdvisor ? 'Zuweisung ändern' : 'Zuweisen'}
+                              {['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status) ? t('converted') : lead.status === 'REJECTED' ? t('status.REJECTED') : assignedPartner || assignedAdvisor ? t('changeAssignment') : t('assign')}
                             </button>
                           </div>
                         ) : (
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <button onClick={() => onMarkContacted(lead.id)} disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(lead.status) ? 0.45 : 1 }}>
-                              Kontaktiert
+                              {t('buttons.markContacted')}
                             </button>
                             <button onClick={() => onConvert(lead.id)} disabled={!canConvertLead} style={{ background: theme.aubergine, color: 'white', border: 'none', padding: '7px 12px', borderRadius: 5, fontSize: 12, fontWeight: 700, cursor: canConvertLead ? 'pointer' : 'not-allowed', opacity: canConvertLead ? 1 : 0.45 }}>
-                              {role === 'admin' ? 'Kundenfall anlegen' : ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status) ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}
+                              {role === 'admin' ? t('createCustomerCase') : ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(lead.status) ? t('buttons.contactFirst') : t('convertToCustomerCase')}
                             </button>
                           </div>
                         )}
@@ -11286,17 +11360,17 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
               </div>
               <div style={{ display: 'grid', gap: 12, fontSize: 12.5 }}>
                 {[
-                  ['Lead-Typ', selectedLead.assignedPartnerId ? `Makler-Lead · Partner: ${assigneeName(selectedLead)}` : selectedLead.assignedAdvisorUserId ? `Direkt-Lead · zugewiesen an ${assigneeName(selectedLead)}` : 'Nicht zugewiesen'],
-                  ['Quelle', leadSourceLabels[selectedLead.source] || selectedLead.source || 'Homepage'],
-                  ['Erfasst', formatDate(selectedLead.createdAt)],
-                  ['Kontakt', [selectedLead.email, selectedLead.phone, selectedLead.mobilePhone].filter(Boolean).join(' · ') || 'offen'],
-                  ['Objekt', `${propertyTypeLabel(selectedLead.propertyType)} ${selectedLead.propertyCity || selectedLead.city || ''}`.trim()],
-                  ['PLZ', selectedLead.postalCode || '-'],
-                  ['Region', selectedLead.region || '-'],
-                  ['Wertindikation', selectedLead.estimatedPropertyValueRange ? `${selectedLead.estimatedPropertyValueRange} Tsd.` : '-'],
-                  ['Jüngster Eigentümer', selectedLead.youngestOwnerAgeRange ? `${selectedLead.youngestOwnerAgeRange} Jahre` : '-'],
-                  ['Interesse', productModelLabels[selectedLead.productInterest] || '-'],
-                  ['Zuweisung', assigneeName(selectedLead)]
+                  [t('fields.leadType'), selectedLead.assignedPartnerId ? `${t('brokerLead')} · ${t('brokerPartner')}: ${assigneeName(selectedLead)}` : selectedLead.assignedAdvisorUserId ? `${t('directLead')} · ${t('assigned')} ${assigneeName(selectedLead)}` : t('unassigned')],
+                  [t('fields.source'), translatedSource(selectedLead.source)],
+                  [t('fields.created'), formatDate(selectedLead.createdAt)],
+                  [t('fields.contact'), [selectedLead.email, selectedLead.phone, selectedLead.mobilePhone].filter(Boolean).join(' · ') || t('empty.contact')],
+                  [t('fields.property'), `${translatedPropertyType(selectedLead.propertyType)} ${selectedLead.propertyCity || selectedLead.city || ''}`.trim()],
+                  [t('fields.postalCode'), selectedLead.postalCode || '-'],
+                  [t('fields.region'), selectedLead.region || '-'],
+                  [t('fields.valueIndication'), selectedLead.estimatedPropertyValueRange ? t('overview.thousands', {value: selectedLead.estimatedPropertyValueRange}) : '-'],
+                  [t('fields.youngestOwner'), selectedLead.youngestOwnerAgeRange ? t('overview.years', {value: selectedLead.youngestOwnerAgeRange}) : '-'],
+                  [t('fields.interest'), translatedModel(selectedLead.productInterest)],
+                  [t('fields.assignment'), assigneeName(selectedLead)]
                 ].map(([label, value]) => (
                   <div key={label}>
                     <div style={{ color: `${theme.ink}77`, fontSize: 11, fontWeight: 700, marginBottom: 3 }}>{label}</div>
@@ -11304,26 +11378,26 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                   </div>
                 ))}
                 <div>
-                  <div style={{ color: `${theme.ink}77`, fontSize: 11, fontWeight: 700, marginBottom: 3 }}>Nachricht</div>
-                  <div style={{ color: theme.ink, lineHeight: 1.55, background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>{selectedLead.message || 'Keine Nachricht hinterlegt.'}</div>
+                  <div style={{ color: `${theme.ink}77`, fontSize: 11, fontWeight: 700, marginBottom: 3 }}>{t('fields.message')}</div>
+                  <div style={{ color: theme.ink, lineHeight: 1.55, background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '10px 12px' }}>{selectedLead.message || t('empty.message')}</div>
                 </div>
               </div>
 
               {role === 'admin' && canAssignLeads ? (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
-                  <button disabled={isClosedLead(selectedLead)} onClick={() => openEditForm(selectedLead)} style={{ background: canConvertLeadToCase(selectedLead) ? 'white' : theme.aubergine, border: canConvertLeadToCase(selectedLead) ? `1px solid ${theme.border}` : 'none', color: canConvertLeadToCase(selectedLead) ? theme.aubergine : 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 800, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>Qualifizierung fortsetzen</button>
-                  <button disabled={!canConvertLeadToCase(selectedLead)} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 800, cursor: canConvertLeadToCase(selectedLead) ? 'pointer' : 'not-allowed', opacity: canConvertLeadToCase(selectedLead) ? 1 : 0.45 }}>Kundenfall anlegen</button>
-                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'IN_REVIEW')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>In Prüfung markieren</button>
-                  <button disabled={isClosedLead(selectedLead)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>Nachfassen planen</button>
-                  <button disabled={isClosedLead(selectedLead)} onClick={() => openEditForm(selectedLead)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>Lead bearbeiten</button>
-                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, color: theme.error, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Lead ablehnen</button>
+                  <button disabled={isClosedLead(selectedLead)} onClick={() => openEditForm(selectedLead)} style={{ background: canConvertLeadToCase(selectedLead) ? 'white' : theme.aubergine, border: canConvertLeadToCase(selectedLead) ? `1px solid ${theme.border}` : 'none', color: canConvertLeadToCase(selectedLead) ? theme.aubergine : 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 800, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>{t('continueQualification')}</button>
+                  <button disabled={!canConvertLeadToCase(selectedLead)} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 800, cursor: canConvertLeadToCase(selectedLead) ? 'pointer' : 'not-allowed', opacity: canConvertLeadToCase(selectedLead) ? 1 : 0.45 }}>{t('createCustomerCase')}</button>
+                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'IN_REVIEW')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>{t('buttons.markReview')}</button>
+                  <button disabled={isClosedLead(selectedLead)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>{t('scheduleFollowUp')}</button>
+                  <button disabled={isClosedLead(selectedLead)} onClick={() => openEditForm(selectedLead)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: isClosedLead(selectedLead) ? 'not-allowed' : 'pointer', opacity: isClosedLead(selectedLead) ? 0.45 : 1 }}>{t('edit')}</button>
+                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onUpdateStatus(selectedLead.id, 'REJECTED')} style={{ background: theme.errorSoft, border: `1px solid ${theme.error}33`, color: theme.error, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>{t('reject')}</button>
                 </div>
               ) : (
                 <div style={{ borderTop: `1px solid ${theme.borderSoft}`, marginTop: 16, paddingTop: 14, display: 'grid', gap: 8 }}>
                   <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', display: 'grid', gap: 8 }}>
                     {[
-                      { label: 'Kontakt aufnehmen', done: ['CONTACTED', 'PARTNER_CONTACT_PENDING', 'CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status), active: ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) },
-                      { label: 'Kundenfall anlegen', done: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status), active: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) }
+                      { label: t('overview.contactLead'), done: ['CONTACTED', 'PARTNER_CONTACT_PENDING', 'CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status), active: ['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) },
+                      { label: t('createCustomerCase'), done: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status), active: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) }
                     ].map((step, index) => (
                       <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: 8, color: step.done ? theme.success : step.active ? theme.aubergine : `${theme.ink}88`, fontSize: 12.5, fontWeight: step.active ? 800 : 650 }}>
                         <span style={{ width: 20, height: 20, borderRadius: '50%', background: step.done ? theme.success : step.active ? theme.aubergine : 'white', color: step.done || step.active ? 'white' : `${theme.ink}88`, border: step.done || step.active ? 'none' : `1px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
@@ -11333,13 +11407,13 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
                       </div>
                     ))}
                   </div>
-                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 'not-allowed' : 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>Kontaktiert markieren</button>
-                  <button disabled={!['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status)} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 'pointer' : 'not-allowed', opacity: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 1 : 0.45 }}>{['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) ? 'Erst Kontakt markieren' : 'In Kundenfall umwandeln'}</button>
+                  <button disabled={['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status)} onClick={() => onMarkContacted(selectedLead.id)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 'not-allowed' : 'pointer', opacity: ['CONVERTED', 'CONVERTED_TO_CASE'].includes(selectedLead.status) ? 0.45 : 1 }}>{t('buttons.markContacted')}</button>
+                  <button disabled={!['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status)} onClick={() => onConvert(selectedLead.id)} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 10px', fontSize: 12, fontWeight: 700, cursor: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 'pointer' : 'not-allowed', opacity: ['CONTACTED', 'PARTNER_CONTACT_PENDING'].includes(selectedLead.status) ? 1 : 0.45 }}>{['ASSIGNED', 'ASSIGNED_TO_PARTNER'].includes(selectedLead.status) ? t('buttons.contactFirst') : t('convertToCustomerCase')}</button>
                 </div>
               )}
             </>
           ) : (
-            <div style={{ color: `${theme.ink}88`, fontSize: 13 }}>Kein Lead ausgewählt.</div>
+            <div style={{ color: `${theme.ink}88`, fontSize: 13 }}>{t('empty.selection')}</div>
           )}
         </div>
       </div>
@@ -11352,6 +11426,8 @@ const LeadBoard = ({ role, leads = [], partners = [], staff = [], canAssignLeads
 // =====================================================================
 export default function App({ initialRole = 'partner', initialUser, initialCaseId, initialTab, initialReturnTab, initialReturnUrl, initialScreen, initialLeadCreate = false, initialPartnerId = null } = {}) {
   const tFeedback = useTranslations('common.feedback');
+  const tButtons = useTranslations('common.buttons');
+  const tLeads = useTranslations('leads');
   const localizedError = (error, fallbackKey) => uiLocale === 'de-DE' && error instanceof Error ? error.message : tFeedback(fallbackKey);
   const urlCaseLocation = parseCaseLocation('kunde');
   const initialCaseLocation = {
@@ -11483,7 +11559,8 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     const syncFromUrl = () => {
       const locationState = parseCaseLocation('kunde');
       const partnerIdFromUrl = readPartnerIdFromUrl();
-      const nextScreen = parseAppLocation('dashboard');
+      const isLeadCreateRoute = /^\/(?:admin|partner)\/leads\/new\/?$/.test(window.location.pathname);
+      const nextScreen = isLeadCreateRoute ? 'leads' : parseAppLocation('dashboard');
       const intakeDraft = readIntakeDraftLocation();
       if (locationState.caseId) {
         setCaseId(locationState.caseId);
@@ -11859,13 +11936,13 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
     try {
       const payload = Object.fromEntries(Object.entries(leadDraft).map(([key, value]) => [key, value === '' ? undefined : value]));
       if (payload.source === 'partner' && !payload.assignedPartnerId) {
-        throw new Error('Bitte wählen Sie einen Makler oder Partner aus.');
+        throw new Error(tLeads('validation.partner'));
       }
       if (payload.assignedPartnerId && !payload.routingReason) {
-        throw new Error('Bitte erfassen Sie den Routing-Grund, wenn der Lead direkt an einen Makler weitergeleitet wird.');
+        throw new Error(tLeads('validation.routingReason'));
       }
       await postJson('/api/leads', payload);
-      setNotice(payload.assignedPartnerId ? 'Lead wurde erfasst und an den Makler weitergeleitet.' : 'Direkt-Lead wurde erfasst und intern zugewiesen.');
+      setNotice(payload.assignedPartnerId ? tLeads('messages.createdAssigned') : tLeads('messages.createdInternal'));
       await loadLeads(role);
     } catch (err) {
       setNotice(localizedError(err, 'leadCreateFailed'));
@@ -11896,10 +11973,10 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
   const handleUpdateLeadStatus = async (leadId, status) => {
     try {
       await patchJson(`/api/leads/${leadId}/status`, { status });
-      setNotice(`Lead wurde auf "${leadStatusLabels[status] || status}" gesetzt.`);
+      setNotice(tLeads('messages.statusUpdated', {status: tLeads.has(`status.${status}`) ? tLeads(`status.${status}`) : status}));
       await loadLeads(role);
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Lead konnte nicht aktualisiert werden');
+      setNotice(localizedError(err, 'leadUpdateFailed'));
     }
   };
   const handleConvertLead = async (leadId) => {
@@ -12075,7 +12152,7 @@ export default function App({ initialRole = 'partner', initialUser, initialCaseI
           {screen === 'knowledge_brochure' && <CustomerBrochureScreen />}
           {screen === 'knowledge_atlas' && <PostbankWohnatlasScreen />}
           {screen === 'knowledge_faq' && <BrokerFaqScreen />}
-          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} returnTab={caseReturnTab} onTabChange={handleCaseTabChange} onReturnToTab={handleReturnToCaseTab} onBack={handleBack} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
+          {screen === 'case' && <FallDetail caseId={caseId} initialTab={caseInitialTab} returnTab={caseReturnTab} onTabChange={handleCaseTabChange} onReturnToTab={handleReturnToCaseTab} onBack={handleBack} backLabel={tButtons('back')} role={role} internalRole={currentInternalRole} cases={cases} onRefresh={() => loadCases(role)} onNotificationsRefresh={() => loadNotifications(role)} setNotice={setNotice} onEdit={handleEditCase} />}
           {screen === 'erfassung' && <Erfassung onBack={handleBack} onSaved={handleSavedCase} onDraftCreated={handleDraftCreated} registerNavigationGuard={registerIntakeNavigationGuard} setNotice={setNotice} initialCase={editingCase} role={role} internalRole={currentInternalRole} user={user} />}
         </div>
       </div>

@@ -32,7 +32,7 @@ test("en-GB exposes the English navigation without offer abbreviations", () => {
 
 test("catalogs contain display text and no raw translation keys", () => {
   for (const locale of ["de", "en"] as const) {
-    for (const name of ["common", "navigation", "dashboard", "leads"]) {
+    for (const name of ["common", "navigation", "dashboard", "leads", "customers"]) {
       const values = leafValues(catalog(locale, name));
       assert.ok(values.length > 0);
       for (const value of values) {
@@ -40,6 +40,33 @@ test("catalogs contain display text and no raw translation keys", () => {
       }
     }
   }
+});
+
+test("lead management and customer intake expose the agreed English terminology", () => {
+  const leads = catalog("en", "leads");
+  const customers = catalog("en", "customers").intake;
+  assert.equal(leads.create, "Create Lead");
+  assert.equal(leads.sources.website, "Direct Enquiry");
+  assert.equal(customers.model.fixedTerm, "Fixed-Term Model");
+  assert.equal(customers.model.lifetime, "Lifetime Model");
+  assert.equal(customers.model.rentBackSale, "Sale and Rent-Back");
+  assert.equal(customers.unsaved.title, "Unsaved Changes");
+  assert.doesNotMatch(leafValues({leads, customers}).join(" "), /Sale-and-Leaseback|\bUVA\b|\bVA\b/);
+});
+
+test("lead and intake components use shared translation namespaces", () => {
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  assert.match(prototype, /useTranslations\('leads'\)/);
+  assert.match(prototype, /useTranslations\('customers\.intake'\)/);
+  assert.match(prototype, /t\('unsaved\.title'\)/);
+  assert.match(prototype, /t\('model\.rentBackSale'\)/);
+});
+
+test("case detail receives its translated back label from the app scope", () => {
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  assert.match(prototype, /const FallDetail = \(\{[^}]*backLabel/);
+  assert.match(prototype, /<ArrowLeft size=\{15\} \/> \{backLabel\}/);
+  assert.match(prototype, /backLabel=\{tButtons\('back'\)\}/);
 });
 
 test("locale aliases normalise to the supported locales", () => {

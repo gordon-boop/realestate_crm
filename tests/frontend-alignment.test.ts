@@ -148,13 +148,14 @@ test("property validation only accepts energy classes A to H", () => {
 test("frontend case form renders energy class dropdown and barrier-free label", () => {
   const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
   const newCaseForm = readFileSync(new URL("../components/NewCaseForm.tsx", import.meta.url), "utf8");
+  const germanCustomers = JSON.parse(readFileSync(new URL("../messages/de/customers.json", import.meta.url), "utf8"));
 
-  assert.match(prototype, /<Field label="Energieklasse" required/);
+  assert.match(prototype, /<Field label=\{t\('property\.energyClass'\)\} required/);
   assert.match(prototype, /'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'/);
   assert.doesNotMatch(prototype, /A\+/);
   assert.match(newCaseForm, /<select name="energyClass" required>/);
   assert.doesNotMatch(newCaseForm, /<input name="energyClass"/);
-  assert.match(prototype, /Barrierefrei/);
+  assert.equal(germanCustomers.intake.modernisations.barrierFree, "Barrierefrei");
   assert.doesNotMatch(prototype, /Barrierearm/);
 });
 
