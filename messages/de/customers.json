@@ -467,6 +467,7 @@
       "yes": "Ja",
       "no": "Nein",
       "notRecorded": "Nicht erfasst",
+      "justNow": "Gerade eben",
       "pending": "Noch offen",
       "missing": "Fehlt",
       "unknown": "Unbekannt",
@@ -503,6 +504,11 @@
     "activity": {
       "title": "Aktivitätslog",
       "leadConverted": "Lead {leadNumber} wurde in einen Kundenfall umgewandelt.",
+      "reminderCreated": "Wiedervorlage erstellt.",
+      "queryRequested": "Rückfrage angefordert.",
+      "caseSubmitted": "Fall eingereicht.",
+      "intakeCompleted": "Erfassung abgeschlossen.",
+      "caseCreated": "Fall angelegt.",
       "internal": "intern"
     },
     "sidePanel": {
@@ -516,6 +522,18 @@
       "allDocuments": "Alle Dokumente",
       "noDocuments": "Keine Dokumente vorhanden.",
       "document": "Unterlage",
+      "documentStatus": {
+        "missing": "Fehlt",
+        "pending": "Eingereicht",
+        "reviewed": "Geprüft",
+        "reviewRequired": "Prüfung nötig",
+        "rejected": "Abgelehnt"
+      },
+      "requirement": {
+        "required": "Pflicht",
+        "recommended": "Empfohlen",
+        "optional": "Optional"
+      },
       "notAvailable": "Noch nicht verfügbar"
     }
   }

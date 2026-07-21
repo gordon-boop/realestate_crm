@@ -157,6 +157,7 @@
       "yes": "Yes",
       "no": "No",
       "notRecorded": "Not recorded",
+      "justNow": "Just now",
       "pending": "Pending",
       "missing": "Missing",
       "unknown": "Unknown",
@@ -193,6 +194,11 @@
     "activity": {
       "title": "Activity Log",
       "leadConverted": "Lead {leadNumber} was converted into a customer case.",
+      "reminderCreated": "Follow-up created.",
+      "queryRequested": "Query requested.",
+      "caseSubmitted": "Case submitted.",
+      "intakeCompleted": "Customer intake completed.",
+      "caseCreated": "Case created.",
       "internal": "internal"
     },
     "sidePanel": {
@@ -206,6 +212,18 @@
       "allDocuments": "All Documents",
       "noDocuments": "No documents available.",
       "document": "Document",
+      "documentStatus": {
+        "missing": "Missing",
+        "pending": "Submitted",
+        "reviewed": "Reviewed",
+        "reviewRequired": "Review Required",
+        "rejected": "Rejected"
+      },
+      "requirement": {
+        "required": "Required",
+        "recommended": "Recommended",
+        "optional": "Optional"
+      },
       "notAvailable": "Not Yet Available"
     }
   }

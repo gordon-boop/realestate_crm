@@ -162,10 +162,16 @@ test("frontend case form renders energy class dropdown and barrier-free label", 
 test("offer tabs use the selected intake model instead of product selection cards", () => {
   const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
   const calculateRoute = readFileSync(new URL("../app/api/properties/[id]/offer/calculate/route.ts", import.meta.url), "utf8");
+  const germanOffers = JSON.parse(readFileSync(new URL("../messages/de/offers.json", import.meta.url), "utf8"));
+  const englishOffers = JSON.parse(readFileSync(new URL("../messages/en/offers.json", import.meta.url), "utf8"));
 
-  assert.match(prototype, /Gewähltes Modell/);
-  assert.match(prototype, /Aus Kundenerfassung übernommen/);
-  assert.match(prototype, /Bitte wählen Sie zunächst ein Modell in der Kundenerfassung aus/);
+  assert.match(prototype, /tOffers\('models\.selected'\)/);
+  assert.match(prototype, /tOffers\('models\.takenFromIntake'\)/);
+  assert.match(prototype, /tOffers\('models\.missingTitle'\)/);
+  assert.equal(germanOffers.models.selected, "Gewähltes Modell");
+  assert.equal(germanOffers.models.takenFromIntake, "Aus Kundenerfassung übernommen");
+  assert.equal(englishOffers.models.selected, "Selected Model");
+  assert.equal(englishOffers.models.takenFromIntake, "Taken from Customer Intake");
   assert.doesNotMatch(prototype, /renderResidentialRightProductCards/);
   assert.doesNotMatch(prototype, /Wohnrecht-Produkte/);
   assert.doesNotMatch(prototype, /Vergleich Wohnrecht-Produkte/);
@@ -174,13 +180,23 @@ test("offer tabs use the selected intake model instead of product selection card
 
 test("offer result boxes use clear investment labels", () => {
   const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  const germanOffers = JSON.parse(readFileSync(new URL("../messages/de/offers.json", import.meta.url), "utf8"));
+  const englishOffers = JSON.parse(readFileSync(new URL("../messages/en/offers.json", import.meta.url), "utf8"));
 
-  assert.match(prototype, /Wert des Wohnrechts/);
-  assert.match(prototype, /Instandhaltungsrücklage/);
-  assert.match(prototype, /Auszahlung an den Kunden/);
-  assert.match(prototype, /Maximaler Auszahlungsbetrag/);
-  assert.match(prototype, /Ankaufs-IRR/);
-  assert.match(prototype, /Gesamtankaufskosten/);
+  for (const key of [
+    "rightOfResidenceValue",
+    "maintenanceReserve",
+    "customerPayout",
+    "maximumCustomerPayout",
+    "acquisitionIrr",
+    "totalAcquisitionCosts"
+  ]) {
+    assert.match(prototype, new RegExp(`results\\.${key}`));
+  }
+  assert.equal(germanOffers.results.rightOfResidenceValue, "Wert des Wohnrechts");
+  assert.equal(germanOffers.results.totalAcquisitionCosts, "Gesamtankaufskosten");
+  assert.equal(englishOffers.results.rightOfResidenceValue, "Right-of-Residence Value");
+  assert.equal(englishOffers.results.totalAcquisitionCosts, "Total Acquisition Costs");
   assert.doesNotMatch(prototype, /Interner Wohnrechtswert/);
   assert.doesNotMatch(prototype, /Gewichteter IRR/);
   assert.doesNotMatch(prototype, /Ziel-IRR/);

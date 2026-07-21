@@ -32,7 +32,7 @@ test("en-GB exposes the English navigation without offer abbreviations", () => {
 
 test("catalogs contain display text and no raw translation keys", () => {
   for (const locale of ["de", "en"] as const) {
-    for (const name of ["common", "navigation", "dashboard", "leads", "customers", "precheck", "rating"]) {
+    for (const name of ["common", "navigation", "dashboard", "leads", "customers", "precheck", "rating", "offers", "closing"]) {
       const values = leafValues(catalog(locale, name));
       assert.ok(values.length > 0);
       for (const value of values) {
@@ -142,6 +142,29 @@ test("property rating catalogs cover every configured category and criterion id"
   assert.match(prototype, /useTranslations\('rating'\)/);
   assert.match(prototype, /objectRatingCriterionTranslationKeys/);
   assert.match(prototype, /criterion\?\.category\?\.id === 'rating_cat_microlocation_v1'/);
+});
+
+test("offer and closing catalogs use the agreed English terminology", () => {
+  const germanOffers = catalog("de", "offers");
+  const englishOffers = catalog("en", "offers");
+  const germanClosing = catalog("de", "closing");
+  const englishClosing = catalog("en", "closing");
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+
+  assert.deepEqual(Object.keys(englishOffers).sort(), Object.keys(germanOffers).sort());
+  assert.deepEqual(Object.keys(englishClosing).sort(), Object.keys(germanClosing).sort());
+  assert.equal(englishOffers.indicative, "Indicative Offer");
+  assert.equal(englishOffers.binding, "Binding Offer");
+  assert.equal(englishOffers.models.fixedTerm, "Fixed-Term Model");
+  assert.equal(englishOffers.models.lifetime, "Lifetime Model");
+  assert.equal(englishOffers.models.rentBack, "Sale and Rent-Back");
+  assert.equal(englishOffers.appraisal.commissioned, "Appraisal Commissioned");
+  assert.equal(englishOffers.appraisal.received, "Appraisal Received");
+  assert.equal(englishClosing.title, "Purchase Agreement & Closing");
+  assert.equal(englishClosing.fields.purchasePricePaidOn, "Purchase Price Paid On");
+  assert.doesNotMatch(leafValues({ englishOffers, englishClosing }).join(" "), /\b(?:UVA|VA)\b|Non-Binding Offer/);
+  assert.match(prototype, /useTranslations\('offers'\)/);
+  assert.match(prototype, /useTranslations\('closing'\)/);
 });
 
 test("locale aliases normalise to the supported locales", () => {

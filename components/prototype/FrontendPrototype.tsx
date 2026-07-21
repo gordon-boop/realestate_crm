@@ -917,16 +917,16 @@ function rentBackCalculationFromOffer(offer) {
   };
 }
 
-function rentBackMetricRows(offer) {
+function rentBackMetricRows(offer, labels = {}) {
   const metrics = rentBackCalculationFromOffer(offer);
 
   return [
-    ['Verkehrswert', formatEuro(metrics.marketValue)],
-    ['Auszahlungsquote', formatPercent(metrics.payoutRate)],
-    ['Auszahlung an den Kunden', formatEuroCents(metrics.payoutAmount)],
-    ['Mietfaktor p.a.', formatPercent(metrics.annualRentRate)],
-    ['Jahresmiete', formatEuroCents(metrics.annualRent)],
-    ['Monatliche Miete', formatEuroCents(metrics.monthlyRent)],
+    [labels.marketValue || 'Verkehrswert', formatEuro(metrics.marketValue)],
+    [labels.payoutRatio || 'Auszahlungsquote', formatPercent(metrics.payoutRate)],
+    [labels.customerPayout || 'Auszahlung an den Kunden', formatEuroCents(metrics.payoutAmount)],
+    [labels.annualRentFactor || 'Mietfaktor p.a.', formatPercent(metrics.annualRentRate)],
+    [labels.annualRent || 'Jahresmiete', formatEuroCents(metrics.annualRent)],
+    [labels.monthlyRent || 'Monatliche Miete', formatEuroCents(metrics.monthlyRent)],
   ];
 }
 
@@ -935,7 +935,7 @@ function offerWeightedIrrLabel(offer) {
   return Number.isFinite(Number(weightedIrr)) ? formatPercent(Number(weightedIrr)) : '–';
 }
 
-function residentialRightMetricRows(offer) {
+function residentialRightMetricRows(offer, labels = {}) {
   const components = offer?.assumptions?.components || {};
   const quote = Number.isFinite(Number(components.payoutRatio))
     ? Number(components.payoutRatio)
@@ -946,37 +946,37 @@ function residentialRightMetricRows(offer) {
   const totalInvestorCommitment = components.totalInvestorCommitment;
 
   return [
-    ['Verkehrswert', formatEuro(offer?.marketValue)],
-    ['Wert des Wohnrechts', Number.isFinite(Number(residentialRightValue)) ? formatEuro(residentialRightValue) : '-'],
-    ['Instandhaltungsrücklage', Number.isFinite(Number(maintenanceReserve)) ? formatEuro(maintenanceReserve) : '-'],
-    ['Auszahlung an den Kunden', formatEuroCents(offer?.payoutAmount)],
-    ['Auszahlungsquote', Number.isFinite(Number(quote)) ? formatPercent(Number(quote)) : '-'],
-    ['Ankaufs-IRR', Number.isFinite(Number(purchaseIrr)) ? formatPercent(Number(purchaseIrr)) : offerWeightedIrrLabel(offer)],
-    ['Gesamtankaufskosten', Number.isFinite(Number(totalInvestorCommitment)) ? formatEuroCents(totalInvestorCommitment) : '-'],
+    [labels.marketValue || 'Verkehrswert', formatEuro(offer?.marketValue)],
+    [labels.rightOfResidenceValue || 'Wert des Wohnrechts', Number.isFinite(Number(residentialRightValue)) ? formatEuro(residentialRightValue) : '-'],
+    [labels.maintenanceReserve || 'Instandhaltungsrücklage', Number.isFinite(Number(maintenanceReserve)) ? formatEuro(maintenanceReserve) : '-'],
+    [labels.customerPayout || 'Auszahlung an den Kunden', formatEuroCents(offer?.payoutAmount)],
+    [labels.payoutRatio || 'Auszahlungsquote', Number.isFinite(Number(quote)) ? formatPercent(Number(quote)) : '-'],
+    [labels.acquisitionIrr || 'Ankaufs-IRR', Number.isFinite(Number(purchaseIrr)) ? formatPercent(Number(purchaseIrr)) : offerWeightedIrrLabel(offer)],
+    [labels.totalAcquisitionCosts || 'Gesamtankaufskosten', Number.isFinite(Number(totalInvestorCommitment)) ? formatEuroCents(totalInvestorCommitment) : '-'],
   ];
 }
 
-function residentialRightCalculationFields(modelRequest, property, binding = false) {
+function residentialRightCalculationFields(modelRequest, property, binding = false, labels = {}) {
   const lifetime = modelRequest?.usageModel === 'lifelong_residential_right';
   if (lifetime) {
     return [
-      ['livingAreaSqm', 'Wohnfläche (m²)', property?.livingAreaSqm],
-      ['monthlyRentPerSqm', 'Mietansatz (€/m²)'],
-      ['garageCount', 'Anzahl Garagen / Stellplätze', property?.parkingAvailable ? property?.parkingCount : 0],
-      ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Garagenmiete (optional, €/Monat)']] : []),
-      ['targetReturn', 'Ankaufs-IRR (%)'],
-      ['acquisitionCostRate', 'Ankaufskosten (%)'],
-      ['salesCostRate', 'Verkaufskosten (%)'],
-      ['selectedIndexationScenario', 'Indexierung (%)'],
+      ['livingAreaSqm', labels.livingArea || 'Wohnfläche (m²)', property?.livingAreaSqm],
+      ['monthlyRentPerSqm', labels.rentAssumption || 'Mietansatz (€/m²)'],
+      ['garageCount', labels.parkingCount || 'Anzahl Garagen / Stellplätze', property?.parkingAvailable ? property?.parkingCount : 0],
+      ...(property?.parkingAvailable ? [['garageMonthlyRent', labels.garageRent || 'Garagenmiete (optional, €/Monat)']] : []),
+      ['targetReturn', labels.targetIrr || 'Ankaufs-IRR (%)'],
+      ['acquisitionCostRate', labels.acquisitionCosts || 'Ankaufskosten (%)'],
+      ['salesCostRate', labels.disposalCosts || 'Verkaufskosten (%)'],
+      ['selectedIndexationScenario', labels.indexation || 'Indexierung (%)'],
     ];
   }
   return [
-    ['monthlyRentPerSqm', 'Miete Wohnen (€/m²/Monat)'],
-    ...(property?.parkingAvailable ? [['garageMonthlyRent', 'Miete Garage (€ / Monat)']] : []),
-    ['residentialRightYears', 'Laufzeit Wohnrecht (Jahre)', binding ? modelRequest?.residentialRightYears : modelRequest?.residentialRightYears],
-    ['interestRate', 'Interne Verzinsung (%)'],
-    ['acquisitionCostRate', 'Ankaufsnebenkosten (%)'],
-    ['salesCostRate', 'Verkaufskosten (%)'],
+    ['monthlyRentPerSqm', labels.residentialRent || 'Miete Wohnen (€/m²/Monat)'],
+    ...(property?.parkingAvailable ? [['garageMonthlyRent', labels.garageRentMonthly || 'Miete Garage (€ / Monat)']] : []),
+    ['residentialRightYears', labels.fixedOccupancyTerm || 'Laufzeit Wohnrecht (Jahre)', binding ? modelRequest?.residentialRightYears : modelRequest?.residentialRightYears],
+    ['interestRate', labels.internalRate || 'Interne Verzinsung (%)'],
+    ['acquisitionCostRate', labels.acquisitionCosts || 'Ankaufsnebenkosten (%)'],
+    ['salesCostRate', labels.disposalCosts || 'Verkaufskosten (%)'],
   ];
 }
 
@@ -5158,8 +5158,17 @@ const SidePanelCard = ({ title, count, children, actionLabel, onAction, unavaila
   </div>
 );
 
-function localizedCaseActivityText(activity, t, tPrecheck, tRating) {
+function localizedCaseActivityText(activity, t, tPrecheck, tRating, tOffers, tClosing) {
   const message = String(activity?.text || activity?.message || '');
+  const caseActivityKeys = {
+    reminder_created: 'reminderCreated',
+    query_requested: 'queryRequested',
+    case_submitted: 'caseSubmitted',
+    intake_completed: 'intakeCompleted',
+    case_created: 'caseCreated',
+  };
+  if (caseActivityKeys[activity?.type]) return t(`activity.${caseActivityKeys[activity.type]}`);
+  if (activity?.type === 'customer_feedback_received') return t('header.feedbackReceived');
   if (tPrecheck && activity?.type === 'acquisition_precheck_saved') {
     const action = activity?.metadata?.action;
     if (action === 'approve_exception') return tPrecheck('messages.approveSuccess');
@@ -5172,15 +5181,51 @@ function localizedCaseActivityText(activity, t, tPrecheck, tRating) {
   if (tRating && activity?.type === 'object_rating_created') return tRating('activity.created');
   if (tRating && activity?.type === 'object_rating_approved') return tRating('activity.approved');
   if (tRating && activity?.type === 'object_rating_unlocked') return tRating('activity.reopened');
+  const offerActivityKeys = {
+    offer_calculated: 'indicativeCalculated',
+    binding_offer_calculated: 'bindingCalculated',
+    ai_text_created: 'draftCreated',
+    indicative_offer_pdf_created: 'indicativePdfGenerated',
+    binding_offer_pdf_created: 'bindingPdfGenerated',
+    appraisal_value_saved: 'appraisalValueSaved',
+    appraisal_value_deviation: 'appraisalDeviation',
+    indicative_offer_sent: 'indicativeSubmitted',
+    offer_accepted: 'indicativeAccepted',
+    expert_opinion_ordered: 'appraisalCommissioned',
+    expert_opinion_received: 'appraisalReceived',
+    binding_offer_sent: 'bindingSubmitted',
+    binding_offer_accepted: 'bindingAccepted',
+  };
+  if (tOffers && offerActivityKeys[activity?.type]) return tOffers(`activity.${offerActivityKeys[activity.type]}`);
+  if (tOffers && activity?.type === 'offer_model_variant_changed') {
+    const modelKeyByValue = {
+      fixed_residential_right: 'fixedTerm',
+      lifelong_residential_right: 'lifetime',
+      sale_and_leaseback: 'rentBack',
+    };
+    const modelKey = modelKeyByValue[activity?.metadata?.usageModel] || 'rightOfResidence';
+    return tOffers('activity.modelVariantChanged', { model: tOffers(`models.${modelKey}`) });
+  }
+  if (tClosing && activity?.type === 'notary_appointment_ordered') return tClosing('activity.notaryScheduled');
+  if (tClosing && activity?.type === 'contract_signed') return tClosing('activity.agreementCompleted');
+  if (tClosing && activity?.type === 'portfolio_file_updated') return tClosing('activity.closingSaved');
   const convertedLead = message.match(/^Lead\s+(.+?)\s+wurde in einen Kundenfall umgewandelt\.?$/i);
   if (convertedLead) return t('activity.leadConverted', { leadNumber: convertedLead[1] });
   return message;
 }
 
+function localizedCaseActivityTime(value, t) {
+  const valueLabel = dateLabel(value);
+  return valueLabel === 'Gerade eben' ? t('values.justNow') : valueLabel;
+}
+
 const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onShowTasks, onShowDocuments }) => {
   const t = useTranslations('customers.caseView');
+  const tIntake = useTranslations('customers.intake');
   const tPrecheck = useTranslations('precheck');
   const tRating = useTranslations('rating');
+  const tOffers = useTranslations('offers');
+  const tClosing = useTranslations('closing');
   const visibleActivities = (activities || []).slice(0, 3);
   const visibleTasks = (taskRows || []).slice(0, 3);
   const importantDocuments = (documents || [])
@@ -5190,15 +5235,35 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
     })
     .slice(0, 3);
   const visibleDocuments = importantDocuments.length ? importantDocuments : (documents || []).slice(0, 3);
+  const translatedDocumentCategories = new Set([
+    'land_register', 'photos', 'floorplan', 'living_area_calculation', 'declaration_of_division',
+    'service_charge_statement', 'owners_meeting_minutes', 'maintenance_reserve', 'power_of_attorney',
+    'section', 'energy_certificate', 'repair_offer', 'other'
+  ]);
+  const documentName = (document) => translatedDocumentCategories.has(document?.category)
+    ? tIntake(`documents.categories.${document.category}`)
+    : document?.name || document?.fileName || t('sidePanel.document');
+  const documentStatus = (document) => {
+    const keyByStatus = { missing: 'missing', pending: 'pending', ok: 'reviewed', review_required: 'reviewRequired', rejected: 'rejected' };
+    return keyByStatus[document?.status]
+      ? t(`sidePanel.documentStatus.${keyByStatus[document.status]}`)
+      : document?.statusLabel || document?.type || t('sidePanel.document');
+  };
+  const taskText = (task) => task?.documentCategory && translatedDocumentCategories.has(task.documentCategory)
+    ? tIntake(`documents.categories.${task.documentCategory}`)
+    : task?.text || task?.title;
+  const taskMeta = (task) => task?.requirementLevel
+    ? t(`sidePanel.requirement.${task.requirementLevel}`)
+    : task?.meta || task?.title;
 
   return (
     <div style={{ display: 'grid', gap: 16, height: 'fit-content' }}>
       <SidePanelCard title={t('sidePanel.activity')} actionLabel={t('sidePanel.showAll')} onAction={onShowActivities} unavailableLabel={t('sidePanel.notAvailable')}>
         {visibleActivities.length ? visibleActivities.map((activity, index) => (
           <div key={activity.id || index} style={{ display: 'grid', gridTemplateColumns: '56px 1fr', gap: 12, padding: index === 0 ? '0 0 12px' : '12px 0', borderBottom: index < visibleActivities.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
-            <div style={{ fontSize: 11.5, color: `${theme.ink}88`, fontWeight: 700 }}>{activity.time || dateLabel(activity.createdAt)}</div>
+            <div style={{ fontSize: 11.5, color: `${theme.ink}88`, fontWeight: 700 }}>{activity.time || localizedCaseActivityTime(activity.createdAt, t)}</div>
             <div>
-              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35 }}>{localizedCaseActivityText(activity, t, tPrecheck, tRating)}</div>
+              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35 }}>{localizedCaseActivityText(activity, t, tPrecheck, tRating, tOffers, tClosing)}</div>
               <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{activity.actor || activity.source || activity.userId || t('activity.internal')}</div>
             </div>
           </div>
@@ -5212,8 +5277,8 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
           <div key={`${task.title}-${index}`} style={{ display: 'grid', gridTemplateColumns: '18px 1fr', gap: 10, padding: index === 0 ? '0 0 12px' : '12px 0', borderBottom: index < visibleTasks.length - 1 ? `1px solid ${theme.borderSoft}` : 'none' }}>
             <div style={{ width: 14, height: 14, border: `1px solid ${theme.aubergine}66`, borderRadius: 3, marginTop: 2 }} />
             <div>
-              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35, fontWeight: 650 }}>{task.text || task.title}</div>
-              <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{task.meta || task.title}</div>
+              <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.35, fontWeight: 650 }}>{taskText(task)}</div>
+              <div style={{ fontSize: 11, color: `${theme.ink}77`, marginTop: 3 }}>{taskMeta(task)}</div>
             </div>
           </div>
         )) : (
@@ -5229,13 +5294,13 @@ const CaseSidePanel = ({ activities, taskRows, documents, onShowActivities, onSh
               <div style={{ fontSize: 12.5, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {document.storageUrl ? (
                   <a href={document.storageUrl} target="_blank" rel="noreferrer" style={{ color: theme.ink, textDecoration: 'none' }}>
-                    {document.name || document.fileName}
+                    {documentName(document)}
                   </a>
                 ) : (
-                  document.name || document.fileName
+                  documentName(document)
                 )}
               </div>
-              <div style={{ fontSize: 10.8, color: `${theme.ink}77`, marginTop: 2 }}>{document.statusLabel || document.type || t('sidePanel.document')}</div>
+              <div style={{ fontSize: 10.8, color: `${theme.ink}77`, marginTop: 2 }}>{documentStatus(document)}</div>
             </div>
           </div>
         )) : (
@@ -5254,6 +5319,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const tIntake = useTranslations('customers.intake');
   const tPrecheck = useTranslations('precheck');
   const tRating = useTranslations('rating');
+  const tOffers = useTranslations('offers');
+  const tClosing = useTranslations('closing');
+  const tCommonButtons = useTranslations('common.buttons');
   const [activeTab, setActiveTab] = useState(normalizeCaseTab(initialTab));
   const [showAcquisitionHistory, setShowAcquisitionHistory] = useState(false);
   const [busyAction, setBusyAction] = useState('');
@@ -5302,6 +5370,46 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const caseView = c.raw;
   const customer = caseView?.customer;
   const property = caseView?.property;
+  const localizedOfferModelLabels = {
+    fixed_residential_right: tOffers('models.rightOfResidence'),
+    sale_and_leaseback: tOffers('models.rentBack'),
+    other: tOffers('models.other'),
+  };
+  const localizedResidentialRightVariantLabels = {
+    fixed_residential_right: tOffers('models.fixedTerm'),
+    lifelong_residential_right: tOffers('models.lifetime'),
+  };
+  const offerResultLabels = {
+    marketValue: tOffers('results.marketValue'),
+    rightOfResidenceValue: tOffers('results.rightOfResidenceValue'),
+    maintenanceReserve: tOffers('results.maintenanceReserve'),
+    customerPayout: tOffers('results.customerPayout'),
+    payoutRatio: tOffers('results.payoutRatio'),
+    acquisitionIrr: tOffers('results.acquisitionIrr'),
+    totalAcquisitionCosts: tOffers('results.totalAcquisitionCosts'),
+    annualRentFactor: tOffers('results.annualRentFactor'),
+    annualRent: tOffers('results.annualRent'),
+    monthlyRent: tOffers('results.monthlyRent'),
+  };
+  const offerInputLabels = {
+    livingArea: tOffers('inputs.livingArea'),
+    rentAssumption: tOffers('inputs.rentAssumption'),
+    residentialRent: tOffers('inputs.residentialRent'),
+    garageRent: tOffers('inputs.garageRent'),
+    garageRentMonthly: tOffers('inputs.garageRentMonthly'),
+    parkingCount: tOffers('inputs.parkingCount'),
+    targetIrr: tOffers('inputs.targetIrr'),
+    acquisitionCosts: tOffers('inputs.acquisitionCosts'),
+    disposalCosts: tOffers('inputs.disposalCosts'),
+    indexation: tOffers('inputs.indexation'),
+    fixedOccupancyTerm: tOffers('inputs.fixedOccupancyTerm'),
+    internalRate: tOffers('inputs.internalRate'),
+  };
+  const offerModelLabel = (model) => labelFrom(localizedOfferModelLabels, model, model || tOffers('models.other'));
+  const residentialVariantLabel = (usageModel) => labelFrom(
+    localizedResidentialRightVariantLabels,
+    usageModel === 'lifelong_residential_right' ? 'lifelong_residential_right' : 'fixed_residential_right'
+  );
   const canRejectCase = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
   const canManageOffers = role === 'admin' && ['advisor', 'admin', 'super_admin'].includes(internalRole);
   const canManageWorkflow = role === 'admin' && ['employee', 'advisor', 'admin', 'super_admin'].includes(internalRole);
@@ -5413,7 +5521,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     return Array.from(new Set(models.filter((model) => model && model !== 'other')))
       .map((model) => ({
         model,
-        label: labelFrom(productModelLabels, model),
+        label: offerModelLabel(model),
         offerId: offers.find((offer) => offer.model === model)?.id
       }));
   };
@@ -5424,7 +5532,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   );
   const acceptedOfferModelLabel = (action) => {
     const model = existingAcceptedOfferModel(action);
-    return model ? labelFrom(productModelLabels, model) : '-';
+    return model ? offerModelLabel(model) : '-';
   };
   const latestValuation = caseView?.valuation;
   const documents = caseView?.documents?.length ? caseView.documents.map((document) => ({
@@ -5597,14 +5705,21 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const missingDocuments = documents.filter((document) => ['missing', 'review_required', 'rejected'].includes(document.status));
   const taskRows = [
     ...openReminders.map((reminder) => ({ title: 'Rückfrage', text: reminder.reason, meta: `fällig ${dateLabel(reminder.dueAt)}`, tone: 'warning' })),
-    ...missingDocuments.map((document) => ({ title: document.statusLabel, text: document.name, meta: document.missingReason || document.type, tone: document.status === 'rejected' ? 'danger' : 'warning' })),
+    ...missingDocuments.map((document) => ({
+      title: document.statusLabel,
+      text: document.name,
+      meta: document.missingReason || document.type,
+      documentCategory: document.category,
+      requirementLevel: document.type === 'Pflicht' ? 'required' : document.type === 'Empfohlen' ? 'recommended' : 'optional',
+      tone: document.status === 'rejected' ? 'danger' : 'warning'
+    })),
   ];
   const activities = caseView?.activities?.length ? caseView.activities : [
-    { createdAt: 'Heute, 09:14', userId: 'System', message: 'Erinnerung Rückfrage erstellt' },
-    { createdAt: 'Gestern, 16:32', userId: 'A. Klein (Admin)', message: 'Rückfrage angefordert: Energieausweis' },
-    { createdAt: 'Gestern, 14:08', userId: 'M. Krüger', message: 'Fall eingereicht' },
-    { createdAt: '18.05., 11:20', userId: 'M. Krüger', message: 'Erfassung abgeschlossen' },
-    { createdAt: '18.05., 09:45', userId: 'M. Krüger', message: 'Fall angelegt' },
+    { type: 'reminder_created', createdAt: 'Heute, 09:14', userId: 'System' },
+    { type: 'query_requested', createdAt: 'Gestern, 16:32', userId: 'A. Klein (Admin)' },
+    { type: 'case_submitted', createdAt: 'Gestern, 14:08', userId: 'M. Krüger' },
+    { type: 'intake_completed', createdAt: '18.05., 11:20', userId: 'M. Krüger' },
+    { type: 'case_created', createdAt: '18.05., 09:45', userId: 'M. Krüger' },
   ];
   const chatMessages = caseView?.chatMessages?.length ? caseView.chatMessages : [];
   const objectRating = caseView?.objectRatings?.[0];
@@ -5878,7 +5993,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const activeRatingScore = ratingScores.find((score) => score.id === activeRatingScoreId);
   async function runCaseAction(label, action, feedback = {}) {
     if (!c.propertyId) {
-      setNotice?.('Dieser Mock-Fall ist noch nicht mit einer API-ID verbunden.');
+      setNotice?.(feedback.error || tOffers('messages.actionFailed'));
       return;
     }
     setRecentSuccessAction('');
@@ -5888,9 +6003,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       await onRefresh?.();
       await onNotificationsRefresh?.();
       setRecentSuccessAction(label);
-      setNotice?.(feedback.success || `${label} abgeschlossen.`);
+      setNotice?.(feedback.success || tOffers('messages.actionCompleted', { action: label }));
     } catch (err) {
-      setNotice?.(err instanceof Error ? err.message : feedback.error || 'Aktion fehlgeschlagen');
+      setNotice?.(uiLocale === 'de-DE' && err instanceof Error ? err.message : feedback.error || tOffers('messages.actionFailed'));
     } finally {
       setBusyAction('');
     }
@@ -5990,13 +6105,13 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     const key = typeof modelRequest === 'string' ? `${model}-${index}` : `${modelRequest.key}-${index}`;
     const params = calculationParams[key] || {};
     const actionLabel = model === 'sale_and_leaseback'
-      ? 'Rückmietverkauf-Kalkulation'
+      ? tOffers('actions.calculateIndicative')
       : modelRequest?.usageModel === 'lifelong_residential_right'
-        ? 'Lebenslanges Wohnrecht berechnen'
-        : 'Wohnrecht-Kalkulation';
+        ? tOffers('actions.calculateIndicative')
+        : tOffers('actions.calculateIndicative');
     return runCaseAction(actionLabel, async () => {
       if (!preliminaryMarketValue) {
-        throw new Error('Bitte erfassen Sie zuerst einen vorläufigen Verkehrswert in der Vorabprüfung oder im Objektbereich.');
+        throw new Error(tOffers('validation.preliminaryValueRequired'));
       }
       await postJson(`/api/properties/${c.propertyId}/offer/calculate`, {
         model,
@@ -6016,23 +6131,23 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const selectedModelInfo = (modelRequest) => {
     if (modelRequest?.model === 'sale_and_leaseback') {
       return {
-        title: 'Rückmietverkauf',
-        subtitle: 'Verkauf mit anschließender Mietvereinbarung',
+        title: tOffers('models.rentBack'),
+        subtitle: tOffers('models.rentBackSubtitle'),
         hint: ''
       };
     }
     if (modelRequest?.usageModel === 'lifelong_residential_right') {
       return {
-        title: 'Lebenslanges Wohnrecht',
-        subtitle: 'Lebenslang kostenfrei wohnen bleiben',
+        title: tOffers('models.lifetime'),
+        subtitle: tOffers('models.lifetimeSubtitle'),
         hint: lifetimeEligibility?.eligible
-          ? 'Altersvoraussetzung erfüllt'
-          : lifetimeEligibility?.message || 'Das lebenslange Wohnrecht ist erst ab 75 Jahren möglich.'
+          ? tOffers('models.eligibilityMet')
+          : tOffers('modelNotes.lifetimeEligibility')
       };
     }
     return {
-      title: 'Befristetes Wohnrecht',
-      subtitle: 'Kostenfreie Wohnphase mit fester Laufzeit',
+      title: tOffers('models.fixedTerm'),
+      subtitle: tOffers('models.fixedSubtitle'),
       hint: ''
     };
   };
@@ -6042,13 +6157,13 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       <div style={{ padding: '14px 24px', borderBottom: `1px solid ${theme.borderSoft}`, background: theme.surfaceSoft }}>
         <div style={{ border: `1px solid ${theme.border}`, borderLeft: `3px solid ${theme.gold}`, background: 'white', borderRadius: theme.cardRadius, padding: '13px 15px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 5 }}>Gewähltes Modell</div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 5 }}>{tOffers('models.selected')}</div>
             <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 900 }}>{info.title}</div>
             <div style={{ fontSize: 12.5, color: `${theme.ink}99`, fontWeight: 650, marginTop: 3 }}>{info.subtitle}</div>
             {info.hint && <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 6 }}>{info.hint}</div>}
           </div>
           <span style={{ border: `1px solid ${theme.border}`, background: theme.mintLighter, color: theme.aubergine, borderRadius: 999, padding: '6px 10px', fontSize: 11.5, fontWeight: 850, whiteSpace: 'nowrap' }}>
-            Aus Kundenerfassung übernommen
+            {tOffers('models.takenFromIntake')}
           </span>
         </div>
       </div>
@@ -6057,26 +6172,26 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const renderMissingSelectedModelNotice = () => (
     <div style={{ background: 'white', border: `1px solid ${theme.border}`, borderRadius: theme.cardRadius, padding: '22px 24px', boxShadow: theme.cardShadow, display: 'grid', gap: 12 }}>
       <div>
-        <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 6 }}>Modell fehlt</div>
-        <div style={{ fontSize: 15, color: theme.ink, fontWeight: 800 }}>Bitte wählen Sie zunächst ein Modell in der Kundenerfassung aus.</div>
+        <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 6 }}>{tOffers('models.missing')}</div>
+        <div style={{ fontSize: 15, color: theme.ink, fontWeight: 800 }}>{tOffers('models.missingTitle')}</div>
         <div style={{ fontSize: 12.5, color: `${theme.ink}88`, marginTop: 5, lineHeight: 1.45 }}>
-          Danach kann das unverbindliche und verbindliche Angebot für genau dieses Modell berechnet werden.
+          {tOffers('models.missingBody')}
         </div>
       </div>
       <div>
         <button type="button" onClick={() => changeTab('objekt')} style={offerButtonStyle('secondary')}>
-          Zur Kundenerfassung
+          {tOffers('models.goToIntake')}
         </button>
       </div>
     </div>
   );
-  const calculateBindingOffer = (modelRequest, index) => runCaseAction('VA-Kalkulation', async () => {
+  const calculateBindingOffer = (modelRequest, index) => runCaseAction(tOffers('actions.calculateBinding'), async () => {
     if (!canPrepareBindingOffer) {
-      throw new Error('Bitte zuerst das Gutachten als eingegangen markieren.');
+      throw new Error(tOffers('validation.appraisalReceivedRequired'));
     }
     const parsedExpertOpinionValue = parseGermanNumberInput(expertOpinionValue);
     if (!Number.isFinite(parsedExpertOpinionValue) || parsedExpertOpinionValue <= 0) {
-      throw new Error('Bitte zuerst den Gutachtenwert eintragen.');
+      throw new Error(tOffers('validation.appraisedValueRequired'));
     }
     const key = `binding-${modelRequest.key}-${index}`;
     const params = calculationParams[key] || {};
@@ -6095,20 +6210,20 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     });
     await postJson(`/api/properties/${c.propertyId}/offer/generate-ai-text`);
   });
-  const markIndicativeOfferSent = () => runCaseAction('Unverbindliches Angebot verschickt', async () => {
+  const markIndicativeOfferSent = () => runCaseAction(tOffers('actions.indicativeSubmitted'), async () => {
     await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'indicative_offer_sent' });
   });
-  const markIndicativeOfferAccepted = () => runCaseAction('UVA angenommen', async () => {
+  const markIndicativeOfferAccepted = () => runCaseAction(tOffers('actions.indicativeAccepted'), async () => {
     if (property?.status !== 'INDICATIVE_OFFER_SENT' && property?.status !== 'OFFER_ACCEPTED') {
-      throw new Error('Bitte zuerst das unverbindliche Angebot als abgegeben markieren.');
+      throw new Error(tOffers('validation.indicativeSubmittedDateRequired'));
     }
     await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'offer_accepted' });
   });
-  const saveExpertOpinionOrderData = () => runCaseAction('Gutachtenbeauftragung speichern', async () => {
+  const saveExpertOpinionOrderData = () => runCaseAction(tOffers('appraisal.saveCommission'), async () => {
     const orderedDate = expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt);
     const company = expertOpinionCompany.trim() || property?.expertOpinionCompany || '';
-    if (!orderedDate) throw new Error('Bitte geben Sie das Beauftragungsdatum an.');
-    if (!company.trim()) throw new Error('Bitte geben Sie den Gutachter oder die Gutachterfirma an.');
+    if (!orderedDate) throw new Error(tOffers('validation.commissionDateRequired'));
+    if (!company.trim()) throw new Error(tOffers('validation.appraiserRequired'));
     await postJson(`/api/properties/${c.propertyId}/workflow`, {
       action: 'expert_opinion_ordered',
       expertOpinionOrderedAt: orderedDate,
@@ -6132,15 +6247,15 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     setRejectionNote('');
   });
   const acquisitionSteps = [
-    { action: null, status: 'SUBMITTED', label: 'Eingereicht', date: property?.createdAt },
-    { action: 'indicative_offer_sent', status: 'INDICATIVE_OFFER_SENT', label: 'Unverbindliches Angebot (UVA) abgegeben', date: property?.indicativeOfferSentAt },
-    { action: 'offer_accepted', status: 'OFFER_ACCEPTED', label: 'UVA angenommen', date: property?.offerAcceptedAt },
-    { action: 'expert_opinion_ordered', status: 'EXPERT_OPINION_ORDERED', label: 'Gutachten beauftragt', date: property?.expertOpinionOrderedAt },
-    { action: 'expert_opinion_received', status: 'EXPERT_OPINION_RECEIVED', label: 'Gutachten eingegangen', date: property?.expertOpinionReceivedAt },
-    { action: 'binding_offer_sent', status: 'BINDING_OFFER_SENT', label: 'Verbindliches Angebot (VA) abgegeben', date: property?.bindingOfferSentAt },
-    { action: 'binding_offer_accepted', status: 'BINDING_OFFER_ACCEPTED', label: 'VA angenommen', date: property?.bindingOfferAcceptedAt },
-    { action: 'notary_appointment_ordered', status: 'NOTARY_APPOINTMENT', label: 'Notartermin vereinbart', date: property?.notaryAppointmentAt, needsDate: true },
-    { action: 'contract_signed', status: 'IN_PORTFOLIO', label: 'Kaufvertrag abgeschlossen', date: property?.portfolioEnteredAt },
+    { action: null, status: 'SUBMITTED', label: t('stepper.submitted'), date: property?.createdAt },
+    { action: 'indicative_offer_sent', status: 'INDICATIVE_OFFER_SENT', label: tOffers('actions.indicativeSubmitted'), date: property?.indicativeOfferSentAt },
+    { action: 'offer_accepted', status: 'OFFER_ACCEPTED', label: tOffers('actions.indicativeAccepted'), date: property?.offerAcceptedAt },
+    { action: 'expert_opinion_ordered', status: 'EXPERT_OPINION_ORDERED', label: tOffers('appraisal.commissioned'), date: property?.expertOpinionOrderedAt },
+    { action: 'expert_opinion_received', status: 'EXPERT_OPINION_RECEIVED', label: tOffers('appraisal.received'), date: property?.expertOpinionReceivedAt },
+    { action: 'binding_offer_sent', status: 'BINDING_OFFER_SENT', label: tOffers('actions.bindingSubmitted'), date: property?.bindingOfferSentAt },
+    { action: 'binding_offer_accepted', status: 'BINDING_OFFER_ACCEPTED', label: tOffers('actions.bindingAccepted'), date: property?.bindingOfferAcceptedAt },
+    { action: 'notary_appointment_ordered', status: 'NOTARY_APPOINTMENT', label: tClosing('actions.notaryScheduled'), date: property?.notaryAppointmentAt, needsDate: true },
+    { action: 'contract_signed', status: 'IN_PORTFOLIO', label: tClosing('actions.agreementCompleted'), date: property?.portfolioEnteredAt },
   ];
   const acquisitionStatusAliases = {
     DATA_INCOMPLETE: 'SUBMITTED',
@@ -6178,50 +6293,50 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const handleAcquisitionAction = (step, acceptedSelection = null) => runCaseAction(step.label, async () => {
     if (!step.action) return;
     if (step.action === 'indicative_offer_sent' && !(indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt))) {
-      throw new Error('Bitte zuerst „Unverbindliches Angebot abgegeben am“ eintragen.');
+      throw new Error(tOffers('validation.indicativeSubmittedDateRequired'));
     }
     if (step.action === 'offer_accepted') {
       const submittedDate = indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt);
       const acceptedDate = indicativeOfferAcceptedDate || dateInputValue(property?.offerAcceptedAt);
-      if (!submittedDate) throw new Error('Bitte zuerst „Unverbindliches Angebot abgegeben am“ eintragen.');
-      if (!acceptedDate) throw new Error('Bitte zuerst „Unverbindliches Angebot angenommen am“ eintragen.');
+      if (!submittedDate) throw new Error(tOffers('validation.indicativeSubmittedDateRequired'));
+      if (!acceptedDate) throw new Error(tOffers('validation.indicativeAcceptedDateRequired'));
       if (acceptedDate && isDateBefore(acceptedDate, submittedDate)) {
-        throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
+        throw new Error(tOffers('validation.acceptanceBeforeSubmission'));
       }
     }
     if (step.action === 'binding_offer_sent' && !(bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt))) {
-      throw new Error('Bitte zuerst „Verbindliches Angebot abgegeben am“ eintragen.');
+      throw new Error(tOffers('validation.bindingSubmittedDateRequired'));
     }
     if (step.action === 'binding_offer_accepted') {
       const submittedDate = bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt);
       const acceptedDate = bindingOfferAcceptedDate || dateInputValue(property?.bindingOfferAcceptedAt);
-      if (!submittedDate) throw new Error('Bitte zuerst „Verbindliches Angebot abgegeben am“ eintragen.');
-      if (!acceptedDate) throw new Error('Bitte zuerst „Verbindliches Angebot angenommen am“ eintragen.');
+      if (!submittedDate) throw new Error(tOffers('validation.bindingSubmittedDateRequired'));
+      if (!acceptedDate) throw new Error(tOffers('validation.bindingAcceptedDateRequired'));
       if (acceptedDate && isDateBefore(acceptedDate, submittedDate)) {
-        throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
+        throw new Error(tOffers('validation.acceptanceBeforeSubmission'));
       }
     }
     if (step.action === 'expert_opinion_ordered') {
       if (!expertOpinionOrderedDate && !property?.expertOpinionOrderedAt) {
-        throw new Error('Bitte geben Sie das Beauftragungsdatum an.');
+        throw new Error(tOffers('validation.commissionDateRequired'));
       }
       if (!expertOpinionCompany.trim() && !property?.expertOpinionCompany) {
-        throw new Error('Bitte geben Sie den Gutachter oder die Gutachterfirma an.');
+        throw new Error(tOffers('validation.appraiserRequired'));
       }
     }
     if (step.action === 'expert_opinion_received') {
       const orderedDate = expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt);
       const receivedDate = expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt);
-      if (!receivedDate) throw new Error('Bitte geben Sie das Eingangsdatum des Gutachtens an.');
+      if (!receivedDate) throw new Error(tOffers('validation.receivedDateRequired'));
       if (orderedDate && isDateBefore(receivedDate, orderedDate)) {
-        throw new Error('Das Eingangsdatum des Gutachtens darf nicht vor der Beauftragung liegen.');
+        throw new Error(tOffers('validation.receivedBeforeCommission'));
       }
     }
     if (step.needsDate && !notaryAppointmentDate && !property?.notaryAppointmentAt) {
-      throw new Error('Bitte zuerst den Notartermin eintragen.');
+      throw new Error(tClosing('validation.notaryDateRequired'));
     }
     if (step.needsDate && !notaryOffice.trim() && !property?.notaryOffice) {
-      throw new Error('Bitte Notar oder Notariat eintragen.');
+      throw new Error(tClosing('validation.notaryOfficeRequired'));
     }
     await postJson(`/api/properties/${c.propertyId}/workflow`, {
       action: step.action,
@@ -6239,15 +6354,15 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       notaryOffice: step.needsDate ? (notaryOffice.trim() || property?.notaryOffice) : undefined
     });
   });
-  const saveOfferDateFields = (kind) => runCaseAction(kind === 'binding' ? 'Datumsfelder verbindliches Angebot' : 'Datumsfelder unverbindliches Angebot', async () => {
+  const saveOfferDateFields = (kind) => runCaseAction(tOffers('actions.saveDetails'), async () => {
     if (kind === 'binding') {
       const submittedDate = bindingOfferSentDate || dateInputValue(property?.bindingOfferSentAt);
       const acceptedDate = bindingOfferAcceptedDate || dateInputValue(property?.bindingOfferAcceptedAt);
       if (acceptedDate && !submittedDate) {
-        throw new Error('Bitte zuerst „Verbindliches Angebot abgegeben am“ eintragen.');
+        throw new Error(tOffers('validation.bindingSubmittedDateRequired'));
       }
       if (isDateBefore(acceptedDate, submittedDate)) {
-        throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
+        throw new Error(tOffers('validation.acceptanceBeforeSubmission'));
       }
       if (bindingOfferSentDate) {
         await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'binding_offer_sent', bindingOfferSentAt: bindingOfferSentDate });
@@ -6260,10 +6375,10 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     const submittedDate = indicativeOfferSentDate || dateInputValue(property?.indicativeOfferSentAt);
     const acceptedDate = indicativeOfferAcceptedDate || dateInputValue(property?.offerAcceptedAt);
     if (acceptedDate && !submittedDate) {
-      throw new Error('Bitte zuerst „Unverbindliches Angebot abgegeben am“ eintragen.');
+      throw new Error(tOffers('validation.indicativeSubmittedDateRequired'));
     }
     if (isDateBefore(acceptedDate, submittedDate)) {
-      throw new Error('Das Annahmedatum darf nicht vor dem Abgabedatum liegen.');
+      throw new Error(tOffers('validation.acceptanceBeforeSubmission'));
     }
     if (indicativeOfferSentDate) {
       await postJson(`/api/properties/${c.propertyId}/workflow`, { action: 'indicative_offer_sent', indicativeOfferSentAt: indicativeOfferSentDate });
@@ -6272,7 +6387,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       startAcceptedOfferSelection('offer_accepted');
     }
   });
-  const createIndicativeOfferPdf = (model) => runCaseAction('PDF-Angebot erstellen', async () => {
+  const createIndicativeOfferPdf = (model) => runCaseAction(tOffers('actions.generatePdf'), async () => {
     const response = await fetch(`/api/properties/${c.propertyId}/offer/generate-pdf`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -6280,13 +6395,13 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.error || 'Das PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut.');
+      throw new Error(tOffers('messages.pdfFailed'));
     }
     if (payload.downloadUrl) {
       window.open(payload.downloadUrl, '_blank', 'noopener,noreferrer');
     }
   });
-  const createBindingOfferPdf = (model) => runCaseAction('VA-PDF-Angebot erstellen', async () => {
+  const createBindingOfferPdf = (model) => runCaseAction(tOffers('actions.generatePdf'), async () => {
     const response = await fetch(`/api/properties/${c.propertyId}/offer/generate-binding-pdf`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -6294,7 +6409,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.error || 'Das PDF konnte nicht erstellt werden. Bitte versuchen Sie es erneut.');
+      throw new Error(tOffers('messages.pdfFailed'));
     }
     if (payload.downloadUrl) {
       window.open(payload.downloadUrl, '_blank', 'noopener,noreferrer');
@@ -6303,15 +6418,15 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const indicativeOfferDateFields = (
     <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
       <div className="offer-dates-grid" style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
-        <Field label="Unverbindliches Angebot abgegeben am">
+        <Field label={tOffers('dates.indicativeSubmittedOn')}>
           <Input type="date" value={indicativeOfferSentDate} onChange={(event) => setIndicativeOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
         </Field>
-        <Field label="Unverbindliches Angebot angenommen am" invalid={Boolean(indicativeOfferAcceptedDate && indicativeOfferSentDate && isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate))}>
+        <Field label={tOffers('dates.indicativeAcceptedOn')} invalid={Boolean(indicativeOfferAcceptedDate && indicativeOfferSentDate && isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate))}>
           <Input type="date" value={indicativeOfferAcceptedDate} onChange={(event) => setIndicativeOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
         </Field>
         {canEditOfferDates && (
           <button onClick={() => saveOfferDateFields('indicative')} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: Boolean(busyAction) })}>
-            Daten speichern
+            {tOffers('actions.saveDetails')}
           </button>
         )}
       </div>
@@ -6320,15 +6435,15 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const bindingOfferDateFields = (
     <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
       <div className="offer-dates-grid" style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 10, alignItems: 'end' }}>
-        <Field label="Verbindliches Angebot abgegeben am">
+        <Field label={tOffers('dates.bindingSubmittedOn')}>
           <Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
         </Field>
-        <Field label="Verbindliches Angebot angenommen am" invalid={Boolean(bindingOfferAcceptedDate && bindingOfferSentDate && isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate))}>
+        <Field label={tOffers('dates.bindingAcceptedOn')} invalid={Boolean(bindingOfferAcceptedDate && bindingOfferSentDate && isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate))}>
           <Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
         </Field>
         {canEditOfferDates && (
           <button onClick={() => saveOfferDateFields('binding')} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: Boolean(busyAction) })}>
-            Daten speichern
+            {tOffers('actions.saveDetails')}
           </button>
         )}
       </div>
@@ -6354,7 +6469,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     const options = acceptedOfferOptions(action);
     const existingModel = existingAcceptedOfferModel(action);
     if (role !== 'admin' && !existingModel) {
-      setNotice?.('Das angenommene Modell kann nur intern erfasst werden.');
+      setNotice?.(tOffers('validation.acceptedModelInternalOnly'));
       return true;
     }
     const selectedModel = existingModel || preferredModel || (options.length === 1 ? options[0].model : '');
@@ -6374,18 +6489,18 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     if (!acceptedOfferDialog) return;
     const model = acceptedOfferModelInput;
     if (!model) {
-      setNotice?.('Bitte wählen Sie das angenommene Modell aus.');
+      setNotice?.(tOffers('validation.acceptedModelRequired'));
       return;
     }
     const options = acceptedOfferOptions(acceptedOfferDialog.action);
     const selectedOffer = options.find((option) => option.model === model);
     if (!selectedOffer) {
-      setNotice?.('Das ausgewählte Modell wurde nicht angeboten.');
+      setNotice?.(tOffers('validation.modelNotOffered'));
       return;
     }
     const step = workflowAction(acceptedOfferDialog.action);
     if (!step) {
-      setNotice?.('Dieser Prozessschritt ist nicht vorbereitet.');
+      setNotice?.(tOffers('validation.workflowNotPrepared'));
       return;
     }
     setAcceptedOfferDialog(null);
@@ -6395,7 +6510,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const runWorkflowAction = (action, preferredModel) => {
     const step = workflowAction(action);
     if (!step) {
-      setNotice?.('Dieser Prozessschritt ist nicht vorbereitet.');
+      setNotice?.(tOffers('validation.workflowNotPrepared'));
       return;
     }
     if (action === 'offer_accepted' || action === 'binding_offer_accepted') {
@@ -6483,7 +6598,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       <CheckCircle size={13} /> {children}
     </span>
   );
-  const OfferSuccessHint = ({ action, children = 'Berechnung aktualisiert' }) => (
+  const OfferSuccessHint = ({ action, children = tOffers('messages.calculationUpdated') }) => (
     recentSuccessAction === action ? (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: theme.success, fontSize: 12, fontWeight: 800 }}>
         <CheckCircle size={13} /> {children}
@@ -6510,9 +6625,9 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       {rows.length ? rows.map(([label, value], rowIndex) => {
         const isDelta = String(label).startsWith('Δ');
         const isNegative = String(value).startsWith('-');
-        const isCustomerPayout = label === 'Auszahlung an den Kunden';
-        const isPayoutRatio = label === 'Auszahlungsquote';
-        const isTotalInvestorCommitment = label === 'Gesamtankaufskosten';
+        const isCustomerPayout = label === tOffers('results.customerPayout');
+        const isPayoutRatio = label === tOffers('results.payoutRatio');
+        const isTotalInvestorCommitment = label === tOffers('results.totalAcquisitionCosts');
         const rowStyle = {
           display: 'flex',
           alignItems: isCustomerPayout ? 'flex-start' : 'center',
@@ -6545,8 +6660,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             <span style={{ fontSize: isCustomerPayout ? 13 : 12.5, color: isCustomerPayout ? theme.success : `${theme.ink}99`, fontWeight: isCustomerPayout || isTotalInvestorCommitment ? 850 : 650 }}>
               {isCustomerPayout ? (
                 <>
-                  <span style={{ display: 'block' }}>Auszahlung an den Kunden</span>
-                  <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, color: `${theme.success}99`, fontWeight: 750, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Maximaler Auszahlungsbetrag</span>
+                  <span style={{ display: 'block' }}>{tOffers('results.customerPayout')}</span>
+                  <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, color: `${theme.success}99`, fontWeight: 750, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{tOffers('results.maximumCustomerPayout')}</span>
                 </>
               ) : label}
             </span>
@@ -6575,18 +6690,18 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
         ? `${new Intl.NumberFormat(uiLocale, { maximumFractionDigits: 2 }).format(Number(raw.monthlyRentPerSqm))} €/m²`
         : '–';
     const sourceParts = [
-      labelFrom(preliminaryMarketValueSourceLabels, precheckDraft.preliminaryMarketValueSource, 'Nicht erfasst'),
+      labelFrom(localizedPreliminaryMarketValueSourceLabels, precheckDraft.preliminaryMarketValueSource, t('values.notRecorded')),
       precheckDraft.preliminaryMarketValueDate ? dateLabel(precheckDraft.preliminaryMarketValueDate) : null,
     ].filter(Boolean);
 
     return (
       <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 10, padding: '13px 15px', marginBottom: 16 }}>
-        <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>Marktdaten / vorläufiger Verkehrswert</div>
+        <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 10 }}>{tOffers('sections.marketData')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
           {[
-            ['Vorläufiger Verkehrswert', preliminaryMarketValueLabel],
-            ['Quelle / Zeitpunkt', sourceParts.join(' · ') || '–'],
-            ['Mietansatz aus Marktdaten', rentHint],
+            [tOffers('results.preliminaryMarketValue'), preliminaryMarketValueLabel],
+            [tOffers('meta.sourceAndDate'), sourceParts.join(' · ') || '–'],
+            [tOffers('meta.rentFromMarketData'), rentHint],
           ].map(([label, value]) => (
             <div key={label}>
               <div style={{ fontSize: 11, color: `${theme.ink}88`, fontWeight: 700, marginBottom: 3 }}>{label}</div>
@@ -6595,10 +6710,10 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
           ))}
         </div>
         <div style={{ marginTop: 9, fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
-          Die UVA verwendet ausschließlich diesen zentralen vorläufigen Verkehrswert. Gutachtenwerte werden später separat im verbindlichen Angebot genutzt.
+          {tOffers('messages.indicativeMarketValueHint')}
           {canManagePrecheck && (
             <button type="button" onClick={() => changeTab('rating')} style={{ marginLeft: 8, border: 'none', background: 'transparent', color: theme.aubergine, fontWeight: 850, cursor: 'pointer', padding: 0 }}>
-              Vorläufigen Verkehrswert bearbeiten
+              {tOffers('messages.editPreliminaryValue')}
             </button>
           )}
         </div>
@@ -6612,41 +6727,41 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     const isRentBack = modelRequest.model === 'sale_and_leaseback';
     const isResidentialRight = modelRequest.model === 'fixed_residential_right';
     const isLifetimeResidentialRight = modelRequest.usageModel === 'lifelong_residential_right';
-    const residentialRightVariantLabel = residentialRightVariantLabelFromUsageModel(modelRequest.usageModel);
+    const residentialRightVariantLabel = residentialVariantLabel(modelRequest.usageModel);
     const rentBackMetrics = isRentBack && offer ? rentBackCalculationFromOffer(offer) : null;
-    const calculationActionLabel = isRentBack ? 'Rückmietverkauf-Kalkulation' : isLifetimeResidentialRight ? 'Lebenslanges Wohnrecht berechnen' : 'Wohnrecht-Kalkulation';
-    const offerMeta = offer ? `Version ${offer.currentVersion || 1} · zuletzt berechnet` : 'Entwurf';
-    const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer) : residentialRightMetricRows(offer)) : [];
+    const calculationActionLabel = tOffers('actions.calculateIndicative');
+    const offerMeta = offer ? tOffers('meta.versionCalculated', { version: offer.currentVersion || 1 }) : tOffers('meta.draft');
+    const breakdownRows = offer ? (isRentBack ? rentBackMetricRows(offer, offerResultLabels) : residentialRightMetricRows(offer, offerResultLabels)) : [];
     const termWarning = !isRentBack ? offer?.assumptions?.termWarning : null;
     const chipRows = [
-      ['Vorläufiger Verkehrswert', offer ? formatEuro(offer.marketValue) : preliminaryMarketValueLabel],
-      ['Modell', isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)],
+      [tOffers('results.preliminaryMarketValue'), offer ? formatEuro(offer.marketValue) : preliminaryMarketValueLabel],
+      [tOffers('results.model'), isResidentialRight ? residentialRightVariantLabel : offerModelLabel(modelRequest.model)],
       isRentBack
-        ? ['Info', 'Miete ab Tag 1']
-        : ['Laufzeit', isLifetimeResidentialRight ? 'lebenslang' : `${params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
+        ? [tOffers('results.info'), tOffers('results.rentFromDayOne')]
+        : [tOffers('results.term'), isLifetimeResidentialRight ? tOffers('results.lifetime') : tOffers('results.years', { count: params.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-' })],
     ];
     const statusSent = workflowActionState('indicative_offer_sent');
     const statusAccepted = workflowActionState('offer_accepted');
     const nextStep = !statusSent.reached
       ? {
-          title: 'Als Nächstes: Unverbindliches Angebot abgeben',
-          help: 'Berechnung prüfen und den Schritt markieren, sobald der Kunde informiert ist.',
-          label: 'Unverbindliches Angebot abgegeben',
+          title: tOffers('nextSteps.submitIndicative'),
+          help: tOffers('nextSteps.submitIndicativeHelp'),
+          label: tOffers('actions.indicativeSubmitted'),
           action: 'indicative_offer_sent',
           state: statusSent,
         }
       : !statusAccepted.reached
         ? {
-            title: 'Als Nächstes: Annahme dokumentieren',
-            help: 'Sobald der Kunde das unverbindliche Angebot annimmt, kann die Gutachtenbeauftragung starten.',
-            label: 'UVA angenommen',
+            title: tOffers('nextSteps.recordAcceptance'),
+            help: tOffers('nextSteps.indicativeAcceptanceHelp'),
+            label: tOffers('actions.indicativeAccepted'),
             action: 'offer_accepted',
             state: statusAccepted,
           }
         : {
-            title: 'Unverbindliches Angebot angenommen',
-            help: 'Der nächste operative Schritt ist die Gutachtenbeauftragung.',
-            label: 'UVA angenommen',
+            title: tOffers('nextSteps.indicativeAccepted'),
+            help: tOffers('nextSteps.indicativeAcceptedHelp'),
+            label: tOffers('actions.indicativeAccepted'),
             action: 'offer_accepted',
             state: statusAccepted,
           };
@@ -6655,7 +6770,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       <div key={`indicative-offer-card-${key}`} style={offerShellStyle}>
         <div style={offerHeaderStyle}>
           <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>
-            Unverbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}</span>
+            {tOffers('indicative')} · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{isResidentialRight ? residentialRightVariantLabel : offerModelLabel(modelRequest.model)}</span>
           </div>
           <div style={{ fontSize: 12, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{offerMeta}</div>
         </div>
@@ -6663,21 +6778,21 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
         <div className="offer-hero-grid" style={offerHeroStyle}>
           <div>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Berechnungsergebnis</div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>{tOffers('sections.calculationResults')}</div>
             <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 850, lineHeight: 1.25 }}>
-              Unverbindliches Angebot für {isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}
+              {tOffers('meta.indicativeFor', { model: isResidentialRight ? residentialRightVariantLabel : offerModelLabel(modelRequest.model) })}
             </div>
             <div style={{ marginTop: 8, fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
-              Die zentrale Auszahlung und die Investorengesamtkosten sind rechts strukturiert dargestellt.
+              {tOffers('meta.indicativeSummary')}
             </div>
             {rentBackMetrics && (
               <div style={{ marginTop: 8, fontSize: 13, color: `${theme.ink}99`, fontWeight: 650 }}>
-                Monatliche Miete {formatEuroCents(rentBackMetrics.monthlyRent)}
+                {tOffers('results.monthlyRent')} {formatEuroCents(rentBackMetrics.monthlyRent)}
               </div>
             )}
             {renderOfferChipRows(chipRows)}
           </div>
-          {renderOfferBreakdown(breakdownRows, 'Noch keine UVA-Kalkulation vorhanden.')}
+          {renderOfferBreakdown(breakdownRows, tOffers('messages.noIndicativeCalculation'))}
         </div>
 
         {termWarning && (
@@ -6690,15 +6805,15 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
         {canManageOffers && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
-            <div style={offerSectionTitleStyle}>Berechnungs-Eingabe</div>
+            <div style={offerSectionTitleStyle}>{tOffers('sections.calculationInputs')}</div>
             {renderMarketDataBox()}
             {isLifetimeResidentialRight && (
               <div style={{ border: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
-                Beim lebenslangen Wohnrecht wird keine feste Laufzeit verwendet. Die Berechnung basiert auf der Sterbetafel und der Joint-Life-Logik bei zwei Personen.
+                {tOffers('modelNotes.lifetime')}
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
-              {residentialRightCalculationFields(modelRequest, property).map(([field, label, fallbackValue]) => (
+              {residentialRightCalculationFields(modelRequest, property, false, offerInputLabels).map(([field, label, fallbackValue]) => (
                 <Field key={field} label={label}>
                   <Input
                     type="text"
@@ -6711,7 +6826,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <button onClick={() => startValuationAndOffer(modelRequest, index)} disabled={Boolean(busyAction)} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction), busy: busyAction === calculationActionLabel })}>
-                {busyAction === calculationActionLabel ? 'Berechnet...' : offer ? 'Neu berechnen' : 'Unverbindliches Angebot berechnen'}
+                {busyAction === calculationActionLabel ? tOffers('actions.calculating') : offer ? tOffers('actions.recalculate') : tOffers('actions.calculateIndicative')}
               </button>
               <OfferSuccessHint action={calculationActionLabel} />
             </div>
@@ -6720,22 +6835,22 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
         {modelRequest.primary && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
-            <div style={offerSectionTitleStyle}>Angebotsdaten</div>
+            <div style={offerSectionTitleStyle}>{tOffers('sections.offerDetails')}</div>
             <div className="offer-dates-grid" style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 14, alignItems: 'end' }}>
-              <Field label="Unverbindliches Angebot abgegeben am">
+              <Field label={tOffers('dates.indicativeSubmittedOn')}>
                 <Input type="date" value={indicativeOfferSentDate} onChange={(event) => setIndicativeOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
               </Field>
-              <Field label="Unverbindliches Angebot angenommen am" invalid={Boolean(indicativeOfferAcceptedDate && indicativeOfferSentDate && isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate))}>
+              <Field label={tOffers('dates.indicativeAcceptedOn')} invalid={Boolean(indicativeOfferAcceptedDate && indicativeOfferSentDate && isDateBefore(indicativeOfferAcceptedDate, indicativeOfferSentDate))}>
                 <Input type="date" value={indicativeOfferAcceptedDate} onChange={(event) => setIndicativeOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
               </Field>
               {canEditOfferDates && (
                 <button onClick={() => saveOfferDateFields('indicative')} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: Boolean(busyAction) })}>
-                  Daten speichern
+                  {tOffers('actions.saveDetails')}
                 </button>
               )}
             </div>
             <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 999, padding: '6px 11px', fontSize: 12, color: theme.ink, fontWeight: 750 }}>
-              <span style={{ color: `${theme.ink}88`, fontWeight: 650 }}>Angenommenes Modell:</span>
+              <span style={{ color: `${theme.ink}88`, fontWeight: 650 }}>{tOffers('dates.acceptedModel')}:</span>
               <span style={{ color: theme.aubergine }}>{acceptedOfferModelLabel('offer_accepted')}</span>
             </div>
           </div>
@@ -6743,7 +6858,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
         {isRentBack && offer && (
           <div style={{ padding: '0 24px 18px', fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
-            Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Rating-Tool folgt.
+            {tOffers('modelNotes.rentBackDemo')}
           </div>
         )}
 
@@ -6758,17 +6873,17 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 <button
                   onClick={() => createIndicativeOfferPdf(modelRequest.model)}
                   disabled={Boolean(busyAction) || !offer}
-                  title={!offer ? 'Bitte zuerst das unverbindliche Angebot berechnen.' : 'PDF-Angebot erstellen'}
-                  style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !offer, busy: busyAction === 'PDF-Angebot erstellen' })}
+                  title={!offer ? tOffers('messages.calculateIndicativeFirst') : tOffers('actions.generatePdf')}
+                  style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !offer, busy: busyAction === tOffers('actions.generatePdf') })}
                 >
-                  PDF-Angebot erstellen
+                  {tOffers('actions.generatePdf')}
                 </button>
                 {offer?.pdfUrl && (
                   <a href={offer.pdfUrl} target="_blank" rel="noreferrer" style={{ ...offerButtonStyle('secondary'), textDecoration: 'none' }}>
-                    PDF öffnen
+                    {tOffers('actions.openPdf')}
                   </a>
                 )}
-                {!offer && <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>Bitte zuerst das unverbindliche Angebot berechnen.</span>}
+                {!offer && <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>{tOffers('messages.calculateIndicativeFirst')}</span>}
               </>
             )}
             {(canManageOffers || role === 'partner') && (
@@ -6852,7 +6967,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   });
   const updatePortfolioForm = (patch) => setPortfolioForm((current) => ({ ...current, ...patch }));
   const updateExitProcessForm = (patch) => setExitProcessForm((current) => ({ ...current, ...patch }));
-  const savePortfolioFile = () => runCaseAction('Bestandsakte speichern', async () => {
+  const portfolioSaveActionLabel = activeTab === 'kvabwicklung' ? tClosing('actions.save') : 'Bestandsakte speichern';
+  const savePortfolioFile = () => runCaseAction(portfolioSaveActionLabel, async () => {
     const payload = {
       purchaseContractNumber: portfolioForm.purchaseContractNumber,
       purchaseContractSignedAt: portfolioForm.purchaseContractSignedAt,
@@ -6977,61 +7093,61 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     const isRentBack = modelRequest.model === 'sale_and_leaseback';
     const isResidentialRight = modelRequest.model === 'fixed_residential_right';
     const isLifetimeResidentialRight = modelRequest.usageModel === 'lifelong_residential_right';
-    const residentialRightVariantLabel = residentialRightVariantLabelFromUsageModel(modelRequest.usageModel);
+    const residentialRightVariantLabel = residentialVariantLabel(modelRequest.usageModel);
     const bindingRentBackMetrics = isRentBack && bindingOffer ? rentBackCalculationFromOffer(bindingOffer) : null;
     const indicativeRentBackMetrics = isRentBack && indicativeOffer ? rentBackCalculationFromOffer(indicativeOffer) : null;
     const deltaMarket = bindingOffer && indicativeOffer ? bindingOffer.marketValue - indicativeOffer.marketValue : undefined;
     const appraisalDeviationWarning = preliminaryMarketValue && parseGermanNumberInput(expertOpinionValue) && Math.abs(parseGermanNumberInput(expertOpinionValue) - preliminaryMarketValue) / preliminaryMarketValue >= 0.1
-      ? 'Der Gutachtenwert weicht vom vorläufigen Verkehrswert ab. Bitte Rating-Review durchführen.'
+      ? tOffers('messages.appraisalDeviation')
       : '';
     const deltaPayout = bindingOffer && indicativeOffer
       ? (bindingRentBackMetrics?.payoutAmount ?? bindingOffer.payoutAmount) - (indicativeRentBackMetrics?.payoutAmount ?? indicativeOffer.payoutAmount)
       : undefined;
     const offerMeta = bindingOffer
-      ? `Version ${bindingOffer.currentVersion || 1} · zuletzt berechnet`
-      : 'Entwurf';
+      ? tOffers('meta.versionCalculated', { version: bindingOffer.currentVersion || 1 })
+      : tOffers('meta.draft');
     const statusSent = workflowActionState('binding_offer_sent');
     const statusAccepted = workflowActionState('binding_offer_accepted');
     const nextStep = !statusSent.reached
       ? {
-          title: 'Als Nächstes: Verbindliches Angebot abgeben',
-          help: 'Berechnung ist final. Markiere den Schritt, sobald der Kunde informiert ist.',
-          label: 'Angebot abgegeben',
+          title: tOffers('nextSteps.submitBinding'),
+          help: tOffers('nextSteps.submitBindingHelp'),
+          label: tOffers('actions.bindingSubmitted'),
           action: 'binding_offer_sent',
           state: statusSent,
         }
       : !statusAccepted.reached
         ? {
-            title: 'Als Nächstes: Annahme dokumentieren',
-            help: 'Sobald der Kunde das verbindliche Angebot angenommen hat, kann die Notarvorbereitung starten.',
-            label: 'VA angenommen',
+            title: tOffers('nextSteps.recordAcceptance'),
+            help: tOffers('nextSteps.bindingAcceptanceHelp'),
+            label: tOffers('actions.bindingAccepted'),
             action: 'binding_offer_accepted',
             state: statusAccepted,
           }
         : {
-            title: 'Verbindliches Angebot angenommen',
-            help: 'Der nächste operative Schritt liegt in Notartermin und Kaufvertrag.',
-            label: 'VA angenommen',
+            title: tOffers('nextSteps.bindingAccepted'),
+            help: tOffers('nextSteps.bindingAcceptedHelp'),
+            label: tOffers('actions.bindingAccepted'),
             action: 'binding_offer_accepted',
             state: statusAccepted,
           };
     const bindingParamKey = `binding-${modelRequest.key}-${index}`;
     const bindingParams = calculationParams[bindingParamKey] || {};
     const breakdownRows = bindingOffer ? (isRentBack ? [
-      ...rentBackMetricRows(bindingOffer),
-      ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
-      ['Δ Auszahlung vs. UVA', deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuroCents(deltaPayout)}` : '-'],
+      ...rentBackMetricRows(bindingOffer, offerResultLabels),
+      [tOffers('results.valueDelta'), deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
+      [tOffers('results.payoutDelta'), deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuroCents(deltaPayout)}` : '-'],
     ] : [
-      ...residentialRightMetricRows(bindingOffer),
-      ['Δ Wert vs. UVA', deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
-      ['Δ Auszahlung vs. UVA', deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuro(deltaPayout)}` : '-'],
+      ...residentialRightMetricRows(bindingOffer, offerResultLabels),
+      [tOffers('results.valueDelta'), deltaMarket !== undefined ? `${deltaMarket >= 0 ? '+' : ''}${formatEuro(deltaMarket)}` : '-'],
+      [tOffers('results.payoutDelta'), deltaPayout !== undefined ? `${deltaPayout >= 0 ? '+' : ''}${formatEuro(deltaPayout)}` : '-'],
     ]) : [];
     const chipRows = [
-      ['Gutachtenwert', bindingOffer ? formatEuro(bindingOffer.marketValue) : expertOpinionValue ? `${expertOpinionValue} €` : '-'],
-      ['Modell', isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)],
+      [tOffers('results.appraisedMarketValue'), bindingOffer ? formatEuro(bindingOffer.marketValue) : expertOpinionValue ? `${expertOpinionValue} €` : '-'],
+      [tOffers('results.model'), isResidentialRight ? residentialRightVariantLabel : offerModelLabel(modelRequest.model)],
       isRentBack
-        ? ['Info', 'Miete ab Tag 1']
-        : ['Laufzeit', isLifetimeResidentialRight ? 'lebenslang' : `${bindingParams.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-'} Jahre`],
+        ? [tOffers('results.info'), tOffers('results.rentFromDayOne')]
+        : [tOffers('results.term'), isLifetimeResidentialRight ? tOffers('results.lifetime') : tOffers('results.years', { count: bindingParams.residentialRightYears || modelRequest.residentialRightYears || property?.desiredResidentialRightYears || '-' })],
     ];
     const termWarning = !isRentBack ? bindingOffer?.assumptions?.termWarning : null;
 
@@ -7039,7 +7155,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       <div key={`binding-offer-card-${modelRequest.key}-${index}`} style={offerShellStyle}>
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 800 }}>
-            Verbindliches Angebot · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}</span>
+            {tOffers('binding')} · <span style={{ fontStyle: 'italic', fontWeight: 700 }}>{isResidentialRight ? residentialRightVariantLabel : offerModelLabel(modelRequest.model)}</span>
           </div>
           <div style={{ fontSize: 12, color: `${theme.ink}88`, whiteSpace: 'nowrap' }}>{offerMeta}</div>
         </div>
@@ -7047,16 +7163,16 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
         <div className="offer-hero-grid" style={offerHeroStyle}>
           <div>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Berechnungsergebnis</div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>{tOffers('sections.calculationResults')}</div>
             <div style={{ fontSize: 18, color: theme.aubergine, fontWeight: 850, lineHeight: 1.25 }}>
-              Verbindliches Angebot für {isResidentialRight ? residentialRightVariantLabel : labelFrom(productModelLabels, modelRequest.model)}
+              {tOffers('meta.bindingFor', { model: isResidentialRight ? residentialRightVariantLabel : offerModelLabel(modelRequest.model) })}
             </div>
             <div style={{ marginTop: 8, fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
-              Die verbindliche Auszahlung und die Investorengesamtkosten sind rechts strukturiert dargestellt.
+              {tOffers('meta.bindingSummary')}
             </div>
             {bindingRentBackMetrics && (
               <div style={{ marginTop: 8, fontSize: 13, color: `${theme.ink}99`, fontWeight: 650 }}>
-                Monatliche Miete {formatEuroCents(bindingRentBackMetrics.monthlyRent)}
+                {tOffers('results.monthlyRent')} {formatEuroCents(bindingRentBackMetrics.monthlyRent)}
               </div>
             )}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
@@ -7079,7 +7195,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 </div>
               );
             }) : (
-              <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Noch keine VA-Kalkulation vorhanden.</div>
+              <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{tOffers('messages.noBindingCalculation')}</div>
             )}
           </div>
         </div>
@@ -7094,12 +7210,12 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
         {canManageOffers && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Berechnungs-Eingabe</div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>{tOffers('sections.calculationInputs')}</div>
             <div style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 10, padding: '10px 12px', marginBottom: 14, fontSize: 12.5, color: theme.ink, fontWeight: 750 }}>
-              Grundlage: Gutachtenwert
+              {tOffers('meta.basisAppraisal')}
               {preliminaryMarketValue && (
                 <span style={{ marginLeft: 10, color: `${theme.ink}88`, fontWeight: 650 }}>
-                  Vorläufiger Verkehrswert: {preliminaryMarketValueLabel}
+                  {tOffers('meta.preliminaryValue', { value: preliminaryMarketValueLabel })}
                 </span>
               )}
             </div>
@@ -7110,14 +7226,14 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             )}
             {isLifetimeResidentialRight && (
               <div style={{ border: `1px solid ${theme.borderSoft}`, background: theme.mintLighter, borderRadius: 8, padding: '10px 12px', marginBottom: 14, fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
-                Beim lebenslangen Wohnrecht wird keine feste Laufzeit verwendet. Die Berechnung basiert auf der Sterbetafel und der Joint-Life-Logik bei zwei Personen.
+                {tOffers('modelNotes.lifetime')}
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
-              <Field label="Gutachtenwert (€)" required>
-                <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder="z.B. 650.000" inputMode="numeric" />
+              <Field label={tOffers('inputs.appraisedMarketValue')} required>
+                <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(formatGermanIntegerInput(event.target.value))} placeholder={tOffers('inputs.marketValuePlaceholder')} inputMode="numeric" />
               </Field>
-              {residentialRightCalculationFields(modelRequest, property, true).map(([field, label, fallbackValue]) => (
+              {residentialRightCalculationFields(modelRequest, property, true, offerInputLabels).map(([field, label, fallbackValue]) => (
                 <Field key={field} label={label}>
                   <Input
                     type="text"
@@ -7129,32 +7245,32 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               ))}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction) || !canPrepareBindingOffer} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canPrepareBindingOffer, busy: busyAction === 'VA-Kalkulation' })}>
-                {busyAction === 'VA-Kalkulation' ? 'Berechnet...' : 'Neu berechnen'}
+              <button onClick={() => calculateBindingOffer(modelRequest, index)} disabled={Boolean(busyAction) || !canPrepareBindingOffer} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canPrepareBindingOffer, busy: busyAction === tOffers('actions.calculateBinding') })}>
+                {busyAction === tOffers('actions.calculateBinding') ? tOffers('actions.calculating') : tOffers('actions.recalculate')}
               </button>
-              <OfferSuccessHint action="VA-Kalkulation" />
+              <OfferSuccessHint action={tOffers('actions.calculateBinding')} />
             </div>
           </div>
         )}
 
         {modelRequest.primary && (
           <div style={{ padding: '20px 24px', borderTop: `1px solid ${theme.borderSoft}` }}>
-            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>Angebotsdaten</div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 14 }}>{tOffers('sections.offerDetails')}</div>
             <div className="offer-dates-grid" style={{ display: 'grid', gridTemplateColumns: canEditOfferDates ? '1fr 1fr auto' : '1fr 1fr', gap: 14, alignItems: 'end' }}>
-              <Field label="Verbindliches Angebot abgegeben am">
+              <Field label={tOffers('dates.bindingSubmittedOn')}>
                 <Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} />
               </Field>
-              <Field label="Verbindliches Angebot angenommen am" invalid={Boolean(bindingOfferAcceptedDate && bindingOfferSentDate && isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate))}>
+              <Field label={tOffers('dates.bindingAcceptedOn')} invalid={Boolean(bindingOfferAcceptedDate && bindingOfferSentDate && isDateBefore(bindingOfferAcceptedDate, bindingOfferSentDate))}>
                 <Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} />
               </Field>
               {canEditOfferDates && (
                 <button onClick={() => saveOfferDateFields('binding')} disabled={Boolean(busyAction)} style={offerButtonStyle('primary', { disabled: Boolean(busyAction), busy: Boolean(busyAction) })}>
-                  Daten speichern
+                  {tOffers('actions.saveDetails')}
                 </button>
               )}
             </div>
             <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 999, padding: '6px 11px', fontSize: 12, color: theme.ink, fontWeight: 750 }}>
-              <span style={{ color: `${theme.ink}88`, fontWeight: 650 }}>Angenommenes Modell:</span>
+              <span style={{ color: `${theme.ink}88`, fontWeight: 650 }}>{tOffers('dates.acceptedModel')}:</span>
               <span style={{ color: theme.aubergine }}>{acceptedOfferModelLabel('binding_offer_accepted')}</span>
             </div>
           </div>
@@ -7162,7 +7278,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
 
         {modelRequest.model === 'sale_and_leaseback' && bindingOffer && (
           <div style={{ padding: '0 24px 18px', fontSize: 11.5, color: `${theme.ink}88`, lineHeight: 1.45 }}>
-            Demo-Kalkulation: Die Auszahlung beträgt pauschal 70 % des Verkehrswerts. Die jährliche Miete beträgt 5 % des Auszahlungsbetrags. Rating-Tool folgt.
+            {tOffers('modelNotes.rentBackDemo')}
           </div>
         )}
 
@@ -7177,17 +7293,17 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 <button
                   onClick={() => createBindingOfferPdf(modelRequest.model)}
                   disabled={Boolean(busyAction) || !bindingOffer}
-                  title={!bindingOffer ? 'Bitte zuerst das verbindliche Angebot berechnen.' : 'PDF-Angebot erstellen'}
-                  style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !bindingOffer, busy: busyAction === 'VA-PDF-Angebot erstellen' })}
+                  title={!bindingOffer ? tOffers('messages.calculateBindingFirst') : tOffers('actions.generatePdf')}
+                  style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !bindingOffer, busy: busyAction === tOffers('actions.generatePdf') })}
                 >
-                  PDF-Angebot erstellen
+                  {tOffers('actions.generatePdf')}
                 </button>
                 {bindingOffer?.pdfUrl && (
                   <a href={bindingOffer.pdfUrl} target="_blank" rel="noreferrer" style={{ ...offerButtonStyle('secondary'), textDecoration: 'none' }}>
-                    PDF öffnen
+                    {tOffers('actions.openPdf')}
                   </a>
                 )}
-                {!bindingOffer && <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>Bitte zuerst das verbindliche Angebot berechnen.</span>}
+                {!bindingOffer && <span style={{ fontSize: 11.5, color: `${theme.ink}88` }}>{tOffers('messages.calculateBindingFirst')}</span>}
               </>
             )}
             {(canManageOffers || role === 'partner') && (
@@ -7345,37 +7461,37 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
           <div style={{ width: 'min(520px, 94vw)', background: 'white', borderRadius: ci.radius.modal, border: `1px solid ${theme.border}`, boxShadow: theme.elevatedShadow, overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', background: theme.mintLight, borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>Angenommenes Angebotsmodell auswählen</div>
-                <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>Der Kunde hat mehrere Angebotsmodelle erhalten. Bitte wählen Sie aus, welches Modell angenommen wurde.</div>
+                <div style={{ fontSize: 15, color: theme.aubergine, fontWeight: 800 }}>{tOffers('dialog.title')}</div>
+                <div style={{ fontSize: 11.5, color: `${theme.ink}99`, marginTop: 2 }}>{tOffers('dialog.description')}</div>
               </div>
-              <button onClick={() => setAcceptedOfferDialog(null)} title="Schließen" style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <button onClick={() => setAcceptedOfferDialog(null)} title={tCommonButtons('close')} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <X size={15} />
               </button>
             </div>
             <div style={{ padding: '20px 22px', display: 'grid', gap: 14 }}>
-              <Field label="Angenommenes Modell" required>
+              <Field label={tOffers('dialog.acceptedModel')} required>
                 <Select value={acceptedOfferModelInput} onChange={(event) => setAcceptedOfferModelInput(event.target.value)}>
-                  <option value="">Modell auswählen</option>
+                  <option value="">{tOffers('dialog.selectModel')}</option>
                   {acceptedOfferOptions(acceptedOfferDialog.action).map((option) => (
                     <option key={option.model} value={option.model}>{option.label}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Annahmedatum">
+              <Field label={tOffers('dialog.acceptanceDate')}>
                 <Input
                   type="date"
                   value={acceptedOfferDialog.action === 'binding_offer_accepted' ? bindingOfferAcceptedDate : indicativeOfferAcceptedDate}
                   onChange={(event) => acceptedOfferDialog.action === 'binding_offer_accepted' ? setBindingOfferAcceptedDate(event.target.value) : setIndicativeOfferAcceptedDate(event.target.value)}
                 />
               </Field>
-              <Field label="Interne Notiz">
-                <textarea value={acceptedOfferNote} onChange={(event) => setAcceptedOfferNote(event.target.value)} rows={3} placeholder="Optionale Notiz zur Entscheidung des Kunden..." style={{ width: '100%', minHeight: 82, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+              <Field label={tOffers('dialog.internalNote')}>
+                <textarea value={acceptedOfferNote} onChange={(event) => setAcceptedOfferNote(event.target.value)} rows={3} placeholder={tOffers('dialog.notePlaceholder')} style={{ width: '100%', minHeight: 82, padding: '9px 12px', fontSize: 13.5, border: `1px solid ${theme.border}`, borderRadius: 5, background: 'white', color: theme.ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
               </Field>
             </div>
             <div style={{ padding: '14px 22px 20px', borderTop: `1px solid ${theme.borderSoft}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button onClick={() => setAcceptedOfferDialog(null)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Abbrechen</button>
+              <button onClick={() => setAcceptedOfferDialog(null)} style={{ background: 'white', border: `1px solid ${theme.border}`, color: theme.aubergine, borderRadius: 5, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{tCommonButtons('cancel')}</button>
               <button onClick={submitAcceptedOfferSelection} disabled={Boolean(busyAction) || !acceptedOfferModelInput} style={{ background: theme.aubergine, border: 'none', color: 'white', borderRadius: 5, padding: '9px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : !acceptedOfferModelInput ? 'not-allowed' : 'pointer', opacity: busyAction || !acceptedOfferModelInput ? 0.55 : 1 }}>
-                Übernehmen
+                {tOffers('dialog.apply')}
               </button>
             </div>
           </div>
@@ -8235,18 +8351,18 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             <div style={{ background: 'white', borderRadius: 8, border: `1px solid ${theme.borderSoft}`, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.borderSoft}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>KV-Abwicklung</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>Von Gutachten und Notar bis Kaufpreiszahlung, Auszahlung und Grundbucheintragung</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>{tClosing('title')}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: theme.aubergine }}>{tClosing('subtitle')}</div>
                 </div>
                 <StatusBadge status={property?.status || 'DRAFT'} />
               </div>
               <div style={{ padding: '18px 20px', display: 'grid', gap: 18 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   {[
-                    ['Gutachten', property?.expertOpinionReceivedAt ? 'eingegangen' : property?.expertOpinionOrderedAt ? 'beauftragt' : 'offen'],
-                    ['VA abgegeben', formatDate(property?.bindingOfferSentAt)],
-                    ['VA angenommen', formatDate(property?.bindingOfferAcceptedAt)],
-                    ['Notartermin', formatDate(property?.notaryAppointmentAt)],
+                    [tClosing('summary.appraisal'), property?.expertOpinionReceivedAt ? tClosing('summary.received') : property?.expertOpinionOrderedAt ? tClosing('summary.commissioned') : tClosing('summary.open')],
+                    [tClosing('summary.bindingSubmitted'), formatDate(property?.bindingOfferSentAt)],
+                    [tClosing('summary.bindingAccepted'), formatDate(property?.bindingOfferAcceptedAt)],
+                    [tClosing('summary.notaryAppointment'), formatDate(property?.notaryAppointmentAt)],
                   ].map(([label, value]) => (
                     <div key={label} style={{ background: theme.mintLighter, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '11px 13px' }}>
                       <div style={{ fontSize: 10.5, color: theme.oliv, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
@@ -8256,65 +8372,65 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Notar und Kaufvertrag</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tClosing('sections.notaryAndAgreement')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                     {[
-                      ['Gutachten beauftragt am', property?.expertOpinionOrderedAt ? formatDate(property.expertOpinionOrderedAt) : 'Noch nicht erfasst'],
-                      ['Gutachterfirma', property?.expertOpinionCompany || 'Noch nicht erfasst'],
-                      ['Gutachten eingegangen am', property?.expertOpinionReceivedAt ? formatDate(property.expertOpinionReceivedAt) : 'Noch nicht erfasst'],
+                      [tClosing('fields.appraisalCommissionedOn'), property?.expertOpinionOrderedAt ? formatDate(property.expertOpinionOrderedAt) : tClosing('placeholders.notRecorded')],
+                      [tClosing('fields.appraisalFirm'), property?.expertOpinionCompany || tClosing('placeholders.notRecorded')],
+                      [tClosing('fields.appraisalReceivedOn'), property?.expertOpinionReceivedAt ? formatDate(property.expertOpinionReceivedAt) : tClosing('placeholders.notRecorded')],
                     ].map(([label, value]) => (
                       <div key={label} style={{ display: 'grid', gap: 6 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: theme.ink }}>{label}</div>
                         <div
-                          title="Diese Angaben werden aus der Gutachtenbeauftragung übernommen."
+                          title={tClosing('help.appraisalReadonly')}
                           aria-readonly="true"
                           style={{
                             minHeight: 37,
                             border: `1px solid ${theme.borderSoft}`,
                             borderRadius: 6,
                             background: theme.mintLighter,
-                            color: value === 'Noch nicht erfasst' ? `${theme.ink}88` : theme.ink,
+                            color: value === tClosing('placeholders.notRecorded') ? `${theme.ink}88` : theme.ink,
                             fontSize: 13,
-                            fontWeight: value === 'Noch nicht erfasst' ? 500 : 700,
+                            fontWeight: value === tClosing('placeholders.notRecorded') ? 500 : 700,
                             padding: '9px 10px',
                             boxSizing: 'border-box',
                             display: 'flex',
                             alignItems: 'center'
                           }}
                         >
-                          {value || 'Noch nicht erfasst'}
+                          {value || tClosing('placeholders.notRecorded')}
                         </div>
                         <div style={{ fontSize: 11.5, color: `${theme.ink}77`, lineHeight: 1.35 }}>
-                          Wird aus der Gutachtenbeauftragung übernommen.
+                          {tClosing('help.appraisalImported')}
                         </div>
                       </div>
                     ))}
-                    <Field label="Kaufvertragsnummer"><Input value={portfolioForm.purchaseContractNumber} onChange={(event) => updatePortfolioForm({ purchaseContractNumber: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Verbindliches Angebot abgegeben am"><Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
-                    <Field label="Verbindliches Angebot angenommen am"><Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
-                    <Field label="Notartermin angefragt am"><Input type="date" value={portfolioForm.notaryAppointmentRequestedAt} onChange={(event) => updatePortfolioForm({ notaryAppointmentRequestedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Notartermin bestätigt für"><Input type="date" value={notaryAppointmentDate || portfolioForm.notaryAppointmentAt} onChange={(event) => setNotaryAppointmentDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
-                    <Field label="Kaufvertragsentwurf erhalten am"><Input type="date" value={portfolioForm.purchaseContractDraftReceivedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Kaufvertragsentwurf geprüft am"><Input type="date" value={portfolioForm.purchaseContractDraftReviewedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReviewedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Kaufpreis (€)"><Input type="text" inputMode="decimal" value={portfolioForm.purchasePrice} onChange={(event) => updatePortfolioForm({ purchasePrice: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Frist / Wiedervorlage"><Input type="date" value={portfolioForm.nextPortfolioReviewAt} onChange={(event) => updatePortfolioForm({ nextPortfolioReviewAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.purchaseAgreementNumber')}><Input value={portfolioForm.purchaseContractNumber} onChange={(event) => updatePortfolioForm({ purchaseContractNumber: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.bindingSubmittedOn')}><Input type="date" value={bindingOfferSentDate} onChange={(event) => setBindingOfferSentDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
+                    <Field label={tClosing('fields.bindingAcceptedOn')}><Input type="date" value={bindingOfferAcceptedDate} onChange={(event) => setBindingOfferAcceptedDate(event.target.value)} readOnly={!canEditOfferDates} /></Field>
+                    <Field label={tClosing('fields.notaryRequestedOn')}><Input type="date" value={portfolioForm.notaryAppointmentRequestedAt} onChange={(event) => updatePortfolioForm({ notaryAppointmentRequestedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.notaryConfirmedFor')}><Input type="date" value={notaryAppointmentDate || portfolioForm.notaryAppointmentAt} onChange={(event) => setNotaryAppointmentDate(event.target.value)} readOnly={!canManageWorkflow} /></Field>
+                    <Field label={tClosing('fields.draftReceivedOn')}><Input type="date" value={portfolioForm.purchaseContractDraftReceivedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReceivedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.draftReviewedOn')}><Input type="date" value={portfolioForm.purchaseContractDraftReviewedAt} onChange={(event) => updatePortfolioForm({ purchaseContractDraftReviewedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.purchasePrice')}><Input type="text" inputMode="decimal" value={portfolioForm.purchasePrice} onChange={(event) => updatePortfolioForm({ purchasePrice: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.deadline')}><Input type="date" value={portfolioForm.nextPortfolioReviewAt} onChange={(event) => updatePortfolioForm({ nextPortfolioReviewAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
                   </div>
                 </div>
 
                 <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '16px 16px', display: 'grid', gap: 14 }}>
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Vollzug, Zahlung und Grundbuch</div>
+                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{tClosing('sections.closingPaymentRegister')}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                    <Field label="Kaufvertrag unterschrieben am"><Input type="date" value={portfolioForm.purchaseContractSignedAt} onChange={(event) => updatePortfolioForm({ purchaseContractSignedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Auflassungsvormerkung eingetragen am"><Input type="date" value={portfolioForm.priorityNoticeRegisteredAt} onChange={(event) => updatePortfolioForm({ priorityNoticeRegisteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Kaufpreisfälligkeit eingetreten am"><Input type="date" value={portfolioForm.purchasePriceDueAt} onChange={(event) => updatePortfolioForm({ purchasePriceDueAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Kaufpreis gezahlt am"><Input type="date" value={portfolioForm.purchasePricePaidAt || portfolioForm.payoutPaidAt} onChange={(event) => updatePortfolioForm({ purchasePricePaidAt: event.target.value, payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Auszahlung erfolgt am"><Input type="date" value={portfolioForm.payoutPaidAt} onChange={(event) => updatePortfolioForm({ payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Wohnrecht eingetragen am"><Input type="date" value={portfolioForm.residentialRightRegisteredAt} onChange={(event) => updatePortfolioForm({ residentialRightRegisteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Grundbucheintragung abgeschlossen am"><Input type="date" value={portfolioForm.landRegisterEntryAt} onChange={(event) => updatePortfolioForm({ landRegisterEntryAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
-                    <Field label="Vollzugsmeldung"><Input value={portfolioForm.transferNotice || ''} onChange={(event) => updatePortfolioForm({ transferNotice: event.target.value })} readOnly={!canManagePortfolio} placeholder="z.B. offen, gemeldet, abgeschlossen" /></Field>
-                    <Field label="Offene Punkte"><Input value={portfolioForm.closingOpenItems || ''} onChange={(event) => updatePortfolioForm({ closingOpenItems: event.target.value })} readOnly={!canManagePortfolio} placeholder="z.B. Fälligkeitsmitteilung, Grundbuchauszug" /></Field>
+                    <Field label={tClosing('fields.agreementSignedOn')}><Input type="date" value={portfolioForm.purchaseContractSignedAt} onChange={(event) => updatePortfolioForm({ purchaseContractSignedAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.priorityNoticeOn')}><Input type="date" value={portfolioForm.priorityNoticeRegisteredAt} onChange={(event) => updatePortfolioForm({ priorityNoticeRegisteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.purchasePriceDueOn')}><Input type="date" value={portfolioForm.purchasePriceDueAt} onChange={(event) => updatePortfolioForm({ purchasePriceDueAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.purchasePricePaidOn')}><Input type="date" value={portfolioForm.purchasePricePaidAt || portfolioForm.payoutPaidAt} onChange={(event) => updatePortfolioForm({ purchasePricePaidAt: event.target.value, payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.customerPayoutOn')}><Input type="date" value={portfolioForm.payoutPaidAt} onChange={(event) => updatePortfolioForm({ payoutPaidAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.rightRegisteredOn')}><Input type="date" value={portfolioForm.residentialRightRegisteredAt} onChange={(event) => updatePortfolioForm({ residentialRightRegisteredAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.landRegisterCompletedOn')}><Input type="date" value={portfolioForm.landRegisterEntryAt} onChange={(event) => updatePortfolioForm({ landRegisterEntryAt: event.target.value })} readOnly={!canManagePortfolio} /></Field>
+                    <Field label={tClosing('fields.closingStatus')}><Input value={portfolioForm.transferNotice || ''} onChange={(event) => updatePortfolioForm({ transferNotice: event.target.value })} readOnly={!canManagePortfolio} placeholder={tClosing('placeholders.closingStatus')} /></Field>
+                    <Field label={tClosing('fields.openItems')}><Input value={portfolioForm.closingOpenItems || ''} onChange={(event) => updatePortfolioForm({ closingOpenItems: event.target.value })} readOnly={!canManagePortfolio} placeholder={tClosing('placeholders.openItems')} /></Field>
                   </div>
-                  <Field label="Interne Kommentare">
+                  <Field label={tClosing('fields.internalComments')}>
                     <textarea value={portfolioForm.contractClosingNotes || ''} onChange={(event) => updatePortfolioForm({ contractClosingNotes: event.target.value })} readOnly={!canManagePortfolio} rows={3} style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '9px 10px', color: theme.ink, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: canManagePortfolio ? 'white' : theme.mintLighter }} />
                   </Field>
                 </div>
@@ -8322,7 +8438,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 {canManagePortfolio ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button onClick={savePortfolioFile} disabled={Boolean(busyAction)} style={{ background: theme.aubergine, color: 'white', border: 'none', borderRadius: 5, padding: '10px 16px', fontSize: 13, fontWeight: 800, cursor: busyAction ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                      <Save size={14} /> {busyAction === 'Bestandsakte speichern' ? 'Speichert...' : 'KV-Abwicklung speichern'}
+                      <Save size={14} /> {busyAction === portfolioSaveActionLabel ? tClosing('actions.saving') : tClosing('actions.save')}
                     </button>
                   </div>
                 ) : null}
@@ -8849,7 +8965,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             <div style={{ display: 'grid', gap: 16 }}>
               {role !== 'admin' && (
                 <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
-                  Lesende Ansicht: WohnKapital berechnet und gibt Angebote intern frei. Als Makler siehst du hier die vorhandenen Angebotsdaten.
+                  {tOffers('messages.readOnlyIndicative')}
                 </div>
               )}
               {requestedOfferModels.length > 0
@@ -8858,13 +8974,13 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
               {canManageOffers && (
                 <div style={{ ...offerShellStyle, padding: '18px 20px', display: 'grid', gap: 14 }}>
                   <div>
-                    <div style={offerSectionTitleStyle}>Gutachtenbeauftragung</div>
+                    <div style={offerSectionTitleStyle}>{tOffers('appraisal.title')}</div>
                     <div style={{ fontSize: 12.5, color: `${theme.ink}88`, lineHeight: 1.5 }}>
-                      Sobald der Kunde das unverbindliche Angebot angenommen hat, kann ein Gutachter beauftragt werden. Nach Eingang des Gutachtens kann das verbindliche Angebot vorbereitet werden.
+                      {tOffers('appraisal.description')}
                     </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, 260px) minmax(260px, 1fr)', gap: 12 }}>
-                    <Field label="Beauftragt am" hint="Pflicht beim Speichern der Beauftragung.">
+                    <Field label={tOffers('appraisal.commissionedOn')} hint={tOffers('appraisal.requiredOnSave')}>
                       <Input
                         type="date"
                         value={expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)}
@@ -8872,25 +8988,25 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                         readOnly={!canManageWorkflow}
                       />
                     </Field>
-                    <Field label="Gutachter / Gutachterfirma" hint="Pflicht beim Speichern der Beauftragung.">
+                    <Field label={tOffers('appraisal.appraiserFirm')} hint={tOffers('appraisal.requiredOnSave')}>
                       <Input
                         value={expertOpinionCompany || property?.expertOpinionCompany || ''}
                         onChange={(event) => setExpertOpinionCompany(event.target.value)}
-                        placeholder="z.B. Sprengnetter, DEKRA, freier Sachverständiger"
+                        placeholder={tOffers('appraisal.appraiserPlaceholder')}
                         readOnly={!canManageWorkflow}
                       />
                     </Field>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-                    <button onClick={saveExpertOpinionOrderData} disabled={Boolean(busyAction) || !canManageWorkflow} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canManageWorkflow, busy: busyAction === 'Gutachtenbeauftragung speichern' })}>
-                      Gutachtenbeauftragung speichern
+                    <button onClick={saveExpertOpinionOrderData} disabled={Boolean(busyAction) || !canManageWorkflow} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canManageWorkflow, busy: busyAction === tOffers('appraisal.saveCommission') })}>
+                      {tOffers('appraisal.saveCommission')}
                     </button>
-                    {property?.expertOpinionOrderedAt && <OfferDonePill>Gutachten beauftragt</OfferDonePill>}
+                    {property?.expertOpinionOrderedAt && <OfferDonePill>{tOffers('appraisal.commissioned')}</OfferDonePill>}
                   </div>
                   <div style={{ borderTop: `1px solid ${theme.borderSoft}`, paddingTop: 14, display: 'grid', gap: 12 }}>
-                    <div style={offerSectionTitleStyle}>Eingang des Gutachtens</div>
+                    <div style={offerSectionTitleStyle}>{tOffers('appraisal.receivedSection')}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, 260px)', gap: 10 }}>
-                      <Field label="Gutachten eingegangen am" hint="Pflicht erst beim Markieren des Eingangs." invalid={Boolean((expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)) && (expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)) && isDateBefore(expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt), expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)))}>
+                      <Field label={tOffers('appraisal.receivedOn')} hint={tOffers('appraisal.requiredOnReceive')} invalid={Boolean((expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)) && (expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)) && isDateBefore(expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt), expertOpinionOrderedDate || dateInputValue(property?.expertOpinionOrderedAt)))}>
                         <Input
                           type="date"
                           value={expertOpinionReceivedDate || dateInputValue(property?.expertOpinionReceivedAt)}
@@ -8905,20 +9021,20 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                         const disabled = Boolean(busyAction) || !state.nextAllowed || !canManageWorkflow;
                         return state.reached ? (
                           <button onClick={() => runWorkflowAction('expert_opinion_received')} disabled={Boolean(busyAction) || !canManageWorkflow} style={offerButtonStyle('secondary', { disabled: Boolean(busyAction) || !canManageWorkflow, busy: Boolean(busyAction) })}>
-                            Eingangsdatum speichern
+                            {tOffers('appraisal.saveReceivedDate')}
                           </button>
                         ) : (
                           <button onClick={() => runWorkflowAction('expert_opinion_received')} disabled={disabled} style={offerButtonStyle('primary', { disabled })}>
-                            Gutachten als eingegangen markieren
+                            {tOffers('appraisal.markReceived')}
                           </button>
                         );
                       })()}
-                      {property?.expertOpinionReceivedAt && <OfferDonePill>Gutachten eingegangen</OfferDonePill>}
+                      {property?.expertOpinionReceivedAt && <OfferDonePill>{tOffers('appraisal.received')}</OfferDonePill>}
                     </div>
                   </div>
                   {property?.expertOpinionCompany && (
                     <div style={{ fontSize: 11, color: `${theme.ink}88` }}>
-                      Gutachter / Gutachterfirma: {property.expertOpinionCompany}
+                      {tOffers('appraisal.companyLine', { company: property.expertOpinionCompany })}
                     </div>
                   )}
                 </div>
@@ -9135,15 +9251,15 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             <div style={{ display: 'grid', gap: 16 }}>
               {role !== 'admin' && (
                 <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink, lineHeight: 1.45 }}>
-                  Lesende Ansicht: Das verbindliche Angebot wird erst nach Gutachten intern berechnet und im Anschluss hier angezeigt.
+                  {tOffers('messages.readOnlyBinding')}
                 </div>
               )}
               <div style={{ background: theme.mintLight, border: `1px solid ${theme.borderSoft}`, borderRadius: 8, padding: '12px 14px', fontSize: 12.5, color: theme.ink, lineHeight: 1.5 }}>
-                Nach Eingang des Gutachtens wird das verbindliche Angebot auf Basis des Gutachtenwerts neu berechnet. Die UVA bleibt als eigene Version bestehen.
+                {tOffers('messages.bindingBasis')}
               </div>
               {!canPrepareBindingOffer && (
                 <div style={{ background: theme.goldSoft, border: `1px solid ${theme.gold}55`, borderRadius: 8, padding: '10px 12px', fontSize: 12.5, color: theme.ink }}>
-                  Das verbindliche Angebot wird freigeschaltet, sobald im Bereich „Unverbindliches Angebot“ das Gutachten als eingegangen markiert wurde.
+                  {tOffers('messages.bindingLocked')}
                 </div>
               )}
               {requestedOfferModels.length > 0
@@ -9151,7 +9267,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 : renderMissingSelectedModelNotice()}
               {canManageOffers && (
                 <div style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: theme.cardRadius, padding: '18px 20px', boxShadow: theme.cardShadow, display: 'grid', gap: 12 }}>
-                  <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Notartermin und Kaufvertrag</div>
+                  <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tClosing('sections.notaryAndContract')}</div>
                   {(workflowActionState('notary_appointment_ordered').nextAllowed || workflowActionState('notary_appointment_ordered').reached || workflowActionState('contract_signed').nextAllowed) ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 230px) minmax(190px, 270px) auto auto', gap: 9, alignItems: 'center' }}>
                       <input
@@ -9159,7 +9275,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                         value={notaryAppointmentDate || (property?.notaryAppointmentAt ? property.notaryAppointmentAt.slice(0, 16) : '')}
                         onChange={(event) => setNotaryAppointmentDate(event.target.value)}
                         disabled={workflowActionState('notary_appointment_ordered').reached}
-                        title="Notartermin"
+                        title={tClosing('summary.notaryAppointment')}
                         style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
                       />
                       <input
@@ -9167,8 +9283,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                         value={notaryOffice || property?.notaryOffice || ''}
                         onChange={(event) => setNotaryOffice(event.target.value)}
                         disabled={workflowActionState('notary_appointment_ordered').reached}
-                        placeholder="Notar / Notariat"
-                        title="Notar oder Notariat"
+                        placeholder={tClosing('placeholders.notaryOffice')}
+                        title={tClosing('placeholders.notaryOffice')}
                         style={{ width: '100%', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '7px 9px', color: theme.ink, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }}
                       />
                       {['notary_appointment_ordered', 'contract_signed'].map((action) => {
@@ -9182,7 +9298,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                       })}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>Verfügbar, sobald das verbindliche Angebot angenommen wurde.</div>
+                    <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{tOffers('messages.notaryAvailableAfterAcceptance')}</div>
                   )}
                 </div>
               )}
@@ -9401,8 +9517,8 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
             {activities.map((a, i) => (
               <div key={i} style={{ position: 'relative', paddingLeft: 18, paddingBottom: 12 }}>
                 <div style={{ position: 'absolute', left: 2, top: 4, width: 8, height: 8, borderRadius: '50%', background: i === 0 ? theme.gold : theme.aubergine, border: `2px solid white`, boxShadow: `0 0 0 1px ${theme.border}` }} />
-                <div style={{ fontSize: 11, color: `${theme.ink}88`, marginBottom: 2 }}>{a.time || dateLabel(a.createdAt)}</div>
-                <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.4 }}>{localizedCaseActivityText(a, t, tPrecheck, tRating)}</div>
+                <div style={{ fontSize: 11, color: `${theme.ink}88`, marginBottom: 2 }}>{a.time || localizedCaseActivityTime(a.createdAt, t)}</div>
+                <div style={{ fontSize: 12.5, color: theme.ink, lineHeight: 1.4 }}>{localizedCaseActivityText(a, t, tPrecheck, tRating, tOffers, tClosing)}</div>
                 <div style={{ fontSize: 11, color: `${theme.ink}99`, marginTop: 2 }}>{a.actor || a.source || a.userId}</div>
               </div>
             ))}
