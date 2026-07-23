@@ -84,7 +84,7 @@
     "title": "Offene Punkte",
     "openCount": "{count} offen",
     "notAssessed": "{category}: {criterion} noch nicht bewertet",
-    "lowConfidence": "{category}: {criterion} mit niedriger Confidence prüfen",
+    "lowConfidence": "{category}: {criterion} fachlich prüfen",
     "commentRequired": "Kommentar erforderlich bei {criterion}",
     "notApproved": "Rating noch nicht freigegeben",
     "notInitialised": "Rating noch nicht initialisiert"

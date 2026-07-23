@@ -334,6 +334,7 @@ function calculateFixedResidentialRightOffer(input: OfferCalculationInput): Offe
     primaryAge: input.customerAge,
     secondAge: input.spouseAge,
     internalInterestRate: interestRate,
+    targetReturn,
     acquisitionCostRate,
     salesCommissionRate: salesCostRate,
     selectedIndexationScenario: input.selectedIndexationScenario

@@ -84,7 +84,7 @@
     "title": "Open Items",
     "openCount": "{count} open",
     "notAssessed": "{category}: {criterion} not yet assessed",
-    "lowConfidence": "{category}: review {criterion} due to low confidence",
+    "lowConfidence": "{category}: review {criterion}",
     "commentRequired": "Comment required for {criterion}",
     "notApproved": "Rating not yet approved",
     "notInitialised": "Rating not yet initialised"

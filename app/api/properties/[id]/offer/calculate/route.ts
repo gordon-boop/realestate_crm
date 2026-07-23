@@ -5,6 +5,7 @@ import type { FixedResidentialRightIndexationScenario } from "@/lib/calculations
 import type { DesiredModel } from "@/lib/domain";
 import { assertRatingAllowsOffer } from "@/lib/object-rating";
 import { calculateOffer } from "@/lib/offer-calculator";
+import { buildOfferRatingSnapshot, resolveOfferTargetReturn } from "@/lib/offer-target-return";
 import { addDbActivity, getDbCaseByPropertyId, toJsonSnapshot, toPrismaJson, updateDbPropertyStatus } from "@/lib/persistence";
 import { prisma } from "@/lib/prisma";
 import { getLifetimeResidentialRightEligibility } from "@/lib/residential-right-eligibility";
@@ -84,8 +85,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     assertAcquisitionPrecheckAllowsOffer(caseView, { marketValueOverride: leadingMarketValue, marketValueMode: kind === "binding" ? "appraisal" : "preliminary" });
     const ratingGate = assertRatingAllowsOffer(caseView.objectRatings, caseView.property, kind === "binding" ? "binding" : "indicative");
     const approvedRating = ratingGate.rating;
-    const ratingTargetReturn = readPercent(body.inputs, "targetReturn")
-      ?? approvedRating?.finalTargetReturn;
+    const ratingTargetReturn = resolveOfferTargetReturn(
+      approvedRating,
+      readPercent(body.inputs, "targetReturn")
+    );
     const calculationDate = new Date();
     const residentialRightVariant = model === "fixed_residential_right" && caseView.property.usageModel === "lifelong_residential_right"
       ? "lifelong_residential_right"
@@ -194,13 +197,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
             && (model !== "fixed_residential_right" || assumptions?.residentialRightVariant === residentialRightVariant);
         })
       : undefined;
+    const calculationAssumptions = {
+      ...calculation.assumptions,
+      ratingSnapshot: buildOfferRatingSnapshot(approvedRating, ratingTargetReturn)
+    };
     const baseAssumptions = residentialRightVariant
       ? {
-          ...calculation.assumptions,
+          ...calculationAssumptions,
           residentialRightVariant,
           residentialRightVariantLabel: residentialRightVariant === "lifelong_residential_right" ? "Lebenslanges Wohnrecht" : "Befristetes Wohnrecht"
         }
-      : calculation.assumptions;
+      : calculationAssumptions;
     const assumptions = kind === "binding"
       ? {
           ...baseAssumptions,
@@ -269,7 +276,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       user.id,
       kind === "binding" ? "binding_offer_calculated" : "offer_calculated",
       `${kind === "binding" ? "Verbindliches Angebot" : "Unverbindliches Angebot"} für ${productLabel} wurde berechnet: Auszahlungsbetrag ${calculation.payoutAmount.toLocaleString("de-DE", { maximumFractionDigits: 0 })} €.`,
-      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, residentialRightVariant, kind, manualMarketValue, preliminaryMarketValue, expertOpinionValue } }
+      { source: "admin", entityType: "offer", entityId: offer.id, metadata: { model, residentialRightVariant, kind, manualMarketValue, preliminaryMarketValue, expertOpinionValue, ratingTargetReturn } }
     );
     if (kind === "binding" && expertOpinionValue) {
       await addDbActivity(

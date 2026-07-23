@@ -187,6 +187,7 @@
       "year": "Year",
       "scope": "Scope",
       "description": "Description",
+      "noData": "No modernisation details have been recorded yet.",
       "component": "Component",
       "conditionRating": "Condition Rating",
       "conditionDescription": "Condition Description"

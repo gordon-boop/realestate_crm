@@ -963,6 +963,49 @@ function normalizeOfferCalculationInputs(params = {}, invalidMessage) {
   }));
 }
 
+const storedOfferInputAliases = {
+  garageMonthlyRent: ['garageRentMonthly'],
+  residentialRightYears: ['durationYears'],
+  selectedIndexationScenario: ['baseIndexationScenario'],
+};
+
+function storedOfferCalculationInput(offer, field) {
+  const inputs = offer?.assumptions?.inputs || {};
+  const candidateKeys = [field, ...(storedOfferInputAliases[field] || [])];
+  const matchingKey = candidateKeys.find((key) => (
+    inputs[key] !== null
+    && inputs[key] !== undefined
+    && String(inputs[key]).trim() !== ''
+  ));
+  return matchingKey ? inputs[matchingKey] : undefined;
+}
+
+function offerCalculationParamsWithDefaults(params = {}, ...offers) {
+  const supportedFields = [...offerPercentInputFields, ...offerNumberInputFields];
+  const storedDefaults = {};
+  offers.filter(Boolean).reverse().forEach((offer) => {
+    supportedFields.forEach((field) => {
+      const value = storedOfferCalculationInput(offer, field);
+      if (value !== undefined) storedDefaults[field] = value;
+    });
+  });
+  return { ...storedDefaults, ...params };
+}
+
+function offerCalculationInputValue(field, params = {}, offer, fallbackOffer, fallbackValue) {
+  if (Object.prototype.hasOwnProperty.call(params, field)) return params[field];
+  const storedValue = storedOfferCalculationInput(offer, field)
+    ?? storedOfferCalculationInput(fallbackOffer, field);
+  if (storedValue === undefined) return fallbackValue ?? '';
+  if (offerPercentInputFields.has(field) && Number.isFinite(Number(storedValue))) {
+    return (Number(storedValue) * 100).toLocaleString(uiLocale, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  }
+  return storedValue;
+}
+
 function formatPercent(value) {
   if (!Number.isFinite(Number(value))) return '-';
   return new Intl.NumberFormat(uiLocale, { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value));
@@ -1043,7 +1086,6 @@ function residentialRightCalculationFields(modelRequest, property, binding = fal
       ['monthlyRentPerSqm', labels.rentAssumption || 'Mietansatz (€/m²)'],
       ['garageCount', labels.parkingCount || 'Anzahl Garagen / Stellplätze', property?.parkingAvailable ? property?.parkingCount : 0],
       ...(property?.parkingAvailable ? [['garageMonthlyRent', labels.garageRent || 'Garagenmiete (optional, €/Monat)']] : []),
-      ['targetReturn', labels.targetIrr || 'Ankaufs-IRR (%)'],
       ['acquisitionCostRate', labels.acquisitionCosts || 'Ankaufskosten (%)'],
       ['salesCostRate', labels.disposalCosts || 'Verkaufskosten (%)'],
       ['selectedIndexationScenario', labels.indexation || 'Indexierung (%)'],
@@ -5722,11 +5764,14 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       .map((key) => [key, tIntake(`modernisations.components.${key}`)])
   );
   const localizedModernizationLabels = { none: tIntake('modernisations.none'), partial: tIntake('modernisations.partial'), complete: tIntake('modernisations.complete') };
-  const modernizationDetails = property?.modernization ? Object.entries(property.modernization)
-    .filter(([, value]) => value?.scope && value.scope !== 'none')
+  const savedModernization = property?.modernization && Object.keys(property.modernization).length > 0
+    ? property.modernization
+    : property?.intakeDraft?.modernization;
+  const modernizationDetails = savedModernization ? Object.entries(savedModernization)
+    .filter(([, value]) => value && typeof value === 'object' && value.scope)
     .map(([key, value]) => ({
       label: labelFrom(localizedComponentLabels, key, key),
-      year: value?.year || t('values.unknown'),
+      year: value?.scope === 'none' ? '-' : value?.year || t('values.unknown'),
       scope: labelFrom(localizedModernizationLabels, value?.scope, t('values.unknown')),
       note: value?.note || '-',
     })) : [];
@@ -5973,6 +6018,44 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
   const ratingOpenChecks = ratingScores.filter((score) => !ratingScoreValue(score) || Number(score.confidence || 0) < 0.65);
   const ratingReadOnly = objectRating?.status === 'approved' || !canManageRating;
   const ratingReturnPercent = ratingReturnInput || (objectRating?.finalTargetReturn ? String((Number(objectRating.finalTargetReturn) * 100).toLocaleString(uiLocale, { maximumFractionDigits: 2 })) : '');
+  const formatTargetReturnInput = (value) => Number.isFinite(Number(value))
+    ? (Number(value) * 100).toLocaleString(uiLocale, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+    : '';
+  const storedOfferTargetReturn = (offer) => (
+    offer?.assumptions?.ratingSnapshot?.selectedTargetReturn
+    ?? offer?.assumptions?.inputs?.targetReturn
+    ?? offer?.assumptions?.components?.ratingTargetReturn
+    ?? offer?.assumptions?.components?.targetIrr
+  );
+  const targetReturnInputValue = (params, offer, fallbackOffer) => (
+    Object.prototype.hasOwnProperty.call(params || {}, 'targetReturn')
+      ? params.targetReturn
+      : formatTargetReturnInput(
+          storedOfferTargetReturn(offer)
+          ?? storedOfferTargetReturn(fallbackOffer)
+          ?? objectRating?.finalTargetReturn
+          ?? objectRating?.baseTargetReturn
+        )
+  );
+  const targetReturnForCalculation = (params, offer, fallbackOffer) => {
+    const rawValue = targetReturnInputValue(params, offer, fallbackOffer);
+    const parsed = parseUiPercentValue(rawValue);
+    if (!Number.isFinite(parsed)) {
+      throw new Error(tOffers('validation.targetReturnRequired'));
+    }
+    const lower = Number(objectRating?.lowerReturnBound);
+    const upper = Number(objectRating?.upperReturnBound);
+    if (
+      (Number.isFinite(lower) && parsed < lower - 0.0000001)
+      || (Number.isFinite(upper) && parsed > upper + 0.0000001)
+    ) {
+      throw new Error(tOffers('targetReturn.outOfRange', {
+        lower: formatPercent(lower),
+        upper: formatPercent(upper)
+      }));
+    }
+    return parsed;
+  };
   const canUnlockRating = role === 'admin' && ['admin', 'super_admin'].includes(internalRole);
   const ratingInputHas = (input, key) => Object.prototype.hasOwnProperty.call(input || {}, key);
   const ratingCommentValue = (score) => {
@@ -6162,6 +6245,11 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     const model = typeof modelRequest === 'string' ? modelRequest : modelRequest.model;
     const key = typeof modelRequest === 'string' ? `${model}-${index}` : `${modelRequest.key}-${index}`;
     const params = calculationParams[key] || {};
+    const currentOffer = indicativeOffers.find((item) => (
+      typeof modelRequest === 'string'
+        ? item.model === model
+        : offerMatchesModelRequest(item, modelRequest)
+    ));
     const actionLabel = model === 'sale_and_leaseback'
       ? tOffers('actions.calculateIndicative')
       : modelRequest?.usageModel === 'lifelong_residential_right'
@@ -6171,11 +6259,16 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       if (!preliminaryMarketValue) {
         throw new Error(tOffers('validation.preliminaryValueRequired'));
       }
-      const normalizedParams = normalizeOfferCalculationInputs(params, tOffers('validation.invalidNumber'));
+      const effectiveParams = offerCalculationParamsWithDefaults(params, currentOffer);
+      const normalizedParams = normalizeOfferCalculationInputs(effectiveParams, tOffers('validation.invalidNumber'));
+      const selectedTargetReturn = model === 'fixed_residential_right'
+        ? targetReturnForCalculation(params, currentOffer)
+        : undefined;
       await postJson(`/api/properties/${c.propertyId}/offer/calculate`, {
         model,
         inputs: {
           ...normalizedParams,
+          ...(selectedTargetReturn !== undefined ? { targetReturn: selectedTargetReturn } : {}),
           manualMarketValue: preliminaryMarketValue,
           monthlyRentPerSqm: normalizedParams.monthlyRentPerSqm,
           ...(property?.parkingAvailable ? { garageMonthlyRent: normalizedParams.garageMonthlyRent } : {}),
@@ -6254,12 +6347,19 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
     }
     const key = `binding-${modelRequest.key}-${index}`;
     const params = calculationParams[key] || {};
-    const normalizedParams = normalizeOfferCalculationInputs(params, tOffers('validation.invalidNumber'));
+    const currentBindingOffer = bindingOffers.find((item) => offerMatchesModelRequest(item, modelRequest));
+    const currentIndicativeOffer = indicativeOffers.find((item) => offerMatchesModelRequest(item, modelRequest));
+    const effectiveParams = offerCalculationParamsWithDefaults(params, currentBindingOffer, currentIndicativeOffer);
+    const normalizedParams = normalizeOfferCalculationInputs(effectiveParams, tOffers('validation.invalidNumber'));
+    const selectedTargetReturn = modelRequest.model === 'fixed_residential_right'
+      ? targetReturnForCalculation(params, currentBindingOffer, currentIndicativeOffer)
+      : undefined;
     await postJson(`/api/properties/${c.propertyId}/offer/calculate`, {
       kind: 'binding',
       model: modelRequest.model,
       inputs: {
         ...normalizedParams,
+        ...(selectedTargetReturn !== undefined ? { targetReturn: selectedTargetReturn } : {}),
         monthlyRentPerSqm: normalizedParams.monthlyRentPerSqm,
         ...(property?.parkingAvailable ? { garageMonthlyRent: normalizedParams.garageMonthlyRent } : {}),
         expertOpinionValue: parsedExpertOpinionValue,
@@ -6780,6 +6880,87 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
       </div>
     );
   };
+  const renderOfferTargetReturnControl = (paramKey, params, offer, fallbackOffer) => {
+    if (!objectRating) {
+      return (
+        <div style={{ border: `1px solid ${theme.warning}55`, background: theme.warningSoft, borderRadius: 8, padding: '11px 13px', marginBottom: 14, color: theme.ink, fontSize: 12.5, fontWeight: 700 }}>
+          {tOffers('targetReturn.missing')}
+        </div>
+      );
+    }
+
+    const lower = Number(objectRating.lowerReturnBound);
+    const upper = Number(objectRating.upperReturnBound);
+    const base = Number(objectRating.baseTargetReturn);
+    const inputValue = targetReturnInputValue(params, offer, fallbackOffer);
+    const selected = parseUiPercentValue(inputValue);
+    const selectedPercent = Number.isFinite(selected) ? selected * 100 : Number(objectRating.finalTargetReturn ?? objectRating.baseTargetReturn ?? 0) * 100;
+    const lowerPercent = Number.isFinite(lower) ? lower * 100 : selectedPercent;
+    const upperPercent = Number.isFinite(upper) ? upper * 100 : selectedPercent;
+    const sliderValue = Math.min(upperPercent, Math.max(lowerPercent, selectedPercent));
+    const updateTargetReturn = (nextValue) => setCalculationParams((current) => ({
+      ...current,
+      [paramKey]: {
+        ...(current[paramKey] || {}),
+        targetReturn: nextValue
+      }
+    }));
+
+    return (
+      <div style={{ border: `1px solid ${theme.border}`, borderLeft: `3px solid ${theme.gold}`, background: theme.mintLighter, borderRadius: 8, padding: '13px 15px', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 10.5, color: theme.aubergine, fontWeight: 850, letterSpacing: '0.13em', textTransform: 'uppercase' }}>
+              {tOffers('targetReturn.title')}
+            </div>
+            <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 4 }}>{tOffers('targetReturn.source')}</div>
+          </div>
+          <span style={{ border: `1px solid ${theme.border}`, background: 'white', borderRadius: 999, padding: '5px 9px', color: theme.aubergine, fontSize: 11.5, fontWeight: 850 }}>
+            {tOffers('targetReturn.ratingClass')}: {objectRating.ratingClass || '-'}
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 10, marginBottom: 12 }}>
+          {[
+            [tOffers('targetReturn.base'), Number.isFinite(base) ? formatPercent(base) : '-'],
+            [tOffers('targetReturn.corridor'), Number.isFinite(lower) && Number.isFinite(upper) ? `${formatPercent(lower)} – ${formatPercent(upper)}` : '-'],
+          ].map(([label, value]) => (
+            <div key={label} style={{ background: 'white', border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '8px 10px' }}>
+              <div style={{ fontSize: 10.5, color: `${theme.ink}88`, fontWeight: 700, marginBottom: 3 }}>{label}</div>
+              <div style={{ fontSize: 13.5, color: theme.aubergine, fontWeight: 850 }}>{value}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(120px, 150px)', gap: 12, alignItems: 'end' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 7, fontSize: 11.5, color: theme.ink, fontWeight: 750 }}>
+              <span>{tOffers('targetReturn.selected')}</span>
+              <span>{Number.isFinite(selected) ? formatPercent(selected) : '-'}</span>
+            </div>
+            <input
+              type="range"
+              min={lowerPercent}
+              max={upperPercent}
+              step="0.05"
+              value={sliderValue}
+              disabled={!Number.isFinite(lower) || !Number.isFinite(upper)}
+              onChange={(event) => updateTargetReturn(Number(event.target.value).toLocaleString(uiLocale, { maximumFractionDigits: 2 }))}
+              aria-label={tOffers('targetReturn.selected')}
+              style={{ width: '100%', accentColor: theme.aubergine }}
+            />
+          </div>
+          <Field label={tOffers('targetReturn.selected')}>
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={inputValue}
+              onChange={(event) => updateTargetReturn(event.target.value)}
+            />
+          </Field>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: `${theme.ink}88` }}>{tOffers('targetReturn.rangeHint')}</div>
+      </div>
+    );
+  };
   const renderIndicativeOfferCard = (modelRequest, index) => {
     const offer = indicativeOffers.find((item) => offerMatchesModelRequest(item, modelRequest));
     const key = `${modelRequest.key}-${index}`;
@@ -6872,13 +7053,14 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 {tOffers('modelNotes.lifetime')}
               </div>
             )}
+            {isResidentialRight && renderOfferTargetReturnControl(key, params, offer)}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               {residentialRightCalculationFields(modelRequest, property, false, offerInputLabels).map(([field, label, fallbackValue]) => (
                 <Field key={field} label={label}>
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={params[field] ?? fallbackValue ?? ''}
+                    value={offerCalculationInputValue(field, params, offer, undefined, fallbackValue)}
                     onChange={(event) => setCalculationParams({ ...calculationParams, [key]: { ...params, [field]: event.target.value } })}
                   />
                 </Field>
@@ -7308,6 +7490,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                 {tOffers('modelNotes.lifetime')}
               </div>
             )}
+            {isResidentialRight && renderOfferTargetReturnControl(bindingParamKey, bindingParams, bindingOffer, indicativeOffer)}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
               <Field label={tOffers('inputs.appraisedMarketValue')} required>
                 <Input type="text" value={expertOpinionValue} onChange={(event) => setExpertOpinionValue(event.target.value)} placeholder={tOffers('inputs.marketValuePlaceholder')} inputMode="decimal" />
@@ -7317,7 +7500,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={bindingParams[field] ?? fallbackValue ?? ''}
+                    value={offerCalculationInputValue(field, bindingParams, bindingOffer, indicativeOffer, fallbackValue)}
                     onChange={(event) => setCalculationParams({ ...calculationParams, [bindingParamKey]: { ...bindingParams, [field]: event.target.value } })}
                   />
                 </Field>
@@ -7826,10 +8009,10 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                   </div>
                 ))}
               </div>
-              {modernizationDetails.length > 0 && (
-                <>
-                  <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
-                  <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.modernisations')}</div>
+              <>
+                <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
+                <div style={{ fontSize: 11, color: theme.oliv, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>{t('sections.modernisations')}</div>
+                {modernizationDetails.length > 0 ? (
                   <div style={{ display: 'grid', gap: 8 }}>
                     {modernizationDetails.map((item, i) => (
                       <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 0.7fr 0.9fr 1.5fr', gap: 12, border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '9px 11px', background: theme.mintLighter }}>
@@ -7852,8 +8035,12 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                       </div>
                     ))}
                   </div>
-                </>
-              )}
+                ) : (
+                  <div style={{ border: `1px solid ${theme.borderSoft}`, borderRadius: 6, padding: '12px 14px', background: theme.mintLighter, color: `${theme.ink}88`, fontSize: 12.5 }}>
+                    {t('modernisations.noData')}
+                  </div>
+                )}
+              </>
               {buildingConditionDetails.length > 0 && (
                 <>
                   <div style={{ height: 1, background: theme.borderSoft, margin: '24px 0' }} />
@@ -8184,10 +8371,10 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                             </button>
                             {expanded && (
                               <div style={{ borderTop: `1px solid ${theme.borderSoft}`, overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
                                   <thead>
                                     <tr style={{ background: theme.surfaceSoft }}>
-                                      {[tRating('table.criterion'), tRating('table.weighting'), tRating('table.source'), tRating('table.automatic'), tRating('table.final'), tRating('table.confidence'), tRating('table.status'), tRating('table.action')].map((label) => (
+                                      {[tRating('table.criterion'), tRating('table.weighting'), tRating('table.source'), tRating('table.automatic'), tRating('table.final'), tRating('table.status'), tRating('table.action')].map((label) => (
                                         <th key={label} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10.5, color: theme.aubergine, letterSpacing: '0.1em', textTransform: 'uppercase', borderBottom: `1px solid ${theme.borderSoft}` }}>{label}</th>
                                       ))}
                                     </tr>
@@ -8214,7 +8401,6 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: `${theme.ink}99` }}>{labelFrom(ratingSourceLabels, scoreItem.source || scoreItem.criterion?.sourceType)}</td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.ink }}>{scoreItem.prefilledScore || '-'}</td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.aubergine, fontWeight: 850 }}>{disabledByRoofChoice ? '-' : finalValue || '-'}</td>
-                                            <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}`, color: theme.ink }}>{disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)}</td>
                                             <td style={{ padding: '9px 10px', borderBottom: `1px solid ${theme.borderSoft}` }}>
                                               <span style={{ background: missingComment ? theme.errorSoft : rowStatusKey === 'ok' ? theme.successSoft : theme.warningSoft, color: missingComment ? theme.error : rowStatusKey === 'ok' ? theme.success : theme.warning, borderRadius: 999, padding: '3px 8px', fontSize: 11, fontWeight: 850, whiteSpace: 'nowrap' }}>{rowStatus}</span>
                                             </td>
@@ -8226,14 +8412,14 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                           </tr>
                                           {openRatingInfo === scoreItem.id && (
                                             <tr>
-                                              <td colSpan={8} style={{ padding: '9px 12px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45, whiteSpace: 'pre-line' }}>
+                                              <td colSpan={7} style={{ padding: '9px 12px', background: theme.mintLighter, borderBottom: `1px solid ${theme.borderSoft}`, fontSize: 12, color: `${theme.ink}99`, lineHeight: 1.45, whiteSpace: 'pre-line' }}>
                                                 {localizeRatingCriterionDescription(scoreItem.criterion)}
                                               </td>
                                             </tr>
                                           )}
                                           {activeRatingScoreId === scoreItem.id && (
                                             <tr>
-                                              <td colSpan={8} style={{ padding: '14px 16px', background: theme.surfaceSoft, borderBottom: `1px solid ${theme.borderSoft}` }}>
+                                              <td colSpan={7} style={{ padding: '14px 16px', background: theme.surfaceSoft, borderBottom: `1px solid ${theme.borderSoft}` }}>
                                                 <div style={{ display: 'grid', gap: 12 }}>
                                                   <div>
                                                     <div style={{ fontSize: 14, color: theme.aubergine, fontWeight: 900 }}>{localizeRatingCriterion(scoreItem.criterion)}</div>
@@ -8258,7 +8444,6 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                                       )}
                                                     </Field>
                                                     <Field label={tRating('table.source')}><Input value={labelFrom(ratingSourceLabels, scoreItem.source || scoreItem.criterion?.sourceType)} readOnly /></Field>
-                                                    <Field label={tRating('table.confidence')}><Input value={disabledByRoofChoice ? '-' : formatPercent(scoreItem.confidence)} readOnly /></Field>
                                                   </div>
                                                   {missingComment && (
                                                     <div style={{ border: `1px solid ${theme.error}33`, background: theme.errorSoft, color: theme.error, borderRadius: 7, padding: '8px 10px', fontSize: 12.5, fontWeight: 750 }}>
@@ -8323,7 +8508,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                 const missingManualComment = manuallyChanged && !String(ratingCommentValue(score) || '').trim();
                                 return (
                                   <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '12px 14px', background: disabledByRoofChoice ? theme.mintLighter : missingManualComment ? theme.errorSoft : manuallyChanged ? theme.warningSoft : Number(score.confidence || 0) < 0.65 ? theme.warningSoft : 'white', opacity: disabledByRoofChoice ? 0.62 : 1 }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 0.75fr 0.45fr 0.9fr 0.55fr 1.1fr', gap: 10, alignItems: 'center' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1.35fr 0.75fr 0.45fr 0.9fr 1.1fr', gap: 10, alignItems: 'center' }}>
                                       <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                           <div style={{ fontSize: 13, color: theme.ink, fontWeight: 800 }}>{localizeRatingCriterion(score.criterion)}</div>
@@ -8370,10 +8555,6 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                                         )}
                                       </div>
                                       <div>
-                                        <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{tRating('table.confidence')}</div>
-                                        <div style={{ fontSize: 12.5, color: theme.ink }}>{disabledByRoofChoice ? '-' : formatPercent(score.confidence)}</div>
-                                      </div>
-                                      <div>
                                         <div style={{ fontSize: 10.5, color: `${theme.ink}77`, fontWeight: 800, marginBottom: 3 }}>{tRating('table.comment')}</div>
                                         {canManageRating && objectRating.status !== 'approved' ? (
                                           <>
@@ -8404,7 +8585,7 @@ const FallDetail = ({ caseId, onBack, backLabel, role, internalRole = 'employee'
                     {ratingOpenChecks.length ? ratingOpenChecks.map((score) => (
                       <div key={score.id} style={{ borderTop: `1px solid ${theme.borderSoft}`, padding: '9px 0' }}>
                         <div style={{ fontSize: 12.5, color: theme.ink, fontWeight: 800 }}>{localizeRatingCriterion(score.criterion)}</div>
-                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{tRating('table.confidence')} {formatPercent(score.confidence)} · {score.prefilledScore ? tRating('messages.analystReviewRecommended') : tRating('messages.dataMissing')}</div>
+                        <div style={{ fontSize: 11.5, color: `${theme.ink}88`, marginTop: 2 }}>{score.prefilledScore ? tRating('messages.analystReviewRecommended') : tRating('messages.dataMissing')}</div>
                       </div>
                     )) : (
                       <div style={{ fontSize: 12.5, color: `${theme.ink}88` }}>{tRating('messages.noOpenReviews')}</div>

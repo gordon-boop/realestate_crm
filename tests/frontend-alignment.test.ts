@@ -159,6 +159,16 @@ test("frontend case form renders energy class dropdown and barrier-free label", 
   assert.doesNotMatch(prototype, /Barrierearm/);
 });
 
+test("property rating does not expose the technical confidence value", () => {
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+  const germanRating = JSON.parse(readFileSync(new URL("../messages/de/rating.json", import.meta.url), "utf8"));
+  const englishRating = JSON.parse(readFileSync(new URL("../messages/en/rating.json", import.meta.url), "utf8"));
+
+  assert.doesNotMatch(prototype, /tRating\('table\.confidence'\)/);
+  assert.doesNotMatch(germanRating.openItems.lowConfidence, /Confidence/i);
+  assert.doesNotMatch(englishRating.openItems.lowConfidence, /confidence/i);
+});
+
 test("offer tabs use the selected intake model instead of product selection cards", () => {
   const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
   const calculateRoute = readFileSync(new URL("../app/api/properties/[id]/offer/calculate/route.ts", import.meta.url), "utf8");
@@ -203,6 +213,16 @@ test("offer result boxes use clear investment labels", () => {
   assert.doesNotMatch(prototype, /Total Investor Commitment/);
   assert.doesNotMatch(prototype, /Gesamte Investorenauszahlung/);
   assert.doesNotMatch(prototype, /Instandhaltungsreserve/);
+});
+
+test("offer recalculation reuses persisted calculation inputs", () => {
+  const prototype = readFileSync(new URL("../components/prototype/FrontendPrototype.tsx", import.meta.url), "utf8");
+
+  assert.match(prototype, /function offerCalculationParamsWithDefaults/);
+  assert.match(prototype, /offerCalculationParamsWithDefaults\(params, currentOffer\)/);
+  assert.match(prototype, /offerCalculationParamsWithDefaults\(params, currentBindingOffer, currentIndicativeOffer\)/);
+  assert.match(prototype, /offerCalculationInputValue\(field, params, offer/);
+  assert.match(prototype, /offerCalculationInputValue\(field, bindingParams, bindingOffer, indicativeOffer/);
 });
 
 test("property validation accepts lifelong residential right as existing usage model variant", () => {

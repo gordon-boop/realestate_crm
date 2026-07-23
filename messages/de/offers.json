@@ -36,6 +36,17 @@
     "marketData": "Marktdaten / vorläufiger Verkehrswert",
     "offerStatus": "Angebotsstatus / Angebotsdaten"
   },
+  "targetReturn": {
+    "title": "Ziel-IRR aus Objektrating",
+    "ratingClass": "Ratingklasse",
+    "base": "Basis-Ziel-IRR",
+    "corridor": "Zulässiger Korridor",
+    "selected": "Verwendete Ziel-IRR",
+    "source": "Aus dem freigegebenen Objektrating übernommen.",
+    "missing": "Für die Angebotsberechnung ist ein freigegebenes Objektrating erforderlich.",
+    "rangeHint": "Die Ziel-IRR kann innerhalb des Ratingkorridors angepasst werden.",
+    "outOfRange": "Die Ziel-IRR muss innerhalb des Ratingkorridors von {lower} bis {upper} liegen."
+  },
   "inputs": {
     "marketValue": "Verkehrswert (€)",
     "marketValuePlaceholder": "z. B. 650.000",
@@ -195,7 +206,8 @@
     "acceptedModelRequired": "Bitte wählen Sie das angenommene Modell aus.",
     "modelNotOffered": "Das ausgewählte Modell wurde nicht angeboten.",
     "workflowNotPrepared": "Dieser Prozessschritt ist nicht vorbereitet.",
-    "invalidNumber": "Bitte geben Sie eine gültige Zahl ein."
+    "invalidNumber": "Bitte geben Sie eine gültige Zahl ein.",
+    "targetReturnRequired": "Bitte hinterlegen Sie zuerst eine Ziel-IRR im Objektrating."
   },
   "activity": {
     "indicativeCalculated": "Unverbindliches Angebot wurde berechnet.",

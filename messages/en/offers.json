@@ -36,6 +36,17 @@
     "marketData": "Market Data / Preliminary Market Value",
     "offerStatus": "Offer Status / Offer Details"
   },
+  "targetReturn": {
+    "title": "Target IRR from Property Rating",
+    "ratingClass": "Rating Class",
+    "base": "Base Target IRR",
+    "corridor": "Permitted Corridor",
+    "selected": "Applied Target IRR",
+    "source": "Taken from the approved Property Rating.",
+    "missing": "An approved Property Rating is required before an Offer can be calculated.",
+    "rangeHint": "The Target IRR can be adjusted within the Rating corridor.",
+    "outOfRange": "The Target IRR must be within the Rating corridor of {lower} to {upper}."
+  },
   "inputs": {
     "marketValue": "Market Value (€)",
     "marketValuePlaceholder": "e.g. 650,000",
@@ -195,7 +206,8 @@
     "acceptedModelRequired": "Please select the accepted model.",
     "modelNotOffered": "The selected model was not offered.",
     "workflowNotPrepared": "This process step is not available.",
-    "invalidNumber": "Please enter a valid number."
+    "invalidNumber": "Please enter a valid number.",
+    "targetReturnRequired": "Please set a Target IRR in the Property Rating first."
   },
   "activity": {
     "indicativeCalculated": "Indicative Offer calculated.",

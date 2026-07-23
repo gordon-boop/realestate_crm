@@ -497,6 +497,7 @@
       "year": "Jahr",
       "scope": "Umfang",
       "description": "Beschreibung",
+      "noData": "Noch keine Modernisierungsangaben erfasst.",
       "component": "Bauteil",
       "conditionRating": "Zustandsbewertung",
       "conditionDescription": "Zustandsbeschreibung"
