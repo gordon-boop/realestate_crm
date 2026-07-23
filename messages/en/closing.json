@@ -1,0 +1,71 @@
+{
+  "title": "Purchase Agreement & Closing",
+  "subtitle": "From Appraisal and notary preparation through purchase price payment, customer payout and land register entry",
+  "appraisal": "Appraisal",
+  "appraiser": "Appraiser",
+  "commissioned": "Appraisal Commissioned",
+  "received": "Appraisal Received",
+  "sections": {
+    "notaryAndAgreement": "Notary and Purchase Agreement",
+    "closingPaymentRegister": "Closing, Payment and Land Register",
+    "notaryAndContract": "Notary Appointment and Purchase Agreement"
+  },
+  "summary": {
+    "appraisal": "Appraisal",
+    "bindingSubmitted": "Binding Offer Submitted",
+    "bindingAccepted": "Binding Offer Accepted",
+    "notaryAppointment": "Notary Appointment",
+    "open": "Open",
+    "commissioned": "Commissioned",
+    "received": "Received"
+  },
+  "fields": {
+    "appraisalCommissionedOn": "Appraisal Commissioned On",
+    "appraisalFirm": "Appraisal Firm",
+    "appraisalReceivedOn": "Appraisal Received On",
+    "purchaseAgreementNumber": "Purchase Agreement Number",
+    "bindingSubmittedOn": "Binding Offer Submitted On",
+    "bindingAcceptedOn": "Binding Offer Accepted On",
+    "notaryRequestedOn": "Notary Appointment Requested On",
+    "notaryConfirmedFor": "Notary Appointment Confirmed For",
+    "draftReceivedOn": "Draft Purchase Agreement Received On",
+    "draftReviewedOn": "Draft Purchase Agreement Reviewed On",
+    "purchasePrice": "Purchase Price (€)",
+    "deadline": "Deadline / Follow-Up",
+    "agreementSignedOn": "Purchase Agreement Signed On",
+    "priorityNoticeOn": "Priority Notice Registered On",
+    "purchasePriceDueOn": "Purchase Price Due On",
+    "purchasePricePaidOn": "Purchase Price Paid On",
+    "customerPayoutOn": "Customer Payout Completed On",
+    "rightRegisteredOn": "Right of Residence Registered On",
+    "landRegisterCompletedOn": "Land Register Entry Completed On",
+    "closingStatus": "Closing Status",
+    "openItems": "Open Items",
+    "internalComments": "Internal Comments"
+  },
+  "placeholders": {
+    "notRecorded": "Not Yet Recorded",
+    "closingStatus": "e.g. open, reported, completed",
+    "openItems": "e.g. payment due notice or land register extract",
+    "notaryOffice": "Notary / Notary Office"
+  },
+  "help": {
+    "appraisalReadonly": "This information is taken from the Appraisal Commission.",
+    "appraisalImported": "Taken from the Appraisal Commission."
+  },
+  "actions": {
+    "save": "Save Purchase Agreement & Closing",
+    "saving": "Saving...",
+    "notaryScheduled": "Notary Appointment Scheduled",
+    "agreementCompleted": "Purchase Agreement Completed"
+  },
+  "validation": {
+    "notaryDateRequired": "Please enter the notary appointment first.",
+    "notaryOfficeRequired": "Please enter the Notary or Notary Office."
+  },
+  "activity": {
+    "notaryScheduled": "Notary appointment scheduled.",
+    "agreementCompleted": "Purchase Agreement completed.",
+    "closingSaved": "Purchase Agreement & Closing saved."
+  }
+}

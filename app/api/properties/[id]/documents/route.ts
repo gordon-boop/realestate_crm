@@ -61,7 +61,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
       entityId: document.id,
       metadata: { status: document.status, requirementLevel: document.requirementLevel, scanStatus: document.scanStatus, version: document.currentVersion }
     });
-    return json({ document }, { status: 201 });
+    const currentVersion = await prisma.property.findUniqueOrThrow({
+      where: { id: params.id },
+      select: { updatedAt: true }
+    });
+    return json({ document, updatedAt: currentVersion.updatedAt.toISOString() }, { status: 201 });
   } catch (err) {
     return handleApiError(err);
   }

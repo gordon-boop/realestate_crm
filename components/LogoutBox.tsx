@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 export function LogoutBox() {
+  const t = useTranslations("common.buttons");
   const [busy, setBusy] = useState(false);
 
   async function logout() {
@@ -18,7 +20,7 @@ export function LogoutBox() {
 
   return (
     <button className="logout-box" disabled={busy} onClick={logout} type="button">
-      {busy ? "Abmelden ..." : "Logout"}
+      {busy ? t("loggingOut") : t("logout")}
     </button>
   );
 }

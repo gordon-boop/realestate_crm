@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 
 type Marker = {
   id: string;
@@ -28,9 +29,9 @@ type PropertyMapWidgetProps = {
   height?: number;
 };
 
-const STATUS_GROUPS: { label: string; statuses: string[] }[] = [
+const STATUS_GROUPS: { labelKey: string; statuses: string[] }[] = [
   {
-    label: "In Bearbeitung",
+    labelKey: "inProgress",
     statuses: [
       "SUBMITTED",
       "DATA_INCOMPLETE",
@@ -43,7 +44,7 @@ const STATUS_GROUPS: { label: string; statuses: string[] }[] = [
     ],
   },
   {
-    label: "Angebote und Gutachten",
+    labelKey: "offers",
     statuses: [
       "SENT",
       "INDICATIVE_OFFER_SENT",
@@ -55,11 +56,11 @@ const STATUS_GROUPS: { label: string; statuses: string[] }[] = [
     ],
   },
   {
-    label: "Ankauf / Bestand",
+    labelKey: "portfolio",
     statuses: ["PURCHASE_STARTED", "NOTARY_APPOINTMENT", "PURCHASED", "IN_PORTFOLIO", "WON"],
   },
   {
-    label: "Abgeschlossen / Verloren",
+    labelKey: "closed",
     statuses: ["APPOINTMENT_SCHEDULED", "REJECTED", "SOLD", "LOST", "DRAFT"],
   },
 ];
@@ -126,6 +127,9 @@ const DEFAULT_ENABLED = STATUS_GROUPS.flatMap((g) => g.statuses).filter(
 );
 
 export function PropertyMapWidget({ fillHeight = false, height = 288 }: PropertyMapWidgetProps) {
+  const locale = useLocale();
+  const t = useTranslations("dashboard.map");
+  const tStatus = useTranslations("common.status");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const clusterRef = useRef<any>(null);
@@ -229,10 +233,18 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
       });
 
       const marker = L.marker([m.latitude, m.longitude], { icon });
-      marker.bindPopup(buildPopupHtml(m), { maxWidth: 280 });
+      marker.bindPopup(buildPopupHtml(m, {
+        locale,
+        statusLabel: tStatus.has(m.status) ? tStatus(m.status) : m.status,
+        labels: {
+          status: t("status"), model: t("model"), customer: t("customer"), partner: t("partner"),
+          address: t("address"), marketValue: t("marketValue"), payout: t("payout"),
+          approximatePosition: t("approximatePosition")
+        }
+      }), { maxWidth: 280 });
       cluster.addLayer(marker);
     });
-  }, [markers]);
+  }, [markers, locale, t, tStatus]);
 
   const totalCount = markers.length;
   const grouped = useMemo(() => groupMarkersByStatus(markers), [markers]);
@@ -273,9 +285,9 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
         }}
       >
         <div>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Eingereichte Objekte</h3>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{t("title")}</h3>
           <p style={{ margin: "2px 0 0 0", fontSize: 12, color: "#6B7280" }}>
-            {loading ? "Lädt…" : error ? `Fehler: ${error}` : `${totalCount} Objekte sichtbar`}
+            {loading ? t("loading") : error ? t("error", { message: error }) : t("visible", { count: totalCount })}
           </p>
         </div>
       </div>
@@ -291,7 +303,7 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
         <div
           ref={containerRef}
           style={{ height: fillHeight ? "100%" : height, minHeight: height, width: "100%", background: "#F3F4F6" }}
-          aria-label="Deutschlandkarte der eingereichten Objekte"
+          aria-label={t("ariaLabel")}
         />
         <aside
           style={{
@@ -306,7 +318,7 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
             const allEnabled = group.statuses.every((s) => enabledStatuses.includes(s));
             const someEnabled = group.statuses.some((s) => enabledStatuses.includes(s));
             return (
-              <div key={group.label} style={{ marginBottom: 10 }}>
+              <div key={group.labelKey} style={{ marginBottom: 10 }}>
                 <label
                   style={{
                     display: "flex",
@@ -325,7 +337,7 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
                     }}
                     onChange={() => toggleGroup(group.statuses)}
                   />
-                  {group.label}
+                  {t(`groups.${group.labelKey}`)}
                 </label>
                 <div style={{ paddingLeft: 18, display: "flex", flexDirection: "column", gap: 2 }}>
                   {group.statuses.map((status) => (
@@ -347,7 +359,7 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
                           background: STATUS_COLORS[status] ?? "#6B7280",
                         }}
                       />
-                      <span style={{ color: "#374151" }}>{labelForStatus(status)}</span>
+                      <span style={{ color: "#374151" }}>{tStatus.has(status) ? tStatus(status) : status}</span>
                       <span style={{ marginLeft: "auto", color: "#9CA3AF" }}>
                         {grouped[status] ?? 0}
                       </span>
@@ -363,7 +375,8 @@ export function PropertyMapWidget({ fillHeight = false, height = 288 }: Property
   );
 }
 
-function buildPopupHtml(m: Marker): string {
+function buildPopupHtml(m: Marker, context: { locale: string; statusLabel: string; labels: Record<string, string> }): string {
+  const { labels } = context;
   const lines: string[] = [];
   lines.push(`<div style="font-size:12px;line-height:1.45">`);
   lines.push(
@@ -372,24 +385,24 @@ function buildPopupHtml(m: Marker): string {
   if (m.objectTitle) {
     lines.push(`<div style="color:#6B7280;margin-bottom:4px">${escapeHtml(m.objectTitle)}</div>`);
   }
-  lines.push(`<div><strong>Status:</strong> ${escapeHtml(labelForStatus(m.status))}</div>`);
-  lines.push(`<div><strong>Modell:</strong> ${labelForModel(m.desiredModel)}</div>`);
+  lines.push(`<div><strong>${escapeHtml(labels.status)}:</strong> ${escapeHtml(context.statusLabel)}</div>`);
+  lines.push(`<div><strong>${escapeHtml(labels.model)}:</strong> ${labelForModel(m.desiredModel, context.locale)}</div>`);
   if (m.customerName) {
-    lines.push(`<div><strong>Kunde:</strong> ${escapeHtml(m.customerName)}</div>`);
+    lines.push(`<div><strong>${escapeHtml(labels.customer)}:</strong> ${escapeHtml(m.customerName)}</div>`);
   }
   if (m.partnerName) {
-    lines.push(`<div><strong>Partner:</strong> ${escapeHtml(m.partnerName)}</div>`);
+    lines.push(`<div><strong>${escapeHtml(labels.partner)}:</strong> ${escapeHtml(m.partnerName)}</div>`);
   }
-  lines.push(`<div><strong>Adresse:</strong> ${escapeHtml(m.address)}</div>`);
+  lines.push(`<div><strong>${escapeHtml(labels.address)}:</strong> ${escapeHtml(m.address)}</div>`);
   if (m.marketValue !== null) {
-    lines.push(`<div><strong>Marktwert:</strong> ${formatEuro(m.marketValue)}</div>`);
+    lines.push(`<div><strong>${escapeHtml(labels.marketValue)}:</strong> ${formatEuro(m.marketValue, context.locale)}</div>`);
   }
   if (m.payoutAmount !== null) {
-    lines.push(`<div><strong>Auszahlung:</strong> ${formatEuro(m.payoutAmount)}</div>`);
+    lines.push(`<div><strong>${escapeHtml(labels.payout)}:</strong> ${formatEuro(m.payoutAmount, context.locale)}</div>`);
   }
   if (m.geocodingSource === "plz_region") {
     lines.push(
-      `<div style="color:#9CA3AF;font-size:10px;margin-top:6px">Position: ungefähr (PLZ-Region)</div>`
+      `<div style="color:#9CA3AF;font-size:10px;margin-top:6px">${escapeHtml(labels.approximatePosition)}</div>`
     );
   }
   lines.push(`</div>`);
@@ -407,14 +420,14 @@ function labelForStatus(status: string): string {
   return STATUS_LABELS[status] ?? status;
 }
 
-function labelForModel(model: string): string {
-  if (model === "sale_and_leaseback") return "Rückmietverkauf";
-  if (model === "fixed_residential_right") return "Wohnrecht";
+function labelForModel(model: string, locale: string): string {
+  if (model === "sale_and_leaseback") return locale === "en-GB" ? "Sale with Continued Occupancy" : "Rückmietverkauf";
+  if (model === "fixed_residential_right") return locale === "en-GB" ? "Right of Residence" : "Wohnrecht";
   return model;
 }
 
-function formatEuro(value: number): string {
-  return new Intl.NumberFormat("de-DE", {
+function formatEuro(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,

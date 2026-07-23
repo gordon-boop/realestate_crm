@@ -10,6 +10,17 @@ export const intakeDraftRequestSchema = z.object({
 
 export type IntakeDraftRequest = z.infer<typeof intakeDraftRequestSchema>;
 
+export class DraftVersionConflictError extends Error {
+  readonly code = "DRAFT_VERSION_CONFLICT";
+  readonly currentUpdatedAt: string;
+
+  constructor(currentUpdatedAt: Date) {
+    super("Dieser Entwurf wurde zwischenzeitlich geändert. Bitte laden Sie den aktuellen Stand neu.");
+    this.name = "DraftVersionConflictError";
+    this.currentUpdatedAt = currentUpdatedAt.toISOString();
+  }
+}
+
 const propertyTypes = new Set(["house", "single_family", "semi_detached", "row_house", "apartment"]);
 const desiredModels = new Set(["fixed_residential_right", "sale_and_leaseback", "other"]);
 const conditions = new Set(["very_good", "good", "average", "renovation_needed"]);
@@ -55,6 +66,6 @@ export function assertCurrentDraftVersion(actualUpdatedAt: Date, expectedUpdated
   if (!expectedUpdatedAt) return;
   const expected = new Date(expectedUpdatedAt).getTime();
   if (!Number.isFinite(expected) || actualUpdatedAt.getTime() !== expected) {
-    throw new Error("Dieser Entwurf wurde zwischenzeitlich geändert. Bitte laden Sie den aktuellen Stand neu.");
+    throw new DraftVersionConflictError(actualUpdatedAt);
   }
 }

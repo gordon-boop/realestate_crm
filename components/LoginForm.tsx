@@ -1,8 +1,11 @@
 ﻿"use client";
 
 import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 
 export function LoginForm() {
+  const locale = useLocale();
+  const t = useTranslations("common.login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,7 +20,7 @@ export function LoginForm() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error ?? "Login fehlgeschlagen");
+      setError(locale === "de-DE" && payload.error ? payload.error : t("failed"));
       return;
     }
     window.location.href = payload.redirectTo;
@@ -26,15 +29,15 @@ export function LoginForm() {
   return (
     <form className="panel panel-pad grid login-card" onSubmit={submit}>
       <label className="field">
-        <span>E-Mail</span>
+        <span>{t("email")}</span>
         <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" />
       </label>
       <label className="field">
-        <span>Passwort</span>
+        <span>{t("password")}</span>
         <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" />
       </label>
       {error ? <p className="btn-danger" style={{ margin: 0 }}>{error}</p> : null}
-      <button className="btn btn-primary" type="submit">Einloggen</button>
+      <button className="btn btn-primary" type="submit">{t("submit")}</button>
     </form>
   );
 }

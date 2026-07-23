@@ -61,7 +61,20 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     await addDbActivity(result.property.id, user.id, "case_created", "Entwurf wurde angelegt.");
-    return json(result, { status: 201 });
+    const currentVersion = await prisma.property.findUniqueOrThrow({
+      where: { id: result.property.id },
+      select: { updatedAt: true }
+    });
+    return json({
+      success: true,
+      draftId: result.property.id,
+      updatedAt: currentVersion.updatedAt.toISOString(),
+      ...result,
+      property: {
+        ...result.property,
+        updatedAt: currentVersion.updatedAt
+      }
+    }, { status: 201 });
   } catch (err) {
     return handleApiError(err);
   }

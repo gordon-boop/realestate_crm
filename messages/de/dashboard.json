@@ -1,0 +1,121 @@
+{
+  "admin": {
+    "eyebrow": "Intern · CRM",
+    "title": "Ankaufsübersicht",
+    "subtitle": "Leads, Einreichungen und laufende Ankäufe nach Handlungsbedarf.",
+    "newLeads": "Neue Leads",
+    "newSubmissions": "Neue Einreichungen",
+    "acquisitionProcess": "Im Ankaufsprozess",
+    "other": "Sonstiges",
+    "reviewLeads": "Leads prüfen",
+    "reviewSubmissions": "Einreichungen prüfen",
+    "processAcquisitions": "Ankäufe bearbeiten",
+    "openTopics": "Themen öffnen",
+    "latestSubmissions": "Neueste Einreichungen",
+    "submittedProperties": "Eingereichte Objekte",
+    "worklistHint": "Arbeitsliste nach Handlungsbedarf sortiert. Erst hier öffnest du konkrete Vorgänge."
+    ,"newLeadsDescription": "Homepage-Leads, Kontaktanfragen und unqualifizierte Interessenten."
+    ,"newSubmissionsDescription": "Eingereichte Partner- und interne Fälle für die Erstprüfung."
+    ,"acquisitionDescription": "Bewertung, Gutachten, Angebote, Notar und Vertragsvollzug."
+    ,"otherDescription": "Bestand, Bewohneranfragen, Reparaturen, Abrechnungen und laufende Objektverwaltung."
+    ,"emptyBucket": "Keine Vorgänge in diesem Arbeitskorb."
+  },
+  "broker": {
+    "greeting": "Hallo {firstName}",
+    "greetingFallback": "Hallo",
+    "title": "Aktive Fälle",
+    "newLeads": "Neue Leads",
+    "questions": "Rückfragen / fehlende Unterlagen",
+    "followUpOffers": "Angebote nachfassen",
+    "reviewLeads": "Leads prüfen",
+    "requestDocuments": "Unterlagen anfordern",
+    "followUp": "Angebote nachfassen",
+    "newLeadsDescription": "Neue Anfragen prüfen und bei Interesse als Kundenfall übernehmen.",
+    "questionsDescription": "Offene Rückfragen, fehlende Pflichtunterlagen oder Wiedervorlagen bearbeiten.",
+    "offersDescription": "Freigegebene oder versendete Angebote beim Kunden nachhalten.",
+    "emptyBucket": "Keine Vorgänge in diesem Arbeitskorb.",
+    "allCases": "Alle Fälle anzeigen",
+    "pageTitle": "Was steht heute an?",
+    "search": "Fall oder Kunde suchen",
+    "worklistHint": "Handlungsbedarf zuerst, maximal sieben Vorgänge.",
+    "noActiveCases": "Keine passenden aktiven Fälle gefunden.",
+    "moreItems": "{count} weitere Vorgänge vorhanden."
+  },
+  "table": {
+    "caseOrLead": "Fall / Lead",
+    "caseNumber": "Fallnummer",
+    "customer": "Kunde",
+    "origin": "Herkunft",
+    "property": "Objekt",
+    "nextStep": "Nächster Schritt",
+    "status": "Status",
+    "lastActivity": "Letzte Aktivität",
+    "open": "Öffnen",
+    "items": "{count} Vorgänge"
+  },
+  "actions": {
+    "clarifyQuery": "Rückfrage klären",
+    "reviewSubmission": "Einreichung prüfen",
+    "internalDecision": "Interne Entscheidung treffen",
+    "reviewValuation": "Bewertung prüfen",
+    "processIndicativeOffer": "Unverbindliches Angebot bearbeiten",
+    "commissionAppraisal": "Gutachten beauftragen",
+    "recordAppraisal": "Gutachteneingang erfassen",
+    "calculateBindingOffer": "Verbindliches Angebot kalkulieren",
+    "followUpBindingOffer": "Verbindliches Angebot nachfassen",
+    "scheduleNotary": "Notartermin vereinbaren",
+    "processClosing": "Kaufvertrag / Vollzug bearbeiten",
+    "reviewPortfolio": "Bestandsverwaltung prüfen",
+    "reviewSale": "Verkauf prüfen",
+    "reviewSalesProcess": "Verkaufsprozess prüfen",
+    "openItem": "Vorgang öffnen",
+    "qualifyLead": "Lead qualifizieren",
+    "assignOwner": "Verantwortlichen zuweisen",
+    "makeContact": "Kontakt aufnehmen",
+    "convertLead": "In Kundenfall umwandeln",
+    "reviewLead": "Lead prüfen"
+  },
+  "urgent": {
+    "title": "Dringende Aufgaben",
+    "empty": "Keine dringenden Aufgaben."
+  },
+  "warnings": {
+    "openQuery": "Rückfrage offen",
+    "missingDocuments": "Unterlagen fehlen",
+    "overdue": "überfällig",
+    "dueToday": "Wiedervorlage heute"
+  },
+  "map": {
+    "title": "Eingereichte Objekte",
+    "loading": "Lädt...",
+    "error": "Fehler: {message}",
+    "visible": "{count} Objekte sichtbar",
+    "ariaLabel": "Deutschlandkarte der eingereichten Objekte",
+    "status": "Status",
+    "model": "Modell",
+    "customer": "Kunde",
+    "partner": "Partner",
+    "address": "Adresse",
+    "marketValue": "Marktwert",
+    "payout": "Auszahlung",
+    "approximatePosition": "Position: ungefähr (PLZ-Region)",
+    "groups": {
+      "inProgress": "In Bearbeitung",
+      "offers": "Angebote und Gutachten",
+      "portfolio": "Ankauf / Bestand",
+      "closed": "Abgeschlossen / Verloren"
+    }
+  },
+  "caseList": {
+    "eyebrowInternal": "Intern · CRM",
+    "eyebrowPartner": "Partnerportal",
+    "count": "Fälle",
+    "sorted": "Sortiert nach letzter Aktivität",
+    "empty": "Keine Fälle in „{title}“.",
+    "emptyGeneric": "Keine Fälle vorhanden.",
+    "titles": {"drafts": "Entwürfe", "in_progress": "In Bearbeitung", "portfolio": "Bestand", "sold": "Verkauft", "rejected": "Abgelehnt", "fallback": "Fälle"},
+    "subtitles": {"drafts": "Entwürfe, die noch nicht eingereicht wurden.", "in_progress": "Alle aktiven Vorgänge von Einreichung bis Freigabe.", "portfolio": "Fälle im Bestand oder in der Kundenphase nach Versand.", "sold": "Weiterverkaufte oder final abgeschlossene Objekte.", "rejected": "Abgelehnte Vorgänge mit dokumentiertem Grund für den Makler.", "fallback": "Gefilterte Fallliste."},
+    "columns": {"case": "Fall", "origin": "Herkunft", "customer": "Kunde", "partner": "Partner", "property": "Objekt", "status": "Status", "rejection": "Ablehnungsgrund", "lastActivity": "Letzte Aktivität", "currentStep": "Aktueller Schritt", "completion": "Vollständigkeit", "assignee": "Bearbeiter", "lastEdited": "Zuletzt bearbeitet"},
+    "drafts": {"empty": "Keine Entwürfe vorhanden.", "broker": "Makler", "internal": "Interne Bearbeitung", "unassigned": "Nicht zugewiesen", "incomplete": "Unvollständiger Entwurf", "notRecorded": "Noch nicht erfasst", "continue": "Erfassung fortsetzen", "steps": {"1": "Persönliche Daten", "2": "Wunschmodell", "3": "Immobiliendaten", "4": "Modernisierungen", "5": "Dokumente"}}
+  }
+}

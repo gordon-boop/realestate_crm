@@ -1,0 +1,23 @@
+{
+  "home": "Home",
+  "leads": "Leads",
+  "drafts": "Entwürfe",
+  "inProgress": "In Bearbeitung",
+  "portfolio": "Bestand",
+  "sold": "Verkauft",
+  "rejected": "Abgelehnt",
+  "partners": "Partner",
+  "staff": "Mitarbeiter",
+  "other": "Sonstiges",
+  "knowledge": "Wissen",
+  "brochure": "Broschüre",
+  "postbankAtlas": "Postbank Atlas",
+  "faqs": "FAQs",
+  "quickActions": "Schnellfunktionen",
+  "newLead": "Neuer Lead",
+  "newCustomer": "Neukunde erfassen",
+  "createFollowUp": "Wiedervorlage anlegen",
+  "recordRepair": "Reparatur erfassen",
+  "recordStatement": "Abrechnung erfassen",
+  "recordResidentRequest": "Bewohneranfrage erfassen"
+}

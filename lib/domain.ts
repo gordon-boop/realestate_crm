@@ -494,6 +494,16 @@ export type OfferAssumptions = {
   components?: Record<string, number>;
   calculationDetails?: Record<string, unknown>;
   residentialRightVariant?: string;
+  ratingSnapshot?: {
+    ratingId?: string;
+    configVersionId?: string;
+    ratingClass?: string;
+    baseTargetReturn?: number;
+    lowerReturnBound?: number;
+    upperReturnBound?: number;
+    finalTargetReturn?: number;
+    selectedTargetReturn?: number;
+  };
   residentialRightVariantLabel?: string;
   termStatus?: string;
   termWarning?: string;

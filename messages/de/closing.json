@@ -1,0 +1,71 @@
+{
+  "title": "KV-Abwicklung",
+  "subtitle": "Von Gutachten und Notar bis Kaufpreiszahlung, Auszahlung und Grundbucheintragung",
+  "appraisal": "Gutachten",
+  "appraiser": "Gutachter",
+  "commissioned": "Gutachten beauftragt",
+  "received": "Gutachten eingegangen",
+  "sections": {
+    "notaryAndAgreement": "Notar und Kaufvertrag",
+    "closingPaymentRegister": "Vollzug, Zahlung und Grundbuch",
+    "notaryAndContract": "Notartermin und Kaufvertrag"
+  },
+  "summary": {
+    "appraisal": "Gutachten",
+    "bindingSubmitted": "Verbindliches Angebot abgegeben",
+    "bindingAccepted": "Verbindliches Angebot angenommen",
+    "notaryAppointment": "Notartermin",
+    "open": "offen",
+    "commissioned": "beauftragt",
+    "received": "eingegangen"
+  },
+  "fields": {
+    "appraisalCommissionedOn": "Gutachten beauftragt am",
+    "appraisalFirm": "Gutachterfirma",
+    "appraisalReceivedOn": "Gutachten eingegangen am",
+    "purchaseAgreementNumber": "Kaufvertragsnummer",
+    "bindingSubmittedOn": "Verbindliches Angebot abgegeben am",
+    "bindingAcceptedOn": "Verbindliches Angebot angenommen am",
+    "notaryRequestedOn": "Notartermin angefragt am",
+    "notaryConfirmedFor": "Notartermin bestätigt für",
+    "draftReceivedOn": "Kaufvertragsentwurf erhalten am",
+    "draftReviewedOn": "Kaufvertragsentwurf geprüft am",
+    "purchasePrice": "Kaufpreis (€)",
+    "deadline": "Frist / Wiedervorlage",
+    "agreementSignedOn": "Kaufvertrag unterschrieben am",
+    "priorityNoticeOn": "Auflassungsvormerkung eingetragen am",
+    "purchasePriceDueOn": "Kaufpreisfälligkeit eingetreten am",
+    "purchasePricePaidOn": "Kaufpreis gezahlt am",
+    "customerPayoutOn": "Auszahlung erfolgt am",
+    "rightRegisteredOn": "Wohnrecht eingetragen am",
+    "landRegisterCompletedOn": "Grundbucheintragung abgeschlossen am",
+    "closingStatus": "Vollzugsmeldung",
+    "openItems": "Offene Punkte",
+    "internalComments": "Interne Kommentare"
+  },
+  "placeholders": {
+    "notRecorded": "Noch nicht erfasst",
+    "closingStatus": "z. B. offen, gemeldet, abgeschlossen",
+    "openItems": "z. B. Fälligkeitsmitteilung, Grundbuchauszug",
+    "notaryOffice": "Notar / Notariat"
+  },
+  "help": {
+    "appraisalReadonly": "Diese Angaben werden aus der Gutachtenbeauftragung übernommen.",
+    "appraisalImported": "Wird aus der Gutachtenbeauftragung übernommen."
+  },
+  "actions": {
+    "save": "KV-Abwicklung speichern",
+    "saving": "Speichert...",
+    "notaryScheduled": "Notartermin vereinbart",
+    "agreementCompleted": "Kaufvertrag abgeschlossen"
+  },
+  "validation": {
+    "notaryDateRequired": "Bitte tragen Sie zuerst den Notartermin ein.",
+    "notaryOfficeRequired": "Bitte tragen Sie den Notar oder das Notariat ein."
+  },
+  "activity": {
+    "notaryScheduled": "Notartermin vereinbart.",
+    "agreementCompleted": "Kaufvertrag abgeschlossen.",
+    "closingSaved": "KV-Abwicklung gespeichert."
+  }
+}

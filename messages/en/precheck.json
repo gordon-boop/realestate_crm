@@ -1,0 +1,169 @@
+{
+  "title": "Acquisition Pre-Check",
+  "eligibilityTitle": "Acquisition Eligibility / Pre-Check",
+  "summaryPrefix": "Pre-Check: {result}",
+  "knockOutCriteria": "Knock-Out Criteria",
+  "eligible": "Eligible for Acquisition",
+  "notEligible": "Not Eligible for Acquisition",
+  "exceptionReview": "Exception Review",
+  "exceptionReviewRequired": "Exception Review Required",
+  "assessmentIncomplete": "Assessment Incomplete",
+  "valueAssessmentPending": "Value Assessment Pending",
+  "notYetAssessed": "Not Yet Assessed",
+  "exceptionApproved": "Exception Approved",
+  "table": {
+    "criterion": "Criterion",
+    "requirement": "Requirement",
+    "currentValue": "Current Value",
+    "status": "Status",
+    "notice": "Notice"
+  },
+  "status": {
+    "passed": "Passed",
+    "exception_required": "Exception Review Required",
+    "failed": "Failed",
+    "unknown": "Value Assessment Pending"
+  },
+  "results": {
+    "acquirable": "Eligible for Acquisition",
+    "not_acquirable": "Not Eligible for Acquisition",
+    "exception_required": "Exception Review Required",
+    "exception_approved": "Exception Review Approved",
+    "incomplete": "Assessment Incomplete"
+  },
+  "reasons": {
+    "eligible": "All recorded acquisition criteria have been met.",
+    "notEligible": "The case does not meet the acquisition criteria.",
+    "incomplete": "Please complete the Acquisition Pre-Check.",
+    "exceptionRequired": "This case requires exception approval.",
+    "exceptionApproved": "The exception review has been approved.",
+    "koFailed": "At least one knock-out criterion has not been met."
+  },
+  "manualValues": "Manual Pre-Check Values",
+  "fields": {
+    "preliminaryMarketValue": "Preliminary Market Value (€)",
+    "source": "Source",
+    "valuationDate": "Valuation Date",
+    "marketValueComment": "Market Value Comment",
+    "postbankCategory": "Postbank Housing Atlas Category",
+    "landValue": "Standard Land Value (€/m²)",
+    "remainingUsefulLife": "Remaining Useful Life (Years)",
+    "internalComment": "Internal Comment",
+    "developmentPotential": "Development Potential Available",
+    "renovationPlan": "Refurbishment / Modernisation Plan Available",
+    "propertyManagement": "Property / Owners’ Association Management Available",
+    "exceptionReason": "Exception Review Reason"
+  },
+  "placeholders": {
+    "marketValue": "e.g. 520,000",
+    "marketValueComment": "e.g. internal initial estimate",
+    "landValue": "e.g. 420",
+    "remainingUsefulLife": "e.g. 48",
+    "internalComment": "Brief note",
+    "exceptionReason": "Why should the case proceed despite amber criteria?"
+  },
+  "sources": {
+    "manual_estimate": "Manual Estimate",
+    "broker_statement": "Broker Information",
+    "market_data": "Market Data",
+    "internal_initial_estimate": "Internal Initial Estimate",
+    "other": "Other"
+  },
+  "regions": {
+    "green": "Green",
+    "yellow": "Amber",
+    "orange": "Orange",
+    "red": "Red"
+  },
+  "values": {
+    "notRecorded": "Not Recorded",
+    "yes": "Yes",
+    "no": "No",
+    "unknown": "Unknown",
+    "management": "Management: {value}",
+    "renovationPlan": "Refurbishment Plan: {value}",
+    "years": "{value} years"
+  },
+  "criteria": {
+    "region": {
+      "label": "Region According to the Postbank Housing Atlas",
+      "requirement": "Green regions are permitted, amber regions require exception review, and orange/red regions are excluded.",
+      "yellow": "Amber region: exception approval required.",
+      "excluded": "Orange/red regions are excluded."
+    },
+    "market_value": {
+      "preliminaryLabel": "Preliminary Market Value",
+      "appraisalLabel": "Appraised Market Value",
+      "requirement": "At least €250,000 and no more than €1,000,000.",
+      "missingPreliminary": "Please enter a preliminary market value first.",
+      "missingAppraisal": "Please enter the appraised market value first.",
+      "below": "The market value is below €250,000.",
+      "appraisalBelow": "The appraised market value is below €250,000.",
+      "above": "The market value is above €1,000,000.",
+      "appraisalAbove": "The appraised market value is above €1,000,000.",
+      "within": "The market value is within the acquisition range."
+    },
+    "land_value": {
+      "label": "Standard Land Value",
+      "requirement": "More than €100/m².",
+      "failed": "The standard land value is no more than €100/m²."
+    },
+    "property_type": {
+      "label": "Property Type",
+      "requirement": "Residential buildings with up to 2 units, detached, semi-detached or terraced houses, or owner-occupied flats with management.",
+      "managementMissing": "An owner-occupied flat without property or owners’ association management is excluded.",
+      "managementUnknown": "Management must be confirmed for owner-occupied flats."
+    },
+    "remaining_useful_life": {
+      "label": "Remaining Useful Life",
+      "requirement": "More than 35 years; exception review is possible where development potential exists.",
+      "exception": "Short remaining useful life with development potential: exception approval required.",
+      "failed": "The remaining useful life is no more than 35 years."
+    },
+    "energy_class": {
+      "label": "Energy Efficiency Class",
+      "requirement": "Classes A to F are permitted; G/H require a refurbishment/modernisation plan or exception review.",
+      "exception": "Energy class G/H: a refurbishment plan or exception approval is required."
+    },
+    "living_area": {
+      "label": "Living Area per Unit",
+      "requirement": "Less than 225 m² per residential unit.",
+      "exception": "Living area of 225 m² or more: internal exception review required."
+    },
+    "monument_protection": {
+      "label": "Listed Building Status",
+      "requirement": "The property must not be listed.",
+      "failed": "Listed building status is a hard knock-out criterion."
+    },
+    "leasehold": {
+      "label": "Heritable Building Right",
+      "requirement": "No heritable building right.",
+      "failed": "A heritable building right is a hard knock-out criterion."
+    },
+    "rating_threshold": {
+      "label": "Internal Rating Threshold",
+      "requirement": "Rating of at least 2.5 out of 6.0.",
+      "pending": "This criterion will be assessed finally once the rating has been calculated.",
+      "failed": "The rating is below the internal acquisition threshold."
+    }
+  },
+  "actions": {
+    "save": "Save Pre-Check",
+    "requestException": "Request Exception",
+    "approveException": "Approve Exception",
+    "rejectException": "Reject Exception"
+  },
+  "messages": {
+    "saveSuccess": "Pre-Check saved.",
+    "saveFailed": "The Pre-Check could not be saved.",
+    "invalidNumber": "Please enter a valid number.",
+    "requestSuccess": "Exception review requested.",
+    "approveSuccess": "Exception review approved.",
+    "rejectSuccess": "Exception review rejected."
+  },
+  "activity": {
+    "saved": "Acquisition Pre-Check saved.",
+    "preliminaryValueSaved": "Preliminary Market Value saved.",
+    "knockOutIdentified": "Knock-out criterion identified."
+  }
+}

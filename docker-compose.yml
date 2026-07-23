@@ -4,6 +4,7 @@ services:
       context: .
       args:
         NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+        NEXT_PUBLIC_DEFAULT_LOCALE: de-DE
     environment:
       HOSTNAME: "0.0.0.0"
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/wohnkapital_crm"
@@ -14,8 +15,35 @@ services:
       WK_ENABLE_RUNTIME_STORE: ${WK_ENABLE_RUNTIME_STORE:-false}
       WK_ENABLE_MOCK_STORAGE: ${WK_ENABLE_MOCK_STORAGE:-false}
       NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+      DEFAULT_LOCALE: de-DE
+      NEXT_PUBLIC_DEFAULT_LOCALE: de-DE
     ports:
       - "3000:3000"
+    expose:
+      - "3000"
+    depends_on:
+      - db
+
+  app-en:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+        NEXT_PUBLIC_DEFAULT_LOCALE: en-GB
+    environment:
+      HOSTNAME: "0.0.0.0"
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/wohnkapital_crm"
+      NODE_ENV: "production"
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-change-before-production-32chars}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-mvp_session_user}
+      WK_ENABLE_RUNTIME_STORE: ${WK_ENABLE_RUNTIME_STORE:-false}
+      WK_ENABLE_MOCK_STORAGE: ${WK_ENABLE_MOCK_STORAGE:-false}
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+      DEFAULT_LOCALE: en-GB
+      NEXT_PUBLIC_DEFAULT_LOCALE: en-GB
+    ports:
+      - "3001:3000"
     expose:
       - "3000"
     depends_on:

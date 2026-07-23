@@ -20,6 +20,7 @@ export type FixedResidentialRightInput = {
   primaryAge?: number;
   secondAge?: number;
   internalInterestRate: number;
+  targetReturn?: number;
   acquisitionCostRate: number;
   salesCommissionRate: number;
   selectedIndexationScenario?: FixedResidentialRightIndexationScenario;
@@ -221,6 +222,44 @@ function calculateWeightedIrrScenario(
   return { indexationRate, yearlyIrrs, weightedIrr };
 }
 
+function payoutForTargetWeightedIrr(
+  targetReturn: number,
+  maximumPayout: number,
+  transactionCosts: number,
+  maintenanceCashflowShare: number,
+  indexationRate: FixedResidentialRightIndexationScenario,
+  marketValue: number,
+  salesCommissionRate: number,
+  mortalityWeights: number[],
+  calculationDate: Date
+): number {
+  const weightedIrrForPayout = (payout: number) => calculateWeightedIrrScenario(
+    indexationRate,
+    marketValue,
+    Math.max(0.01, payout + transactionCosts + maintenanceCashflowShare),
+    salesCommissionRate,
+    mortalityWeights,
+    calculationDate
+  ).weightedIrr;
+
+  const lowerPayout = 0;
+  const upperPayout = Math.max(0, maximumPayout);
+  if (targetReturn >= weightedIrrForPayout(lowerPayout)) return lowerPayout;
+  if (targetReturn <= weightedIrrForPayout(upperPayout)) return upperPayout;
+
+  let low = lowerPayout;
+  let high = upperPayout;
+  for (let iteration = 0; iteration < 80; iteration += 1) {
+    const midpoint = (low + high) / 2;
+    if (weightedIrrForPayout(midpoint) > targetReturn) {
+      low = midpoint;
+    } else {
+      high = midpoint;
+    }
+  }
+  return (low + high) / 2;
+}
+
 export function calculateFixedResidentialRightOffer(input: FixedResidentialRightInput): FixedResidentialRightResult {
   const calculationDate = normalizeDate(input.calculationDate);
   const marketValue = Math.max(0, input.marketValue);
@@ -231,6 +270,7 @@ export function calculateFixedResidentialRightOffer(input: FixedResidentialRight
   const monthlyGarageRent = Math.max(0, input.monthlyGarageRent ?? 0);
   const propertyType = normalizePropertyType(input.propertyType);
   const internalInterestRate = normalizeRate(input.internalInterestRate, 0.032);
+  const targetReturn = input.targetReturn === undefined ? undefined : normalizeRate(input.targetReturn, 0);
   const acquisitionCostRate = normalizeRate(input.acquisitionCostRate, 0.09);
   const salesCommissionRate = normalizeRate(input.salesCommissionRate, 0.015);
   const selectedIndexationScenario = input.selectedIndexationScenario && indexationScenarios.includes(input.selectedIndexationScenario)
@@ -240,16 +280,28 @@ export function calculateFixedResidentialRightOffer(input: FixedResidentialRight
   const residentialRightValueRaw = monthlyRentPerSqm * livingAreaSqm * 12 * fixedTermYears
     + garageCount * monthlyGarageRent * 12 * fixedTermYears;
   const maintenanceReserveRaw = livingAreaSqm * Math.round(fixedTermYears + 1) * maintenanceRatePerSqmYear(propertyType, input.energyClass);
-  const steeringBasis = marketValue - residentialRightValueRaw - maintenanceReserveRaw;
-  const steeringParameterRaw = steeringBasis * (Math.pow(1 + internalInterestRate, fixedTermYears) - 1);
-  const payoutAmountRaw = marketValue - residentialRightValueRaw - maintenanceReserveRaw - steeringParameterRaw;
   const transactionCostsRaw = marketValue * acquisitionCostRate;
   const maintenanceCashflowShareRaw = maintenanceReserveRaw * (propertyType === "HOUSE" ? 0.7 : 1);
+  const maximumPayoutBeforeReturn = Math.max(0, marketValue - residentialRightValueRaw - maintenanceReserveRaw);
+  const mortalityBasis = selectMortalityBasis(input, calculationDate);
+  const mortalityWeights = buildMortalityWeights(mortalityBasis?.age, mortalityBasis?.gender, fixedTermYears);
+  const payoutAmountRaw = targetReturn === undefined
+    ? maximumPayoutBeforeReturn - maximumPayoutBeforeReturn * (Math.pow(1 + internalInterestRate, fixedTermYears) - 1)
+    : payoutForTargetWeightedIrr(
+        targetReturn,
+        maximumPayoutBeforeReturn,
+        transactionCostsRaw,
+        maintenanceCashflowShareRaw,
+        selectedIndexationScenario,
+        marketValue,
+        salesCommissionRate,
+        mortalityWeights,
+        calculationDate
+      );
+  const steeringParameterRaw = marketValue - residentialRightValueRaw - maintenanceReserveRaw - payoutAmountRaw;
   const totalInvestorCommitmentRaw = payoutAmountRaw + transactionCostsRaw;
   const initialOutflow = payoutAmountRaw + transactionCostsRaw + maintenanceCashflowShareRaw;
 
-  const mortalityBasis = selectMortalityBasis(input, calculationDate);
-  const mortalityWeights = buildMortalityWeights(mortalityBasis?.age, mortalityBasis?.gender, fixedTermYears);
   const scenarioResults = indexationScenarios.map((scenario) =>
     calculateWeightedIrrScenario(scenario, marketValue, initialOutflow, salesCommissionRate, mortalityWeights, calculationDate)
   );

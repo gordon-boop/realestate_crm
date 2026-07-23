@@ -1,24 +1,38 @@
 "use client";
 
 import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { getRequiredDocumentsForPropertyType } from "@/lib/document-requirements";
 import { formatAddress } from "@/lib/address";
+import { parseLocaleNumberInput } from "@/lib/utils/numberParsing";
 
 const residentialRightYears = Array.from({ length: 11 }, (_, index) => index + 5);
 
 const modernizationFields = [
-  ["heating", "Heizung"],
-  ["roof", "Dach"],
-  ["facade", "Fassade"],
-  ["windows", "Fenster"],
-  ["lines", "Leitungen"],
-  ["bathrooms", "Bäder"]
+  "heating",
+  "roof",
+  "facade",
+  "windows",
+  "lines",
+  "bathrooms"
 ] as const;
 
-function numberValue(value: FormDataEntryValue | null): number | undefined {
+const buildingConditionFields = [
+  ["Roof", "roof"],
+  ["Facade", "facade"],
+  ["Masonry", "masonry"],
+  ["Windows", "windows"],
+  ["Basement", "basement"],
+  ["Electric", "electric"],
+  ["Sanitary", "sanitary"],
+  ["Interior", "interior"],
+  ["Outdoor", "outdoor"],
+  ["Other", "other"]
+] as const;
+
+function numberValue(value: FormDataEntryValue | null, locale: string): number | undefined {
   if (value === null || value === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return parseLocaleNumberInput(value, locale) ?? undefined;
 }
 
 function stringValue(value: FormDataEntryValue | null): string | undefined {
@@ -28,6 +42,8 @@ function stringValue(value: FormDataEntryValue | null): string | undefined {
 }
 
 export function NewCaseForm() {
+  const t = useTranslations("customers.intake");
+  const locale = useLocale();
   const [error, setError] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [maritalStatus, setMaritalStatus] = useState("");
@@ -57,7 +73,7 @@ export function NewCaseForm() {
     setError("");
     const form = new FormData(event.currentTarget);
     if (form.get("leasehold") === "on" || form.get("monumentProtection") === "on") {
-      setError("Erbbaurecht oder Denkmalschutz ist laut Struktur ein Ausschlusskriterium. Der Fall kann so nicht fortgesetzt werden.");
+      setError(t("messages.exclusionBlocked"));
       return;
     }
 
@@ -102,7 +118,7 @@ export function NewCaseForm() {
     });
     const customerResult = await customerResponse.json();
     if (!customerResponse.ok) {
-      setError(customerResult.error ?? "Kunde konnte nicht angelegt werden");
+      setError(t("messages.customerCreateFailed"));
       return;
     }
 
@@ -113,14 +129,14 @@ export function NewCaseForm() {
       street: form.get("propertyStreet"),
       postalCode: form.get("propertyPostalCode"),
       city: form.get("propertyCity"),
-      livingAreaSqm: numberValue(form.get("livingAreaSqm")),
-      plotAreaSqm: numberValue(form.get("plotAreaSqm")),
-      usableAreaSqm: numberValue(form.get("usableAreaSqm")),
-      yearBuilt: numberValue(form.get("yearBuilt")),
+      livingAreaSqm: numberValue(form.get("livingAreaSqm"), locale),
+      plotAreaSqm: numberValue(form.get("plotAreaSqm"), locale),
+      usableAreaSqm: numberValue(form.get("usableAreaSqm"), locale),
+      yearBuilt: numberValue(form.get("yearBuilt"), locale),
       condition: "average",
       desiredModel: form.get("desiredModel"),
       residentialRightRecipients: form.get("residentialRightRecipients"),
-      desiredResidentialRightYears: desiredModel === "fixed_residential_right" ? numberValue(form.get("desiredResidentialRightYears")) : undefined,
+      desiredResidentialRightYears: desiredModel === "fixed_residential_right" ? numberValue(form.get("desiredResidentialRightYears"), locale) : undefined,
       fixedTermReason: desiredModel === "fixed_residential_right" ? form.get("fixedTermReason") : undefined,
       modelReason: form.get("modelReason"),
       rentalModelDisclosureAccepted: desiredModel === "sale_and_leaseback" ? form.get("rentalModelDisclosureAccepted") === "on" : false,
@@ -128,20 +144,20 @@ export function NewCaseForm() {
       secondResidentialRightWanted: false,
       additionalOfferRequested: form.get("additionalOfferRequested") === "on",
       additionalOfferModel: form.get("additionalOfferRequested") === "on" ? form.get("additionalOfferModel") : undefined,
-      additionalOfferResidentialRightYears: form.get("additionalOfferModel") === "fixed_residential_right" ? numberValue(form.get("additionalOfferResidentialRightYears")) : undefined,
+      additionalOfferResidentialRightYears: form.get("additionalOfferModel") === "fixed_residential_right" ? numberValue(form.get("additionalOfferResidentialRightYears"), locale) : undefined,
       additionalOfferReason: form.get("additionalOfferRequested") === "on" ? form.get("additionalOfferReason") : undefined,
       coOwnershipShares: propertyType === "apartment" ? form.get("coOwnershipShares") : undefined,
       parkingAvailable: hasParking,
       parkingType: hasParking ? form.get("parkingType") : undefined,
-      parkingCount: hasParking ? numberValue(form.get("parkingCount")) : undefined,
+      parkingCount: hasParking ? numberValue(form.get("parkingCount"), locale) : undefined,
       basementType: form.get("basementType"),
       heatingType: form.get("heatingType"),
       heatingEnergySource: form.get("heatingEnergySource"),
       heatingEnergySourceOther: form.get("heatingEnergySource") === "other" ? form.get("heatingEnergySourceOther") : undefined,
-      heatingYear: numberValue(form.get("heatingYear")),
+      heatingYear: numberValue(form.get("heatingYear"), locale),
       energyCarriers: ["photovoltaik", "solarthermie", "batteriespeicher"].filter((name) => form.get(name) === "on"),
       windowMaterial: form.get("windowMaterial"),
-      windowInstallationYear: numberValue(form.get("windowInstallationYear")),
+      windowInstallationYear: numberValue(form.get("windowInstallationYear"), locale),
       asbestosRoofKnown: form.get("asbestosRoofKnown") === "yes",
       energyCertificateAvailable: energyAvailable,
       energyCertificateType: energyAvailable ? form.get("energyCertificateType") : undefined,
@@ -152,9 +168,9 @@ export function NewCaseForm() {
       leaseholdOrMonument: form.get("leasehold") === "on" || form.get("monumentProtection") === "on",
       knownDefects: form.get("knownDefects"),
       remainingDebtKnown: debtKnown,
-      remainingDebtAmount: debtKnown ? numberValue(form.get("remainingDebtAmount")) : undefined,
+      remainingDebtAmount: debtKnown ? numberValue(form.get("remainingDebtAmount"), locale) : undefined,
       modernization: Object.fromEntries(
-        modernizationFields.map(([key]) => [
+        modernizationFields.map((key) => [
           key,
           {
             scope: form.get(`modernization${key}`),
@@ -185,7 +201,7 @@ export function NewCaseForm() {
     });
     const propertyResult = await propertyResponse.json();
     if (!propertyResponse.ok) {
-      setError(propertyResult.error ?? "Objekt konnte nicht angelegt werden");
+      setError(t("messages.propertyCreateFailed"));
       return;
     }
 
@@ -208,173 +224,162 @@ export function NewCaseForm() {
   return (
     <form className="grid" onSubmit={submit}>
       <section className="panel panel-pad grid two">
-        <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>1. Schritt - persönliche Daten</h2>
-        <label className="field"><span>Vorname</span><input name="firstName" required /></label>
-        <label className="field"><span>Nachname</span><input name="lastName" required /></label>
-        <label className="field"><span>Geschlecht</span><select name="gender"><option value="not_specified">Keine Angabe</option><option value="female">Weiblich</option><option value="male">Männlich</option><option value="diverse">Divers</option></select></label>
-        <label className="field"><span>Geburtsdatum</span><input name="dateOfBirth" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} type="date" /></label>
-        <div className="field"><label>Aktuelles Alter</label><div className="panel panel-pad">{currentAge() ?? "-"}</div></div>
-        <label className="field"><span>Familienstand</span><select name="maritalStatus" value={maritalStatus} onChange={(event) => setMaritalStatus(event.target.value)}><option value="">Bitte wählen</option><option value="single">Ledig</option><option value="married">Verheiratet</option><option value="divorced">Geschieden</option><option value="widowed">Verwitwet</option><option value="other">Sonstiges</option></select></label>
-        <label className="field"><span>E-Mail</span><input name="email" type="email" /></label>
-        <label className="field"><span>Telefon</span><input name="phone" /></label>
-        <label className="field"><span>Mobil</span><input name="mobile" /></label>
+        <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>{t("standalone.stepTitle", { step: 1, title: t("steps.personal") })}</h2>
+        <label className="field"><span>{t("personal.firstName")}</span><input name="firstName" required /></label>
+        <label className="field"><span>{t("personal.lastName")}</span><input name="lastName" required /></label>
+        <label className="field"><span>{t("personal.gender")}</span><select name="gender"><option value="not_specified">{t("personal.noAnswer")}</option><option value="female">{t("personal.female")}</option><option value="male">{t("personal.male")}</option><option value="diverse">{t("personal.diverse")}</option></select></label>
+        <label className="field"><span>{t("personal.dateOfBirth")}</span><input name="dateOfBirth" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} type="date" /></label>
+        <div className="field"><label>{t("standalone.currentAge")}</label><div className="panel panel-pad">{currentAge() ?? "-"}</div></div>
+        <label className="field"><span>{t("personal.maritalStatus")}</span><select name="maritalStatus" value={maritalStatus} onChange={(event) => setMaritalStatus(event.target.value)}><option value="">{t("common.select")}</option><option value="single">{t("personal.single")}</option><option value="married">{t("personal.married")}</option><option value="divorced">{t("personal.divorced")}</option><option value="widowed">{t("personal.widowed")}</option><option value="other">{t("property.other")}</option></select></label>
+        <label className="field"><span>{t("personal.email")}</span><input name="email" type="email" /></label>
+        <label className="field"><span>{t("personal.telephone")}</span><input name="phone" /></label>
+        <label className="field"><span>{t("personal.mobile")}</span><input name="mobile" /></label>
 
         {maritalStatus === "married" ? (
           <div className="panel panel-pad grid two" style={{ gridColumn: "1 / -1" }}>
-            <h3 style={{ margin: 0, gridColumn: "1 / -1" }}>Ehepartner / Kunde 2</h3>
-            <label className="field"><span>Vorname</span><input name="spouseFirstName" /></label>
-            <label className="field"><span>Nachname</span><input name="spouseLastName" /></label>
-            <label className="field"><span>Geschlecht</span><select name="spouseGender"><option value="not_specified">Keine Angabe</option><option value="female">Weiblich</option><option value="male">Männlich</option><option value="diverse">Divers</option></select></label>
-            <label className="field"><span>Geburtsdatum</span><input name="spouseDateOfBirth" type="date" /></label>
+            <h3 style={{ margin: 0, gridColumn: "1 / -1" }}>{t("personal.spouse")}</h3>
+            <label className="field"><span>{t("personal.firstName")}</span><input name="spouseFirstName" /></label>
+            <label className="field"><span>{t("personal.lastName")}</span><input name="spouseLastName" /></label>
+            <label className="field"><span>{t("personal.gender")}</span><select name="spouseGender"><option value="not_specified">{t("personal.noAnswer")}</option><option value="female">{t("personal.female")}</option><option value="male">{t("personal.male")}</option><option value="diverse">{t("personal.diverse")}</option></select></label>
+            <label className="field"><span>{t("personal.dateOfBirth")}</span><input name="spouseDateOfBirth" type="date" /></label>
           </div>
         ) : null}
 
-        <label className="field"><span>Monatliche Einkünfte</span><select name="monthlyIncomeRange"><option value="">Bitte wählen</option><option value="under_1000">Unter 1.000 EUR</option><option value="from_1000_to_2000">1.000 - 2.000 EUR</option><option value="from_2000_to_3000">2.000 - 3.000 EUR</option><option value="over_3000">Mehr als 3.000 EUR</option></select></label>
+        <label className="field"><span>{t("personal.monthlyIncome")}</span><select name="monthlyIncomeRange"><option value="">{t("common.select")}</option><option value="under_1000">{t("personal.incomeUnder")}</option><option value="from_1000_to_2000">{t("personal.income1000To2000")}</option><option value="from_2000_to_3000">{t("personal.income2000To3000")}</option><option value="over_3000">{t("personal.incomeOver")}</option></select></label>
         {maritalStatus === "married" ? (
-          <label className="field"><span>Wer ist Eigentümer?</span><select name="propertyOwnership"><option value="customer_1">Kunde 1</option><option value="customer_2">Kunde 2</option><option value="both">Beide</option></select></label>
+          <label className="field"><span>{t("standalone.ownerQuestion")}</span><select name="propertyOwnership"><option value="customer_1">{t("personal.customer1")}</option><option value="customer_2">{t("personal.customer2")}</option><option value="both">{t("personal.both")}</option></select></label>
         ) : null}
         <div className="customer-address-grid" style={{ display: "grid", gap: 16, gridColumn: "1 / -1" }}>
-          <label className="field"><span>Straße</span><input name="customerStreet" autoComplete="address-line1" required /></label>
-          <label className="field"><span>Hausnummer</span><input name="customerHouseNumber" type="text" autoComplete="address-line2" required /></label>
-          <label className="field"><span>PLZ</span><input name="customerPostalCode" inputMode="numeric" autoComplete="postal-code" required /></label>
-          <label className="field"><span>Ort</span><input name="customerCity" autoComplete="address-level2" required /></label>
+          <label className="field"><span>{t("personal.street")}</span><input name="customerStreet" autoComplete="address-line1" required /></label>
+          <label className="field"><span>{t("personal.houseNumber")}</span><input name="customerHouseNumber" type="text" autoComplete="address-line2" required /></label>
+          <label className="field"><span>{t("personal.postalCode")}</span><input name="customerPostalCode" inputMode="numeric" autoComplete="postal-code" required /></label>
+          <label className="field"><span>{t("personal.city")}</span><input name="customerCity" autoComplete="address-level2" required /></label>
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="consentDataProcessing" type="checkbox" required /> DSGVO-Einwilligung liegt vor</label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="consentDataProcessing" type="checkbox" required /> {t("standalone.consentConfirmed")}</label>
       </section>
 
       <section className="panel panel-pad grid two">
-        <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>2. Schritt - Wunschmodell</h2>
-        <label className="field"><span>Modell</span><select name="desiredModel" value={desiredModel} onChange={(event) => setDesiredModel(event.target.value)} required><option value="">Bitte wählen</option><option value="fixed_residential_right">Wohnrecht</option><option value="sale_and_leaseback">Rückmietverkauf</option></select></label>
-        <label className="field"><span>Wer soll das Wohnrecht bekommen?</span><select name="residentialRightRecipients"><option value="one_person">Eine Person</option><option value="both">Beide Personen</option></select></label>
+        <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>{t("standalone.stepTitle", { step: 2, title: t("steps.model") })}</h2>
+        <label className="field"><span>{t("standalone.model")}</span><select name="desiredModel" value={desiredModel} onChange={(event) => setDesiredModel(event.target.value)} required><option value="">{t("common.select")}</option><option value="fixed_residential_right">{t("model.residentialRight")}</option><option value="sale_and_leaseback">{t("model.rentBackSale")}</option></select></label>
+        <label className="field"><span>{t("model.recipients")}</span><select name="residentialRightRecipients"><option value="one_person">{t("model.onePerson")}</option><option value="both">{t("model.bothPeople")}</option></select></label>
 
         {desiredModel === "fixed_residential_right" ? (
           <>
-            <label className="field"><span>Dauer des Wohnrechts</span><select name="desiredResidentialRightYears" defaultValue="10">{residentialRightYears.map((year) => <option key={year} value={year}>{year} Jahre</option>)}</select></label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="rentalOptionDeselected" type="checkbox" /> Spätere Anmietoption abwählen</label>
-            <label className="field" style={{ gridColumn: "1 / -1" }}><span>Grund der Befristung</span><textarea name="fixedTermReason" rows={3} /></label>
+            <label className="field"><span>{t("model.duration")}</span><select name="desiredResidentialRightYears" defaultValue="10">{residentialRightYears.map((year) => <option key={year} value={year}>{year} {t("model.years")}</option>)}</select></label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="rentalOptionDeselected" type="checkbox" /> {t("standalone.declineLaterRental")}</label>
+            <label className="field" style={{ gridColumn: "1 / -1" }}><span>{t("model.fixedTermReason")}</span><textarea name="fixedTermReason" rows={3} /></label>
           </>
         ) : (
           <div className="panel panel-pad" style={{ gridColumn: "1 / -1", borderColor: "var(--accent)" }}>
-            <p style={{ marginTop: 0 }}><strong>Hinweis Rückmietverkauf:</strong> Dem Kunden muss klar sein, dass ab Tag 1 nach Verkauf eine Miete zu zahlen ist.</p>
-            <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="rentalModelDisclosureAccepted" type="checkbox" required /> Belehrung wurde mit dem Kunden besprochen</label>
+            <p style={{ marginTop: 0 }}><strong>{t("model.rentBackDisclosure")}</strong> {t("model.rentBackDisclosureText")}</p>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="rentalModelDisclosureAccepted" type="checkbox" required /> {t("standalone.disclosureDiscussed")}</label>
           </div>
         )}
 
-        <label className="field" style={{ gridColumn: "1 / -1" }}><span>Grund für das gewünschte Modell</span><textarea name="modelReason" rows={3} placeholder="z.B. konkrete Umzugsplanung, finanzielle Situation, gewünschte Flexibilität" /></label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, gridColumn: "1 / -1" }}><input name="additionalOfferRequested" type="checkbox" checked={additionalOfferRequested} onChange={(event) => setAdditionalOfferRequested(event.target.checked)} /> Kunde wünscht ein zweites Angebot</label>
+        <label className="field" style={{ gridColumn: "1 / -1" }}><span>{t("standalone.modelReason")}</span><textarea name="modelReason" rows={3} placeholder={t("standalone.modelReasonPlaceholder")} /></label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, gridColumn: "1 / -1" }}><input name="additionalOfferRequested" type="checkbox" checked={additionalOfferRequested} onChange={(event) => setAdditionalOfferRequested(event.target.checked)} /> {t("standalone.secondOfferRequested")}</label>
         {additionalOfferRequested ? (
           <div className="panel panel-pad grid two" style={{ gridColumn: "1 / -1" }}>
-            <h3 style={{ margin: 0, gridColumn: "1 / -1" }}>Zweites Angebotsmodell</h3>
-            <label className="field"><span>Modell</span><select name="additionalOfferModel" value={additionalOfferModel} onChange={(event) => setAdditionalOfferModel(event.target.value)}><option value="fixed_residential_right">Wohnrecht</option><option value="sale_and_leaseback">Rückmietverkauf</option></select></label>
+            <h3 style={{ margin: 0, gridColumn: "1 / -1" }}>{t("standalone.secondOfferModel")}</h3>
+            <label className="field"><span>{t("standalone.model")}</span><select name="additionalOfferModel" value={additionalOfferModel} onChange={(event) => setAdditionalOfferModel(event.target.value)}><option value="fixed_residential_right">{t("model.residentialRight")}</option><option value="sale_and_leaseback">{t("model.rentBackSale")}</option></select></label>
             {additionalOfferModel === "fixed_residential_right" ? (
-              <label className="field"><span>Dauer Wohnrecht</span><select name="additionalOfferResidentialRightYears" defaultValue="10">{residentialRightYears.map((year) => <option key={year} value={year}>{year} Jahre</option>)}</select></label>
+              <label className="field"><span>{t("model.duration")}</span><select name="additionalOfferResidentialRightYears" defaultValue="10">{residentialRightYears.map((year) => <option key={year} value={year}>{year} {t("model.years")}</option>)}</select></label>
             ) : null}
-            <label className="field" style={{ gridColumn: "1 / -1" }}><span>Grund / Hinweise zum zweiten Angebot</span><textarea name="additionalOfferReason" rows={3} /></label>
+            <label className="field" style={{ gridColumn: "1 / -1" }}><span>{t("standalone.secondOfferReason")}</span><textarea name="additionalOfferReason" rows={3} /></label>
           </div>
         ) : null}
       </section>
 
       <section className="panel panel-pad grid two">
-        <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>3. Schritt - Immobiliendaten</h2>
-        <label className="field"><span>Objekttyp</span><select name="propertyType" value={propertyType} onChange={(event) => setPropertyType(event.target.value)}><option value="single_family">Einfamilienhaus</option><option value="semi_detached">Doppelhaushälfte</option><option value="row_house">Reihenhaus</option><option value="apartment">Eigentumswohnung</option></select></label>
-        <label className="field"><span>Straße</span><input name="propertyStreet" required /></label>
-        <label className="field"><span>PLZ</span><input name="propertyPostalCode" required /></label>
-        <label className="field"><span>Ort</span><input name="propertyCity" required /></label>
-        <label className="field"><span>Wohnfläche qm</span><input name="livingAreaSqm" type="number" min="1" required /></label>
-        <label className="field"><span>Grundstück qm</span><input name="plotAreaSqm" type="number" min="0" required /></label>
-        <label className="field"><span>Nutzfläche qm</span><input name="usableAreaSqm" type="number" min="0" /></label>
-        <label className="field"><span>Baujahr</span><input name="yearBuilt" type="number" min="1800" max="2026" /></label>
+        <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>{t("standalone.stepTitle", { step: 3, title: t("steps.property") })}</h2>
+        <label className="field"><span>{t("property.type")}</span><select name="propertyType" value={propertyType} onChange={(event) => setPropertyType(event.target.value)}><option value="single_family">{t("property.singleFamily")}</option><option value="semi_detached">{t("property.semiDetached")}</option><option value="row_house">{t("property.terraced")}</option><option value="apartment">{t("property.apartment")}</option></select></label>
+        <label className="field"><span>{t("personal.street")}</span><input name="propertyStreet" required /></label>
+        <label className="field"><span>{t("personal.postalCode")}</span><input name="propertyPostalCode" required /></label>
+        <label className="field"><span>{t("personal.city")}</span><input name="propertyCity" required /></label>
+        <label className="field"><span>{t("property.livingArea")}</span><input name="livingAreaSqm" type="text" inputMode="decimal" required /></label>
+        <label className="field"><span>{t("property.plotArea")}</span><input name="plotAreaSqm" type="text" inputMode="decimal" required /></label>
+        <label className="field"><span>{t("property.usableArea")}</span><input name="usableAreaSqm" type="text" inputMode="decimal" /></label>
+        <label className="field"><span>{t("property.yearBuilt")}</span><input name="yearBuilt" type="number" min="1800" max="2026" /></label>
         {propertyType === "apartment" ? (
-          <label className="field"><span>Miteigentumsanteile</span><input name="coOwnershipShares" placeholder="z.B. 124/1000" /></label>
+          <label className="field"><span>{t("property.coOwnership")}</span><input name="coOwnershipShares" placeholder={t("standalone.coOwnershipPlaceholder")} /></label>
         ) : null}
-        <label className="field"><span>Optik</span><select name="visualConditionRating" required><option value="">Bitte wählen</option><option value="very_bad">Sehr schlecht</option><option value="bad">Schlecht</option><option value="moderate">Mäßig</option><option value="medium">Mittel</option><option value="good">Gut</option><option value="very_good">Sehr gut</option></select></label>
-        <label className="field"><span>Keller</span><select name="basementType"><option value="none">Nein</option><option value="partial">Teilunterkellert</option><option value="full">Vollunterkellert</option></select></label>
-        <label className="field"><span>Heizungsart</span><select name="heatingType"><option value="">Bitte wählen</option><option value="central">Zentralheizung</option><option value="floor">Etagenheizung</option><option value="electric">Elektroheizung</option><option value="single_stove">Einzelofen</option><option value="none">Keine</option></select></label>
-        <label className="field"><span>Energieträger / Wärmeerzeuger</span><select name="heatingEnergySource" value={heatingEnergySource} onChange={(event) => setHeatingEnergySource(event.target.value)}><option value="">Bitte wählen</option><option value="gas">Gas</option><option value="oil">Öl</option><option value="district_heating">Fernwärme</option><option value="heat_pump">Wärmepumpe</option><option value="electricity">Strom</option><option value="wood_pellets">Holz/Pellets</option><option value="hybrid">Hybrid</option><option value="other">Sonstige</option></select></label>
-        {heatingEnergySource === "other" ? <label className="field"><span>Beschreibung Energieträger</span><input name="heatingEnergySourceOther" /></label> : null}
-        <label className="field"><span>Baujahr / Modernisierung Heizung</span><input name="heatingYear" type="number" min="1900" max="2026" /></label>
+        <label className="field"><span>{t("property.appearance")}</span><select name="visualConditionRating" required><option value="">{t("common.select")}</option><option value="very_bad">{t("property.veryPoor")}</option><option value="bad">{t("property.poor")}</option><option value="moderate">{t("property.fair")}</option><option value="medium">{t("property.average")}</option><option value="good">{t("property.good")}</option><option value="very_good">{t("property.veryGood")}</option></select></label>
+        <label className="field"><span>{t("property.basement")}</span><select name="basementType"><option value="none">{t("property.noBasement")}</option><option value="partial">{t("property.partialBasement")}</option><option value="full">{t("property.fullBasement")}</option></select></label>
+        <label className="field"><span>{t("property.heatingType")}</span><select name="heatingType"><option value="">{t("common.select")}</option><option value="central">{t("property.centralHeating")}</option><option value="floor">{t("property.floorHeating")}</option><option value="electric">{t("property.electricHeating")}</option><option value="single_stove">{t("property.singleStove")}</option><option value="none">{t("common.none")}</option></select></label>
+        <label className="field"><span>{t("property.energySource")}</span><select name="heatingEnergySource" value={heatingEnergySource} onChange={(event) => setHeatingEnergySource(event.target.value)}><option value="">{t("common.select")}</option><option value="gas">{t("property.gas")}</option><option value="oil">{t("property.oil")}</option><option value="district_heating">{t("property.districtHeating")}</option><option value="heat_pump">{t("property.heatPump")}</option><option value="electricity">{t("property.electricity")}</option><option value="wood_pellets">{t("property.woodPellets")}</option><option value="hybrid">{t("property.hybrid")}</option><option value="other">{t("property.other")}</option></select></label>
+        {heatingEnergySource === "other" ? <label className="field"><span>{t("property.energySourceDescription")}</span><input name="heatingEnergySourceOther" /></label> : null}
+        <label className="field"><span>{t("standalone.heatingYear")}</span><input name="heatingYear" type="number" min="1900" max="2026" /></label>
         <div style={{ gridColumn: "1 / -1", display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <label><input name="photovoltaik" type="checkbox" /> Photovoltaik</label>
-          <label><input name="solarthermie" type="checkbox" /> Solarthermie</label>
-          <label><input name="batteriespeicher" type="checkbox" /> Batteriespeicher</label>
+          <label><input name="photovoltaik" type="checkbox" /> {t("property.photovoltaics")}</label>
+          <label><input name="solarthermie" type="checkbox" /> {t("property.solarThermal")}</label>
+          <label><input name="batteriespeicher" type="checkbox" /> {t("property.batteryStorage")}</label>
         </div>
-        <label className="field"><span>Fenstermaterial</span><select name="windowMaterial"><option value="">Bitte wählen</option><option value="wood">Holz</option><option value="aluminium">Aluminium</option><option value="plastic">Kunststoff</option></select></label>
-        <label className="field"><span>Installationsjahr Fenster</span><input name="windowInstallationYear" type="number" min="1900" max="2026" /></label>
-        <label className="field"><span>Asbest im Dach bekannt?</span><select name="asbestosRoofKnown"><option value="no">Nein</option><option value="yes">Ja</option></select></label>
-        <label className="field"><span>Energieausweis vorhanden?</span><select name="energyCertificateAvailable" value={energyCertificateAvailable} onChange={(event) => setEnergyCertificateAvailable(event.target.value)}><option value="no">Nein</option><option value="yes">Ja</option></select></label>
+        <label className="field"><span>{t("property.windowMaterial")}</span><select name="windowMaterial"><option value="">{t("common.select")}</option><option value="wood">{t("property.wood")}</option><option value="aluminium">{t("property.aluminium")}</option><option value="plastic">{t("property.plastic")}</option></select></label>
+        <label className="field"><span>{t("property.windowYear")}</span><input name="windowInstallationYear" type="number" min="1900" max="2026" /></label>
+        <label className="field"><span>{t("property.asbestos")}</span><select name="asbestosRoofKnown"><option value="no">{t("common.no")}</option><option value="yes">{t("common.yes")}</option></select></label>
+        <label className="field"><span>{t("standalone.energyCertificateAvailable")}</span><select name="energyCertificateAvailable" value={energyCertificateAvailable} onChange={(event) => setEnergyCertificateAvailable(event.target.value)}><option value="no">{t("common.no")}</option><option value="yes">{t("common.yes")}</option></select></label>
         {energyCertificateAvailable === "yes" ? (
           <>
-            <label className="field"><span>Typ Energieausweis</span><select name="energyCertificateType" required><option value="">Bitte wählen</option><option value="demand">Bedarfsausweis</option><option value="consumption">Verbrauchsausweis</option></select></label>
-            <label className="field"><span>Energieklasse</span><select name="energyClass" required><option value="">Bitte wählen</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option><option value="F">F</option><option value="G">G</option><option value="H">H</option></select></label>
+            <label className="field"><span>{t("property.certificateType")}</span><select name="energyCertificateType" required><option value="">{t("common.select")}</option><option value="demand">{t("property.demandCertificate")}</option><option value="consumption">{t("property.consumptionCertificate")}</option></select></label>
+            <label className="field"><span>{t("property.energyClass")}</span><select name="energyClass" required><option value="">{t("common.select")}</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option><option value="F">F</option><option value="G">G</option><option value="H">H</option></select></label>
           </>
         ) : null}
-        <label className="field"><span>Parkplatz</span><select name="parkingType" value={parkingType} onChange={(event) => setParkingType(event.target.value)}><option value="">Kein Parkplatz</option><option value="garage">Garage</option><option value="carport">Carport</option><option value="outdoor_space">Stellplatz</option><option value="duplex">Doppelparker</option></select></label>
-        {parkingType ? <label className="field"><span>Anzahl Parkplätze</span><input name="parkingCount" type="number" min="1" defaultValue="1" /></label> : null}
+        <label className="field"><span>{t("standalone.parking")}</span><select name="parkingType" value={parkingType} onChange={(event) => setParkingType(event.target.value)}><option value="">{t("standalone.noParking")}</option><option value="garage">{t("property.garage")}</option><option value="carport">{t("property.carport")}</option><option value="outdoor_space">{t("property.outdoorParking")}</option><option value="duplex">{t("property.undergroundParking")}</option></select></label>
+        {parkingType ? <label className="field"><span>{t("standalone.parkingCount")}</span><input name="parkingCount" type="number" min="1" defaultValue="1" /></label> : null}
         <div style={{ gridColumn: "1 / -1", display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="leasehold" type="checkbox" /> Erbbaurecht vorhanden</label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="monumentProtection" type="checkbox" /> Denkmalschutz vorhanden</label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="leasehold" type="checkbox" /> {t("standalone.leaseholdPresent")}</label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input name="monumentProtection" type="checkbox" /> {t("standalone.listedPresent")}</label>
         </div>
-        <label className="field" style={{ gridColumn: "1 / -1" }}><span>Mängel / Sanierungsdiskussionen / Reparaturen</span><textarea name="knownDefects" rows={3} /></label>
-        <label className="field" style={{ gridColumn: "1 / -1" }}><span>Allgemeine Hinweise zur Immobilie oder zum Kunden</span><textarea name="generalPropertyNotes" rows={3} /></label>
+        <label className="field" style={{ gridColumn: "1 / -1" }}><span>{t("standalone.defects")}</span><textarea name="knownDefects" rows={3} /></label>
+        <label className="field" style={{ gridColumn: "1 / -1" }}><span>{t("standalone.generalNotes")}</span><textarea name="generalPropertyNotes" rows={3} /></label>
       </section>
 
       <section className="panel panel-pad grid">
-        <h2 style={{ margin: 0 }}>4. Schritt - Modernisierung</h2>
+        <h2 style={{ margin: 0 }}>{t("standalone.stepTitle", { step: 4, title: t("steps.modernisations") })}</h2>
         <div className="grid" style={{ gap: 10 }}>
-          {modernizationFields.map(([key, label]) => (
+          {modernizationFields.map((key) => (
             <div key={key} className="grid" style={{ gridTemplateColumns: "1.1fr 0.7fr 1fr", gap: 12 }}>
-              <label className="field"><span>{label}</span><select name={`modernization${key}`}><option value="none">Keine</option><option value="partial">Teilweise</option><option value="complete">Vollständig</option></select></label>
-              <label className="field"><span>Jahr</span><input name={`modernization${key}Year`} placeholder="z.B. 2018" /></label>
-              <label className="field"><span>Hinweis</span><input name={`modernization${key}Note`} placeholder="Maßnahme / Besonderheit" /></label>
+              <label className="field"><span>{t(`modernisations.components.${key}`)}</span><select name={`modernization${key}`}><option value="none">{t("modernisations.none")}</option><option value="partial">{t("modernisations.partial")}</option><option value="complete">{t("modernisations.complete")}</option></select></label>
+              <label className="field"><span>{t("modernisations.year")}</span><input name={`modernization${key}Year`} placeholder={t("standalone.yearPlaceholder")} /></label>
+              <label className="field"><span>{t("modernisations.note")}</span><input name={`modernization${key}Note`} placeholder={t("standalone.modernisationNotePlaceholder")} /></label>
             </div>
           ))}
         </div>
-        <h3 style={{ margin: "12px 0 0" }}>Zustand</h3>
+        <h3 style={{ margin: "12px 0 0" }}>{t("modernisations.condition")}</h3>
         <div className="grid">
-          {[
-            ["Roof", "Dach"],
-            ["Facade", "Fassade"],
-            ["Masonry", "Mauerwerk"],
-            ["Windows", "Fenster"],
-            ["Basement", "Keller"],
-            ["Electric", "Elektrik"],
-            ["Sanitary", "Sanitär"],
-            ["Interior", "Innenausbau"],
-            ["Outdoor", "Außenanlagen"],
-            ["Other", "Sonstiges"]
-          ].map(([item, label]) => (
+          {buildingConditionFields.map(([item, key]) => (
             <div className="grid two" key={item}>
-              <label className="field"><span>Zustandsbewertung {label}</span><select name={`condition${item}`}><option value="">Bitte wählen</option><option value="medium">Mittel</option><option value="very_bad">Marode</option><option value="bad">Schlecht</option><option value="moderate">Mäßig</option><option value="good">Gut</option><option value="very_good">Sehr gut</option><option value="unknown">Unbekannt</option></select></label>
-              <label className="field"><span>Zustandsbeschreibung {label}</span><input name={`condition${item}Note`} placeholder="z.B. keine sichtbaren Schäden" /></label>
+              <label className="field"><span>{t("standalone.conditionRating", { component: t(`modernisations.components.${key}`) })}</span><select name={`condition${item}`}><option value="">{t("common.select")}</option><option value="medium">{t("property.average")}</option><option value="very_bad">{t("standalone.derelict")}</option><option value="bad">{t("property.poor")}</option><option value="moderate">{t("property.fair")}</option><option value="good">{t("property.good")}</option><option value="very_good">{t("property.veryGood")}</option><option value="unknown">{t("common.unknown")}</option></select></label>
+              <label className="field"><span>{t("standalone.conditionDescription", { component: t(`modernisations.components.${key}`) })}</span><input name={`condition${item}Note`} placeholder={t("modernisations.conditionPlaceholder")} /></label>
             </div>
           ))}
         </div>
       </section>
 
       <section className="panel panel-pad grid two">
-        <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>5. Schritt - weitere Angaben und Dokumente</h2>
+        <h2 style={{ margin: 0, gridColumn: "1 / -1" }}>{t("standalone.stepTitle", { step: 5, title: t("standalone.additionalDetailsDocuments") })}</h2>
         <div className="panel panel-pad grid two" style={{ gridColumn: "1 / -1" }}>
-          <h3 style={{ margin: 0, gridColumn: "1 / -1" }}>Restschuld</h3>
-          <label className="field"><span>Gibt es eine Restschuld?</span><select name="remainingDebtKnown" value={remainingDebtKnown} onChange={(event) => setRemainingDebtKnown(event.target.value)}><option value="no">Nein</option><option value="yes">Ja</option></select></label>
-          {remainingDebtKnown === "yes" ? <label className="field"><span>Höhe der Restschuld</span><input name="remainingDebtAmount" type="number" min="0" step="1000" required /></label> : null}
+          <h3 style={{ margin: 0, gridColumn: "1 / -1" }}>{t("property.remainingDebt")}</h3>
+          <label className="field"><span>{t("standalone.remainingDebtQuestion")}</span><select name="remainingDebtKnown" value={remainingDebtKnown} onChange={(event) => setRemainingDebtKnown(event.target.value)}><option value="no">{t("common.no")}</option><option value="yes">{t("common.yes")}</option></select></label>
+          {remainingDebtKnown === "yes" ? <label className="field"><span>{t("standalone.remainingDebtAmount")}</span><input name="remainingDebtAmount" type="text" inputMode="decimal" required /></label> : null}
         </div>
         <div className="panel panel-pad" style={{ gridColumn: "1 / -1" }}>
-          <h3 style={{ marginTop: 0 }}>Benötigte Unterlagen</h3>
+          <h3 style={{ marginTop: 0 }}>{t("standalone.requiredDocuments")}</h3>
           {requiredDocuments.map((item) => (
             <p key={item.category}>
-              <strong>{item.label}</strong><br />
-              <span className="muted">{item.note ?? "Bitte hochladen, sobald vorhanden."}</span>
+              <strong>{t.has(`documents.categories.${item.category}`) ? t(`documents.categories.${item.category}`) : item.label}</strong><br />
+              <span className="muted">{t.has(`documents.notes.${item.category}`) ? t(`documents.notes.${item.category}`) : t("standalone.uploadWhenAvailable")}</span>
             </p>
           ))}
         </div>
-        <label className="field"><span>Unterlage hochladen</span><input name="documentFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" /></label>
-        <label className="field"><span>Kategorie</span><select name="documentCategory">{requiredDocuments.map((item) => <option key={item.category} value={item.category}>{item.label}</option>)}<option value="power_of_attorney">Vollmacht Grundbuch</option><option value="repair_offer">Reparaturangebot</option><option value="other">Sonstiges</option></select></label>
-        <label className="field"><span>Pflichtstatus</span><select name="documentRequirementLevel"><option value="required">Pflicht</option><option value="recommended">Empfohlen</option><option value="optional">Optional</option></select></label>
-        <label className="field" style={{ gridColumn: "1 / -1" }}><span>Notizen</span><textarea name="notes" rows={4} /></label>
+        <label className="field"><span>{t("standalone.uploadDocument")}</span><input name="documentFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx" /></label>
+        <label className="field"><span>{t("standalone.category")}</span><select name="documentCategory">{requiredDocuments.map((item) => <option key={item.category} value={item.category}>{t.has(`documents.categories.${item.category}`) ? t(`documents.categories.${item.category}`) : item.label}</option>)}<option value="power_of_attorney">{t("documents.categories.power_of_attorney")}</option><option value="repair_offer">{t("documents.categories.repair_offer")}</option><option value="other">{t("documents.categories.other")}</option></select></label>
+        <label className="field"><span>{t("standalone.requirementLevel")}</span><select name="documentRequirementLevel"><option value="required">{t("common.required")}</option><option value="recommended">{t("standalone.recommended")}</option><option value="optional">{t("common.optional")}</option></select></label>
+        <label className="field" style={{ gridColumn: "1 / -1" }}><span>{t("standalone.notes")}</span><textarea name="notes" rows={4} /></label>
       </section>
 
       {error ? <p className="btn-danger">{error}</p> : null}
-      <div><button className="btn btn-primary" type="submit">Fall anlegen</button></div>
+      <div><button className="btn btn-primary" type="submit">{t("standalone.createCase")}</button></div>
     </form>
   );
 }

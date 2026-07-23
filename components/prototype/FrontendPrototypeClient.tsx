@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import type { ComponentType } from "react";
 import type { User } from "@/lib/domain";
 import { hausVorteilDesignTokens } from "@/lib/design/tokens";
@@ -21,12 +22,17 @@ const FrontendPrototype = dynamic(
   () => import("./FrontendPrototype") as Promise<{ default: ComponentType<FrontendPrototypeProps> }>,
   {
   ssr: false,
-  loading: () => (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: hausVorteilDesignTokens.color.background, color: hausVorteilDesignTokens.color.primary, fontFamily: "Inter, Aptos, Segoe UI, system-ui, sans-serif" }}>
-      CRM wird geladen...
-    </div>
-  )
+  loading: () => <PrototypeLoading />
 });
+
+function PrototypeLoading() {
+  const t = useTranslations("common.feedback");
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: hausVorteilDesignTokens.color.background, color: hausVorteilDesignTokens.color.primary, fontFamily: "Inter, Aptos, Segoe UI, system-ui, sans-serif" }}>
+      {t("crmLoading")}
+    </div>
+  );
+}
 
 export function FrontendPrototypeClient({
   initialRole = "partner",

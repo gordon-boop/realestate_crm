@@ -1,0 +1,23 @@
+{
+  "home": "Home",
+  "leads": "Leads",
+  "drafts": "Drafts",
+  "inProgress": "In Progress",
+  "portfolio": "Portfolio",
+  "sold": "Sold",
+  "rejected": "Rejected",
+  "partners": "Partners",
+  "staff": "Staff",
+  "other": "Other",
+  "knowledge": "Resources",
+  "brochure": "Brochure",
+  "postbankAtlas": "Postbank Atlas",
+  "faqs": "FAQs",
+  "quickActions": "Quick Actions",
+  "newLead": "New lead",
+  "newCustomer": "Create customer",
+  "createFollowUp": "Create follow-up",
+  "recordRepair": "Record repair",
+  "recordStatement": "Record cost statement",
+  "recordResidentRequest": "Record resident enquiry"
+}
